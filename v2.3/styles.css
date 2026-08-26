@@ -1332,3 +1332,34 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-scene-next { font-size: 10px; color: #9a9080; letter-spacing: 0.2em; }
 #k-scene.k-sc-done #k-scene-skip { display: none; }
 #k-scene.k-sc-done #k-scene-next { color: #e0c084; }
+
+/* ═══ BUILD 30 — what a first-time player is never told ═══════════════════ */
+
+/* A HERO CAN BE PICKED UP AND PUT SOMEWHERE. Nothing said so. Cards are
+   visibly card-shaped objects that ask to be touched; a figure standing in a
+   diorama gives no such cue, so row position read as fixed — and Backstab,
+   which pays out on the row you step OUT of, read as unreliable rather than as
+   something you set up yourself. The step glyph rides permanently on the row
+   plate. */
+.k-movecue { width: 9px; height: 9px; margin-right: 3px; vertical-align: -0.5px; opacity: 0.75; }
+.k-hero-row b { font-weight: inherit; font-size: inherit; letter-spacing: inherit; }
+
+/* THE FREE SWAP WAS EXPLAINED IN A title ATTRIBUTE. This is a game for a
+   touchscreen, where a tooltip that needs a mouse hover is not a hint, it is
+   nothing — a player could finish a whole run never learning cards can be
+   swapped. The caption appears with the dot and leaves when it is spent. */
+.k-cycle-hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: -13px;
+  white-space: nowrap; font-style: normal; font-size: 7.5px; letter-spacing: 0.1em;
+  color: #9a9080; opacity: 0.9; transition: opacity 200ms ease; }
+#k-deck-btn.k-cycle-spent .k-cycle-hint { opacity: 0; }
+
+/* A PULSE IS NOT A SENTENCE. While Quick Throw's discard is pending, the next
+   tap destroys a card instead of playing it, and the only thing saying so was
+   an animation on the fan. */
+#k-discard-prompt { position: absolute; left: 50%; transform: translateX(-50%); bottom: 158px;
+  z-index: 22; padding: 5px 14px; border-radius: 2px; pointer-events: none;
+  background: rgba(120,40,34,0.92); border: 1px solid rgba(224,140,120,0.55);
+  color: #f4e3d8; font-size: 10px; letter-spacing: 0.24em; font-weight: 700;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.6); animation: k-dp-in 220ms cubic-bezier(.2,.9,.3,1); }
+@keyframes k-dp-in { from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+                     to { opacity: 1; transform: translateX(-50%) translateY(0); } }

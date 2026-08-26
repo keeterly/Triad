@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=29" />
+  <link rel="stylesheet" href="styles.css?v=30" />
 </head>
 <body>
   <div id="k-scale">
@@ -38,17 +38,17 @@
         <div id="k-boss-art"><span class="k-fig"><img src="../art/foe-mourner.webp" alt="The Mourning Regent"></span><span class="k-shadow"></span></div>
         <div class="k-hero" data-hero="elin">
           <span class="k-fig"><img src="../art/elin.webp" alt="Elin"></span>
-          <span class="k-hero-row">BACK</span>
+          <span class="k-hero-row"><svg class="k-ico k-movecue" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8 H14 M11 5 L14 8 L11 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><b>BACK</b></span>
           <span class="k-shadow"></span>
         </div>
         <div class="k-hero" data-hero="mira">
           <span class="k-fig"><img src="../art/mira.webp" alt="Mira"></span>
-          <span class="k-hero-row">MID</span>
+          <span class="k-hero-row"><svg class="k-ico k-movecue" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8 H14 M11 5 L14 8 L11 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><b>MID</b></span>
           <span class="k-shadow"></span>
         </div>
         <div class="k-hero" data-hero="ash">
           <span class="k-fig"><img src="../art/kai.webp" alt="Ash"></span>
-          <span class="k-hero-row">FRONT</span>
+          <span class="k-hero-row"><svg class="k-ico k-movecue" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8 H14 M11 5 L14 8 L11 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><b>FRONT</b></span>
           <span class="k-shadow"></span>
         </div>
       </div></div>
@@ -128,14 +128,16 @@
       <div id="k-log" class="k-sr" aria-live="polite"></div>
 
       <!-- the hand -->
+      <div id="k-discard-prompt" class="k-hidden">CHOOSE ONE TO DISCARD</div>
       <div id="k-hand"></div>
 
       <!-- the two piles, as real stacks you can see and open -->
-      <button id="k-deck-btn" class="k-pile" title="Draw pile — drop a card here to swap it">
+      <button id="k-deck-btn" class="k-pile">
         <span class="k-pile-stack"></span>
         <b id="k-deck-n">10</b>
         <em>DECK</em>
-        <span id="k-cycle-dot" title="One free swap this turn"></span>
+        <span id="k-cycle-dot"></span>
+        <em class="k-cycle-hint">drop a card to swap</em>
       </button>
       <button id="k-disc-btn" class="k-pile k-pile-disc" title="Discard">
         <span class="k-pile-stack"></span>
@@ -229,8 +231,8 @@
       </div>
     </section>
   </div>
-  <script src="run.js?v=29"></script>
-  <script src="game.js?v=29"></script>
+  <script src="run.js?v=30"></script>
+  <script src="game.js?v=30"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

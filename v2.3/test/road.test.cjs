@@ -189,6 +189,22 @@ const { boot } = require('./harness.cjs');
     });
     check('GLANCE: the first tap ASKS — nothing has moved, and the stop names itself',
       asked.at === null && card.go && card.html.length > 12, JSON.stringify({ at: asked.at, go: card.go }));
+    // THE LOAD-BEARING RULE HAS TO TRAVEL WITH THE STOP. "Only a memory opens
+    // the deeper nodes" was stated in exactly one place — the sealed-node line
+    // at a fire the player had to have already reached. A run that took only
+    // battles could spend both forks that mattered without ever learning it.
+    const memory = await J(() => {
+      const st = window.R.map().find(n => n.kind === 'story');
+      const prev = window.R.map().find(m => m.col === st.col - 1 && m.to.indexOf(st.id) >= 0);
+      window.R._set({ at: prev.id, path: [prev.id], stop: prev.col + 1 });
+      window.R.tapNode(st.id);
+      return document.getElementById('k-map-card').textContent;
+    });
+    check('GLANCE: a memory says what it is FOR before you take it, not after',
+      /deeper nodes/i.test(memory), memory.replace(/\s+/g, ' ').slice(0, 96));
+    await reset(11);
+    await J(() => { document.querySelector('.k-node.k-n-open').click(); });
+
     check('GLANCE: the card prices the stop before you commit to it',
       /\+\d|REST/.test(card.html), card.html.replace(/\s+/g, ' ').slice(0, 90));
   }

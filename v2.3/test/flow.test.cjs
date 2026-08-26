@@ -44,6 +44,51 @@ const { boot } = require('./harness.cjs');
     };
   });
 
+  // ═══ A0 · WHAT THE SCREEN ACTUALLY SAYS OUT LOUD ═══
+  // A comprehension pass found five things a first-time player is never told.
+  // Each fix is one line of text or one icon; each is worth a gate, because
+  // the failure mode of a hint is that it silently stops being rendered and
+  // nobody notices for six builds.
+  console.log('\n── what the screen says ──');
+  {
+    const dirge = await J(() => {
+      window.K.forceIntent('hymn');
+      const t = (document.getElementById('k-intent') || {}).textContent || '';
+      return { text: t, dirge: window.K.dirgeAmount() };
+    });
+    check('SAYS: the dirge admits it cannot be parried — it looks like every blow that can be',
+      dirge.dirge <= 0 || /no parry/i.test(dirge.text), JSON.stringify(dirge));
+
+    const cue = await J(() => {
+      const rows = [...document.querySelectorAll('.k-hero .k-hero-row')];
+      return { n: rows.length, cues: rows.filter(r => r.querySelector('.k-movecue')).length,
+               words: rows.map(r => (r.querySelector('b') || {}).textContent).join(',') };
+    });
+    check('SAYS: every hero carries a step cue — nothing else said a figure could be moved',
+      cue.n === 3 && cue.cues === 3 && /FRONT/.test(cue.words), JSON.stringify(cue));
+
+    // renderHeroes writes the row word on every render; if it ever writes over
+    // the whole plate again the cue disappears and only this notices
+    const survives = await J(() => {
+      window.K.render();
+      return document.querySelectorAll('.k-hero .k-hero-row .k-movecue').length;
+    });
+    check('SAYS: the step cue survives a re-render — it used to be written over',
+      survives === 3, survives + ' of 3');
+
+    const swap = await J(() => {
+      const hint = document.querySelector('#k-deck-btn .k-cycle-hint');
+      return { text: hint ? hint.textContent : null,
+               titles: document.querySelectorAll('#k-deck-btn[title], #k-cycle-dot[title]').length };
+    });
+    check('SAYS: the free swap is written on the pile, not hidden in a hover tooltip on a touchscreen',
+      !!swap.text && /swap/i.test(swap.text) && swap.titles === 0, JSON.stringify(swap));
+
+    const early = await J(() => window.K.parryGrade(-400));
+    check('SAYS: a rushed input is EARLY, not WAIT — WAIT is a feint’s own correct answer',
+      early === null, 'way-early holds the note: ' + JSON.stringify(early));
+  }
+
   // ═══ A · DECK INTEGRITY + THE EVALUATOR ═══
   console.log('\n── invariants ──');
   {
@@ -697,7 +742,15 @@ const { boot } = require('./harness.cjs');
       const oneLine = ir.height < 34;
       const chips = document.querySelectorAll('#k-intent .k-ichip');
       const iconed = [...chips].every(c => c.querySelector('svg.k-ico') && c.querySelector('b'));
-      const noWords = !/[A-Za-z]{4,}/.test(document.getElementById('k-intent').textContent);
+      // THE TELEGRAPH IS ICONS AND NUMBERS, plus a fixed, tiny vocabulary of
+      // qualifiers — never a name, never a sentence. This used to be "no word
+      // of four letters or more", which was a proxy for the real rule and duly
+      // failed the moment the dirge had to admit it cannot be parried. The
+      // rule is now stated directly: every word on the telegraph must come
+      // from the allow-list, so a name or a hint sentence still fails it.
+      const OK_WORDS = ['all', 'no', 'parry'];
+      const words = (document.getElementById('k-intent').textContent.match(/[A-Za-z]+/g) || []);
+      const noWords = words.every(w => OK_WORDS.indexOf(w.toLowerCase()) >= 0);
       const noBanner = !document.getElementById('k-int-notes') && !document.getElementById('k-int-hint')
         && !document.getElementById('k-int-name');
       const rows = document.querySelectorAll('.k-pt-hero').length;

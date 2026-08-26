@@ -259,6 +259,14 @@ says `A MEMORY OPENS THIS` (the only thing that does), and **too poor** greys
 the *price* rather than the face — so you can still read what you are saving
 for. That last one is the same rule the hand already follows.
 
+> *Superseded at Build 29.* Greying the price alone turned out not to survive
+> a screenshot: at 2 embers every node still read as buyable, because only a
+> 1px border and one small numeral's hue had changed. Unaffordable nodes now
+> dim the whole card. The text stays legible enough to read what you are
+> saving for, but the claim as written above is no longer what the code does.
+> Left in place rather than edited, because a design record that quietly
+> rewrites its own history is worth less than one that shows where it turned.
+
 ### What the tree is worth
 
 The run sim now spends it. A bot that hoards its embers measures a party nobody

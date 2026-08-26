@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 29;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 30;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1275,7 +1275,11 @@ function earlyNudge(ring, ax, ay) {
   ring.classList.remove('k-pr-early'); void ring.offsetWidth; ring.classList.add('k-pr-early');
   const tag = document.createElement('div');
   tag.className = 'k-grade k-grade-early';
-  tag.textContent = 'WAIT…';
+  // NOT 'WAIT…'. A feint's own correct label is WAIT, so the same word was
+  // both the right answer to one note and the penalty for rushing another —
+  // and the Hymn plays tap/feint/hold, so a new player meets both inside one
+  // bar. The nudge says what actually happened instead.
+  tag.textContent = 'EARLY';
   tag.style.left = ax + 'px'; tag.style.top = (ay - 44) + 'px';
   el('k-stage').appendChild(tag);
   setTimeout(() => tag.remove(), 420);
@@ -2002,7 +2006,14 @@ function renderIntent() {
     if (it.charge) chips.push('<span class="k-ichip k-ichip-charge">' + icon('finale') + '<b>' + fmtN(it.charge) + '</b></span>');
     if (it.kind === 'heal') chips.push('<span class="k-ichip k-ichip-heal">' + icon('heal') + '<b>' + fmtN(it.phaseHeal) + '</b></span>');
     const dg = dirgeAmount();
-    if (dg > 0) chips.push('<span class="k-ichip k-ichip-dirge">' + icon('brk') + '<b>' + fmtN(dg) + '</b><i>all</i></span>');
+    // THE DIRGE IS THE ONE BLOW YOU CANNOT ANSWER. It shares the chip
+    // vocabulary with everything you CAN answer, so without saying so it reads
+    // as a parry window the game forgot to open — a bug, rather than the rule
+    // that only Guard and healing reach it. Earlier builds carried the word
+    // UNPARRYABLE on the old intent banner; the chip telegraph dropped it and
+    // never put it back.
+    if (dg > 0) chips.push('<span class="k-ichip k-ichip-dirge">' + icon('brk')
+      + '<b>' + fmtN(dg) + '</b><i>all · no parry</i></span>');
   }
   box.innerHTML = chips.join('');
 }
@@ -2010,6 +2021,12 @@ function renderHand() {
   const hand = el('k-hand'); if (!hand) return;
   const n = C.hand.length, mid = (n - 1) / 2;
   hand.classList.toggle('k-pick-discard', !!C.pendingDiscard);
+  // A PULSE IS NOT A SENTENCE. Quick Throw draws one and then discards one, so
+  // for that moment the next tap destroys a card instead of playing it — and
+  // the only thing saying so was an animation. A player taps to play, and
+  // loses the card believing they played it.
+  const dp = el('k-discard-prompt');
+  if (dp) dp.classList.toggle('k-hidden', !C.pendingDiscard);
   hand.innerHTML = C.hand.map((id, i) => {
     const ev = evaluateCard(id);
     const c = ev.card;
@@ -2218,7 +2235,10 @@ function renderHeroes() {
   document.querySelectorAll('.k-hero').forEach(h => {
     const id = h.dataset.hero;
     for (const r of ROWS) h.classList.toggle('k-row-' + r, C.heroes[id].row === r);
-    h.querySelector('.k-hero-row').textContent = C.heroes[id].row.toUpperCase();
+    // the word only — the row plate also carries a permanent step cue saying
+    // this figure can be picked up and put somewhere, and writing textContent
+    // over the whole plate would delete it every render
+    h.querySelector('.k-hero-row b').textContent = C.heroes[id].row.toUpperCase();
   });
 }
 function renderOutcome() {

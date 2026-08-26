@@ -145,8 +145,13 @@
              blurb: 'It kneels, and it does not tire. Twice the embers, twice the price.' },
     camp:  { id: 'camp', word: 'CAMPFIRE', tone: 'gold',
              blurb: 'Rest and mend, or spend what you carry on what you can become.' },
+    // THE RULE HAS TO TRAVEL WITH THE STOP. "Only a memory opens the deeper
+    // nodes" is the single most important strategic fact in the run, and it
+    // was stated in exactly one place: the sealed-node line at a campfire.
+    // A player can reach the last fork having taken only battles, never seen
+    // the tree, and never learned that the two forks that mattered are spent.
     story: { id: 'story', word: 'MEMORY', tone: 'violet',
-             blurb: 'Something the three of them have not said out loud yet.' },
+             blurb: 'Something they have not said out loud yet — and the only thing that opens the deeper nodes at your fires.' },
     boss:  { id: 'boss', word: 'THE REGENT', tone: 'crown',
              blurb: 'The end of the descent. She has been singing the whole way down.' },
   };
@@ -447,7 +452,7 @@
   function gainText(n) {
     const foe = n.foe && window.K && window.K.FOES ? window.K.FOES[n.foe] : null;
     if (n.kind === 'camp') return '<b>REST</b><em>mend + spend</em>';
-    if (n.kind === 'story') return '<b>+1</b><em>ember · tier</em>';   // and the tier is the only key
+    if (n.kind === 'story') return '<b>+1</b><em>ember · opens deeper nodes</em>';
     if (foe) return '<b>+' + foe.embers + '</b><em>embers · ' + window.K.foeHp(foe) + ' hp</em>';
     return '';
   }
