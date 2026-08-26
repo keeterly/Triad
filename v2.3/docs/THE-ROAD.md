@@ -268,16 +268,39 @@ cheapest-first), so the figure is a **floor** on what the tree is worth:
 
 | | no tree (Build 26) | with the tree |
 |---|---|---|
-| ~half parries, runs completed | 18.3% | **33.3%** |
-| ~half parries, HP left after the elite | 37/112 | **48/112** |
+| ~half parries, runs completed | 18.3% | **25.8%** |
+| ~half parries, deaths at the Regent | 71 of 120 | **62 of 120** |
 | median nodes kindled | — | 3 |
 
-Roughly fifteen points of run completion, which is about right for three
-upgrades bought across six stops.
+Seven and a half points of run completion, at 120 roads per tier. (A 24-road
+pass read 33.3%; the same rule applies here as everywhere else in this project
+— never ship a number from a sample under 100.)
+
+**Where the tree shows up is worth naming, because it is not where you would
+guess.** The half-parry attrition trace is *unchanged* — 88 → 80 → 97 → 37 →
+99 → boss, the same as Build 26 to the point. Campfires sit at columns 2 and 4,
+so the median run has kindled at most one node by the time it reaches the
+elite. The tree's whole effect lands in the tail: nine fewer runs out of 120
+die to the Regent. That is what a progression system bought late in a short
+road actually does, and a summary that only quoted the median HP would have
+reported it as doing nothing.
+
+**And an unexpected tension, which is a good sign for the column-4 fork.** The
+EXCELLENT tier kindles *fewer* nodes than the half-parry tier (median 2 vs 3),
+because a healthy party takes memories over campfires — and memories raise the
+tier without giving you anywhere to spend. Skill buys you access to the deep
+nodes and simultaneously costs you the fires at which to buy them. Nobody
+designed that; it fell out of the road's shape, and it is exactly the kind of
+question a map is supposed to pose.
 
 ### Coverage
 
-`test/camp.test.cjs` — **22/22, zero page errors.** Most of its checks end
+`test/camp.test.cjs` — **23/23, zero page errors.** Most of its checks end
 *inside combat*, because a tree that shows nodes but does not change the fight
 is decoration: the bought card must be the dealt card, the deck must still be
 fifteen, the all-out must rise and must not leak into the next run.
+
+The twenty-third check is a fit test, and it earned its place immediately: ten
+nodes on a 932×430 landscape phone is the entire risk of this screen, and the
+check caught the shared node sitting 20px under the leave button at 32px tall
+— a layout I had written without being able to look at it.
