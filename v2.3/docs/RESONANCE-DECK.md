@@ -310,6 +310,27 @@ still on screen before they spend a single AP.
   before, with the cost orb and owner chip moved onto the art corners so the
   title gets the full width.
 
+### Build 11 — the piles are objects, and cards are seen moving
+
+- **Two real stacks.** The draw pile sits bottom-left beside the AP chip and
+  the discard bottom-right beside END TURN, each a fanned stack of worn card
+  backs with a live count. Either opens as a readable grid (Build 10); now they
+  also read as places on the table rather than two words in a corner.
+- **Every card that leaves the hand is seen leaving it.** Played, cycled,
+  thrown away by Quick Throw, or swept at end of turn, a ghost of the card
+  flies from where it sat into the pile it lands in, and the pile thumps.
+  Drawing flies a card back the other way, out of the deck and onto the new
+  card. An **Exhausted** card is the exception: it burns upward and out of the
+  fight rather than landing anywhere.
+
+**A deck rule changed here.** §3 says "unplayed cards remain"; the designer
+asked for the end of turn to sweep the hand into the discard, which is the
+Spire rule and what makes a discard pile worth watching. `HAND_SWEEP` at the
+top of game.js is that switch — set it false to restore the keep-your-hand
+rule, and nothing else changes. Re-measured with the sweep on: **0% / 43.8% /
+100%** across the parry tiers, wins still landing on rounds 7–9, so the change
+costs nothing in balance.
+
 ### The Dirge — an addition the deck does not list
 
 The Regent's hymn settles on the whole party each enemy phase for unparryable

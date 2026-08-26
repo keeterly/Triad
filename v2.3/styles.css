@@ -227,8 +227,47 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 /* ── piles + end turn ── */
 #k-piles { position: absolute; right: 14px; bottom: 62px; display: flex; flex-direction: column;
   gap: 3px; align-items: flex-end; z-index: 12; }
-#k-piles span { font-size: 8.5px; color: #9a9080; }
-#k-piles b { color: #cfc8ba; }
+.k-pile-note { font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #9a9080; }
+.k-pile-note b { color: #cfc8ba; }
+
+/* ── the two piles: real stacks, tappable, with a live count ── */
+.k-pile { position: absolute; bottom: 16px; width: 52px; height: 72px; z-index: 13;
+  background: none; border: none; padding: 0; cursor: pointer; font-family: inherit;
+  -webkit-tap-highlight-color: transparent; }
+#k-deck-btn { left: 92px; }
+#k-disc-btn { right: 122px; }
+/* the stack itself — three worn card backs, fanned */
+.k-pile-stack { position: absolute; inset: 0; border-radius: 3px;
+  background: linear-gradient(168deg, #2a2419 0%, #1d1811 60%, #14100b 100%);
+  border: 1px solid #6f6753; box-shadow: 0 4px 10px rgba(0,0,0,0.7), inset 0 0 12px rgba(0,0,0,0.6); }
+.k-pile-stack::before, .k-pile-stack::after { content: ''; position: absolute; inset: 0;
+  border-radius: 3px; border: 1px solid rgba(111,103,83,0.75);
+  background: linear-gradient(168deg, #251f16, #17130d); z-index: -1; }
+.k-pile-stack::before { transform: rotate(-4deg) translate(-3px, 2px); }
+.k-pile-stack::after { transform: rotate(3deg) translate(3px, 1px); }
+/* a worn sigil on the back */
+.k-pile-stack { display: flex; align-items: center; justify-content: center; }
+.k-pile-stack:after { }
+.k-pile b { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 21px; font-weight: 700; color: #e6ddc8; z-index: 2;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.95); }
+.k-pile em { position: absolute; left: 0; right: 0; bottom: -13px; font-style: normal;
+  font-size: 7.5px; letter-spacing: 0.16em; color: #9a9080; text-align: center; }
+.k-pile:hover b { color: #ffe9b8; }
+.k-pile:hover .k-pile-stack { border-color: #c9a45c; box-shadow: 0 4px 14px rgba(0,0,0,0.7), 0 0 14px rgba(201,164,92,0.35); }
+.k-pile-empty-stack .k-pile-stack { opacity: 0.4; }
+.k-pile-empty-stack b { color: #6d6450; }
+/* it thumps when something lands in it */
+.k-pile.k-pile-thump .k-pile-stack { animation: k-pilethump 0.28s cubic-bezier(.2,1.4,.4,1); }
+@keyframes k-pilethump { 40% { transform: scale(1.11); } }
+
+/* a card in flight between the hand and a pile */
+.k-fly { position: absolute; z-index: 40; pointer-events: none; border-radius: 3px;
+  background: linear-gradient(172deg, #d3ccba 0%, #c6bda8 55%, #b3a88e 100%);
+  border: 1px solid #6f6753; box-shadow: 0 8px 18px rgba(0,0,0,0.7);
+  transform-origin: 50% 50%; }
+.k-fly-back { background: linear-gradient(168deg, #2a2419 0%, #1d1811 60%, #14100b 100%); }
+
 #k-endturn { position: absolute; right: 14px; bottom: 12px; min-width: 96px; height: 44px;
   background: linear-gradient(168deg, #d8d1c2, #c2b9a3); border: 1px solid #8f866f; border-radius: 5px;
   font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
@@ -437,3 +476,4 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-card-static { pointer-events: none; transform: none !important; }
 .k-pile-empty { font-size: 12px; color: #8e8574; letter-spacing: 0.14em; padding: 30px; }
 .k-pile-hint { font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #6d6450; text-align: center; }
+.k-fly-exhaust { z-index: 41; }

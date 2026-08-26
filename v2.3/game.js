@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 10;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 11;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -188,7 +188,7 @@ function readString(grades, notes) {
 let C = null;
 
 const PHASES = ['INTRO', 'PLAYER_READY', 'CARD_FOCUS', 'PLAYER_ACTION_RESOLVING',
-  'ENEMY_TELEGRAPH', 'ENEMY_ATTACK_LAUNCH', 'RHYTHM_DEFENSE',
+  'HAND_DISCARDING', 'ENEMY_TELEGRAPH', 'ENEMY_ATTACK_LAUNCH', 'RHYTHM_DEFENSE',
   'ENEMY_RESOLUTION', 'HAND_DRAWING', 'VICTORY', 'DEFEAT'];
 function setPhase(p) {
   if (!PHASES.includes(p)) throw new Error('unknown phase ' + p);
@@ -388,6 +388,9 @@ function playCard(cardId, allyId) {
   if (ev.card.target === 'ally' && !allyId) allyId = defaultAlly(owner);
   setPhase('PLAYER_ACTION_RESOLVING');
   C.ap -= ev.currentCost;
+  // the ghost leaves from where the card actually sat, so it must be measured
+  // BEFORE the hand re-renders
+  if (ev.card.exhaust) fxExhaust(cardId); else flyFromHand(cardId, 'discard');
   C.hand.splice(C.hand.indexOf(cardId), 1);
   (ev.card.exhaust ? C.exhausted : C.discard).push(cardId);   // Resonance Exhausts
 
@@ -424,6 +427,7 @@ function playCard(cardId, allyId) {
 // Quick Throw's second half: the player chooses which card to let go.
 function pickDiscard(cardId) {
   if (!C || !C.pendingDiscard || !C.hand.includes(cardId)) return false;
+  flyFromHand(cardId, 'discard');
   C.hand.splice(C.hand.indexOf(cardId), 1);
   C.discard.push(cardId);
   C.pendingDiscard = false;
@@ -436,6 +440,7 @@ function cycleCard(cardId) {
   if (!C || C.phase !== 'PLAYER_READY' || C.pendingDiscard) return false;
   if (C.turnState.cycled || !C.hand.includes(cardId)) return false;
   C.turnState.cycled = true;
+  flyFromHand(cardId, 'discard');
   C.hand.splice(C.hand.indexOf(cardId), 1);
   C.discard.push(cardId);
   drawOne();
@@ -464,8 +469,15 @@ async function endTurn(opts) {
   if (!C || C.phase !== 'PLAYER_READY' || C.pendingDiscard) return null;
   opts = opts || {};
 
-  // END OF PLAYER PHASE — Broken expires here: the meter refills. (The
-  // pending cancel still consumes the next enemy action.)
+  // END OF PLAYER PHASE — the hand sweeps into the discard, one card after
+  // another, so the pile visibly grows and the turn has a full stop.
+  if (HAND_SWEEP && C.hand.length) {
+    setPhase('HAND_DISCARDING');
+    await fxSweepHand();
+  }
+
+  // Broken expires here: the meter refills. (The pending cancel still
+  // consumes the next enemy action.)
   if (C.boss.broken) {
     C.boss.broken = false;
     C.boss.brk = C.boss.breakMax;
@@ -633,6 +645,12 @@ function logLine(t) { C.log.push(t); const el = document.getElementById('k-log')
 // Musical waits are NEVER throttled: the fx sleep() collapses to 24ms under
 // ?test=1 so the suite runs fast, and routing the metronome through it turned
 // the grid into noise. The beat keeps real time in every mode.
+// SLAY-THE-SPIRE HAND ECONOMY. The deck's §3 says "unplayed cards remain";
+// the designer asked for the end of turn to sweep the hand into the discard,
+// which is the Spire rule and the reason the discard pile is worth watching.
+// Set false to restore the deck's keep-your-hand rule — nothing else changes.
+const HAND_SWEEP = true;
+
 const beatWait = (ms) => new Promise(r => setTimeout(r, Math.max(0, ms)));
 const BEAT_MS = 500;             // 120 BPM
 const BEAT_LEADIN = 2;           // beats of empty runway before the first note
@@ -900,8 +918,114 @@ function fxNoteGrade(ring, ax, ay, grade) {
   if (grade === 'perfect') hitstop(94);
 }
 // __SIM: the balance simulator runs thousands of fights; every beat is skipped.
+// ── CARDS IN FLIGHT ───────────────────────────────────────────────────────
+// A card that leaves the hand should be SEEN leaving it. Every route into a
+// pile — played, cycled, thrown away, swept at end of turn — sends a ghost of
+// the card from where it sat to the pile it lands in, and the pile thumps.
+function stageBox() {
+  const st = document.getElementById('k-stage');
+  if (!st) return null;
+  const r = st.getBoundingClientRect();
+  return { st, r, k: r.width / st.offsetWidth || 1 };
+}
+function boxOf(el, S) {
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return { x: (r.left - S.r.left) / S.k, y: (r.top - S.r.top) / S.k,
+           w: r.width / S.k, h: r.height / S.k };
+}
+function flyCard(from, toEl, opts) {
+  const S = stageBox(); if (!S || !from || !toEl) return Promise.resolve();
+  const to = boxOf(toEl, S); if (!to) return Promise.resolve();
+  const o = opts || {};
+  const g = document.createElement('div');
+  g.className = 'k-fly' + (o.faceDown ? ' k-fly-back' : '');
+  g.style.cssText = 'left:' + from.x + 'px;top:' + from.y + 'px;width:' + from.w
+    + 'px;height:' + from.h + 'px;opacity:' + (o.fadeIn ? 0 : 1);
+  if (o.html) g.innerHTML = o.html;
+  S.st.appendChild(g);
+  const ms = testMode() ? 40 : (o.ms || 260);
+  const dx = (to.x + to.w / 2) - (from.x + from.w / 2);
+  const dy = (to.y + to.h / 2) - (from.y + from.h / 2);
+  const scale = Math.min(1, to.w / Math.max(1, from.w));
+  return new Promise(res => {
+    requestAnimationFrame(() => {
+      g.style.transition = 'transform ' + ms + 'ms cubic-bezier(.4,.05,.3,1), opacity ' + ms + 'ms ease';
+      g.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + scale + ') rotate('
+        + (o.spin || 0) + 'deg)';
+      g.style.opacity = o.fadeOut === false ? '1' : '0.15';
+      setTimeout(() => { g.remove(); res(); }, ms + 20);
+    });
+  });
+}
+// EXHAUST does not go to a pile — it burns out of the fight entirely.
+function fxExhaust(cardId) {
+  const node = document.querySelector('.k-card[data-card="' + cardId + '"]');
+  const S = stageBox(); if (!node || !S) return;
+  const b = boxOf(node, S);
+  const g = document.createElement('div');
+  g.className = 'k-fly k-fly-exhaust';
+  g.style.cssText = 'left:' + b.x + 'px;top:' + b.y + 'px;width:' + b.w + 'px;height:' + b.h + 'px;';
+  g.innerHTML = node.innerHTML;
+  S.st.appendChild(g);
+  requestAnimationFrame(() => {
+    g.style.transition = 'transform 460ms ease, opacity 460ms ease, filter 460ms ease';
+    g.style.transform = 'translateY(-42px) scale(1.12)';
+    g.style.opacity = '0';
+    g.style.filter = 'brightness(2.2) saturate(0.2)';
+  });
+  setTimeout(() => g.remove(), 500);
+}
+function pileThump(which) {
+  const p = document.getElementById(which === 'deck' ? 'k-deck-btn' : 'k-disc-btn');
+  if (!p) return;
+  p.classList.remove('k-pile-thump'); void p.offsetWidth; p.classList.add('k-pile-thump');
+  setTimeout(() => p.classList.remove('k-pile-thump'), 320);
+}
+// Send the card that is still sitting in the hand off to a pile.
+function flyFromHand(cardId, which, opts) {
+  const S = stageBox(); if (!S) return Promise.resolve();
+  const node = document.querySelector('.k-card[data-card="' + cardId + '"]');
+  const from = boxOf(node, S);
+  if (!from) return Promise.resolve();
+  const target = document.getElementById(which === 'deck' ? 'k-deck-btn' : 'k-disc-btn');
+  const p = flyCard(from, target, Object.assign({ spin: -12, html: node.innerHTML }, opts || {}));
+  pileThump(which);
+  return p;
+}
+
 const sleep = (ms) => new Promise(r => setTimeout(r, (typeof window !== 'undefined' && window.__SIM) ? 0 : (testMode() ? Math.min(ms, 24) : ms)));
-async function fxDrawOne() { renderHand(); await sleep(testMode() ? 8 : 130); }
+// The sweep: every card left in hand thrown to the discard in quick succession.
+async function fxSweepHand() {
+  const ids = C.hand.slice();
+  for (let i = 0; i < ids.length; i++) {
+    flyFromHand(ids[i], 'discard', { spin: -8 - i * 4, ms: 240 });
+    await sleep(testMode() ? 4 : 55);
+  }
+  while (C.hand.length) C.discard.push(C.hand.pop());
+  renderHand();
+  renderPiles();
+  await sleep(testMode() ? 6 : 180);
+}
+async function fxDrawOne() {
+  const S = stageBox();
+  const deck = document.getElementById('k-deck-btn');
+  const before = S && deck ? boxOf(deck, S) : null;
+  renderHand();
+  // the newest card is the last in the hand; fly a back from the deck onto it
+  if (before) {
+    const id = C.hand[C.hand.length - 1];
+    const node = document.querySelector('.k-card[data-card="' + id + '"]');
+    const to = boxOf(node, S);
+    if (to) {
+      if (node) node.style.opacity = '0';
+      flyCard(before, node, { faceDown: true, fadeOut: false, spin: 8, ms: 200 })
+        .then(() => { if (node) node.style.opacity = ''; });
+      pileThump('deck');
+    }
+  }
+  await sleep(testMode() ? 8 : 150);
+}
 async function fxDirge(n) {
   for (const id of livingHeroes()) {
     popupOver(document.querySelector('.k-hero[data-hero="' + id + '"]'), '−' + fmtN(n), 'k-pop-dirge');

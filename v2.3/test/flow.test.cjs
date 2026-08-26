@@ -72,7 +72,7 @@ const { boot } = require('./harness.cjs');
     check('OPENING COVERAGE: 5 cards, at least one per hero, across 8 seeds', ok, detail);
   }
   {
-    const src = await J(async () => (await (await fetch('game.js?v=10')).text()));
+    const src = await J(async () => (await (await fetch('game.js?v=11')).text()));
     const phaseWrites = (src.match(/C\.phase = /g) || []).length;
     check('ONE TRANSITION OWNER: setPhase is the only C.phase mutator', phaseWrites === 1, phaseWrites + ' assignments');
     check('NO FLOW METER, NO ACTION TRAIL: nothing renders a meter or a trail', await J(() =>
@@ -143,9 +143,10 @@ const { boot } = require('./harness.cjs');
     const keep = (await S()).hand;
     const r = await J(() => window.K.endTurn({ grades: ['miss', 'miss', 'miss', 'miss', 'miss'] }));
     const s = await S();
-    check('UNPLAYED CARDS REMAIN: the hand survives the enemy phase and tops to 5',
-      keep.every(id => s.hand.includes(id)) && s.hand.length === 5,
-      'kept ' + keep.length + ' → hand ' + s.hand.length);
+    check('END-OF-TURN SWEEP: the hand goes to the discard and a fresh 5 is drawn',
+      keep.every(id => s.discard.includes(id)) && s.hand.length === 5
+      && !keep.some(id => s.hand.includes(id) && s.discard.indexOf(id) < 0),
+      'swept ' + keep.length + ' → discard ' + s.discard.length + ', hand ' + s.hand.length);
   }
   await fresh(15);
   {
@@ -766,6 +767,57 @@ const { boot } = require('./harness.cjs');
       pile.sorted.join('|') !== pile.drawOrder.join('|') || pile.cards <= 1,
       'shown: ' + pile.sorted.slice(0, 3).join(',') + ' … actual: ' + pile.drawOrder.slice(0, 3).join(','));
   }
+  // ── the piles are visible objects, and cards are SEEN entering them ──
+  await fresh(7);
+  {
+    const piles = await J(async () => {
+      const st = document.getElementById('k-stage').getBoundingClientRect();
+      const d = document.getElementById('k-deck-btn').getBoundingClientRect();
+      const x = document.getElementById('k-disc-btn').getBoundingClientRect();
+      const out = {
+        deckLeft: d.left - st.left < st.width * 0.35,
+        discRight: st.right - x.right < st.width * 0.35,
+        lowerThird: d.top - st.top > st.height * 0.6 && x.top - st.top > st.height * 0.6,
+        deckN: document.getElementById('k-deck-n').textContent,
+        discN: document.getElementById('k-disc-n').textContent,
+        stateDeck: String(window.K.state().deck.length),
+        stacked: !!document.querySelector('#k-deck-btn .k-pile-stack'),
+      };
+      // playing a card sends a ghost of it to the discard, and the pile thumps
+      window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'twinfang']);
+      window.K.playCard('cleave');
+      out.flying = document.querySelectorAll('.k-fly').length;
+      out.thumped = document.getElementById('k-disc-btn').classList.contains('k-pile-thump');
+      await new Promise(r => setTimeout(r, 260));
+      out.landed = document.querySelectorAll('.k-fly').length === 0;
+      out.discAfter = document.getElementById('k-disc-n').textContent;
+      return out;
+    });
+    check('PILES: a draw stack and a discard stack sit in the lower corners, counting live',
+      piles.deckLeft && piles.discRight && piles.lowerThird && piles.stacked
+      && piles.deckN === piles.stateDeck, JSON.stringify(piles));
+    check('PILES: a played card is seen flying into the discard, and the pile thumps',
+      piles.flying >= 1 && piles.thumped && piles.landed && piles.discAfter === '1',
+      JSON.stringify({ flying: piles.flying, thump: piles.thumped, after: piles.discAfter }));
+  }
+  // ── the end-of-turn sweep, card by card ──
+  await fresh(8);
+  {
+    const sweep = await J(async () => {
+      window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'twinfang']);
+      window.K.forceIntent('benediction');
+      const held = window.K.state().hand.length;
+      window.K.endTurn({ grades: ['miss', 'miss'] });
+      await new Promise(r => setTimeout(r, 40));
+      const mid = document.querySelectorAll('.k-fly').length;
+      await new Promise(r => setTimeout(r, 900));
+      const s = window.K.state();
+      return { held, mid, hand: s.hand.length, discard: s.discard.length };
+    });
+    check('SWEEP: ending the turn throws the whole hand to the discard, one card at a time',
+      sweep.mid >= 1 && sweep.discard >= sweep.held && sweep.hand === 5,
+      JSON.stringify(sweep));
+  }
   // ── hold to inspect, release to dismiss (MTG Arena) ──
   await fresh(7);
   {
@@ -799,7 +851,7 @@ const { boot } = require('./harness.cjs');
       const prevented = !card.dispatchEvent(ev);
       // Chromium does not implement -webkit-touch-callout, so assert the
       // declaration ships in the stylesheet rather than reading it back
-      const css = await (await fetch('styles.css?v=10')).text();
+      const css = await (await fetch('styles.css?v=11')).text();
       const rule = css.slice(css.indexOf('.k-card {'), css.indexOf('.k-card {') + 260);
       return { calloutShipped: /-webkit-touch-callout:\s*none/.test(rule),
                highlightShipped: /-webkit-tap-highlight-color:\s*transparent/.test(rule),
