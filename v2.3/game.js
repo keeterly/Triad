@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 18;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 19;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -269,7 +269,7 @@ function startCombat(opts) {
       bleed: 0, chill: 0, intentIx: 0,
     },
     deck: shuffle(DECK_IDS), hand: [], discard: [], exhausted: [],
-    ap: 3,
+    ap: AP_PER_TURN, apMax: AP_PER_TURN,
     turnState: freshTurnState(),
     bond: { stitches: 0, generated: false },   // the authored Ash+Elin pair
     counterstance: false,       // Ash: next successful parry this round deals +2 Break
@@ -481,6 +481,7 @@ function playCard(cardId, allyId) {
         C.bond.generated = true;
         C.hand.push(RES_ID);
         logLine('◈ RESONANCE — Light Through Steel takes shape in the hand.');
+        fxResonanceBorn();
       }
     }
   }
@@ -522,6 +523,7 @@ function cycleCard(cardId) {
 // MOVE, the way v2.2 asked it: the rows are places, not a toggle, and the
 // refusal has to say WHY — "nothing happened" is the worst answer a board can
 // give a finger that just did something deliberate.
+const AP_PER_TURN = 3;
 const MOVE_COST = 1;
 function moveReason(heroId) {
   if (!C || C.phase !== 'PLAYER_READY' || C.pendingDiscard) return 'not your turn';
@@ -696,7 +698,7 @@ async function endTurn(opts) {
 
   C.boss.intentIx++;
   C.turn++;
-  C.ap = 3;
+  C.ap = C.apMax;
   C.turnState = freshTurnState();
   setPhase('PLAYER_READY');
   renderAll();
@@ -712,7 +714,10 @@ function drawOne() {
   return true;
 }
 function report(outcome, result) { return { outcome, ...(result || {}) }; }
-function logLine(t) { C.log.push(t); const el = document.getElementById('k-log'); if (el) { el.textContent = t; el.classList.remove('k-log-in'); void el.offsetWidth; el.classList.add('k-log-in'); } }
+// The log is a live region now, not a line of italics on the board: the parry
+// receipt over the hero and the numbers on the figures already say everything
+// it used to, and this keeps the fight narrated for a screen reader.
+function logLine(t) { C.log.push(t); const el = document.getElementById('k-log'); if (el) el.textContent = t; }
 
 // ═════════════════════════════════════════════════════════════════════════════
 // RHYTHM DEFENSE UI — notes launch from the Regent and travel to the target
@@ -929,6 +934,13 @@ function runParryNote(spec, ax, ay, idx, total, dur) {
     }, dur + PARRY_GOOD_MS + 30);
   });
 }
+function parryFlash(grade) {
+  const s = document.getElementById('k-stage'); if (!s) return;
+  const f = document.createElement('div');
+  f.className = 'k-pflash k-pflash-' + grade;
+  s.appendChild(f);
+  setTimeout(() => f.remove(), 260);
+}
 function earlyNudge(ring, ax, ay) {
   ring.classList.remove('k-pr-early'); void ring.offsetWidth; ring.classList.add('k-pr-early');
   const tag = document.createElement('div');
@@ -1003,10 +1015,44 @@ async function runVolleyRhythm(hits, answerers, sub) {
 // ═════════════════════════════════════════════════════════════════════════════
 // FX + HITSTOP — coordinated beats; every fx is fail-safe when the DOM's gone.
 // ═════════════════════════════════════════════════════════════════════════════
+// THE FREEZE. v2.2's finding, restated: of the whole on-hit bundle the HITSTOP
+// is the half doing the work — it costs no legibility at all, unlike a white
+// wash. It has to be long enough to perceive: v2.2 shipped 95ms for a heavy and
+// 155ms for a crash, and anything under ~70ms reads as a dropped frame rather
+// than a held one. The old scale here started at 52ms, which is why the blows
+// felt soft next to v2.2.
 function hitstop(ms) {
   const s = document.getElementById('k-stage'); if (!s) return;
+  clearTimeout(s._hsT);
   s.classList.add('k-frozen');
-  setTimeout(() => s.classList.remove('k-frozen'), ms);
+  s._hsT = setTimeout(() => s.classList.remove('k-frozen'), Math.max(70, ms));
+}
+// A blow's weight, in the four steps v2.2 graded: a graze, a hit, a heavy, a
+// crash. Everything downstream reads the tier rather than re-deriving it.
+function impactTier(power) {
+  return power >= 2.0 ? 3 : power >= 1.1 ? 2 : power >= 0.45 ? 1 : 0;
+}
+// EVERY hit flashes. The old rule only flashed above power 1.2, so the ordinary
+// exchange — which is most of a fight — landed with no flash at all.
+function hitFlash(tier, tone) {
+  const s = document.getElementById('k-stage'); if (!s) return;
+  const f = document.createElement('div');
+  f.className = 'k-hitflash k-hitflash-' + (tone || 'hit') + (tier >= 3 ? ' k-hitflash-huge' : tier >= 2 ? ' k-hitflash-big' : '');
+  s.appendChild(f);
+  setTimeout(() => f.remove(), tier >= 3 ? 250 : tier >= 2 ? 200 : 140);
+}
+// A struck figure is KNOCKED, not merely lit. v2.2 recoiled the art away from
+// the blow and flashed it white in the same frame; v2.3 had the flash and no
+// displacement, which is most of why nothing felt like it connected.
+function struck(node, dir, tier) {
+  if (!node) return;
+  const cls = 'k-struck-' + (dir === 'r' ? 'r' : 'l') + (tier >= 3 ? ' k-struck-hard' : '');
+  node.classList.remove('k-struck', 'k-struck-l', 'k-struck-r', 'k-struck-hard');
+  void node.offsetWidth;
+  node.className += ' k-struck ' + cls;
+  clearTimeout(node._struckT);
+  node._struckT = setTimeout(() =>
+    node.classList.remove('k-struck', 'k-struck-l', 'k-struck-r', 'k-struck-hard'), 400);
 }
 // ── IMPACT ────────────────────────────────────────────────────────────────
 // A blow should be FELT, and felt in proportion. Every strike gets the same
@@ -1042,17 +1088,17 @@ function screenPulse(tone) {
   s.appendChild(f);
   setTimeout(() => f.remove(), 340);
 }
-// power ~0.4 (a graze) to ~2.5 (a finisher)
-function fxImpact(node, power, tone) {
+// power ~0.4 (a graze) to ~2.5 (a finisher). dir is the way the struck figure
+// is thrown — 'l' away from the Regent, 'r' away from the party.
+function fxImpact(node, power, tone, dir) {
+  const tier = impactTier(power);
   const c = centreOf(node);
   if (c) shockRing(c.x, c.y, power, tone);
   screenKick(power);
-  if (power > 1.2) screenPulse(tone);
-  if (node) {
-    node.classList.remove('k-struck'); void node.offsetWidth; node.classList.add('k-struck');
-    setTimeout(() => node.classList.remove('k-struck'), 320);
-  }
-  hitstop(Math.round(52 + Math.min(2.2, power) * 46));
+  hitFlash(tier, tone);
+  if (tier >= 2) screenPulse(tone);
+  struck(node, dir, tier);
+  hitstop(tier >= 3 ? 165 : tier >= 2 ? 105 : 75);
 }
 function popupOver(el, text, cls) {
   const stage = document.getElementById('k-stage'); if (!stage || !el) return;
@@ -1071,7 +1117,7 @@ function fxDamageBoss(n, why) {
   popupOver(b, '−' + fmtN(n), (why === 'bleed' ? 'k-pop-bleed' : 'k-pop-dmg')
     + (n >= 12 ? ' k-pop-big' : ''));
   if (b) { b.classList.remove('k-recoil'); void b.offsetWidth; b.classList.add('k-recoil'); }
-  fxImpact(b, Math.min(2.4, n / 6), why === 'bleed' ? 'bleed' : 'hit');
+  fxImpact(b, Math.min(2.4, n / 6), why === 'bleed' ? 'bleed' : 'hit', 'r');
 }
 function fxBreak() { const el = document.getElementById('k-break'); if (el) { el.classList.remove('k-flash'); void el.offsetWidth; el.classList.add('k-flash'); } }
 function fxPlayCard(cardId, ev) {
@@ -1097,7 +1143,27 @@ function fxComboCall(type, node) {
   if (c) shockRing(c.x, c.y, big ? 1.8 : 0.8, 'gold');
   if (big) { screenPulse('gold'); screenKick(1.2); hitstop(140); }
 }
-function fxResonanceCharge() { const el = document.querySelector('.k-bond-row'); if (el) { el.classList.remove('k-flash'); void el.offsetWidth; el.classList.add('k-flash'); } }
+// The bond meter is gone, so the Resonance announces itself the way a combo
+// does — struck over the pair who earned it — instead of ticking a number in
+// the corner that nobody was watching.
+function fxResonanceCharge() {
+  const h = document.querySelector('.k-hero[data-hero="elin"]');
+  if (h) { h.classList.remove('k-acts'); void h.offsetWidth; h.classList.add('k-acts'); }
+}
+function fxResonanceBorn() {
+  const h = document.querySelector('.k-hero[data-hero="ash"]');
+  const S = stageBox(); const c = centreOf(h);
+  if (!S) return;
+  const tag = document.createElement('div');
+  tag.className = 'k-combo-call k-combo-call-big';
+  tag.textContent = 'Resonance';
+  tag.style.left = (c ? c.x + 40 : 340) + 'px';
+  tag.style.top = ((c ? c.y : 200) - 52) + 'px';
+  S.st.appendChild(tag);
+  setTimeout(() => tag.remove(), 1100);
+  if (c) shockRing(c.x + 40, c.y, 2.0, 'gold');
+  screenPulse('gold'); screenKick(1.2); hitstop(150);
+}
 // THE LINE THAT CONNECTS THE GRADES TO THE HP BAR. Without it the player reads
 // a stack of ratings fly past and then watches a number leave their health with
 // no stated relationship between the two.
@@ -1166,9 +1232,11 @@ function fxNoteGrade(ring, ax, ay, grade, kind) {
     stage.appendChild(tag);
     setTimeout(() => tag.remove(), 700);
   }
-  // a clean read has its own snap, and a botched bait stings
-  if (grade === 'perfect') { shockRing(ax, ay, kind === 'burst' ? 1.5 : 1.1, 'gold'); hitstop(94); }
-  else if (grade === 'great') shockRing(ax, ay, 0.7, 'gold');
+  // EVERY landed press flashes the frame, tinted by how well it was read —
+  // v2.2's parry-flash. Without it a note resolves as a word appearing.
+  parryFlash(grade);
+  if (grade === 'perfect') { shockRing(ax, ay, kind === 'burst' ? 1.5 : 1.1, 'gold'); hitstop(110); }
+  else if (grade === 'great') { shockRing(ax, ay, 0.7, 'gold'); hitstop(75); }
   else if (grade === 'miss' && kind === 'bait') { screenPulse('hurt'); screenKick(1.1); }
 }
 // __SIM: the balance simulator runs thousands of fights; every beat is skipped.
@@ -1326,7 +1394,7 @@ async function fxHitResolved(tgtId, taken, negated, flawless) {
   if (taken > 0) {
     popupOver(at || document.getElementById('k-party-hud'), '−' + fmtN(taken),
       'k-pop-dmg k-pop-hurt' + (taken >= 9 ? ' k-pop-big' : ''));
-    fxImpact(at, Math.min(2.4, taken / 5), 'hurt');
+    fxImpact(at, Math.min(2.4, taken / 5), 'hurt', 'l');
   } else if (negated) {
     fxDeflect(at, !!flawless);
   }
@@ -1367,11 +1435,6 @@ function renderBossHud() {
   el('k-bhp-fill').style.width = (C.boss.hp / C.boss.max * 100) + '%';
   el('k-bflag').textContent = (C.boss.broken || C.boss.cancelNext) ? 'BROKEN' : '';
   el('k-turn-n').textContent = C.turn;
-  const bondRow = document.querySelector('.k-bond-row');
-  if (bondRow) {
-    bondRow.classList.toggle('k-bond-ready', C.bond.stitches >= 2);
-    el('k-bond-n').textContent = C.bond.generated ? '◈' : C.bond.stitches + '/2';
-  }
   const pips = [];
   for (let i = 0; i < C.boss.breakMax; i++) pips.push('<span class="k-pip' + (i < C.boss.brk ? ' on' : '') + '"></span>');
   el('k-break').innerHTML = pips.join('');
@@ -1540,14 +1603,22 @@ function effectText(effects) { return prose(effects, true).replace(/<[^>]*>/g, '
 function renderApDial() {
   el('k-ap-num').textContent = C.ap;
   el('k-ap').classList.toggle('k-ap-spent', C.ap === 0);   // a spent orb goes cold
+  // …and the pips say what it is OUT OF, so nobody has to remember the budget
+  const pips = el('k-ap-pips');
+  if (pips) {
+    let out = '';
+    for (let i = 0; i < C.apMax; i++) out += '<span class="k-ap-pip' + (i < C.ap ? '' : ' k-ap-off') + '"></span>';
+    pips.innerHTML = out;
+  }
 }
 function renderPiles() {
   el('k-deck-n').textContent = C.deck.length;
   el('k-disc-n').textContent = C.discard.length;
   el('k-deck-btn').classList.toggle('k-pile-empty-stack', !C.deck.length);
   el('k-disc-btn').classList.toggle('k-pile-empty-stack', !C.discard.length);
-  const cy = el('k-cycle-n');
-  if (cy) cy.textContent = C.turnState.cycled ? '0' : '1';
+  // the free swap is a dot on the draw pile, not a chip of its own
+  const deck = el('k-deck-btn');
+  if (deck) deck.classList.toggle('k-cycle-spent', !!C.turnState.cycled);
 }
 function renderHeroes() {
   document.querySelectorAll('.k-hero').forEach(h => {
@@ -1578,11 +1649,13 @@ function dropTargetAt(x, y, cardId) {
   const stage = el('k-stage');
   if (!stage) return null;
   const inside = (r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
-  // the piles corner is a discrete zone, not a snap candidate
-  const piles = el('k-piles');
-  if (piles) {
-    const r = piles.getBoundingClientRect();
-    if (inside({ left: r.left - 24, right: r.right + 24, top: r.top - 24, bottom: r.bottom + 24 }))
+  // THE DRAW PILE IS THE SWAP. A separate CYCLE chip was a third object in the
+  // corner explaining a rule; putting the card back where cards come from says
+  // the same thing with no words. Only offered while the free swap is unspent.
+  const deck = el('k-deck-btn');
+  if (deck && !C.turnState.cycled) {
+    const r = deck.getBoundingClientRect();
+    if (inside({ left: r.left - 26, right: r.right + 26, top: r.top - 26, bottom: r.bottom + 26 }))
       return { zone: 'piles' };
   }
   const want = cardId ? (CARD_DEFS[cardId].target === 'enemy' ? 'enemy' : 'party') : null;
@@ -1704,7 +1777,7 @@ function aimAnchor(drop) {
   let node = null;
   if (!drop) return null;
   if (drop.zone === 'enemy') node = el('k-boss-art');
-  else if (drop.zone === 'piles') node = el('k-piles');
+  else if (drop.zone === 'piles') node = el('k-deck-btn');
   else if (drop.hero) node = document.querySelector('.k-hero[data-hero="' + drop.hero + '"]');
   else node = el('k-party-hud');
   if (!node) return null;
@@ -1997,6 +2070,13 @@ function bindChrome() {
     h.addEventListener('pointerup', up);
     h.addEventListener('pointercancel', up);
   });
+  // NO CALLOUT, ANYWHERE. The guard used to live on the card button alone, so a
+  // long press on a hero, the Regent or the painted plate still raised iOS's
+  // Copy / Save Image sheet — every one of those is an <img>, which is exactly
+  // what iOS offers to save.
+  el('k-stage').addEventListener('contextmenu', (e) => e.preventDefault());
+  el('k-stage').addEventListener('selectstart', (e) => e.preventDefault());
+  el('k-stage').addEventListener('dragstart', (e) => e.preventDefault());
   el('k-stage').addEventListener('pointerdown', (e) => {
     if (_focus) { closeInspect(); return; }
     if (_sel && !e.target.closest('.k-card') && !e.target.closest('#k-target-ring')) {

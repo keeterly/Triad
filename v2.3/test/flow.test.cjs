@@ -565,8 +565,18 @@ const { boot } = require('./harness.cjs');
         fanned, pips,
         noMove: !document.querySelector('.k-hero-move'),
         ap: document.getElementById('k-ap-num').textContent,
-        cycle: document.getElementById('k-cycle-n').textContent,
-        bond: document.getElementById('k-bond-n').textContent, clipped, worstOver,
+        apPips: document.querySelectorAll('#k-ap-pips .k-ap-pip').length,
+        apLit: document.querySelectorAll('#k-ap-pips .k-ap-pip:not(.k-ap-off)').length,
+        // the far-left furniture is gone: no bond meter, no log line, no CYCLE chip
+        gone: !document.querySelector('.k-bond-row') && !document.getElementById('k-piles')
+              && !document.querySelector('#k-log:not(.k-sr)'),
+        // the telegraph must not print over the Break pips
+        breakClear: (() => {
+          const a = document.getElementById('k-intent').getBoundingClientRect();
+          const b = document.getElementById('k-break').getBoundingClientRect();
+          return a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom;
+        })(),
+        clipped, worstOver,
         overHead, oneLine, noBanner, iconed, noWords, chipN: chips.length,
         preview: window.K.intentPreviewDmg(),
         dirge: !!document.querySelector('#k-intent .k-ichip-dirge'),
@@ -576,7 +586,8 @@ const { boot } = require('./harness.cjs');
     });
     check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; telegraph is icon chips above the Regent; no card clipped',
       ui.disjoint && ui.rows === 3 && ui.bars === 3 && ui.cards === 5 && ui.fanned
-      && ui.pips === 12 && ui.noMove && ui.ap === '3' && ui.cycle === '1' && ui.bond === '0/2'
+      && ui.pips === 12 && ui.noMove && ui.ap === '3' && ui.apPips === 3 && ui.apLit === 3
+      && ui.gone && ui.breakClear
       && ui.clipped === 0 && ui.overHead && ui.oneLine && ui.noBanner
       && ui.iconed && ui.noWords && ui.atk === String(ui.preview) && ui.hasTargetFace && ui.hasDirge,
       JSON.stringify(ui));
@@ -901,6 +912,32 @@ const { boot } = require('./harness.cjs');
       rests >= 1, JSON.stringify({ gaps: beat.gaps, rests }));
   }
   await settle();
+  // ── the dilation: pausing animations is not the effect ──
+  await fresh(7);
+  {
+    const dil = await J(async () => {
+      window.K.forceIntent('hymn');
+      window.K.endTurn();
+      const st = document.getElementById('k-stage');
+      let out = null;
+      for (let i = 0; i < 200 && !out; i++) {
+        if (st.classList.contains('k-slowmo')) {
+          await new Promise(r => setTimeout(r, 190));   // past the drain transition
+          const bg = document.getElementById('k-backdrop');
+          const f = getComputedStyle(bg).filter;
+          const sat = /saturate\(([\d.]+)\)/.exec(f);
+          const br = /brightness\(([\d.]+)\)/.exec(f);
+          out = { sat: sat ? +sat[1] : 1, bright: br ? +br[1] : 1,
+                  vig: getComputedStyle(st, '::before').backgroundImage !== 'none' };
+        }
+        await new Promise(r => setTimeout(r, 10));
+      }
+      return out || { none: true };
+    });
+    check('DILATION: the world drains and a vignette rushes in — not just paused animation',
+      !!dil && !dil.none && dil.sat <= 0.1 && dil.bright <= 0.4 && dil.vig, JSON.stringify(dil));
+  }
+  await settle();
   // ── an early press is forgiven, not consumed ──
   await fresh(7);
   {
@@ -1055,12 +1092,27 @@ const { boot } = require('./harness.cjs');
         kicked: /k-kick/.test(st.className),
         frozen: st.classList.contains('k-frozen'),
         struck: !!document.querySelector('#k-boss-art.k-struck'),
+        // the Regent is thrown AWAY from the party, not merely lit
+        thrown: !!document.querySelector('#k-boss-art.k-struck-r'),
+        // an ORDINARY blow flashes too — the old rule only flashed above 1.2
+        flash: document.querySelectorAll('.k-hitflash').length,
         pop: !!document.querySelector('.k-pop-dmg'),
       };
+      // the freeze has to be long enough to perceive: under ~70ms it reads as a
+      // dropped frame rather than a held one
+      await new Promise(r => setTimeout(r, 66));
+      out.stillFrozen = st.classList.contains('k-frozen');
       await new Promise(r => setTimeout(r, 600));
-      out.cleared = document.querySelectorAll('.k-shock').length === 0 && !/k-kick/.test(st.className);
+      out.left = { shock: document.querySelectorAll('.k-shock').length,
+                   kick: /k-kick/.test(st.className),
+                   flash: document.querySelectorAll('.k-hitflash').length,
+                   frozen: st.classList.contains('k-frozen') };
+      out.cleared = !out.left.shock && !out.left.kick && !out.left.flash && !out.left.frozen;
       return out;
     });
+    check('IMPACT: an ordinary blow flashes, throws the figure, and holds the frame',
+      hit.flash >= 1 && hit.thrown && hit.stillFrozen,
+      JSON.stringify({ flash: hit.flash, thrown: hit.thrown, heldPast66ms: hit.stillFrozen }));
     check('IMPACT: a strike stops the frame, kicks the screen, and blows a shock ring',
       hit.shock >= 1 && hit.kicked && hit.frozen && hit.struck && hit.pop && hit.cleared,
       JSON.stringify(hit));
@@ -1083,8 +1135,9 @@ const { boot } = require('./harness.cjs');
         wrongSide: K.dropTargetAt(ash.left + 5, ash.top + 20, enemyCard.dataset.card),
         // a party card near Ash picks Ash specifically
         ally: K.dropTargetAt(ash.left + 4, ash.top + 30, partyCard.dataset.card),
-        // and nothing at all when the finger is miles away
-        far: K.dropTargetAt(6, 424, enemyCard.dataset.card),
+        // and nothing at all when the finger is miles away. NOT the bottom-left
+        // corner any more — that is the draw pile, which is now the swap zone.
+        far: K.dropTargetAt(6, 6, enemyCard.dataset.card),
       };
     });
     check('SNAP: a near miss still finds the Regent, and an attack never snaps to an ally',
@@ -1131,7 +1184,7 @@ const { boot } = require('./harness.cjs');
       const x = document.getElementById('k-disc-btn').getBoundingClientRect();
       const ap = document.getElementById('k-ap').getBoundingClientRect();
       const et = document.getElementById('k-endturn').getBoundingClientRect();
-      const cyc = document.getElementById('k-piles').getBoundingClientRect();
+      const dot = document.getElementById('k-cycle-dot').getBoundingClientRect();
       const overlaps = (a, b) => !(a.right <= b.left || a.left >= b.right
         || a.bottom <= b.top || a.top >= b.bottom);
       const orbRound = getComputedStyle(document.querySelector('.k-ap-chip')).borderRadius;
@@ -1146,7 +1199,10 @@ const { boot } = require('./harness.cjs');
         orbAboveDeck: ap.bottom <= d.top,
         endTurnAboveDiscard: et.bottom <= x.top,
         noOverlap: !overlaps(ap, d) && !overlaps(ap, x) && !overlaps(et, x)
-          && !overlaps(et, d) && !overlaps(cyc, ap) && !overlaps(cyc, d) && !overlaps(d, x),
+          && !overlaps(et, d) && !overlaps(d, x),
+        // the free swap is a dot ON the draw pile, not a chip of its own
+        swapOnDeck: dot.left >= d.left - 6 && dot.right <= d.right + 6
+          && dot.top >= d.top - 6 && dot.bottom <= d.bottom + 6,
         deckN: document.getElementById('k-deck-n').textContent,
         discN: document.getElementById('k-disc-n').textContent,
         stateDeck: String(window.K.state().deck.length),
@@ -1166,9 +1222,10 @@ const { boot } = require('./harness.cjs');
       piles.deckLeft && piles.discRight && piles.lowerThird && piles.stacked
       && piles.deckN === piles.stateDeck, JSON.stringify(piles));
     check('BOTTOM BAR: round resource above its pile, action above its pile, nothing overlapping',
-      piles.orbRound && piles.orbAboveDeck && piles.endTurnAboveDiscard && piles.noOverlap,
+      piles.orbRound && piles.orbAboveDeck && piles.endTurnAboveDiscard && piles.noOverlap
+      && piles.swapOnDeck,
       JSON.stringify({ round: piles.orbRound, orbAbove: piles.orbAboveDeck,
-        etAbove: piles.endTurnAboveDiscard, clear: piles.noOverlap }));
+        etAbove: piles.endTurnAboveDiscard, clear: piles.noOverlap, swap: piles.swapOnDeck }));
     check('PILES: a played card is seen flying into the discard, and the pile thumps',
       piles.flying >= 1 && piles.thumped && piles.landed && piles.discAfter === '1',
       JSON.stringify({ flying: piles.flying, thump: piles.thumped, after: piles.discAfter }));
@@ -1234,21 +1291,36 @@ const { boot } = require('./harness.cjs');
       insp.closed && insp.unplayed, JSON.stringify({ closed: insp.closed, unplayed: insp.unplayed }));
     // the iOS long-press callout must be suppressed on cards
     const ios = await J(async () => {
-      const card = document.querySelector('#k-hand .k-card');
-      const cs = getComputedStyle(card);
-      const ev = new Event('contextmenu', { bubbles: true, cancelable: true });
-      const prevented = !card.dispatchEvent(ev);
+      // EVERY figure on the board, not just the cards. A long press on a hero
+      // or on the Regent raised Copy / Save Image because the guards only ever
+      // lived on .k-card, and all of those are <img> elements.
+      const targets = ['#k-hand .k-card', '.k-hero[data-hero="ash"] img',
+                       '#k-boss-art img', '#k-bg'];
+      const out = { prevented: 0, sel: 0, n: targets.length, missing: [] };
+      for (const sel of targets) {
+        const node = document.querySelector(sel);
+        if (!node) { out.missing.push(sel); continue; }
+        const cs = getComputedStyle(node);
+        if (!node.dispatchEvent(new Event('contextmenu', { bubbles: true, cancelable: true })))
+          out.prevented++;
+        if ((cs.userSelect || cs.webkitUserSelect) === 'none') out.sel++;
+      }
       // Chromium does not implement -webkit-touch-callout, so assert the
-      // declaration ships in the stylesheet rather than reading it back
-      const css = await (await fetch('styles.css?v=14')).text();
-      const rule = css.slice(css.indexOf('.k-card {'), css.indexOf('.k-card {') + 260);
-      return { calloutShipped: /-webkit-touch-callout:\s*none/.test(rule),
-               highlightShipped: /-webkit-tap-highlight-color:\s*transparent/.test(rule),
-               select: cs.userSelect || cs.webkitUserSelect, touch: cs.touchAction, prevented };
+      // declaration ships in the stylesheet rather than reading it back — and
+      // that it ships on the WHOLE stage, not one component.
+      const css = await (await fetch('styles.css')).text();
+      const i = css.indexOf('#k-stage, #k-stage * {');
+      const rule = i < 0 ? '' : css.slice(i, i + 260);
+      out.calloutShipped = /-webkit-touch-callout:\s*none/.test(rule);
+      out.highlightShipped = /-webkit-tap-highlight-color:\s*transparent/.test(rule);
+      out.noDrag = /#k-stage img\s*\{[^}]*-webkit-user-drag:\s*none/.test(css);
+      out.touch = getComputedStyle(document.getElementById('k-stage')).touchAction;
+      return out;
     });
-    check('INSPECT: a long press cannot raise the iOS callout or select text',
-      ios.calloutShipped && ios.highlightShipped && ios.select === 'none'
-      && ios.touch === 'none' && ios.prevented, JSON.stringify(ios));
+    check('LONG PRESS: no iOS callout on ANY figure — cards, heroes, the Regent, the plate',
+      ios.missing.length === 0 && ios.prevented === ios.n && ios.sel === ios.n
+      && ios.calloutShipped && ios.highlightShipped && ios.noDrag && ios.touch === 'none',
+      JSON.stringify(ios));
   }
 
   const summary = report();

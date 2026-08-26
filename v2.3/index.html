@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=18" />
+  <link rel="stylesheet" href="styles.css?v=19" />
 </head>
 <body>
   <div id="k-scale">
@@ -76,13 +76,6 @@
         <div class="k-pt-shared">
           <span id="k-intercede"></span>
         </div>
-        <div class="k-bond-row">
-          <span class="k-bond-lbl">Bond</span>
-          <img src="../art/kai.webp" alt="">
-          <span id="k-bond-link">∞</span>
-          <img src="../art/elin.webp" alt="">
-          <span id="k-bond-n" class="k-bond-n">0/2</span>
-        </div>
       </div>
 
       <!-- boss HUD — upper-right -->
@@ -106,29 +99,32 @@
       <!-- the telegraph — icons and amounts, in the sky above the Regent -->
       <div id="k-intent"></div>
 
-      <!-- AP — the resource orb, lower-left -->
+      <!-- AP — the orb says how many, the pips say out of how many -->
       <div id="k-ap">
         <div class="k-ap-chip">
           <span id="k-ap-num">3</span><em>AP</em>
         </div>
+        <div id="k-ap-pips"></div>
       </div>
-      <div id="k-log"></div>
+      <!-- the log is read aloud, not drawn: the receipts over the heroes and
+           the numbers on the board already say everything it used to say -->
+      <div id="k-log" class="k-sr" aria-live="polite"></div>
 
       <!-- the hand -->
       <div id="k-hand"></div>
 
       <!-- the two piles, as real stacks you can see and open -->
-      <button id="k-deck-btn" class="k-pile" title="Draw pile">
+      <button id="k-deck-btn" class="k-pile" title="Draw pile — drop a card here to swap it">
         <span class="k-pile-stack"></span>
         <b id="k-deck-n">10</b>
         <em>DECK</em>
+        <span id="k-cycle-dot" title="One free swap this turn"></span>
       </button>
       <button id="k-disc-btn" class="k-pile k-pile-disc" title="Discard">
         <span class="k-pile-stack"></span>
         <b id="k-disc-n">0</b>
         <em>DISCARD</em>
       </button>
-      <div id="k-piles"><span class="k-pile-note">CYCLE <b id="k-cycle-n">1</b></span></div>
       <button id="k-endturn">END TURN</button>
 
       <!-- overlays -->
@@ -138,7 +134,7 @@
 
     </main>
   </div>
-  <script src="game.js?v=18"></script>
+  <script src="game.js?v=19"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

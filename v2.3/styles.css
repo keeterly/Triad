@@ -25,9 +25,12 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   filter: drop-shadow(0 10px 18px rgba(0,0,0,0.75));
   -webkit-box-reflect: below -6px linear-gradient(rgba(0,0,0,0) 58%, rgba(255,255,255,0.14)); }
 .k-hero { position: absolute; transition: left 0.34s ease, transform 0.34s ease, filter 0.3s ease, opacity 0.3s ease; }
-.k-hero[data-hero="elin"] { left: 196px; top: 144px; height: 148px; width: 110px; }
-.k-hero[data-hero="ash"]  { left: 282px; top: 100px; height: 192px; width: 160px; }
-.k-hero[data-hero="mira"] { left: 412px; top: 150px; height: 142px; width: 120px; }
+/* ONE LINE, EVEN SPACING. Centres at 240 / 360 / 480 and a shared ground line
+   at y=292: uneven gaps and a 50px height spread made a row swap read as the
+   art changing rather than a figure stepping back. */
+.k-hero[data-hero="elin"] { left: 181px; top: 132px; height: 160px; width: 118px; }
+.k-hero[data-hero="ash"]  { left: 285px; top: 116px; height: 176px; width: 150px; }
+.k-hero[data-hero="mira"] { left: 419px; top: 136px; height: 156px; width: 122px; }
 .k-hero img { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
   height: 100%; width: auto; filter: drop-shadow(0 8px 12px rgba(0,0,0,0.72));
   -webkit-box-reflect: below -4px linear-gradient(rgba(0,0,0,0) 62%, rgba(255,255,255,0.16)); }
@@ -60,12 +63,27 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 @keyframes k-recoil { 30% { transform: translateX(-46%) skewX(1.5deg); filter: brightness(1.5); } }
 #k-boss-art.k-broken img { animation: k-brokenreel 0.7s ease; }
 @keyframes k-brokenreel { 20% { transform: translateX(-54%) rotate(-3deg); } 60% { transform: translateX(-48%) rotate(2deg); } }
-.k-frozen * { animation-play-state: paused !important; }
+/* THE FREEZE. Pseudo-elements were still running while everything else held,
+   so the frame never fully stopped — v2.2 paused ::before and ::after too. */
+.k-frozen, .k-frozen *, .k-frozen *::before, .k-frozen *::after {
+  animation-play-state: paused !important; }
 .k-shake { animation: k-shake 0.3s ease; }
 @keyframes k-shake { 25% { translate: 3px 1px; } 60% { translate: -3px -1px; } }
 
 /* ── HUD text vocabulary ── */
-.k-lbl, .k-pt-names, .k-bname, #k-piles span, .k-break-wrap { text-transform: uppercase; letter-spacing: 0.14em; }
+.k-lbl, .k-pt-names, .k-bname, .k-break-wrap { text-transform: uppercase; letter-spacing: 0.14em; }
+/* NO iOS CALLOUT, ANYWHERE. The guards used to live on .k-card alone, so a long
+   press on a hero, the Regent or the backdrop still raised Copy/Save Image —
+   and every one of those is an <img>, which is exactly what iOS offers to save. */
+html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+#k-stage, #k-stage * { -webkit-touch-callout: none !important; -webkit-user-select: none;
+  user-select: none; -webkit-tap-highlight-color: transparent; }
+#k-stage img { -webkit-user-drag: none; user-drag: none; pointer-events: none; }
+#k-stage { touch-action: none; }
+/* the log is spoken, not drawn */
+.k-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+  clip-path: inset(50%); white-space: nowrap; }
 .k-bar { position: relative; height: 6px; background: rgba(10,9,11,0.78);
   border: 1px solid rgba(150,138,114,0.45); border-radius: 1px; box-shadow: 0 1px 3px rgba(0,0,0,0.6); }
 .k-bar-fill { position: absolute; left: 1px; top: 1px; bottom: 1px; border-radius: 1px; transition: width 0.4s ease; }
@@ -88,11 +106,11 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-pt-guard { font-size: 10px; color: #c9a45c; }
 #k-intercede { font-size: 9px; color: #c9a45c; letter-spacing: 0.1em; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
 
-#k-boss-hud { position: absolute; right: 16px; top: 12px; width: 404px; display: flex; flex-direction: column;
-  align-items: flex-end; gap: 5px; z-index: 10; }
+#k-boss-hud { position: absolute; right: 16px; top: 10px; width: 404px; display: flex; flex-direction: column;
+  align-items: flex-end; gap: 3px; z-index: 10; }
 .k-turn-emblem { display: flex; align-items: center; gap: 5px; margin-bottom: 1px; }
 .k-turn-emblem b { font-size: 14px; color: #e0c084; }
-.k-bname { font-size: 18px; font-weight: 600; letter-spacing: 0.08em; color: #e8dfc8;
+.k-bname { font-size: 16px; font-weight: 600; letter-spacing: 0.08em; color: #e8dfc8;
   text-shadow: 0 1px 4px rgba(0,0,0,0.9); text-transform: none; }
 .k-bflag { font-size: 11px; color: #d0764a; letter-spacing: 0.18em; }
 .k-bhp-row { display: flex; align-items: center; gap: 8px; width: 100%; }
@@ -101,26 +119,20 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-break-wrap { font-size: 10px; color: #b0a894; display: flex; align-items: center; gap: 6px;
   text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
 #k-break { display: flex; gap: 3px; }
-.k-pip { width: 10px; height: 7px; border-radius: 3px; border: 1px solid #7c6f52; display: inline-block;
+.k-pip { width: 9px; height: 6px; border-radius: 3px; border: 1px solid #7c6f52; display: inline-block;
   background: rgba(10,9,11,0.6); }
 .k-pip.on { background: linear-gradient(180deg, #dcb46e, #b08c46); border-color: #c9a45c;
   box-shadow: 0 0 4px rgba(201,164,92,0.4); }
-.k-bond-row { display: flex; align-items: center; gap: 5px; }
-.k-bond-lbl { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #b0a894;
-  margin-right: 3px; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
-.k-bond-row img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; object-position: top;
-  border: 1px solid rgba(201,164,92,0.7); }
-#k-bond-link { color: #c9a45c; font-size: 12px; }
-.k-bond-n { font-size: 10px; color: #c9a45c; letter-spacing: 0.1em; }
-.k-bond-row.k-bond-ready img { box-shadow: 0 0 8px rgba(201,164,92,0.7); }
 #k-break.k-flash .k-pip.on { animation: k-pipflash 0.5s ease; }
 @keyframes k-pipflash { 40% { box-shadow: 0 0 8px rgba(201,164,92,0.9); } }
 .k-chill { font-size: 10px; color: #9db8c4; }
-.k-bond-row.k-flash { animation: k-resflash 0.6s ease; }
 #k-bleed { font-size: 10px; color: #b8574a; }
 
 /* THE TELEGRAPH — a row of icon chips floating over the Regent's head. */
-#k-intent { position: absolute; left: 765px; top: 92px; transform: translateX(-50%);
+/* clear of the Break row above it — the chips used to print straight over the
+   pips, so the one number telling you how hard the next blow lands sat on top
+   of the one meter telling you how close the Regent was to breaking */
+#k-intent { position: absolute; left: 765px; top: 94px; transform: translateX(-50%);
   display: flex; gap: 6px; align-items: center; z-index: 11; pointer-events: none; }
 .k-ichip { display: flex; align-items: center; gap: 3px; padding: 3px 7px; border-radius: 13px;
   background: rgba(12,10,14,0.82); border: 1px solid rgba(150,138,114,0.4);
@@ -139,25 +151,31 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-ichip-dirge { border-color: rgba(150,70,60,0.5); background: rgba(40,16,14,0.8); color: #c98b7c; }
 .k-ichip-broken { border-color: rgba(201,164,92,0.6); background: rgba(52,40,14,0.82); color: #e0c084; }
 
-#k-ap { position: absolute; left: 24px; bottom: 106px; width: 62px; height: 62px; z-index: 13; }
-.k-ap-chip { position: absolute; inset: 0; border-radius: 50%;
+/* AP. The number alone made you compare it to a maximum you had to remember;
+   the pips under it show the whole budget, so "2 of 3 left" reads without
+   arithmetic and a spent turn is visible from across the screen. */
+#k-ap { position: absolute; left: 24px; bottom: 100px; width: 66px; z-index: 13;
+  display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.k-ap-chip { position: relative; width: 66px; height: 66px; border-radius: 50%;
   background:
     radial-gradient(circle at 38% 30%, #ffeec4 0%, #e0c084 26%, #a8873f 62%, #5d4a22 100%);
   border: 2px solid #f0d488;
   box-shadow: 0 0 22px rgba(224,192,132,0.5), 0 4px 12px rgba(0,0,0,0.7),
               inset 0 -6px 14px rgba(60,44,16,0.55), inset 0 4px 10px rgba(255,240,200,0.4);
   display: flex; align-items: center; justify-content: center; }
-.k-ap-chip span { font-size: 30px; font-weight: 700; color: #2a2109; line-height: 1;
+.k-ap-chip { flex-direction: column; gap: 0; }
+.k-ap-chip span { font-size: 29px; font-weight: 700; color: #2a2109; line-height: 0.94;
   text-shadow: 0 1px 0 rgba(255,240,200,0.5); }
-/* labelled ABOVE, like the two zones below it, so nothing collides */
-.k-ap-chip em { position: absolute; left: 0; right: 0; top: -15px; font-style: normal;
-  font-size: 8.5px; letter-spacing: 0.24em; color: #b0a894; text-align: center; }
+.k-ap-chip em { font-style: normal; font-size: 7.5px; letter-spacing: 0.24em;
+  color: rgba(42,33,9,0.72); line-height: 1; margin-top: 1px; }
+#k-ap-pips { display: flex; gap: 6px; }
+.k-ap-pip { width: 9px; height: 9px; transform: rotate(45deg); border-radius: 1.5px;
+  border: 1px solid #a98c4e; background: linear-gradient(150deg, #f0d488, #a8873f);
+  box-shadow: 0 0 7px rgba(224,192,132,0.55); }
+.k-ap-pip.k-ap-off { background: rgba(10,9,11,0.62); border-color: #5f5643; box-shadow: none; }
 #k-ap.k-ap-spent .k-ap-chip { filter: saturate(0.35) brightness(0.72); box-shadow: 0 4px 12px rgba(0,0,0,0.7); }
 
-#k-log { position: absolute; left: 24px; bottom: 176px; width: 210px; font-size: 11px; font-style: italic;
-  color: #b0a894; z-index: 12; pointer-events: none; }
-#k-log.k-log-in { animation: k-login 0.4s ease; }
-@keyframes k-login { from { opacity: 0; transform: translateY(4px); } }
+
 
 /* ── the hand ── */
 #k-hand { position: absolute; left: 50%; bottom: 13px; transform: translateX(-50%);
@@ -258,7 +276,14 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 #k-res-state { font-size: 6.5px; letter-spacing: 0.14em; color: #9a9080; text-transform: uppercase; }
 
 /* ── piles + end turn ── */
-#k-piles { position: absolute; left: 96px; bottom: 124px; z-index: 12; }
+/* THE FREE SWAP, as a dot on the pile it uses. A separate CYCLE chip was a
+   third object in the corner explaining a rule nobody had asked about. */
+#k-cycle-dot { position: absolute; right: 5px; top: 5px; width: 7px; height: 7px;
+  border-radius: 50%; background: #e0c084; box-shadow: 0 0 7px rgba(224,192,132,0.8);
+  transition: opacity 0.2s ease; }
+#k-deck-btn.k-cycle-spent #k-cycle-dot { opacity: 0; }
+#k-deck-btn.k-drop-zone { border-color: #e0c084;
+  box-shadow: 0 0 20px rgba(224,192,132,0.5), 0 4px 12px rgba(0,0,0,0.7); }
 .k-pile-note { font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: #9a9080;
   padding: 2px 7px; border: 1px solid rgba(150,138,114,0.35); border-radius: 10px;
   background: rgba(14,12,15,0.5); white-space: nowrap; }
@@ -427,6 +452,25 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   filter: saturate(0.22) brightness(0.5); transition: filter 180ms ease; }
 #k-stage.k-parry-focus .k-hero.k-parrying { filter: none; }
 #k-stage.k-slowmo > *:not(.k-pring):not(.k-grade) { animation-play-state: paused !important; }
+/* TIME DILATION. Pausing animations is not the effect — v2.2 drained the colour
+   out of the world and rushed a vignette in, and that is what sold the beat as
+   a held breath rather than a stall. */
+#k-stage.k-slowmo > *:not(.k-pring):not(.k-grade):not(.k-pthread):not(.k-hitflash) {
+  filter: saturate(0.05) brightness(0.34) contrast(1.06); transition: filter 130ms ease-out; }
+#k-stage.k-slowmo .k-hero.k-parrying { filter: brightness(1.06) !important; }
+#k-stage.k-slowmo::before {
+  content: ''; position: absolute; inset: 0; z-index: 30; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 46%, transparent 22%, rgba(4,2,2,0.66) 100%);
+  animation: k-slowvig 0.18s ease-out both; }
+@keyframes k-slowvig { from { opacity: 0; } to { opacity: 1; } }
+/* A LANDED PRESS FLASHES THE WHOLE FRAME, tinted by how well it was read. */
+.k-pflash { position: absolute; inset: 0; z-index: 39; pointer-events: none;
+  background: radial-gradient(circle at 50% 44%, rgba(255,255,255,0.16), rgba(255,255,255,0) 58%);
+  animation: k-flashout 0.22s ease-out forwards; }
+.k-pflash-perfect { background: radial-gradient(circle at 50% 44%, rgba(255,225,74,0.26), rgba(255,225,74,0) 62%); }
+.k-pflash-great { background: radial-gradient(circle at 50% 44%, rgba(255,225,116,0.17), rgba(255,225,116,0) 60%); }
+.k-pflash-miss { background: radial-gradient(circle at 50% 44%, rgba(224,106,106,0.16), rgba(224,106,106,0) 58%);
+  animation-duration: 0.16s; }
 .k-pthread { position: absolute; inset: 0; width: 100%; height: 100%;
   pointer-events: none; z-index: 31; overflow: visible; }
 
@@ -535,9 +579,47 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   box-shadow: inset 0 0 120px rgba(150,20,14,0.5); }
 .k-pulse-gold { background: radial-gradient(ellipse at 50% 45%, rgba(255,225,116,0.28), rgba(255,225,116,0) 60%); }
 @keyframes k-pulseout { 0% { opacity: 1; } 100% { opacity: 0; } }
-.k-struck img { animation: k-struck 0.32s ease; }
-@keyframes k-struck { 0% { filter: brightness(3.6) saturate(0); }
-  40% { filter: brightness(1.5) saturate(0.6); } 100% { filter: none; } }
+/* STRUCK — thrown away from the blow AND flashed white in the same frame. The
+   flash alone reads as a light change; the displacement is what reads as a hit. */
+.k-struck-l img { animation: k-struck-l 0.36s cubic-bezier(.2,.8,.3,1); }
+.k-struck-r img { animation: k-struck-r 0.36s cubic-bezier(.2,.8,.3,1); }
+@keyframes k-struck-l {
+  0%   { transform: translateX(-50%); filter: brightness(3.4) saturate(0); }
+  22%  { transform: translateX(calc(-50% - 9px)); filter: brightness(1.6) saturate(0.5); }
+  55%  { transform: translateX(calc(-50% + 4px)); }
+  100% { transform: translateX(-50%); filter: none; } }
+@keyframes k-struck-r {
+  0%   { transform: translateX(-50%); filter: brightness(3.4) saturate(0); }
+  22%  { transform: translateX(calc(-50% + 9px)); filter: brightness(1.6) saturate(0.5); }
+  55%  { transform: translateX(calc(-50% - 4px)); }
+  100% { transform: translateX(-50%); filter: none; } }
+.k-struck-hard.k-struck-l img { animation-name: k-struck-lh; }
+.k-struck-hard.k-struck-r img { animation-name: k-struck-rh; }
+@keyframes k-struck-lh {
+  0%   { transform: translateX(-50%) rotate(0); filter: brightness(4.2) saturate(0); }
+  20%  { transform: translateX(calc(-50% - 17px)) rotate(-3deg); filter: brightness(1.8) saturate(0.4); }
+  52%  { transform: translateX(calc(-50% + 7px)) rotate(1.5deg); }
+  100% { transform: translateX(-50%) rotate(0); filter: none; } }
+@keyframes k-struck-rh {
+  0%   { transform: translateX(-50%) rotate(0); filter: brightness(4.2) saturate(0); }
+  20%  { transform: translateX(calc(-50% + 17px)) rotate(3deg); filter: brightness(1.8) saturate(0.4); }
+  52%  { transform: translateX(calc(-50% - 7px)) rotate(-1.5deg); }
+  100% { transform: translateX(-50%) rotate(0); filter: none; } }
+/* THE FLASH — full-bleed, on every blow, scaled by weight. v2.2's ablation rig
+   found a big flash bleaches the frame at the moment you need to read it, so
+   the ordinary tier stays faint and only a crash is allowed to blow out. */
+/* NOT `k-flash` — that name was already taken by the Break pips and the bond
+   row, and a full-bleed `position:absolute; inset:0` rule landing on those
+   would have torn the HUD apart every time the meter ticked. */
+.k-hitflash { position: absolute; inset: 0; pointer-events: none; z-index: 36;
+  animation: k-flashout 0.14s ease-out forwards; }
+.k-hitflash-hit { background: radial-gradient(ellipse at 50% 46%, rgba(255,244,224,0.20), transparent 44%); }
+.k-hitflash-hurt { background: radial-gradient(ellipse at 50% 46%, rgba(255,190,170,0.20), transparent 44%); }
+.k-hitflash-gold { background: radial-gradient(ellipse at 50% 46%, rgba(255,232,160,0.22), transparent 46%); }
+.k-hitflash-bleed { background: radial-gradient(ellipse at 50% 46%, rgba(224,140,120,0.18), transparent 44%); }
+.k-hitflash-big { animation-duration: 0.2s; filter: brightness(1.7); }
+.k-hitflash-huge { animation-duration: 0.25s; filter: brightness(2.6); }
+@keyframes k-flashout { 0% { opacity: 1; } 100% { opacity: 0; } }
 .k-pop-big { font-size: 30px !important; }
 .k-pop-hurt { color: #ff8a76 !important; }
 
@@ -639,8 +721,8 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-row { position: absolute; border-radius: 50%;
   border: 1.5px dashed rgba(201,164,92,0.5); background: rgba(201,164,92,0.06);
   opacity: 0; transform: scale(0.96); transition: opacity 0.18s ease, transform 0.18s ease; }
-.k-row[data-row="back"]  { left: 130px; top: 242px; width: 300px; height: 30px; }
-.k-row[data-row="front"] { left: 186px; top: 282px; width: 340px; height: 32px; }
+.k-row[data-row="back"]  { left: 150px; top: 242px; width: 360px; height: 30px; }
+.k-row[data-row="front"] { left: 180px; top: 282px; width: 360px; height: 32px; }
 .k-row-lbl { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   font-size: 8px; letter-spacing: 0.24em; color: rgba(224,192,132,0.75);
   text-shadow: 0 1px 4px #000; }

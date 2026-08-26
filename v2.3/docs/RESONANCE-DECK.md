@@ -695,3 +695,66 @@ first 100 seeds and **51.8%** over 220. A 30-run sweep called 140 HP a 33%
 config; the real answer was 52%. Rank candidates cheaply if you like, but never
 take a shipping number from a sweep at n<200 — measure the winner at the full
 run count.
+
+---
+
+## Build 19 — the impact v2.2 had, and a board with less on it
+
+### The feel, measured against the version that had it
+
+Side by side with v2.2's on-hit code, four things were missing rather than
+merely weaker:
+
+| beat | v2.2 | v2.3 before | now |
+|---|---|---|---|
+| hitstop | pauses `*`, `::before`, `::after`; 95 / 155ms | pauses `*` only; **52**–158ms | pauses pseudo-elements too; floor raised to 75ms |
+| hit flash | full-bleed, **every** blow, 3 tiers | only above power 1.2 — **most of a fight had none** | every blow, tiered |
+| struck figure | thrown ±9px (±17 on a crash) **and** flashed white | flashed white, never moved | thrown and flashed |
+| dilation | drains the world to `saturate(.05) brightness(.34)` + a rushing vignette | **paused animations and nothing else** | drains and vignettes |
+
+The struck-figure one is most of it: a figure that lights up but does not move
+reads as a light change, not a blow. And a 52ms stop is below the threshold
+where a held frame reads as held rather than dropped — v2.2's own note says the
+freeze is the half of the bundle doing the work, so it now has a floor.
+
+A landed parry press also flashes the whole frame again, tinted by grade
+(`k-pflash`), which is what made a note resolve as an event rather than as a
+word appearing.
+
+**One bug found on the way:** the new flash class was called `k-flash` — a name
+already used by the Break pips and the bond row. A full-bleed
+`position:absolute; inset:0; z-index:36` rule landing on those would have torn
+the HUD apart every time the Break meter ticked. It is `k-hitflash` now, and
+the suite counts flash elements so a collision like that fails loudly.
+
+### The board
+
+- **The telegraph printed over the Break pips.** The one number telling you how
+  hard the next blow lands sat on top of the one meter telling you how close
+  the Regent is to breaking. The boss HUD tightened and the chips moved to
+  `top: 94px`; the suite now asserts the two boxes are disjoint.
+- **The bond meter is gone.** Two portraits and `0/2` in the far corner was a
+  number nobody watched. The Resonance announces itself instead — struck over
+  the pair who earned it, the way a combo does — and the gold-bordered card
+  appearing in hand is the real signal.
+- **The log line is gone from the board** and is an `aria-live` region now. The
+  parry receipt over the hero and the numbers on the figures already said
+  everything it said, out loud, in the right place. The fight is still narrated
+  for a screen reader.
+- **The CYCLE chip is gone; the draw pile is the swap.** A third object in the
+  corner explaining a rule is worse than putting the card back where cards come
+  from. A dot on the pile says the free swap is unspent; the zone closes once
+  it is used.
+- **AP shows its budget.** The number alone made you compare it to a maximum
+  you had to remember; three pips under the orb show the whole allowance, so
+  "two of three left" reads without arithmetic.
+- **The three of them stand on one line** — centres at 240 / 360 / 480, one
+  ground line, and the height spread cut from 50px to 20px. Uneven gaps and
+  wildly different sizes made a row swap read as the art changing rather than a
+  figure stepping back.
+- **No iOS callout anywhere.** The guards lived on `.k-card` alone, so a long
+  press on a hero, the Regent or the painted plate still raised Copy / Save
+  Image — and every one of those is an `<img>`, which is exactly what iOS
+  offers to save. They are on the whole stage now, with `-webkit-user-drag`,
+  `touch-action: none`, and `contextmenu` / `selectstart` / `dragstart`
+  cancelled at the stage. The suite checks all four figure types, not one.
