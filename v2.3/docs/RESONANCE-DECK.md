@@ -450,3 +450,85 @@ always spend it to negate. It is named on the intent banner as
   literal; attemptParry+resolveEnemyHit live inside endTurn's enemy phase;
   applyStatus/triggerBreak/generateResonance are resolveEffects atoms;
   endPhase is endTurn.
+
+---
+
+## Build 15 — the parry playtest, and what it changed
+
+The note was: *"Playtest the parry system, it's too difficult and doesn't play
+well right now."* So it was measured before it was touched.
+
+`test/parry.playtest.cjs` drives real bars in a real browser with a synthetic
+hand: gaussian timing error around each beat (Box-Muller), a systematic bias,
+and — added after the first pass — a probability of **reading a direction
+arrow wrong**. It reports the grade distribution per note KIND, so an unfair
+note shows up as a kind whose score is dominated by something other than the
+player's timing.
+
+**The first run indicted the arrows, not the windows.** A hand that always
+swiped right scored 90–100% clean on every kind *except* `slide`, which came
+in at **42%**, and the all-slide Scything Advance turned **0 of 2** hits. Once
+the rig was taught to read the arrow and swipe the right way, `slide` jumped
+to **100%** with the windows completely unchanged.
+
+That is the whole diagnosis: **the timing was never the wall. The reading
+burden was.** Identify a direction, execute a directional gesture, inside one
+500ms ring, with zero credit for guessing wrong, six or seven times back to
+back with no rest.
+
+Six changes, each aimed at that finding:
+
+1. **The verb is on screen from the first frame.** The ring's label used to
+   read `3/6` until it went live, which tells you *when* and never *what*; the
+   read and the answer shared one half-second. It now reads `SLIDE →` from
+   spawn, and the beat counter moved to its own line above the ring.
+2. **A read gets its own runway.** `NOTE_LEAD` gives anything you must decode
+   before you can answer it — an arrow, a crossed bait ring, a burst — 1.6–1.7
+   beats of approach instead of 1. The beat it lands on does not move; only the
+   time you have to look at it does.
+3. **A slide is credited when the finger COMMITS.** A swipe is legible only
+   once it has travelled, so grading it at the threshold crossing charged every
+   slide a tax for being a gesture. It now grades at the pointerdown, capped at
+   `SLIDE_LEAD_MS = 120` of travel credit, and the crossing threshold drops
+   22px → 14px.
+4. **A misread arrow costs a grade, not the string.** Swipe the wrong way on
+   the beat and the ring shakes, keeps listening — correcting still earns full
+   credit — and if the hand never corrects, the note pays out one grade down
+   (`DEMOTE`) instead of nothing. Timing success plus reading failure should
+   not score the same as no hand on the screen.
+5. **The bar breathes.** `REST_BEATS = 1` puts a rest between the hits of a
+   volley, so a six-note action is three phrases of two rather than a wall.
+6. **Two intents were re-written, not re-tuned.** Scything Advance was five
+   notes with three arrows in a row — a spelling test, not a sweep — and is now
+   one arrow per hit. Ashen Rain's phase-2 `sub` went 0.5 → 0.75; at 250ms a
+   note, touch latency alone makes the bar unplayable rather than hard.
+
+7. **A hit's notes read left to right.** Longer runways put two rings in the
+   air at once, and stacked on one point their labels printed straight over
+   each other — `HTAPD!` where `HOLD!` and `TAP` should have been. Notes now
+   fan sideways across their hero (`NOTE_SPREAD`), and a ring that is still
+   approaching sits back at half opacity so the eye always knows which of the
+   rings in the air is the one being asked for.
+
+Windows widened a notch alongside all that (perfect ±80→95, great ±140→170,
+good ±220→260), but the notes above are what actually moved the numbers.
+
+**After (6 passes each, `test/parry.playtest.cjs`):**
+
+```
+practised (jitter 55ms, misread 15%)      sloppy (jitter 110ms, bias 25ms, misread 35%)
+tap    100% clean                         tap    79% clean
+hold   100%                               hold   92%
+slide  100%  (2/18 misread)               slide  61%  (9/18 misread)
+burst  100%                               burst  92%
+feint  100%                               feint  83%
+bait   100%                               bait   83%
+```
+
+A practised hand now clears the bar even when it misreads an arrow; a sloppy
+one still pays — 5.7 damage per Ruinous Hymn against the practised hand's 2.0.
+The skill gradient survived; the unfairness did not.
+
+Two new suite gates hold the line: *the volley breathes — a rest beat
+separates one hit from the next*, and *a misread arrow answered on the beat
+pays a grade, not the whole string*.

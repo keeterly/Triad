@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 14;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 15;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -126,14 +126,14 @@ const REGENT_INTENTS = [
     ] },
   { id: 'scythe', name: 'Scything Advance', kind: 'attack', frontOnly: true,
     hits: [
-      { dmg: [13, 17], target: 'mira', notes: ['slide:R', 'slide:L'], backFactor: 0.35 },
-      { dmg: [13, 17], target: 'ash',  notes: ['slide:L', 'tap', 'hold'], backFactor: 0.35 },
+      { dmg: [13, 17], target: 'mira', notes: ['slide:R', 'tap'], backFactor: 0.35 },
+      { dmg: [13, 17], target: 'ash',  notes: ['slide:L', 'hold', 'tap'], backFactor: 0.35 },
     ] },
   { id: 'benediction', name: 'Hollow Benediction', kind: 'heal',
     hits: [
       { dmg: [8, 12], target: 'elin', notes: ['bait', 'tap'] },
     ] },
-  { id: 'rain', name: 'Ashen Rain', kind: 'attack', sub: [1, 0.5],
+  { id: 'rain', name: 'Ashen Rain', kind: 'attack', sub: [1, 0.75],
     hits: [
       { dmg: [9, 13], target: 'ash',  notes: ['burst'] },
       { dmg: [9, 13], target: 'elin', notes: ['burst'] },
@@ -149,13 +149,17 @@ const REGENT_INTENTS = [
 // a catch. The bands are wide because the GRADES are made to mean different
 // things, not made unreachable.
 //
-//   perfect  ±80ms   touch latency (56-78ms measured) plus human jitter
-//   great    ±140ms  the modal outcome — it must feel good, not like a near-miss
-//   good     ±220ms  genuinely sloppy, and still worth something
+//   perfect  ±95ms   touch latency (56-78ms measured) plus human jitter
+//   great    ±170ms  the modal outcome — it must feel good, not like a near-miss
+//   good     ±260ms  genuinely sloppy, and still worth something
 //   late     +200ms  past good: a labelled miss, so a miss always says why
 // Way early returns null — the note stays live and keeps listening, which is
 // the forgiving behaviour a rhythm read needs.
-const PARRY_PERF_MS = 80, PARRY_GREAT_MS = 140, PARRY_GOOD_MS = 220, PARRY_LATE_MS = 200;
+// Playtested (test/parry.playtest.cjs): at ±80/140/220 a practised hand that
+// read every arrow correctly still only cleaned 83-100% per kind, and a hand
+// that misread ONE arrow lost the whole hit. The windows were never the wall
+// — the reading burden was — so they widen a notch and the read gets help.
+const PARRY_PERF_MS = 95, PARRY_GREAT_MS = 170, PARRY_GOOD_MS = 260, PARRY_LATE_MS = 200;
 function parryGrade(off) {
   const a = Math.abs(off);
   if (off < -PARRY_GOOD_MS) return null;      // way early: WAIT… — the note holds
@@ -168,6 +172,10 @@ function parryGrade(off) {
 // share, a great turns most of it, a late-but-read one turns half. Counting
 // notes equally is what made "all caught" and "all perfect" the same outcome.
 const PARRY_WEIGHT = { perfect: 1, great: 0.9, good: 0.6, late: 0, miss: 0 };
+// One grade down. A gesture that was ON THE BEAT but read the note wrong is a
+// timing success and a reading failure; paying it nothing made a misread arrow
+// cost the same as no hand on the screen at all.
+const DEMOTE = { perfect: 'great', great: 'good', good: 'good', late: 'late', miss: 'miss' };
 // Two tiers above PARTIAL, and they are different prizes:
 //   TURNED    every note GREAT or better -> the blow is negated entirely, and
 //             the Regent's poise chips for it. Mastery a good human reaches.
@@ -720,13 +728,29 @@ function parseNote(spec) {
 }
 // Did this drag go the way the note asked?
 function dirOK(dir, dx, dy) {
-  if (!dir) return Math.hypot(dx, dy) > 24;
-  if (dir === 'L') return dx < -22 && Math.abs(dx) > Math.abs(dy);
-  if (dir === 'R') return dx > 22 && Math.abs(dx) > Math.abs(dy);
-  if (dir === 'U') return dy < -22 && Math.abs(dy) > Math.abs(dx);
-  if (dir === 'D') return dy > 22 && Math.abs(dy) > Math.abs(dx);
+  if (!dir) return Math.hypot(dx, dy) > 18;
+  if (dir === 'L') return dx < -14 && Math.abs(dx) > Math.abs(dy);
+  if (dir === 'R') return dx > 14 && Math.abs(dx) > Math.abs(dy);
+  if (dir === 'U') return dy < -14 && Math.abs(dy) > Math.abs(dx);
+  if (dir === 'D') return dy > 14 && Math.abs(dy) > Math.abs(dx);
   return false;
 }
+// A swipe is legible only once it has TRAVELLED, so grading it at the moment it
+// crosses the threshold judged every slide later than the hand actually moved.
+// A slide is credited from the instant the finger committed, capped at this
+// much travel — the beat is still the beat, the gesture just stops paying a
+// tax for being a gesture.
+const SLIDE_LEAD_MS = 120;
+// Beats of runway a note gets before it lands. A tap needs one; anything you
+// must READ before you can answer it — an arrow, a crossed ring, a flurry —
+// spawns earlier so the read and the answer are not the same half-second.
+const NOTE_LEAD = { slide: 1.7, bait: 1.7, burst: 1.6, feint: 1.3 };
+// A breath between the hits of a volley. Six notes back-to-back is a wall; the
+// same six in phrases of two with a rest between them is a bar.
+const REST_BEATS = 1;
+// Sideways room between the notes of one hit, so a string reads as a run of
+// positions rather than one point being shouted at repeatedly.
+const NOTE_SPREAD = 58;
 
 // One note: a ring closing on (ax, ay), exactly on its beat.
 function runParryNote(spec, ax, ay, idx, total, dur) {
@@ -740,8 +764,13 @@ function runParryNote(spec, ax, ay, idx, total, dur) {
     const glyph = kind === 'bait' ? '<span class="k-pr-x">\u2715</span>'
       : dir ? '<span class="k-pr-arrow">' + DIR_ARROW[dir] + '</span>'
       : kind === 'burst' ? '<span class="k-pr-burst"></span>' : '';
+    // The verb is on screen from the first frame. It used to read "3/6" until
+    // the ring went live, which told you WHEN but never WHAT, and left the read
+    // and the answer sharing one window.
+    const verb = NOTE_WORD[kind] + (dir ? ' ' + DIR_ARROW[dir] : '');
     ring.innerHTML = '<span class="k-pr-target"></span><span class="k-pr-close"></span>'
-      + glyph + '<span class="k-pr-lbl">' + (total > 1 ? idx + '/' + total : NOTE_WORD[kind]) + '</span>';
+      + glyph + '<span class="k-pr-lbl">' + verb + '</span>'
+      + (total > 1 ? '<span class="k-pr-n">' + idx + '/' + total + '</span>' : '');
     stage.appendChild(ring);
     ring.querySelector('.k-pr-close').style.animationDuration = dur + 'ms';
     const lbl = ring.querySelector('.k-pr-lbl');
@@ -749,12 +778,13 @@ function runParryNote(spec, ax, ay, idx, total, dur) {
     const t0 = performance.now();
     ring.dataset.impact = String(t0 + dur);      // the bots aim at the beat
     ring.dataset.kind = kind;
-    let done = false, downAt = null, taps = 0;
+    if (dir) ring.dataset.dir = dir;
+    let done = false, downAt = null, taps = 0, wrongAt = null;
 
     const liveT = setTimeout(function () {
       if (done) return;
       ring.classList.add('k-pr-live');
-      lbl.textContent = NOTE_WORD[kind] + (kind === 'bait' ? '' : '!');
+      lbl.textContent = verb + (kind === 'bait' ? '' : '!');
       parrySlowmo(true);
     }, Math.max(0, dur - PARRY_GOOD_MS));
     // a burst must read as "start now", so it opens the moment it spawns
@@ -771,8 +801,8 @@ function runParryNote(spec, ax, ay, idx, total, dur) {
       fxNoteGrade(ring, ax, ay, q, kind);
       resolve(q);
     };
-    const tryGrade = function () {
-      const g = parryGrade(performance.now() - t0 - dur);
+    const tryGrade = function (at) {
+      const g = parryGrade((at || performance.now()) - t0 - dur);
       if (g === null) { earlyNudge(ring, ax, ay); return false; }
       finish(g); return true;
     };
@@ -789,9 +819,17 @@ function runParryNote(spec, ax, ay, idx, total, dur) {
       if (kind === 'tap' || kind === 'feint') tryGrade();
     };
     const onMove = function (e) {
-      if (downAt == null) return;
+      if (downAt == null || kind !== 'slide') return;
       const dx = e.clientX - ring._dx, dy = e.clientY - ring._dy;
-      if (kind === 'slide' && dirOK(dir, dx, dy)) tryGrade();
+      const at = Math.max(downAt, performance.now() - SLIDE_LEAD_MS);
+      if (dirOK(dir, dx, dy)) { tryGrade(at); return; }
+      // Wrong way so far. Remember WHEN, and keep listening — a hand that
+      // corrects still earns full credit; one that never does pays a grade.
+      if (wrongAt == null && Math.hypot(dx, dy) > 26) {
+        wrongAt = at;
+        ring.classList.remove('k-pr-wrong'); void ring.offsetWidth;
+        ring.classList.add('k-pr-wrong');
+      }
     };
     const onUp = function () {
       if (kind === 'hold' && downAt != null) tryGrade();
@@ -804,6 +842,10 @@ function runParryNote(spec, ax, ay, idx, total, dur) {
       if (kind === 'bait') return finish('perfect');           // survived untouched
       if (kind === 'burst') return finish(taps >= BURST_TAPS ? 'perfect'
         : taps === BURST_TAPS - 1 ? 'great' : taps > 0 ? 'good' : 'miss');
+      if (kind === 'slide' && wrongAt != null) {          // on the beat, wrong way
+        const g = parryGrade(wrongAt - t0 - dur);
+        return finish(g ? DEMOTE[g] : 'miss');
+      }
       finish('miss');
     }, dur + PARRY_GOOD_MS + 30);
   });
@@ -841,21 +883,30 @@ async function runVolleyRhythm(hits, answerers, sub) {
   await beatWait(BEAT_LEADIN * BEAT_MS * 0.5);
 
   const jobs = [];
-  let gi = 0;
+  let gi = 0, slot = 0;
   for (let hi = 0; hi < hits.length; hi++) {
     const who = answerers[hi];
     const pos = anchorFor(who);
-    for (const type of hits[hi].notes) {
-      const idx = gi++;
+    if (hi > 0) slot += REST_BEATS;         // a rest between hits, not a wall
+    const inHit = hits[hi].notes.length;
+    for (let ni = 0; ni < inHit; ni++) {
+      const type = hits[hi].notes[ni];
+      const idx = gi++, beat = slot++;
+      const lead = NOTE_LEAD[parseNote(type).kind] || 1;
+      // A hit's notes READ LEFT TO RIGHT across its hero. Longer runways mean
+      // two rings share the air, and stacked on one point their labels and
+      // arrows printed over each other — unreadable exactly when it mattered.
+      const ox = (ni - (inHit - 1) / 2) * NOTE_SPREAD;
+      const oy = (ni % 2 ? 15 : -7);
       jobs.push((async () => {
-        const land = _grid.t0 + idx * step;                // this note's beat, fixed
-        const wait = (land - step) - performance.now();
+        const land = _grid.t0 + beat * step;               // this note's beat, fixed
+        const wait = (land - step * lead) - performance.now();
         if (wait > 4) await beatWait(wait);
         if (!pos) return 'miss';
         document.querySelectorAll('.k-hero').forEach(h =>
           h.classList.toggle('k-parrying', h.dataset.hero === who));
         const dur = Math.max(180, Math.round(land - performance.now()));
-        const g = await runParryNote(type, pos.x, pos.y, idx + 1, kinds.length, dur);
+        const g = await runParryNote(type, pos.x + ox, pos.y + oy, idx + 1, kinds.length, dur);
         return g;
       })());
     }

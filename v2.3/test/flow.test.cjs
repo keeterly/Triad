@@ -644,6 +644,7 @@ const { boot } = require('./harness.cjs');
         target: !!(r && r.querySelector('.k-pr-target')),
         closing: !!(cs && cs.animationName === 'k-prclose'),
         label: r && r.querySelector('.k-pr-lbl').textContent.trim(),
+        count: r && r.querySelector('.k-pr-n') && r.querySelector('.k-pr-n').textContent.trim(),
         focus: st.classList.contains('k-parry-focus'),
         thread: !!st.querySelector('.k-pthread'),
         lit: !!st.querySelector('.k-hero.k-parrying'),
@@ -656,8 +657,11 @@ const { boot } = require('./harness.cjs');
     check('PARRY: a ring closes on a dashed sweet spot over a desaturated board',
       ring.ring && ring.target && ring.closing && ring.focus && ring.thread
       && ring.lit && ring.noTravellers, JSON.stringify(ring));
-    check('PARRY: the note counts itself against the whole volley and lights when gradeable',
-      /^1\/\d+$|^TAP!$/.test(ring.label) && ring.livesUp, JSON.stringify({ label: ring.label, live: ring.livesUp }));
+    // The VERB is readable from the first frame — a ring that only says "1/6"
+    // tells you when and never what — and the beat count keeps its own line.
+    check('PARRY: the ring names its gesture from the first frame and lights when gradeable',
+      /^TAP!?$/.test(ring.label) && /^1\/\d+$/.test(ring.count || '') && ring.livesUp,
+      JSON.stringify({ label: ring.label, count: ring.count, live: ring.livesUp }));
   }
   await settle();
   // ── the beat: one metronome across the whole volley ──
@@ -688,9 +692,14 @@ const { boot } = require('./harness.cjs');
     });
     // every gap must be a whole number of beats — a skipped beat is still on grid
     const onGrid = beat.gaps.length && beat.gaps.every(g => Math.abs(g / 500 - Math.round(g / 500)) < 0.08);
+    // …and it BREATHES: six notes end to end is a wall, six in phrases with a
+    // rest between hits is a bar you can read your way through.
+    const rests = beat.gaps.filter(g => g > 900).length;
     check('BEAT: the whole volley runs on one 120 BPM metronome, rings closing on the beat',
       beat.pulse && beat.beatMs === '500ms' && onGrid && beat.noTracker,
       JSON.stringify({ pulse: beat.pulse, beat: beat.beatMs, gaps: beat.gaps, noTracker: beat.noTracker }));
+    check('BEAT: the volley breathes — a rest beat separates one hit from the next',
+      rests >= 1, JSON.stringify({ gaps: beat.gaps, rests }));
   }
   await settle();
   // ── an early press is forgiven, not consumed ──
@@ -734,6 +743,35 @@ const { boot } = require('./harness.cjs');
       /slide:R/.test(vocab.dirs) && /slide:L/.test(vocab.dirs) && vocab.dirOK,
       JSON.stringify(vocab.dirs));
   }
+  // ── wrong way on the beat: a misread arrow costs a grade, not the string ──
+  await fresh(7);
+  {
+    const wrong = await J(async () => {
+      window.K.forceIntent('scythe');
+      const done = window.K.endTurn();
+      const st = document.getElementById('k-stage');
+      let ring = null;
+      for (let i = 0; i < 300 && !ring; i++) {           // wait for the first arrow
+        ring = st.querySelector('.k-pring[data-dir]');
+        if (!ring) await new Promise(res => setTimeout(res, 12));
+      }
+      if (!ring) return { found: false };
+      const dir = ring.dataset.dir;
+      const ax = { L: 70, R: -70, U: 0, D: 0 }[dir], ay = { U: 70, D: -70, L: 0, R: 0 }[dir];
+      const wait = +ring.dataset.impact - performance.now() - 60;    // commit just early
+      if (wait > 0) await new Promise(res => setTimeout(res, wait));
+      const pt = (t, x, y) => st.dispatchEvent(new PointerEvent(t,
+        { bubbles: true, clientX: x, clientY: y, pointerId: 9 }));
+      pt('pointerdown', 400, 200);
+      pt('pointermove', 400 + ax, 200 + ay);             // straight the wrong way
+      pt('pointerup', 400 + ax, 200 + ay);
+      const r = await done;
+      return { found: true, dir, first: r.grades[0] };
+    });
+    check('NOTES: a misread arrow answered on the beat pays a grade, not the whole string',
+      wrong.found && wrong.first !== 'miss' && wrong.first !== 'late', JSON.stringify(wrong));
+  }
+  await settle();
   // ── bait and burst resolve on their own rules ──
   await fresh(7);
   {

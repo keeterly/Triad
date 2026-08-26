@@ -418,7 +418,17 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   80%  { opacity: 0.9; }
   100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
 .k-pr-lbl { position: absolute; left: 0; top: 34px; transform: translateX(-50%);
-  font-size: 10px; letter-spacing: 0.16em; color: #b0a894; text-shadow: 0 1px 3px #000; }
+  font-size: 11px; font-weight: 700; letter-spacing: 0.14em; white-space: nowrap;
+  color: #efe3c6; text-shadow: 0 0 6px rgba(0,0,0,0.9), 0 1px 3px #000; }
+/* the beat counter moved off the verb's line — it was wearing the verb's slot */
+.k-pr-n { position: absolute; left: 0; top: -46px; transform: translateX(-50%);
+  font-size: 9px; letter-spacing: 0.2em; color: rgba(190,178,150,0.7);
+  text-shadow: 0 1px 3px #000; }
+/* DEPTH — a note that is still approaching sits back, so the eye always knows
+   which of the rings in the air is the one being asked for right now */
+.k-pring:not(.k-pr-live):not(.k-pr-open) .k-pr-target { opacity: 0.5; }
+.k-pring:not(.k-pr-live):not(.k-pr-open) .k-pr-lbl { opacity: 0.68; }
+.k-pring:not(.k-pr-live):not(.k-pr-open) .k-pr-arrow { opacity: 0.8; }
 /* GO — the note enters the window: gold, pulsing, and the label says the verb */
 .k-pring.k-pr-live .k-pr-target { border-style: solid; border-color: rgba(255,225,74,0.95);
   box-shadow: 0 0 14px rgba(255,225,74,0.75), inset 0 0 10px rgba(255,225,74,0.35);
@@ -507,7 +517,18 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 
 /* ═══ the note vocabulary ═══ */
 .k-pr-arrow { position: absolute; left: 0; top: 0; transform: translate(-50%,-50%);
-  font-size: 21px; color: #ffe14a; text-shadow: 0 0 10px rgba(255,225,74,0.8); }
+  font-size: 30px; font-weight: 700; color: #ffe14a;
+  text-shadow: 0 0 12px rgba(255,225,74,0.9), 0 2px 4px #000;
+  animation: k-prarrow 0.66s ease-in-out infinite; }
+@keyframes k-prarrow { 50% { transform: translate(-50%,-50%) scale(1.16); } }
+.k-pring-dir .k-pr-target { border-color: rgba(255,225,74,0.62); }
+/* swiped the wrong way while the beat was good — the ring says so and keeps
+   listening; correcting still earns full credit, never correcting costs one */
+.k-pring.k-pr-wrong { animation: k-prwrong 0.26s ease; }
+.k-pring.k-pr-wrong .k-pr-arrow { color: #e8a05a; }
+@keyframes k-prwrong { 0%,100% { transform: translate(-50%,-50%); }
+  25% { transform: translate(calc(-50% - 5px),-50%); }
+  75% { transform: translate(calc(-50% + 5px),-50%); } }
 .k-pr-x { position: absolute; left: 0; top: 0; transform: translate(-50%,-50%);
   font-size: 20px; color: #e0665a; text-shadow: 0 0 10px rgba(224,102,90,0.9); }
 .k-pr-burst { position: absolute; left: 0; top: 0; width: 26px; height: 26px;
