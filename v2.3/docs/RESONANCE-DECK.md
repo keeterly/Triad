@@ -331,6 +331,29 @@ rule, and nothing else changes. Re-measured with the sweep on: **0% / 43.8% /
 100%** across the parry tiers, wins still landing on rounds 7–9, so the change
 costs nothing in balance.
 
+### Build 12 — the bottom bar, on the Spire convention
+
+AP, DECK and DISCARD were confusing because AP was drawn as a **parchment card
+stack** sitting right next to the draw pile: a resource and a zone shared a
+silhouette, so the eye read three piles. The rule now is one shape per role:
+
+- **Round = resource.** AP is a lit gold orb, unmistakably not a stack, and it
+  goes cold when spent.
+- **Rectangle = a place cards live.** The draw pile sits in the bottom-LEFT
+  corner and the discard mirrors it bottom-RIGHT, each a fan of card backs with
+  a count and a label above it. Empty piles dim.
+- **Parchment = a button.** END TURN sits above its own pile on the right,
+  exactly as the orb sits above its pile on the left, so the two sides mirror.
+- **CYCLE** is an economy pip like AP, so it lives beside the orb rather than
+  down among the zones.
+
+This is Slay the Spire's arrangement (piles in the two bottom corners, the
+resource orb on the left, the turn action on the right); MTG Arena groups both
+zones on one side instead, which is worse here because our hand is centred and
+would crowd them. A gate now asserts the orb is round, that each side's
+resource/action sits above its own pile, and that nothing in the bottom bar
+overlaps anything else.
+
 ### The Dirge — an addition the deck does not list
 
 The Regent's hymn settles on the whole party each enemy phase for unparryable

@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 11;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 12;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1216,10 +1216,13 @@ function condText(card) {
 function effectText(effects) { return prose(effects, true).replace(/<[^>]*>/g, ''); }
 function renderApDial() {
   el('k-ap-num').textContent = C.ap;
+  el('k-ap').classList.toggle('k-ap-spent', C.ap === 0);   // a spent orb goes cold
 }
 function renderPiles() {
   el('k-deck-n').textContent = C.deck.length;
   el('k-disc-n').textContent = C.discard.length;
+  el('k-deck-btn').classList.toggle('k-pile-empty-stack', !C.deck.length);
+  el('k-disc-btn').classList.toggle('k-pile-empty-stack', !C.discard.length);
   const cy = el('k-cycle-n');
   if (cy) cy.textContent = C.turnState.cycled ? '0' : '1';
 }

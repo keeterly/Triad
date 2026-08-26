@@ -121,21 +121,29 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-int-chip.k-int-broken { background: rgba(120,90,26,0.28); border-color: rgba(201,164,92,0.5); }
 .k-int-chip.k-int-broken #k-int-name { color: #e0c084; }
 
-#k-ap { position: absolute; left: 20px; bottom: 18px; width: 60px; height: 72px; z-index: 12; }
-#k-ap::before, #k-ap::after { content: ''; position: absolute; inset: 0; border-radius: 3px;
-  background: linear-gradient(172deg, #c9c1ae, #a89d84); border: 1px solid #6f6753;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.6); }
-#k-ap::before { transform: rotate(-5deg) translate(-3px, 2px); }
-#k-ap::after { transform: rotate(3deg) translate(2px, 1px); }
-.k-ap-chip { position: absolute; inset: 0; z-index: 2; border-radius: 3px;
+/* ── AP IS AN ORB, NOT A PILE ────────────────────────────────────────────
+   It read as a third stack of cards next to the draw pile, which is exactly
+   the confusion: a resource and a zone must not share a silhouette. Slay the
+   Spire's split is the one to copy — the resource is a round, lit gem on the
+   left; the two ZONES are flat card stacks in the two bottom corners; the
+   turn ACTION sits on the right above its pile. Round = resource, rectangle =
+   a place cards live, parchment = a button. */
+#k-ap { position: absolute; left: 24px; bottom: 106px; width: 62px; height: 62px; z-index: 13; }
+.k-ap-chip { position: absolute; inset: 0; border-radius: 50%;
   background:
-    radial-gradient(140% 120% at 50% 20%, rgba(240,235,222,0.3) 0%, rgba(240,235,222,0) 55%),
-    linear-gradient(172deg, #d3ccba, #b3a88e);
-  border: 1px solid #6f6753; box-shadow: inset 0 0 12px rgba(90,78,56,0.35);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
-.k-ap-chip span { font-size: 30px; font-weight: 700; color: #2b2620; line-height: 1; }
-.k-ap-chip em { font-style: normal; font-size: 9px; letter-spacing: 0.22em; color: #6d6450; }
-#k-log { position: absolute; left: 96px; bottom: 22px; width: 200px; font-size: 11px; font-style: italic;
+    radial-gradient(circle at 38% 30%, #ffeec4 0%, #e0c084 26%, #a8873f 62%, #5d4a22 100%);
+  border: 2px solid #f0d488;
+  box-shadow: 0 0 22px rgba(224,192,132,0.5), 0 4px 12px rgba(0,0,0,0.7),
+              inset 0 -6px 14px rgba(60,44,16,0.55), inset 0 4px 10px rgba(255,240,200,0.4);
+  display: flex; align-items: center; justify-content: center; }
+.k-ap-chip span { font-size: 30px; font-weight: 700; color: #2a2109; line-height: 1;
+  text-shadow: 0 1px 0 rgba(255,240,200,0.5); }
+/* labelled ABOVE, like the two zones below it, so nothing collides */
+.k-ap-chip em { position: absolute; left: 0; right: 0; top: -15px; font-style: normal;
+  font-size: 8.5px; letter-spacing: 0.24em; color: #b0a894; text-align: center; }
+#k-ap.k-ap-spent .k-ap-chip { filter: saturate(0.35) brightness(0.72); box-shadow: 0 4px 12px rgba(0,0,0,0.7); }
+
+#k-log { position: absolute; left: 24px; bottom: 176px; width: 210px; font-size: 11px; font-style: italic;
   color: #b0a894; z-index: 12; pointer-events: none; }
 #k-log.k-log-in { animation: k-login 0.4s ease; }
 @keyframes k-login { from { opacity: 0; transform: translateY(4px); } }
@@ -225,17 +233,18 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 #k-res-state { font-size: 6.5px; letter-spacing: 0.14em; color: #9a9080; text-transform: uppercase; }
 
 /* ── piles + end turn ── */
-#k-piles { position: absolute; right: 14px; bottom: 62px; display: flex; flex-direction: column;
-  gap: 3px; align-items: flex-end; z-index: 12; }
-.k-pile-note { font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #9a9080; }
+#k-piles { position: absolute; left: 96px; bottom: 124px; z-index: 12; }
+.k-pile-note { font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: #9a9080;
+  padding: 2px 7px; border: 1px solid rgba(150,138,114,0.35); border-radius: 10px;
+  background: rgba(14,12,15,0.5); white-space: nowrap; }
 .k-pile-note b { color: #cfc8ba; }
 
 /* ── the two piles: real stacks, tappable, with a live count ── */
-.k-pile { position: absolute; bottom: 16px; width: 52px; height: 72px; z-index: 13;
+.k-pile { position: absolute; bottom: 14px; width: 50px; height: 68px; z-index: 13;
   background: none; border: none; padding: 0; cursor: pointer; font-family: inherit;
   -webkit-tap-highlight-color: transparent; }
-#k-deck-btn { left: 92px; }
-#k-disc-btn { right: 122px; }
+#k-deck-btn { left: 22px; }
+#k-disc-btn { right: 22px; }
 /* the stack itself — three worn card backs, fanned */
 .k-pile-stack { position: absolute; inset: 0; border-radius: 3px;
   background: linear-gradient(168deg, #2a2419 0%, #1d1811 60%, #14100b 100%);
@@ -251,7 +260,7 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-pile b { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   font-size: 21px; font-weight: 700; color: #e6ddc8; z-index: 2;
   text-shadow: 0 2px 6px rgba(0,0,0,0.95); }
-.k-pile em { position: absolute; left: 0; right: 0; bottom: -13px; font-style: normal;
+.k-pile em { position: absolute; left: -8px; right: -8px; top: -13px; font-style: normal;
   font-size: 7.5px; letter-spacing: 0.16em; color: #9a9080; text-align: center; }
 .k-pile:hover b { color: #ffe9b8; }
 .k-pile:hover .k-pile-stack { border-color: #c9a45c; box-shadow: 0 4px 14px rgba(0,0,0,0.7), 0 0 14px rgba(201,164,92,0.35); }
@@ -268,7 +277,7 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   transform-origin: 50% 50%; }
 .k-fly-back { background: linear-gradient(168deg, #2a2419 0%, #1d1811 60%, #14100b 100%); }
 
-#k-endturn { position: absolute; right: 14px; bottom: 12px; min-width: 96px; height: 44px;
+#k-endturn { position: absolute; right: 16px; bottom: 96px; min-width: 104px; height: 42px;
   background: linear-gradient(168deg, #d8d1c2, #c2b9a3); border: 1px solid #8f866f; border-radius: 5px;
   font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
   color: #332e26; cursor: pointer; box-shadow: 0 3px 8px rgba(0,0,0,0.5); z-index: 14; }
@@ -463,7 +472,9 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   color: #9a9080; background: none; border: none; padding: 1px 0; cursor: pointer; text-align: right; }
 .k-pile-btn:hover { color: #e0c084; }
 .k-pile-btn b { color: #cfc8ba; }
-.k-pile-note { font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #9a9080; }
+.k-pile-note { font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: #9a9080;
+  padding: 2px 7px; border: 1px solid rgba(150,138,114,0.35); border-radius: 10px;
+  background: rgba(14,12,15,0.5); white-space: nowrap; }
 .k-pile-note b { color: #cfc8ba; }
 .k-pile-view { width: 574px; max-height: 392px; display: flex; flex-direction: column; gap: 8px;
   pointer-events: none; }

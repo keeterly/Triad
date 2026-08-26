@@ -72,7 +72,7 @@ const { boot } = require('./harness.cjs');
     check('OPENING COVERAGE: 5 cards, at least one per hero, across 8 seeds', ok, detail);
   }
   {
-    const src = await J(async () => (await (await fetch('game.js?v=11')).text()));
+    const src = await J(async () => (await (await fetch('game.js?v=12')).text()));
     const phaseWrites = (src.match(/C\.phase = /g) || []).length;
     check('ONE TRANSITION OWNER: setPhase is the only C.phase mutator', phaseWrites === 1, phaseWrites + ' assignments');
     check('NO FLOW METER, NO ACTION TRAIL: nothing renders a meter or a trail', await J(() =>
@@ -774,10 +774,24 @@ const { boot } = require('./harness.cjs');
       const st = document.getElementById('k-stage').getBoundingClientRect();
       const d = document.getElementById('k-deck-btn').getBoundingClientRect();
       const x = document.getElementById('k-disc-btn').getBoundingClientRect();
+      const ap = document.getElementById('k-ap').getBoundingClientRect();
+      const et = document.getElementById('k-endturn').getBoundingClientRect();
+      const cyc = document.getElementById('k-piles').getBoundingClientRect();
+      const overlaps = (a, b) => !(a.right <= b.left || a.left >= b.right
+        || a.bottom <= b.top || a.top >= b.bottom);
+      const orbRound = getComputedStyle(document.querySelector('.k-ap-chip')).borderRadius;
       const out = {
         deckLeft: d.left - st.left < st.width * 0.35,
         discRight: st.right - x.right < st.width * 0.35,
         lowerThird: d.top - st.top > st.height * 0.6 && x.top - st.top > st.height * 0.6,
+        // the resource is round and the zones are rectangles — never the same shape
+        orbRound: /50%/.test(orbRound),
+        // the resource sits ABOVE its corner pile, Spire-style, and nothing
+        // in the bottom bar overlaps anything else
+        orbAboveDeck: ap.bottom <= d.top,
+        endTurnAboveDiscard: et.bottom <= x.top,
+        noOverlap: !overlaps(ap, d) && !overlaps(ap, x) && !overlaps(et, x)
+          && !overlaps(et, d) && !overlaps(cyc, ap) && !overlaps(cyc, d) && !overlaps(d, x),
         deckN: document.getElementById('k-deck-n').textContent,
         discN: document.getElementById('k-disc-n').textContent,
         stateDeck: String(window.K.state().deck.length),
@@ -796,6 +810,10 @@ const { boot } = require('./harness.cjs');
     check('PILES: a draw stack and a discard stack sit in the lower corners, counting live',
       piles.deckLeft && piles.discRight && piles.lowerThird && piles.stacked
       && piles.deckN === piles.stateDeck, JSON.stringify(piles));
+    check('BOTTOM BAR: round resource above its pile, action above its pile, nothing overlapping',
+      piles.orbRound && piles.orbAboveDeck && piles.endTurnAboveDiscard && piles.noOverlap,
+      JSON.stringify({ round: piles.orbRound, orbAbove: piles.orbAboveDeck,
+        etAbove: piles.endTurnAboveDiscard, clear: piles.noOverlap }));
     check('PILES: a played card is seen flying into the discard, and the pile thumps',
       piles.flying >= 1 && piles.thumped && piles.landed && piles.discAfter === '1',
       JSON.stringify({ flying: piles.flying, thump: piles.thumped, after: piles.discAfter }));
@@ -851,7 +869,7 @@ const { boot } = require('./harness.cjs');
       const prevented = !card.dispatchEvent(ev);
       // Chromium does not implement -webkit-touch-callout, so assert the
       // declaration ships in the stylesheet rather than reading it back
-      const css = await (await fetch('styles.css?v=11')).text();
+      const css = await (await fetch('styles.css?v=12')).text();
       const rule = css.slice(css.indexOf('.k-card {'), css.indexOf('.k-card {') + 260);
       return { calloutShipped: /-webkit-touch-callout:\s*none/.test(rule),
                highlightShipped: /-webkit-tap-highlight-color:\s*transparent/.test(rule),
