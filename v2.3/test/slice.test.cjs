@@ -55,6 +55,22 @@ const MAX_TURNS = 30;
   const log = [];
 
   await J((s) => window.R.newRun(s), 5150);
+  const route = await J(() => {
+    const m = window.R.map(), start = m.filter(n => n.col === 0);
+    const paths = [];
+    const rec = (n, acc) => {
+      const path = acc.concat([n]);
+      if (!n.to.length) { paths.push(path); return; }
+      n.to.forEach(t => rec(m.find(q => q.id === t), path));
+    };
+    start.forEach(n => rec(n, []));
+    let best = null, bestScore = -1;
+    for (const p of paths) {
+      const kinds = new Set(p.map(n => n.kind));
+      if (kinds.size > bestScore) { bestScore = kinds.size; best = p; }
+    }
+    return best.map(n => n.id);
+  });
   await invariants('trailhead');
   {
     const v = await visible();
@@ -63,14 +79,16 @@ const MAX_TURNS = 30;
   }
 
   for (let col = 0; col < 6; col++) {
-    // Choose so the walk covers every kind of stop the road can serve — a
-    // slice test that only ever fights proves the slice only ever fights.
-    const pickId = await J((s) => {
-      const open = window.R.reachable().map(id => window.R.map().find(n => n.id === id));
-      const rank = (n) => (s[n.kind] === 0 ? 0 : 1) + (n.kind === 'fight' ? 0.5 : 0);
-      open.sort((a, b) => rank(a) - rank(b));
-      return open[0].id;
-    }, seen);
+    // WALK A ROUTE CHOSEN UP FRONT, not greedily.
+    //
+    // A slice test that only ever fights proves the slice only ever fights, so
+    // the walk has to cover every KIND of stop. Picking greedily at each fork
+    // cannot guarantee that: the column's one crossing may not lead to the
+    // kind you still need, and the first run of this gate duly reached the
+    // Regent having never once seen a memory. The route is instead searched
+    // for whole — there are at most 32 root-to-boss paths — and scored by how
+    // many distinct kinds it visits.
+    const pickId = route[col];
     const kind = await J((id) => window.R.map().find(n => n.id === id).kind, pickId);
     seen[kind] = (seen[kind] || 0) + 1;
 

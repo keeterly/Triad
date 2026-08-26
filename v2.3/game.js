@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 28;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 29;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -937,6 +937,14 @@ async function endTurn(opts) {
           dealToBoss(rip, 'riposte');
           breakDamage(1);
           logLine('FLAWLESS — ' + fmtN(rip) + ' returned.');
+          // A RIPOSTE CAN END THE FIGHT MID-VOLLEY. The bleed tick already
+          // guarded for this; the riposte did not, so the rest of the barrage
+          // — and the unparryable dirge after it — kept landing on the party
+          // after the Regent was already dead and VICTORY was locked. You
+          // could watch your own heroes fall to something the game had
+          // declared defeated, and the function returned 'defeat' for a fight
+          // it had won.
+          if (C.phase === 'VICTORY') { renderAll(); return report('victory', result); }
         }
         fxParryReceipt(parrierId, read);
       }
@@ -962,6 +970,7 @@ async function endTurn(opts) {
   // and no timing answers it: only Guard and healing do. It resolves LAST so
   // that Guard is still standing when the volley's parry windows ask for it —
   // a hero who banked 2 Guard can always spend it to negate.
+  if (C.phase === 'VICTORY') { renderAll(); return report('victory', result); }
   const dirge = dirgeAmount();
   if (dirge > 0 && !result.canceled) {
     for (const id of livingHeroes()) {
@@ -2091,12 +2100,28 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
         + icon('finale') + 'Exhaust<i class="k-combo-state">ON</i></span>'
         + '<span class="k-combo-pay">Leaves the fight when played.</span></span>'
       : '';
-  // THE ART LEADS, and the two corners sit ON it: cost top-left, whose card it
-  // is top-right. With the name above the art instead, those corners ate 50 of
-  // its 102px and every two-word name wrapped to two lines.
+  // THE ART ZONE CARRIES THE CARD'S VERB, not the hero's face a second time.
+  //
+  // It used to hold `ownerArt` — the same portrait as the emblem in the corner,
+  // blown up to 60px. Which meant all five of Mira's cards were the identical
+  // image, and at 108px wide against dark character art the whole zone
+  // collapsed to a black smear: three cards in a hand were distinguishable
+  // only by reading their titles. That is the exact opposite of what a card
+  // game's hand is for, and it is the last thing standing between this combat
+  // and StS2's readability.
+  //
+  // So the zone now shows up to two glyphs derived from what the card actually
+  // does — blade, shield, cross, shard, drop, flake, cards, step. Derived, not
+  // authored, so a card can never advertise an effect it no longer has, and it
+  // survives an upgrade changing the numbers underneath. Warm plate for a card
+  // that reaches the enemy, cool for one that helps the party: the hand sorts
+  // itself into "attack" and "answer" before a single word is read.
+  const glyphs = cardGlyphs(ev.resolvedEffects);
+  const tone = c.target === 'enemy' ? 'k-cart-warm' : 'k-cart-cool';
   return '<span class="k-cgem' + (ev.condActive && ev.currentCost !== c.cost ? ' on' : '') + '">' + gem + '</span>'
     + '<img class="k-owner" src="' + ownerArt + '" alt="">'
-    + '<span class="k-cart"><img src="' + ownerArt + '" alt=""></span>'
+    + '<span class="k-cart ' + tone + (glyphs.length > 1 ? ' k-cart-two' : '') + '">'
+    + glyphs.map(g => icon(g, 'k-cverb')).join('') + '</span>'
     + '<span class="k-cname">' + c.name + '</span>'
     // the prose sits in its own inner span: .k-cprose centres its content with
     // flex, and a flex container turns each inline child into an item — which
@@ -2105,6 +2130,25 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
     + cond + '</span>';
 }
 // Plain sentences, numbers bolded — the way a card is read at a glance.
+// WHAT KIND OF CARD IS THIS, in at most two marks. Ordered by how much the
+// atom defines the card rather than by where it sits in the list, so Guarding
+// Cut reads blade-then-shield and Shared Grace reads shield-then-shard.
+const VERB_OF = [
+  ['dmg', 'atk'], ['heal', 'heal'], ['healAll', 'heal'],
+  ['guardSelf', 'guard'], ['guardAll', 'guard'], ['guardAlly', 'guard'],
+  ['guardLowest', 'guard'], ['intercede', 'guard'],
+  ['brk', 'brk'], ['bleed', 'bleed'], ['chill', 'chill'],
+  ['drawDiscard', 'draw'], ['draw', 'draw'], ['moveSelf', 'move'],
+];
+function cardGlyphs(effects) {
+  const out = [];
+  for (const [key, glyph] of VERB_OF) {
+    if (!effects.some(fx => fx[key])) continue;
+    if (out.indexOf(glyph) < 0) out.push(glyph);
+    if (out.length === 2) break;
+  }
+  return out.length ? out : ['atk'];
+}
 function prose(effects, plain) {
   const I = plain ? () => '' : icon;
   const out = [];
@@ -2438,6 +2482,10 @@ function attachCardInput(btn) {
     const dx = e.clientX - sx, dy = e.clientY - sy;
     if (!dragging && Math.hypot(dx, dy) > 14) {
       clearTimeout(holdT); dragging = true;
+      // A DRAG RETIRES ANY STANDING SELECTION. Otherwise the previously
+      // tapped card stays raised with its gold ring on the target while the
+      // dragged card paints a red one over the top of it.
+      if (_sel && _sel !== id) clearSelection();
       // Measure the card's rest position UNDER the aiming transform — the fan's
       // rotate/translate moves its visual centre, so measuring before the swap
       // would anchor the drag to the wrong point and the card would sit off the
@@ -2490,7 +2538,7 @@ function attachCardInput(btn) {
       btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy');
       const over = dropTargetAt(e.clientX, e.clientY, id);
       if (!dropCommit(id, over)) renderHand();
-      else { _sel = null; el('k-target-ring').classList.add('k-hidden'); }
+      else { clearSelection(); }
       return;
     }
     if (_sel === id) { commitCard(id); }
@@ -2501,6 +2549,18 @@ function attachCardInput(btn) {
     aimClear();
     btn.classList.remove('k-dragging', 'k-aiming', 'k-drop-ok');
     btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy'); });
+}
+// ONE TARGETING SYSTEM AT A TIME. Tap-select raises a card and paints a gold
+// ring on its legal target; drag-aim paints a red reticle and a beam. Starting
+// a drag while a different card was still selected left BOTH on screen — two
+// cards looking active, and the Regent wearing two rings that overlapped. The
+// drag wins, because the drag is the thing the hand is doing right now.
+function clearSelection() {
+  if (!_sel) return;
+  _sel = null;
+  const ring = el('k-target-ring');
+  if (ring) ring.classList.add('k-hidden');
+  renderHand();
 }
 function showTargetRing(cardId) {
   const c = cardDef(cardId);

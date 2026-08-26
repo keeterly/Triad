@@ -77,9 +77,29 @@ const { boot } = require('./harness.cjs');
     check('ONE TRANSITION OWNER: setPhase is the only C.phase mutator', phaseWrites === 1, phaseWrites + ' assignments');
     check('NO FLOW METER, NO ACTION TRAIL: nothing renders a meter or a trail', await J(() =>
       !document.querySelector('#k-flow, .k-flow, .k-trail, .k-action-trail')), '');
-    check('COST FLOOR: every printed cost ≥ 1 and Follow-Up floors at 1', await J(() => {
+    // The name used to promise the Follow-Up floor as well, which this check
+    // never exercised — it only read printed costs. The clamp is now actually
+    // driven here: a 1-cost card whose condition would discount it further has
+    // to come out at 1, never 0.
+    check('COST FLOOR: every printed cost ≥ 1, and a discount can never reach 0', await J(() => {
       const defs = ['cleave','guardcut','cstance','crosssever','lastlight','lcascade','mend','frostbind','sgrace','intercession','serrate','qthrow','twinfang','backstab','execute','lightsteel'];
-      return defs.every(id => window.K.evaluateCard(id).card.cost >= 1);
+      const printed = defs.every(id => window.K.evaluateCard(id).card.cost >= 1);
+      // DRIVE THE CLAMP, do not restate it. `Math.max(1, 0) === 1` would be a
+      // test of JavaScript, not of this deck. Both paths into currentCost get
+      // a zero pushed through them via the per-fight card overlay, and both
+      // have to come back 1.
+      const C = window.K.state();
+      const keepA = C.cards.cleave, keepB = C.cards.crosssever;
+      C.cards.cleave = { ...keepA, cost: 0 };
+      const basePath = window.K.evaluateCard('cleave').currentCost;
+      C.cards.crosssever = { ...keepB, cond: { ...keepB.cond, costTo: 0 } };
+      const ev = window.K.evaluateCard('crosssever');
+      // only meaningful while the condition is live; when it is not, the base
+      // cost is what is read and the base cost is already ≥ 1
+      const condPath = ev.condActive ? ev.currentCost : 1;
+      C.cards.cleave = keepA; C.cards.crosssever = keepB;
+      return printed && basePath === 1 && condPath === 1
+        && defs.every(id => window.K.evaluateCard(id).currentCost >= 1);
     }), '');
   }
 

@@ -216,7 +216,15 @@
         let crossed = false;
         if (rr() < 0.55) { a[0].to.push(b[1].id); crossed = true; }
         if (rr() < 0.55) { a[1].to.push(b[0].id); crossed = true; }
-        if (!crossed) (rr() < 0.5 ? a[0] : a[1]).to.push(rr() < 0.5 ? b[1].id : b[0].id);
+        // THE FALLBACK HAS TO ACTUALLY CROSS. It used to pick a source and a
+        // destination independently, so two of its four outcomes were the
+        // straight-ahead edge the base connection had already added — silently
+        // absorbed by the Set. The forced crossing therefore only crossed half
+        // the time it fired, and 34% of seeds ended up with at least one
+        // column that was two parallel corridors: the exact failure this rule
+        // exists to prevent. The single-seed check in road.test.cjs passed on
+        // luck. Pick the source, then take the OTHER lane, always.
+        if (!crossed) { const from = rr() < 0.5 ? 0 : 1; a[from].to.push(b[1 - from].id); }
       } else if (b.length === 1) {
         a.forEach(n => { if (n.to.indexOf(b[0].id) < 0) n.to.push(b[0].id); });
       }
@@ -236,6 +244,8 @@
       seed: s, map: buildMap(s), at: null, path: [], stop: 0,
       embers: 0, nodes: [],                       // the tree nodes this run has kindled
       flash: null,                                // the receipt from the last stop
+      pending: null,                              // a stop entered but not finished
+      camped: 0, campDone: null,                  // the fire only mends once per visit
       seen: [],                                   // the memories this run has heard
       tier: 1,                                    // raised by MEMORY stops (Build 28)
       hp: null,                                   // null = everyone is whole
@@ -276,14 +286,35 @@
 
   // Icons carry the kind. Drawn rather than lettered, because the decision has
   // to survive a glance from arm's length on a phone.
+  // FIVE SILHOUETTES THAT CANNOT BE CONFUSED WITH EACH OTHER — or with
+  // anything else. Two of these were wrong on the first pass and both were
+  // caught by looking at a screenshot rather than at the code:
+  //   · the elite's crown-over-two-eyes-over-a-jaw rendered as a smiling face
+  //     in a party hat, which is a poor read for the gamble node, and it
+  //     shared the crown motif with the Regent so the two most dangerous
+  //     stops had the same silhouette ingredient;
+  //   · the campfire's "flame" was a plain teardrop, indistinguishable from
+  //     the ember currency in the header, and semantically closer to water.
+  // The elite is now crossed blades under a bar — a battle with weight on it,
+  // built from the BATTLE glyph so the family reads — and the flame is a real
+  // asymmetric fire with an inner tongue.
   const GLYPH = {
     fight: '<path d="M5 5 L19 19 M19 5 L5 19" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/>',
-    elite: '<path d="M4 10 L7 5 L12 9 L17 5 L20 10 Z" fill="currentColor"/><circle cx="9" cy="15" r="1.5" fill="currentColor"/><circle cx="15" cy="15" r="1.5" fill="currentColor"/><path d="M6 12 h12 v5 a6 6 0 0 1 -12 0 z" fill="none" stroke="currentColor" stroke-width="1.6"/>',
-    camp:  '<path d="M12 3 c3 4 5 6 5 9 a5 5 0 0 1 -10 0 c0 -3 2 -5 5 -9 z" fill="currentColor"/><path d="M4 20 h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    // The crown has to survive being 4px tall at map scale, so it is a real
+    // crown with three peaks rather than a thin band, and the blades below it
+    // keep the BATTLE stroke weight so the family still reads.
+    elite: '<path d="M6 11 L18 22 M18 11 L6 22" stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round"/>'
+         + '<path d="M3 9 L5.5 2 L9 6.5 L12 1 L15 6.5 L18.5 2 L21 9 Z" fill="currentColor"/>',
+    camp:  '<path d="M12 2 c1 4 4 5 4 9 a4 4 0 0 1 -8 0 c0 -2 1 -3 2 -4 c0 2 1 2 1 1 c0 -2 -1 -4 1 -6 z" fill="currentColor"/>'
+         + '<path d="M5 20 l4 -3 M19 20 l-4 -3 M4 21 h16" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/>',
     story: '<ellipse cx="12" cy="12" rx="9" ry="6" fill="none" stroke="currentColor" stroke-width="1.9"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/>',
     boss:  '<path d="M3 18 L5 7 L9 12 L12 5 L15 12 L19 7 L21 18 Z" fill="currentColor"/><path d="M3 20 h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
   };
-  const svgIcon = (kind) => '<svg viewBox="0 0 24 24" aria-hidden="true">' + GLYPH[kind] + '</svg>';
+  // The purse is a SPARK, not a drop — it must not share a silhouette with the
+  // campfire it is spent at.
+  const EMBER_SVG = '<path d="M12 2 L14 9 L21 11 L14 13 L12 20 L10 13 L3 11 L10 9 Z" fill="currentColor"/>';
+  const svgIcon = (kind) => '<svg viewBox="0 0 24 24" aria-hidden="true">'
+    + (kind === 'ember' ? EMBER_SVG : GLYPH[kind]) + '</svg>';
 
   function renderMap() {
     const wrap = $('k-map-nodes'), edges = $('k-map-edges');
@@ -334,6 +365,10 @@
     $('k-map-prog').textContent = RUN.over ? (RUN.over === 'win' ? 'THE DESCENT IS ENDED' : 'THE ROAD ENDS HERE')
       : 'STOP ' + Math.min(RUN.stop + 1, STOPS) + ' OF ' + STOPS;
     $('k-embers-n').textContent = RUN.embers;
+    // one spark, drawn from one place — the header used to carry its own copy
+    // in index.html, which is how it ended up being the campfire's teardrop
+    const spark = $('k-ember-ico');
+    if (spark && !spark.dataset.drawn) { spark.innerHTML = svgIcon('ember'); spark.dataset.drawn = '1'; }
     renderRoster();
     renderCard();
   }
@@ -379,6 +414,18 @@
       return;
     }
     if (!_pick) {
+      // A LAST RESORT THAT SHOULD NEVER FIRE. `pending` resume means a run can
+      // no longer strand itself, but a map with no reachable stop and no way
+      // off it is the single worst state this screen can reach, so it carries
+      // its own exit rather than trusting that.
+      if (!reachable().length) {
+        card.className = 'k-map-card k-mc-idle';
+        card.innerHTML = '<div class="k-mc-body"><b>THE ROAD GOES NO FURTHER</b>'
+          + '<span>Something went wrong here. Begin again.</span></div>'
+          + '<button type="button" id="k-map-go" class="k-mc-go">NEW RUN</button>';
+        $('k-map-go').addEventListener('click', (e) => { e.stopPropagation(); newRun(); });
+        return;
+      }
       card.className = 'k-map-card k-mc-idle';
       card.innerHTML = '<div class="k-mc-body"><b>CHOOSE THE NEXT STOP</b>'
         + '<span>Tap a lit stop to see what waits there.</span></div>';
@@ -400,7 +447,7 @@
   function gainText(n) {
     const foe = n.foe && window.K && window.K.FOES ? window.K.FOES[n.foe] : null;
     if (n.kind === 'camp') return '<b>REST</b><em>mend + spend</em>';
-    if (n.kind === 'story') return '<b>+1</b><em>ember · tier</em>';
+    if (n.kind === 'story') return '<b>+1</b><em>ember · tier</em>';   // and the tier is the only key
     if (foe) return '<b>+' + foe.embers + '</b><em>embers · ' + window.K.foeHp(foe) + ' hp</em>';
     return '';
   }
@@ -419,7 +466,17 @@
     const n = node(id);
     if (!n || reachable().indexOf(id) < 0) return;
     _busy = true;
+    // A STOP IS PENDING UNTIL IT RESOLVES. travel() has to commit `at`/`path`
+    // straight away — the map redraws from them — but the encounter itself
+    // only begins 260ms later and then runs for as long as the player takes.
+    // Closing the tab anywhere in that window used to leave the stop marked
+    // spent with nothing gained: a memory whose tier could never be earned
+    // again, or, at the boss, a run with `over` unset and no reachable node —
+    // stranded, with no button on screen to end it. `pending` is the receipt
+    // that says the stop was entered but never finished, and boot() re-enters
+    // it instead of dumping the player onto a dead map.
     RUN.at = id; RUN.path.push(id); RUN.stop = n.col + 1; _pick = null; RUN.flash = null;
+    RUN.pending = id;
     save();
     renderMap();
     setTimeout(() => { _busy = false; enter(n); }, 260);
@@ -439,6 +496,7 @@
   }
 
   function onFightEnd(sum) {
+    RUN.pending = null;
     RUN.last = sum;
     RUN.hp = sum.partyHp;
     if (sum.outcome === 'defeat') { RUN.over = 'loss'; save(); return toMap(); }
@@ -474,12 +532,18 @@
   const MAXHP = { ash: 42, elin: 36, mira: 34 };
   function enterCamp(n) {
     RUN.hp = RUN.hp || { ...MAXHP };
-    const before = { ...RUN.hp };
-    for (const id of Object.keys(MAXHP)) {
-      RUN.hp[id] = Math.min(MAXHP[id], Math.round((RUN.hp[id] != null ? RUN.hp[id] : MAXHP[id]) + MAXHP[id] * CAMP_FRAC));
+    // ONE MEND PER FIRE. Re-entering a pending campfire after a reload must
+    // show the tree again without paying the heal a second time, or a reload
+    // at the fire is an infinite healing loop.
+    if (RUN.campDone !== n.id) {
+      const before = { ...RUN.hp };
+      for (const id of Object.keys(MAXHP)) {
+        RUN.hp[id] = Math.min(MAXHP[id], Math.round((RUN.hp[id] != null ? RUN.hp[id] : MAXHP[id]) + MAXHP[id] * CAMP_FRAC));
+      }
+      RUN.camped = (RUN.camped || 0) + 1;
+      RUN.mended = Object.keys(MAXHP).reduce((n2, id) => n2 + (RUN.hp[id] - before[id]), 0);
+      RUN.campDone = n.id;
     }
-    RUN.camped = (RUN.camped || 0) + 1;
-    RUN.mended = Object.keys(MAXHP).reduce((n2, id) => n2 + (RUN.hp[id] - before[id]), 0);
     save();
     screen('camp');
     renderCamp();
@@ -490,6 +554,8 @@
     const wrap = document.getElementById('k-camp-tree');
     if (!wrap) return;
     document.getElementById('k-camp-embers').textContent = RUN.embers;
+    const cspark = document.getElementById('k-camp-ember-ico');
+    if (cspark && !cspark.dataset.drawn) { cspark.innerHTML = svgIcon('ember'); cspark.dataset.drawn = '1'; }
     document.getElementById('k-camp-mend').textContent = '+' + (RUN.mended || 0);
     const tierEl = document.getElementById('k-camp-tier');
     if (tierEl) tierEl.textContent = 'TIER ' + RUN.tier;
@@ -542,6 +608,10 @@
 
   function kindle(id) {
     const n = treeNode(id);
+    // `travel` and `tapNode` are protected because reachable() empties when a
+    // run ends. These are not, and they are all on window.R — so an ended run
+    // could still be spent from a console. Cheap to close, so close it.
+    if (RUN.over) return;
     if (!n || held(id) || RUN.tier < n.tier || RUN.embers < n.cost) return;
     RUN.embers -= n.cost;
     RUN.nodes.push(id);
@@ -552,6 +622,8 @@
   }
 
   function leaveCamp() {
+    if (RUN.over) return;
+    RUN.pending = null;
     const bought = RUN.nodes.length;
     RUN.flash = { icon: 'camp', tone: 'gold', title: 'THE FIRE BURNS DOWN',
       sub: bought ? 'Sharper than you came. Nobody says much.' : 'Wounds close. Nobody says much.',
@@ -609,16 +681,17 @@
   }
 
   function sceneNext() {
-    if (!_scene) return;
+    if (!_scene || RUN.over) return;
     if (_beat < _scene.beats.length) { _beat++; renderScene(); return; }
     finishScene();
   }
   function sceneSkip() {
-    if (!_scene) return;
+    if (!_scene || RUN.over) return;
     _beat = _scene.beats.length;      // straight to the payout, never past it:
     renderScene();                     // skipping the scene must not skip the reward
   }
   function finishScene() {
+    RUN.pending = null;
     RUN.seen = RUN.seen || [];
     if (_scene && RUN.seen.indexOf(_scene.id) < 0) RUN.seen.push(_scene.id);
     RUN.tier = Math.min(5, RUN.tier + 1);
@@ -662,8 +735,17 @@
     RUN = saved || freshRun(opts.seed);
     _pick = null; _busy = false;
     if (!saved) save();
-    // A saved run that was mid-fight comes back to the map, not to the fight:
-    // combat is not serialisable and pretending otherwise loses the run.
+    // A STOP LEFT PENDING IS RE-ENTERED, not skipped. Combat is not
+    // serialisable, so a fight resumed this way starts over against the same
+    // foe with the party's carried wounds — the honest behaviour, and vastly
+    // better than the alternatives it replaces: a memory silently stripped of
+    // the only tier it could ever have given, or a boss stop that leaves the
+    // run with nowhere to go and no way to end it.
+    if (RUN.pending && !RUN.over) {
+      const n = node(RUN.pending);
+      if (n) { enter(n); return; }
+      RUN.pending = null; save();
+    }
     toMap();
   }
 

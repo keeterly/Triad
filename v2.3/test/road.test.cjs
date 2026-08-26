@@ -53,20 +53,36 @@ const { boot } = require('./harness.cjs');
       !orphan.length && !dead.length && !bad.length,
       `orphans ${orphan.length} · dead ${dead.length} · broken ${bad.length}`);
 
-    // Without a crossing per column the road is two parallel corridors and the
-    // only decision in the whole run is the first one.
-    const crossings = [];
-    for (let c = 0; c < 5; c++) {
-      const a = cols[c], b = cols[c + 1];
-      let x = 0;
-      a.forEach((n, i) => n.to.forEach(t => {
-        const j = b.findIndex(q => q.id === t);
-        if (b.length > 1 && j >= 0 && j !== Math.min(i, b.length - 1)) x++;
-      }));
-      crossings.push(x);
-    }
-    check('ROAD: the two lanes cross in every column — the first pick is not the whole run',
-      crossings.slice(0, 4).every(x => x >= 1), JSON.stringify(crossings));
+    // ONE SEED IS NOT A PROOF OF A SEEDED PROPERTY.
+    //
+    // This check used to build seed 11's road and assert its crossings. Seed
+    // 11 happens to cross in every column, so it passed — while 34% of real
+    // seeds did not, because the forced-crossing fallback picked its source
+    // and destination independently and half the time produced the
+    // straight-ahead edge that was already there. A generator's invariant has
+    // to be swept, and the sweep is what found the bug.
+    const sweep = await J(() => {
+      const bad = [], N = 400;
+      for (let s = 1; s <= N; s++) {
+        window.R.newRun(s);
+        const m = window.R.map();
+        const col = (c) => m.filter(n => n.col === c);
+        for (let c = 0; c < 4; c++) {
+          const a = col(c), b = col(c + 1);
+          let x = 0;
+          a.forEach((n, i) => n.to.forEach(t => {
+            const j = b.findIndex(q => q.id === t);
+            if (b.length > 1 && j >= 0 && j !== Math.min(i, b.length - 1)) x++;
+          }));
+          if (x === 0) bad.push(s + ':' + c);
+        }
+      }
+      return { bad: bad.length, n: N, sample: bad.slice(0, 5) };
+    });
+    check('ROAD: the two lanes cross in EVERY column of EVERY seed — swept, not sampled',
+      sweep.bad === 0, sweep.bad + ' bare columns across ' + sweep.n + ' seeds'
+      + (sweep.sample.length ? ' — ' + sweep.sample.join(',') : ''));
+    await reset(11);
 
     const kinds = m.map(n => n.kind);
     check('ROAD: the road is paced — fights, a campfire, an elite, and no fight on the Regent’s doorstep',
@@ -263,6 +279,15 @@ const { boot } = require('./harness.cjs');
         JSON.stringify({ pre, post: post.hp, onFire }));
       await J(() => window.R.leaveCamp());
       await sleep(240);
+    } else {
+      // A LOOKUP THAT FINDS NOTHING MUST FAIL, NOT VANISH. Without this arm the
+      // check is simply never pushed and the suite's total silently drops by
+      // one — which reads as "32/32 passed" for a check that did not run. The
+      // camp at column 2 is guaranteed by PLAN and by the unconditional base
+      // edge in buildMap, so this arm should be unreachable; the day it is
+      // reachable is the day someone changed the road's shape.
+      check('CAMP: a campfire mends on arrival and opens the fire — it is a place, not an instant',
+        false, 'no camp reachable — the road’s shape changed');
     }
   }
 

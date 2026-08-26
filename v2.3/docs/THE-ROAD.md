@@ -396,3 +396,145 @@ a run, a road, attrition, a purse and a tree, which is most of that skeleton.
 What it does not have is **acquisition** — you sharpen the fifteen cards you
 started with and never gain or drop one — and it is one act, not three. Those
 are the next two things worth building, in that order.
+
+---
+
+## Build 29 — what four screenshots and two reviewers found
+
+Builds 26–28 added three screens. I had never looked at any of them. This build
+is what happened when three reviewers did: one that photographed every screen
+and read the images, one that hunted state bugs across the seams, and one that
+hunted checks in my own suites that pass without testing anything.
+
+They found **four real bugs and eleven visual defects.** The bugs were worse
+than the pixels.
+
+### The four bugs
+
+**1. A third of all roads had no fork in them.**
+
+The forced-crossing fallback in `buildMap` picked a source lane and a
+destination lane *independently*:
+
+```js
+if (!crossed) (rr() < 0.5 ? a[0] : a[1]).to.push(rr() < 0.5 ? b[1].id : b[0].id);
+```
+
+Two of its four outcomes are the straight-ahead edge the base connection had
+already added, silently absorbed by the `Set`. So the *forced* crossing only
+crossed half the time it fired. Swept over 20,000 seeds: **9.9% of columns came
+out bare, and 34% of seeds failed the invariant** — the exact "two parallel
+corridors" failure that Build 26's own documentation says the rule exists to
+prevent, and which its own test claimed to measure.
+
+The test measured seed 11. Seed 11 crosses in every column. It passed on luck.
+
+> **A generator's invariant has to be swept, not sampled.** The check now
+> builds 400 roads and asserts every column of every one of them. It is the
+> sweep that found the bug; nothing else could have.
+
+**2 and 3. An interrupted stop was destroyed or stranded the run.**
+
+`travel()` commits `at` and `path` and saves immediately — it has to, the map
+redraws from them — but the encounter only begins 260ms later and then runs for
+as long as the player takes. Close the tab in that window and the stop was
+marked spent with nothing gained:
+
+- at a **memory**, the tier and the ember were never awarded, and the stop
+  could never be revisited — silently destroying the *only* key to tiers 2
+  and 3 for that run;
+- at the **boss**, `over` was never set and the boss node has no outgoing
+  edges, so `reachable()` returned `[]` on a map whose card only offers NEW
+  RUN when the run is over. No reachable stop, no button, no way out.
+
+A stop is now `pending` until it resolves, and `boot()` re-enters a pending
+stop instead of dumping the player onto a dead map. A fight resumed that way
+starts over against the same foe with the party's carried wounds — combat is
+not serialisable, and that is the honest behaviour. The campfire records
+`campDone` so re-entering it shows the tree again without paying the mend
+twice, which would otherwise have been an infinite healing loop.
+
+*(This does mean a reload can restart a fight that was going badly. That
+save-scum exists in every browser game without server state, and it is a much
+smaller problem than the two it replaces.)*
+
+**4. A riposte that killed the Regent didn't stop the volley it killed her in.**
+
+The bleed tick guarded for mid-resolution victory; the FLAWLESS riposte did
+not. So the rest of the barrage — and the unparryable dirge after it — kept
+landing on the party after `VICTORY` was already locked. You could watch your
+own heroes fall to something the game had declared dead, and `endTurn` returned
+`'defeat'` for a fight it had won.
+
+### The eleven visual defects — and the one that mattered
+
+Most were small. One was not:
+
+**The card art zone held the hero's portrait a second time.** `.k-cart`
+rendered `ownerArt` — the same image as the emblem in the corner — blown up to
+60px. So all five of a hero's cards were the *identical picture*, and against
+dark character art at 108px wide the zone collapsed to a black smear. Three
+cards in a hand were distinguishable only by reading their titles.
+
+That is the exact opposite of what a hand is for, and it was the last thing
+standing between this combat and StS2's readability.
+
+The zone now carries **up to two glyphs derived from what the card does** —
+blade, shield, cross, shard, drop, flake, cards, step — on a plate that is warm
+if the card reaches the enemy and cool if it helps the party. Derived, not
+authored, so a card can never advertise an effect it no longer has and an
+upgrade cannot make it lie. The hand sorts itself into *attack* and *answer*
+before a single word is read:
+
+```
+CLEAVE        blade                  GUARDING CUT   blade + shield
+MEND          cross, cool plate      FROST BIND     blade + flake
+BACKSTAB      blade + step
+```
+
+The others, briefly:
+
+| | was | now |
+|---|---|---|
+| Elite map icon | a smiling face in a party hat, sharing the Regent's crown | a crown over crossed blades — the BATTLE glyph with weight on it |
+| Ember currency | a teardrop, identical to the campfire and reading as water | a spark |
+| Campfire icon | the same teardrop | a real asymmetric flame over logs |
+| "You are here" | a pale ring, near-identical to a reachable stop | a filled disc |
+| Unaffordable node | 1px border and one small numeral's hue | the whole card dims |
+| Non-speakers in a scene | near-pure black on black — two thirds of the frame read as empty | lifted to 62% |
+| Intent target badge | a 17px circle breaking a 23px pill's corner | smaller, with room on that side |
+| Sealed-node line | 7px grey | 9.5px violet — it carries the one thing you need to know |
+| Party portraits | Ash and Mira both collapsed to the same dark blob | lifted off a radial ground |
+| Lane labels | 8px dark grey on scene art, FRONT invisible | shadowed and lifted |
+| SKIP on the payout beat | still offered with nothing left to skip | hidden |
+
+### And the vacuous-check hunt
+
+Clean, apart from the one already found and fixed. Two hardening items taken:
+a lookup with no `else` arm that would have silently dropped a check rather
+than failing it, and a check whose name promised a clamp it never exercised —
+which I then briefly "fixed" by asserting `Math.max(1, 0) === 1`, a test of
+JavaScript rather than of this deck. It now pushes a zero through both paths
+into `currentCost` via the per-fight card overlay.
+
+### The vertical-slice gate
+
+New: `test/slice.test.cjs`. Every other suite tests a part — one stop, one
+fire it teleported to, one board it never leaves — and all of them can be green
+while the thing they are parts of is broken. This one plays a whole run through
+the real screens with the real engine, asserting at every step: exactly one
+screen visible, no negative embers, no hero over max, no stop taken twice, and
+the deck still fifteen cards. The route is *searched* rather than chosen
+greedily, because the first version reached the Regent having never seen a
+memory — a greedy picker cannot reach a kind the column's one crossing does not
+lead to.
+
+```
+stop 0: fight, won in 5 rounds     stop 3: elite, won in 6 rounds
+stop 1: memory, 9 taps             stop 4: campfire, kindled 4
+stop 2: fight, won in 4 rounds     stop 5: boss, won in 8 rounds
+```
+
+**21/21, and it caught nothing on its first run** — because the three reviewers
+had already caught it all. That is the correct order to do this in, and I did
+it backwards: three builds shipped before anyone looked at them.
