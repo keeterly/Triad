@@ -538,3 +538,25 @@ stop 2: fight, won in 4 rounds     stop 5: boss, won in 8 rounds
 **21/21, and it caught nothing on its first run** — because the three reviewers
 had already caught it all. That is the correct order to do this in, and I did
 it backwards: three builds shipped before anyone looked at them.
+
+### Build 29 measured
+
+```
+run.sim.cjs    3/3 gates, 120 roads/tier   0.0% / 28.3% / 90.8%
+balance.sim    3/3 gates, 220 runs/tier    0.0% / 34.1% / 100%
+flow 106/106 · road 32/32 · camp 32/32 · slice 21/21 · 0 page errors
+```
+
+Two movements worth naming rather than waving at:
+
+**The middle band of the fight sim rose 33.2% → 34.1%.** The boss encounter did
+not change, so that is the riposte fix showing up in the numbers: when a
+FLAWLESS riposte killed the Regent mid-volley, the dirge that followed could
+still wipe the party, and `endTurn` returned `'defeat'`. The bot believed it.
+About two fights in 220 were being scored as losses that were wins.
+
+**The run sim's top tier fell 95.0% → 90.8% and the middle rose 25.8% → 28.3%.**
+Both are inside seed noise at 120 roads, but the crossing fix genuinely changed
+the topology of a third of all roads — the routes a run can take are not the
+same routes they were — so these are not strictly comparable to Build 28's.
+They are a new baseline, not a regression.
