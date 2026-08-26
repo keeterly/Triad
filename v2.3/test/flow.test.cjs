@@ -72,7 +72,7 @@ const { boot } = require('./harness.cjs');
     check('OPENING COVERAGE: 5 cards, at least one per hero, across 8 seeds', ok, detail);
   }
   {
-    const src = await J(async () => (await (await fetch('game.js?v=13')).text()));
+    const src = await J(async () => (await (await fetch('game.js?v=14')).text()));
     const phaseWrites = (src.match(/C\.phase = /g) || []).length;
     check('ONE TRANSITION OWNER: setPhase is the only C.phase mutator', phaseWrites === 1, phaseWrites + ' assignments');
     check('NO FLOW METER, NO ACTION TRAIL: nothing renders a meter or a trail', await J(() =>
@@ -475,6 +475,7 @@ const { boot } = require('./harness.cjs');
         cycle: document.getElementById('k-cycle-n').textContent,
         bond: document.getElementById('k-bond-n').textContent, clipped, worstOver,
         overHead, oneLine, noBanner, iconed, noWords, chipN: chips.length,
+        preview: window.K.intentPreviewDmg(),
         dirge: !!document.querySelector('#k-intent .k-ichip-dirge'),
         atk: (document.querySelector('#k-intent .k-ichip-atk b') || {}).textContent,
         hasTargetFace: !!document.querySelector('#k-intent .k-ichip-atk img'),
@@ -484,7 +485,7 @@ const { boot } = require('./harness.cjs');
       ui.disjoint && ui.rows === 3 && ui.bars === 3 && ui.cards === 5 && ui.fanned
       && ui.pips === 12 && ui.noMove && ui.ap === '3' && ui.cycle === '1' && ui.bond === '0/2'
       && ui.clipped === 0 && ui.overHead && ui.oneLine && ui.noBanner
-      && ui.iconed && ui.noWords && ui.atk === '21' && ui.hasTargetFace && ui.hasDirge,
+      && ui.iconed && ui.noWords && ui.atk === String(ui.preview) && ui.hasTargetFace && ui.hasDirge,
       JSON.stringify(ui));
     const hover = await J(async () => {
       const card = document.querySelector('#k-hand .k-card');
@@ -656,7 +657,7 @@ const { boot } = require('./harness.cjs');
       ring.ring && ring.target && ring.closing && ring.focus && ring.thread
       && ring.lit && ring.noTravellers, JSON.stringify(ring));
     check('PARRY: the note counts itself against the whole volley and lights when gradeable',
-      /^1\/7$|^TAP!$/.test(ring.label) && ring.livesUp, JSON.stringify({ label: ring.label, live: ring.livesUp }));
+      /^1\/\d+$|^TAP!$/.test(ring.label) && ring.livesUp, JSON.stringify({ label: ring.label, live: ring.livesUp }));
   }
   await settle();
   // ── the beat: one metronome across the whole volley ──
@@ -667,13 +668,11 @@ const { boot } = require('./harness.cjs');
       window.K.endTurn();
       await new Promise(res => setTimeout(res, 620));
       const st = document.getElementById('k-stage');
-      const seq = st.querySelector('#k-seq');
+      const seq = st.querySelector('#k-seq');   // must no longer exist
       const out = {
         pulse: !!st.querySelector('#k-beat'),
         beatMs: st.querySelector('#k-beat') && st.querySelector('#k-beat').style.getPropertyValue('--beat'),
-        track: !!seq,
-        dots: seq ? seq.children.length : 0,
-        kinds: seq ? [...seq.children].map(d => d.className.replace('k-sq ', '').split(' ')[0]).join(',') : '',
+        noTracker: !seq,
       };
       // ring closes ON the beat: measure two successive impacts
       const stamps = new Set();
@@ -690,11 +689,8 @@ const { boot } = require('./harness.cjs');
     // every gap must be a whole number of beats — a skipped beat is still on grid
     const onGrid = beat.gaps.length && beat.gaps.every(g => Math.abs(g / 500 - Math.round(g / 500)) < 0.08);
     check('BEAT: the whole volley runs on one 120 BPM metronome, rings closing on the beat',
-      beat.pulse && beat.beatMs === '500ms' && onGrid,
-      JSON.stringify({ pulse: beat.pulse, beat: beat.beatMs, gaps: beat.gaps }));
-    check('BEAT: a sequence track shows every note of the bar, typed by gesture',
-      beat.track && beat.dots === 7 && /k-sq-slide/.test(beat.kinds) && /k-sq-hold/.test(beat.kinds),
-      JSON.stringify({ dots: beat.dots, kinds: beat.kinds }));
+      beat.pulse && beat.beatMs === '500ms' && onGrid && beat.noTracker,
+      JSON.stringify({ pulse: beat.pulse, beat: beat.beatMs, gaps: beat.gaps, noTracker: beat.noTracker }));
   }
   await settle();
   // ── an early press is forgiven, not consumed ──
@@ -714,6 +710,88 @@ const { boot } = require('./harness.cjs');
       early.stillLive && early.nudged, JSON.stringify(early));
   }
   await settle();
+  // ── the note vocabulary: six kinds, each a different ask ──
+  {
+    const vocab = await J(() => {
+      const kinds = new Set();
+      for (const it of ['hymn', 'scythe', 'benediction', 'rain']) {
+        window.K.forceIntent(it);
+        (window.K.currentIntent().hits || []).forEach(h =>
+          h.notes.forEach(n => kinds.add(String(n).split(':')[0])));
+      }
+      window.K.forceIntent('scythe');
+      const dirs = (window.K.currentIntent().hits || [])
+        .flatMap(h => h.notes).filter(n => /:/.test(n));
+      return { kinds: [...kinds].sort().join(','), dirs: dirs.join(','),
+               dirOK: window.K.dirOK('R', 40, 4) && !window.K.dirOK('R', -40, 4)
+                   && window.K.dirOK('L', -40, 2) && !window.K.dirOK('L', 5, 40) };
+    });
+    check('NOTES: the volley draws on six kinds, not one gesture repeated',
+      /bait/.test(vocab.kinds) && /burst/.test(vocab.kinds) && /feint/.test(vocab.kinds)
+      && /hold/.test(vocab.kinds) && /slide/.test(vocab.kinds) && /tap/.test(vocab.kinds),
+      vocab.kinds);
+    check('NOTES: a directional slide only answers to its own direction',
+      /slide:R/.test(vocab.dirs) && /slide:L/.test(vocab.dirs) && vocab.dirOK,
+      JSON.stringify(vocab.dirs));
+  }
+  // ── bait and burst resolve on their own rules ──
+  await fresh(7);
+  {
+    const bait = await J(async () => {
+      window.K.forceIntent('benediction');          // its first note is a bait
+      const r = window.K.endTurn();
+      await new Promise(res => setTimeout(res, 640));
+      const kind = (document.querySelector('.k-pring') || {}).dataset;
+      // leave it strictly alone
+      await new Promise(res => setTimeout(res, 900));
+      const out = await r;
+      return { firstKind: kind && kind.kind, grades: out.grades.slice(0, 1) };
+    });
+    check('BAIT: a crossed ring left untouched is the best read there is',
+      bait.firstKind === 'bait' && bait.grades[0] === 'perfect', JSON.stringify(bait));
+  }
+  await settle();
+  await fresh(7);
+  {
+    const burst = await J(async () => {
+      window.K.forceIntent('rain');                 // opens on a burst
+      const r = window.K.endTurn();
+      await new Promise(res => setTimeout(res, 640));
+      const st = document.getElementById('k-stage');
+      const kind = (document.querySelector('.k-pring') || {}).dataset;
+      for (let i = 0; i < 3; i++) {                 // land the flurry
+        st.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 400, clientY: 200, pointerId: 9 }));
+        await new Promise(res => setTimeout(res, 40));
+      }
+      const out = await r;
+      return { firstKind: kind && kind.kind, first: out.grades[0] };
+    });
+    check('BURST: landing the whole flurry before the ring shuts reads clean',
+      burst.firstKind === 'burst' && burst.first !== 'miss', JSON.stringify(burst));
+  }
+  await settle();
+  // ── impact: a blow stops, kicks and shocks ──
+  await fresh(7);
+  {
+    const hit = await J(async () => {
+      window.K.forceHand(['lastlight', 'cleave', 'mend', 'serrate', 'frostbind']);
+      window.K.playCard('cleave');
+      const st = document.getElementById('k-stage');
+      const out = {
+        shock: document.querySelectorAll('.k-shock').length,
+        kicked: /k-kick/.test(st.className),
+        frozen: st.classList.contains('k-frozen'),
+        struck: !!document.querySelector('#k-boss-art.k-struck'),
+        pop: !!document.querySelector('.k-pop-dmg'),
+      };
+      await new Promise(r => setTimeout(r, 600));
+      out.cleared = document.querySelectorAll('.k-shock').length === 0 && !/k-kick/.test(st.className);
+      return out;
+    });
+    check('IMPACT: a strike stops the frame, kicks the screen, and blows a shock ring',
+      hit.shock >= 1 && hit.kicked && hit.frozen && hit.struck && hit.pop && hit.cleared,
+      JSON.stringify(hit));
+  }
   // ── snapping: a blunt finger still finds the right target ──
   await fresh(7);
   {
@@ -873,7 +951,7 @@ const { boot } = require('./harness.cjs');
       const prevented = !card.dispatchEvent(ev);
       // Chromium does not implement -webkit-touch-callout, so assert the
       // declaration ships in the stylesheet rather than reading it back
-      const css = await (await fetch('styles.css?v=13')).text();
+      const css = await (await fetch('styles.css?v=14')).text();
       const rule = css.slice(css.indexOf('.k-card {'), css.indexOf('.k-card {') + 260);
       return { calloutShipped: /-webkit-touch-callout:\s*none/.test(rule),
                highlightShipped: /-webkit-tap-highlight-color:\s*transparent/.test(rule),

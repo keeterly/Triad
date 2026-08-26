@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 13;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 14;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -115,28 +115,32 @@ const RESONANCE_PAIR = ['ash', 'elin'];
 const TUNE = { dmgScale: 1.0, dirge: [4, 4], heal: [7, 9], parryKeep: 0.3 };
 
 const REGENT_INTENTS = [
+  // Each intent has its own HANDWRITING. The Hymn is a dirge you brace
+  // through; the Advance is two sweeping arcs; the Benediction dares you to
+  // interrupt it; the Rain is a flurry you have to out-mash.
   { id: 'hymn', name: 'Ruinous Hymn', kind: 'attack',
     hits: [
-      { dmg: [7, 9], target: 'ash',  notes: ['tap', 'tap'] },
-      { dmg: [7, 9], target: 'ash',  notes: ['tap', 'slide'] },
-      { dmg: [7, 9], target: 'elin', notes: ['tap', 'tap', 'hold'] },
+      { dmg: [9, 12], target: 'ash',  notes: ['tap', 'tap'] },
+      { dmg: [9, 12], target: 'ash',  notes: ['feint', 'tap'] },
+      { dmg: [9, 12], target: 'elin', notes: ['tap', 'hold'] },
     ] },
   { id: 'scythe', name: 'Scything Advance', kind: 'attack', frontOnly: true,
     hits: [
-      { dmg: [10, 13], target: 'mira', notes: ['tap', 'slide'], backFactor: 0.35 },
-      { dmg: [10, 13], target: 'ash',  notes: ['slide', 'tap', 'hold'], backFactor: 0.35 },
+      { dmg: [13, 17], target: 'mira', notes: ['slide:R', 'slide:L'], backFactor: 0.35 },
+      { dmg: [13, 17], target: 'ash',  notes: ['slide:L', 'tap', 'hold'], backFactor: 0.35 },
     ] },
   { id: 'benediction', name: 'Hollow Benediction', kind: 'heal',
     hits: [
-      { dmg: [6, 9], target: 'elin', notes: ['tap', 'tap'] },
+      { dmg: [8, 12], target: 'elin', notes: ['bait', 'tap'] },
     ] },
-  { id: 'rain', name: 'Ashen Rain', kind: 'attack',
+  { id: 'rain', name: 'Ashen Rain', kind: 'attack', sub: [1, 0.5],
     hits: [
-      { dmg: [7, 10], target: 'ash',  notes: ['tap', 'tap'] },
-      { dmg: [7, 10], target: 'elin', notes: ['tap', 'slide'] },
-      { dmg: [7, 10], target: 'mira', notes: ['tap', 'tap'] },
+      { dmg: [9, 13], target: 'ash',  notes: ['burst'] },
+      { dmg: [9, 13], target: 'elin', notes: ['burst'] },
+      { dmg: [9, 13], target: 'mira', notes: ['tap', 'slide:D'] },
     ] },
 ];
+
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE PARRY — restored from v2.2, whole.
@@ -253,7 +257,8 @@ function drawOpening() {
 function currentIntent() {
   const it = REGENT_INTENTS[C.boss.intentIx % REGENT_INTENTS.length];
   const p = C.boss.phase - 1;
-  return { ...it, phaseHeal: it.kind === 'heal' ? TUNE.heal[p] : 0 };
+  const sub = it.sub ? it.sub[p] : 1;
+  return { ...it, phaseHeal: it.kind === 'heal' ? TUNE.heal[p] : 0, sub };
 }
 function livingHeroes() { return Object.keys(C.heroes).filter(id => !C.heroes[id].downed); }
 // A hit falls on its scripted hero while they stand, otherwise on the first
@@ -518,7 +523,7 @@ async function endTurn(opts) {
     });
     // Tests and the no-input path may pass a flat grade list; otherwise the
     // player plays the whole bar now and the volley resolves against it.
-    let flat = opts.grades ? opts.grades.slice() : await runVolleyRhythm(it.hits, answerers);
+    let flat = opts.grades ? opts.grades.slice() : await runVolleyRhythm(it.hits, answerers, it.sub);
     for (const hit of it.hits) {
       if (!livingHeroes().length) break;
       const tgtId = hitTargetId(hit);
@@ -658,37 +663,7 @@ const GESTURE_WORD = { tap: 'TAP', slide: 'SLIDE', hold: 'HOLD' };
 let _grid = null;                // { t0, idx } — the live volley's beat clock
 
 // Opens the metronome for a volley: the pulse, the runway, the beat count.
-function beatOpen(totalNotes) {
-  _grid = { t0: performance.now() + BEAT_LEADIN * BEAT_MS, idx: 0, note: 0, total: totalNotes };
-  const st = el('k-stage'); if (!st) return;
-  const pulse = document.createElement('div');
-  pulse.id = 'k-beat';
-  pulse.style.setProperty('--beat', BEAT_MS + 'ms');
-  st.appendChild(pulse);
-}
-function beatClose() {
-  _grid = null;
-  const p = el('k-beat'); if (p) p.remove();
-  const t = el('k-seq'); if (t) t.remove();
-}
-// The sequence track — every note of the volley as a dot, so the player can
-// SEE the bar coming and count it. v2.2 called these the sq-dots.
-function seqTrack(kinds) {
-  const st = el('k-stage'); if (!st) return;
-  const box = document.createElement('div');
-  box.id = 'k-seq';
-  box.innerHTML = kinds.map(k => '<span class="k-sq k-sq-' + k + '"></span>').join('');
-  st.appendChild(box);
-}
-function seqMark(i, cls) {
-  const box = el('k-seq'); if (!box) return;
-  const d = box.children[i]; if (d) { d.classList.remove('k-sq-on'); d.classList.add(cls); }
-}
-function seqActive(i) {
-  const box = el('k-seq'); if (!box) return;
-  const d = box.children[i]; if (d) d.classList.add('k-sq-on');
-}
-
+// Everything but the read desaturates and holds still while a bar plays.
 function parryFocus(on) {
   const st = el('k-stage'); if (!st) return;
   st.classList.toggle('k-parry-focus', !!on);
@@ -715,33 +690,77 @@ function parryThread(fromEl, x, y) {
   return svg;
 }
 
+function beatOpen(totalNotes) {
+  _grid = { t0: performance.now() + BEAT_LEADIN * BEAT_MS, idx: 0, note: 0, total: totalNotes };
+  const st = el('k-stage'); if (!st) return;
+  const pulse = document.createElement('div');
+  pulse.id = 'k-beat';
+  pulse.style.setProperty('--beat', BEAT_MS + 'ms');
+  st.appendChild(pulse);
+}
+function beatClose() {
+  _grid = null;
+  const p = el('k-beat'); if (p) p.remove();
+}
+// THE NOTE VOCABULARY. Six kinds, each asking a different thing of the hand,
+// so a volley has shape instead of being one gesture repeated:
+//
+//   tap        strike on the beat
+//   slide      sweep it aside — `slide:L/R/U/D` demands a DIRECTION
+//   hold       brace through it and release on the beat
+//   burst      a flurry: land BURST_TAPS strikes before the ring closes
+//   feint      the ring hesitates mid-close, then snaps — punishes autopilot
+//   bait       a crossed red ring you must NOT touch; discipline is the parry
+const BURST_TAPS = 3;
+const NOTE_WORD = { tap: 'TAP', slide: 'SLIDE', hold: 'HOLD', burst: 'MASH', feint: 'WAIT', bait: 'DON\u2019T' };
+const DIR_ARROW = { L: '\u2190', R: '\u2192', U: '\u2191', D: '\u2193' };
+function parseNote(spec) {
+  const parts = String(spec).split(':');
+  return { kind: parts[0], dir: parts[1] || null };
+}
+// Did this drag go the way the note asked?
+function dirOK(dir, dx, dy) {
+  if (!dir) return Math.hypot(dx, dy) > 24;
+  if (dir === 'L') return dx < -22 && Math.abs(dx) > Math.abs(dy);
+  if (dir === 'R') return dx > 22 && Math.abs(dx) > Math.abs(dy);
+  if (dir === 'U') return dy < -22 && Math.abs(dy) > Math.abs(dx);
+  if (dir === 'D') return dy > 22 && Math.abs(dy) > Math.abs(dx);
+  return false;
+}
+
 // One note: a ring closing on (ax, ay), exactly on its beat.
-function runParryNote(type, ax, ay, idx, total, dur) {
+function runParryNote(spec, ax, ay, idx, total, dur) {
   return new Promise(resolve => {
     const stage = el('k-stage');
     if (!stage) return resolve('miss');
+    const note = parseNote(spec), kind = note.kind, dir = note.dir;
     const ring = document.createElement('div');
-    ring.className = 'k-pring k-pring-' + type;
+    ring.className = 'k-pring k-pring-' + kind + (dir ? ' k-pring-dir' : '');
     ring.style.left = ax + 'px'; ring.style.top = ay + 'px';
+    const glyph = kind === 'bait' ? '<span class="k-pr-x">\u2715</span>'
+      : dir ? '<span class="k-pr-arrow">' + DIR_ARROW[dir] + '</span>'
+      : kind === 'burst' ? '<span class="k-pr-burst"></span>' : '';
     ring.innerHTML = '<span class="k-pr-target"></span><span class="k-pr-close"></span>'
-      + '<span class="k-pr-lbl">' + (total > 1 ? idx + '/' + total : GESTURE_WORD[type]) + '</span>';
+      + glyph + '<span class="k-pr-lbl">' + (total > 1 ? idx + '/' + total : NOTE_WORD[kind]) + '</span>';
     stage.appendChild(ring);
     ring.querySelector('.k-pr-close').style.animationDuration = dur + 'ms';
     const lbl = ring.querySelector('.k-pr-lbl');
 
     const t0 = performance.now();
     ring.dataset.impact = String(t0 + dur);      // the bots aim at the beat
-    let done = false, downAt = null, moved = 0;
+    ring.dataset.kind = kind;
+    let done = false, downAt = null, taps = 0;
 
-    // it lights up the moment it becomes gradeable — an unmistakable "now"
-    const liveT = setTimeout(() => {
+    const liveT = setTimeout(function () {
       if (done) return;
       ring.classList.add('k-pr-live');
-      lbl.textContent = GESTURE_WORD[type] + '!';
+      lbl.textContent = NOTE_WORD[kind] + (kind === 'bait' ? '' : '!');
       parrySlowmo(true);
     }, Math.max(0, dur - PARRY_GOOD_MS));
+    // a burst must read as "start now", so it opens the moment it spawns
+    if (kind === 'burst') { ring.classList.add('k-pr-open'); lbl.textContent = 'MASH'; }
 
-    const finish = (q) => {
+    const finish = function (q) {
       if (done) return;
       done = true;
       clearTimeout(liveT); clearTimeout(missT);
@@ -749,38 +768,44 @@ function runParryNote(type, ax, ay, idx, total, dur) {
       stage.removeEventListener('pointerdown', onDown, true);
       stage.removeEventListener('pointermove', onMove, true);
       stage.removeEventListener('pointerup', onUp, true);
-      fxNoteGrade(ring, ax, ay, q);
+      fxNoteGrade(ring, ax, ay, q, kind);
       resolve(q);
     };
-    // A press that is way early does NOT consume the note — it nudges and the
-    // ring keeps listening. That forgiveness is what makes the read learnable.
-    const tryGrade = () => {
+    const tryGrade = function () {
       const g = parryGrade(performance.now() - t0 - dur);
       if (g === null) { earlyNudge(ring, ax, ay); return false; }
       finish(g); return true;
     };
-    const onDown = (e) => {
-      downAt = performance.now(); moved = 0;
+    const onDown = function (e) {
+      downAt = performance.now();
       ring._dx = e.clientX; ring._dy = e.clientY;
-      if (type === 'tap') tryGrade();
+      if (kind === 'bait') { finish('miss'); return; }        // touched the bait
+      if (kind === 'burst') {
+        taps++;
+        ring.classList.remove('k-pr-tick'); void ring.offsetWidth; ring.classList.add('k-pr-tick');
+        if (taps >= BURST_TAPS) tryGrade();
+        return;
+      }
+      if (kind === 'tap' || kind === 'feint') tryGrade();
     };
-    const onMove = (e) => {
+    const onMove = function (e) {
       if (downAt == null) return;
-      moved = Math.max(moved, Math.hypot(e.clientX - ring._dx, e.clientY - ring._dy));
-      if (type === 'slide' && moved > 24) tryGrade();
+      const dx = e.clientX - ring._dx, dy = e.clientY - ring._dy;
+      if (kind === 'slide' && dirOK(dir, dx, dy)) tryGrade();
     };
-    const onUp = () => {
-      if (type === 'hold' && downAt != null) tryGrade();
+    const onUp = function () {
+      if (kind === 'hold' && downAt != null) tryGrade();
       downAt = null;
     };
     stage.addEventListener('pointerdown', onDown, true);
     stage.addEventListener('pointermove', onMove, true);
     stage.addEventListener('pointerup', onUp, true);
-    // the note outlives its own beat, so a late catch is still a catch
-    // The input window shuts when the GOOD window does. A ring may linger a
-    // moment as it fades, but it must never still be listening when the next
-    // beat's ring opens, or one tap would be judged by two notes.
-    const missT = setTimeout(() => finish('miss'), dur + PARRY_GOOD_MS + 30);
+    const missT = setTimeout(function () {
+      if (kind === 'bait') return finish('perfect');           // survived untouched
+      if (kind === 'burst') return finish(taps >= BURST_TAPS ? 'perfect'
+        : taps === BURST_TAPS - 1 ? 'great' : taps > 0 ? 'good' : 'miss');
+      finish('miss');
+    }, dur + PARRY_GOOD_MS + 30);
   });
 }
 function earlyNudge(ring, ax, ay) {
@@ -806,13 +831,13 @@ function anchorFor(heroId) {
   return { x: (hr.left + hr.width / 2 - sr.left) / k,
            y: (hr.top + hr.height * 0.26 - sr.top) / k };
 }
-async function runVolleyRhythm(hits, answerers) {
+async function runVolleyRhythm(hits, answerers, sub) {
+  const step = BEAT_MS * (sub || 1);
   const kinds = hits.reduce((a, h) => a.concat(h.notes), []);
   const stage = el('k-stage');
   if (!stage || !kinds.length) return kinds.map(() => 'miss');
   parryFocus(true);
   beatOpen(kinds.length);
-  seqTrack(kinds);
   await beatWait(BEAT_LEADIN * BEAT_MS * 0.5);
 
   const jobs = [];
@@ -823,16 +848,14 @@ async function runVolleyRhythm(hits, answerers) {
     for (const type of hits[hi].notes) {
       const idx = gi++;
       jobs.push((async () => {
-        const land = _grid.t0 + idx * BEAT_MS;             // this note's beat, fixed
-        const wait = (land - BEAT_MS) - performance.now();
+        const land = _grid.t0 + idx * step;                // this note's beat, fixed
+        const wait = (land - step) - performance.now();
         if (wait > 4) await beatWait(wait);
         if (!pos) return 'miss';
         document.querySelectorAll('.k-hero').forEach(h =>
           h.classList.toggle('k-parrying', h.dataset.hero === who));
-        seqActive(idx);
         const dur = Math.max(180, Math.round(land - performance.now()));
         const g = await runParryNote(type, pos.x, pos.y, idx + 1, kinds.length, dur);
-        seqMark(idx, (g === 'perfect' || g === 'great' || g === 'good') ? 'k-sq-hit' : 'k-sq-miss');
         return g;
       })());
     }
@@ -855,6 +878,52 @@ function hitstop(ms) {
   s.classList.add('k-frozen');
   setTimeout(() => s.classList.remove('k-frozen'), ms);
 }
+// ── IMPACT ────────────────────────────────────────────────────────────────
+// A blow should be FELT, and felt in proportion. Every strike gets the same
+// four beats, scaled by how big it is: the world stops for a frame, the screen
+// kicks, a shock ring blows out of the point of contact, and the thing that
+// was hit flashes white and reels.
+function centreOf(node) {
+  const S = stageBox(); if (!S || !node) return null;
+  const b = boxOf(node, S);
+  return { x: b.x + b.w / 2, y: b.y + b.h * 0.38 };
+}
+function shockRing(x, y, power, tone) {
+  const S = stageBox(); if (!S) return;
+  const r = document.createElement('div');
+  r.className = 'k-shock k-shock-' + (tone || 'hit');
+  const size = 40 + power * 34;
+  r.style.cssText = 'left:' + x + 'px;top:' + y + 'px;width:' + size + 'px;height:' + size + 'px;';
+  S.st.appendChild(r);
+  setTimeout(() => r.remove(), 520);
+}
+function screenKick(power) {
+  const s = document.getElementById('k-stage'); if (!s) return;
+  const cls = power > 1.5 ? 'k-kick-xl' : power > 0.8 ? 'k-kick-lg' : 'k-kick';
+  s.classList.remove('k-kick', 'k-kick-lg', 'k-kick-xl');
+  void s.offsetWidth;
+  s.classList.add(cls);
+  setTimeout(() => s.classList.remove(cls), 440);
+}
+function screenPulse(tone) {
+  const s = document.getElementById('k-stage'); if (!s) return;
+  const f = document.createElement('div');
+  f.className = 'k-pulse k-pulse-' + (tone || 'hit');
+  s.appendChild(f);
+  setTimeout(() => f.remove(), 340);
+}
+// power ~0.4 (a graze) to ~2.5 (a finisher)
+function fxImpact(node, power, tone) {
+  const c = centreOf(node);
+  if (c) shockRing(c.x, c.y, power, tone);
+  screenKick(power);
+  if (power > 1.2) screenPulse(tone);
+  if (node) {
+    node.classList.remove('k-struck'); void node.offsetWidth; node.classList.add('k-struck');
+    setTimeout(() => node.classList.remove('k-struck'), 320);
+  }
+  hitstop(Math.round(52 + Math.min(2.2, power) * 46));
+}
 function popupOver(el, text, cls) {
   const stage = document.getElementById('k-stage'); if (!stage || !el) return;
   const sr = stage.getBoundingClientRect(), r = el.getBoundingClientRect();
@@ -869,9 +938,10 @@ function popupOver(el, text, cls) {
 }
 function fxDamageBoss(n, why) {
   const b = document.getElementById('k-boss-art');
-  popupOver(b, '−' + fmtN(n), why === 'bleed' ? 'k-pop-bleed' : 'k-pop-dmg');
+  popupOver(b, '−' + fmtN(n), (why === 'bleed' ? 'k-pop-bleed' : 'k-pop-dmg')
+    + (n >= 12 ? ' k-pop-big' : ''));
   if (b) { b.classList.remove('k-recoil'); void b.offsetWidth; b.classList.add('k-recoil'); }
-  hitstop(n >= 9 ? 96 : 70);
+  fxImpact(b, Math.min(2.4, n / 6), why === 'bleed' ? 'bleed' : 'hit');
 }
 function fxBreak() { const el = document.getElementById('k-break'); if (el) { el.classList.remove('k-flash'); void el.offsetWidth; el.classList.add('k-flash'); } }
 function fxPlayCard(cardId, ev) {
@@ -900,7 +970,7 @@ function fxParryReceipt(heroId, read) {
   stage.appendChild(tag);
   setTimeout(() => tag.remove(), 1150);
 }
-function fxNoteGrade(ring, ax, ay, grade) {
+function fxNoteGrade(ring, ax, ay, grade, kind) {
   const stage = document.getElementById('k-stage');
   if (ring) {
     ring.classList.add('k-pr-land', 'k-pr-' + grade);
@@ -915,7 +985,10 @@ function fxNoteGrade(ring, ax, ay, grade) {
     stage.appendChild(tag);
     setTimeout(() => tag.remove(), 700);
   }
-  if (grade === 'perfect') hitstop(94);
+  // a clean read has its own snap, and a botched bait stings
+  if (grade === 'perfect') { shockRing(ax, ay, kind === 'burst' ? 1.5 : 1.1, 'gold'); hitstop(94); }
+  else if (grade === 'great') shockRing(ax, ay, 0.7, 'gold');
+  else if (grade === 'miss' && kind === 'bait') { screenPulse('hurt'); screenKick(1.1); }
 }
 // __SIM: the balance simulator runs thousands of fights; every beat is skipped.
 // ── CARDS IN FLIGHT ───────────────────────────────────────────────────────
@@ -1040,9 +1113,16 @@ async function fxBossHeal() { popupOver(document.getElementById('k-boss-art'), '
 async function fxHitResolved(tgtId, taken, negated) {
   const at = tgtId && document.querySelector('.k-hero[data-hero="' + tgtId + '"]');
   if (taken > 0) {
-    popupOver(at || document.getElementById('k-party-hud'), '−' + fmtN(taken), 'k-pop-dmg');
-    const s = document.getElementById('k-stage'); if (s) { s.classList.remove('k-shake'); void s.offsetWidth; s.classList.add('k-shake'); }
-  } else if (negated) hitstop(90);
+    popupOver(at || document.getElementById('k-party-hud'), '−' + fmtN(taken),
+      'k-pop-dmg k-pop-hurt' + (taken >= 9 ? ' k-pop-big' : ''));
+    fxImpact(at, Math.min(2.4, taken / 5), 'hurt');
+  } else if (negated) {
+    // a turned blow is a CLASH: gold shock, hard stop, no shake
+    const c = centreOf(at);
+    if (c) shockRing(c.x, c.y, 1.6, 'gold');
+    screenPulse('gold');
+    hitstop(120);
+  }
   await sleep(330);
 }
 function testMode() { return /[?&]test=1/.test(location.search); }
@@ -1651,6 +1731,6 @@ window.K = {
     const ix = REGENT_INTENTS.findIndex(i => i.id === id);
     if (ix >= 0) { C.boss.intentIx = ix; renderAll(); }
   },
-  parryGrade, readString, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
+  parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
   tune(t) { Object.assign(TUNE, t || {}); return TUNE; },
 };

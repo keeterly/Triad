@@ -376,6 +376,38 @@ To make room, **Bond moved to the party column** — it is the party's meter, no
 the Regent's, so it was in the wrong place anyway, and moving it freed the sky
 between the boss HUD and the figure's head.
 
+### Build 14 — impact, and a parry with a vocabulary
+
+**The tracker is gone.** The ring says everything the row of dots said, and
+the dots sat in the middle of the board saying it twice.
+
+**Impact.** Every blow now gets the same four beats, scaled to its size: the
+frame stops, the screen kicks, a shock ring blows out of the point of contact,
+and whatever was hit flashes white and reels. Heavy hits add a full-frame
+pulse. A turned blow is a gold clash with a hard stop and no shake — it should
+not feel like being hit. Damage numbers go big past a threshold.
+
+**Six note kinds**, so a volley has shape instead of one gesture repeated:
+
+| Kind | The ask |
+|---|---|
+| `tap` | strike on the beat |
+| `slide:L/R/U/D` | sweep it aside, in the direction shown |
+| `hold` | brace through it, release on the beat |
+| `burst` | a flurry — land 3 strikes before the ring shuts |
+| `feint` | the ring stalls mid-close then snaps; autopilot dies here |
+| `bait` | a crossed red ring you must NOT touch — discipline is the parry |
+
+Each intent now has its own handwriting: the **Hymn** is a dirge you brace
+through (tap, feint, hold), the **Advance** is two sweeping arcs (opposed
+directional slides), the **Benediction** dares you to interrupt it (bait), and
+the **Rain** is a flurry you have to out-mash (bursts). Ashen Rain also runs
+its bar on **half-beats in Phase II** — the climax doubles time.
+
+Re-tuned after the rewrite: shorter strings (a burst is one note) made the
+mid tier much safer, so the Regent's hits went up ×1.3. Measured **0% / 26% /
+100%**, wins on rounds 7–9, all three shipped gates green.
+
 ### The Dirge — an addition the deck does not list
 
 The Regent's hymn settles on the whole party each enemy phase for unparryable

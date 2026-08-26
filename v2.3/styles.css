@@ -449,23 +449,6 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   animation: k-beatpulse var(--beat, 500ms) linear infinite; transform-origin: 50% 50%; }
 @keyframes k-beatpulse { 0% { opacity: 0.9; transform: scaleX(1); } 60% { opacity: 0.12; transform: scaleX(0.55); }
   100% { opacity: 0.12; transform: scaleX(0.55); } }
-#k-seq { position: absolute; left: 50%; bottom: 168px; transform: translateX(-50%);
-  display: flex; gap: 9px; z-index: 33; padding: 6px 12px; border-radius: 20px;
-  background: rgba(10,9,12,0.62); border: 1px solid rgba(150,138,114,0.28); }
-.k-sq { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid rgba(201,164,92,0.55);
-  background: rgba(10,9,12,0.5); transition: all 0.12s ease; }
-.k-sq-slide { border-radius: 2px; transform: rotate(45deg); }
-.k-sq-hold { width: 20px; border-radius: 6px; }
-.k-sq-on { border-color: #ffe14a; background: rgba(255,225,74,0.3);
-  box-shadow: 0 0 10px rgba(255,225,74,0.8); transform: scale(1.25); }
-.k-sq-hold.k-sq-on { transform: scale(1.15); }
-.k-sq-slide.k-sq-on { transform: rotate(45deg) scale(1.25); }
-.k-sq-hit { border-color: #e0c084; background: #c9a45c; box-shadow: none; transform: none; }
-.k-sq-slide.k-sq-hit { transform: rotate(45deg); }
-.k-sq-miss { border-color: rgba(184,87,74,0.7); background: rgba(120,40,34,0.5);
-  box-shadow: none; transform: none; }
-.k-sq-slide.k-sq-miss { transform: rotate(45deg); }
-
 /* ── the piles, opened ── */
 .k-pile-btn { font-family: inherit; font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase;
   color: #9a9080; background: none; border: none; padding: 1px 0; cursor: pointer; text-align: right; }
@@ -487,3 +470,70 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-pile-empty { font-size: 12px; color: #8e8574; letter-spacing: 0.14em; padding: 30px; }
 .k-pile-hint { font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #6d6450; text-align: center; }
 .k-fly-exhaust { z-index: 41; }
+
+/* ═══ IMPACT ═══ a blow is a stop, a kick, a shock and a flash ═══ */
+.k-shock { position: absolute; transform: translate(-50%, -50%); border-radius: 50%;
+  pointer-events: none; z-index: 36; border: 3px solid rgba(255,240,210,0.9);
+  animation: k-shockout 0.5s cubic-bezier(.1,.7,.3,1) forwards; }
+.k-shock-hit { border-color: rgba(255,236,206,0.95); box-shadow: 0 0 20px rgba(255,220,170,0.6); }
+.k-shock-hurt { border-color: rgba(230,110,92,0.95); box-shadow: 0 0 20px rgba(220,80,64,0.6); }
+.k-shock-gold { border-color: rgba(255,225,116,1); box-shadow: 0 0 28px rgba(255,225,116,0.9); border-width: 4px; }
+.k-shock-bleed { border-color: rgba(184,87,74,0.9); }
+@keyframes k-shockout {
+  0% { transform: translate(-50%,-50%) scale(0.25); opacity: 1; border-width: 5px; }
+  70% { opacity: 0.5; }
+  100% { transform: translate(-50%,-50%) scale(1.9); opacity: 0; border-width: 1px; } }
+#k-stage.k-kick { animation: k-kick 0.26s cubic-bezier(.3,.9,.3,1); }
+#k-stage.k-kick-lg { animation: k-kick-lg 0.34s cubic-bezier(.3,.9,.3,1); }
+#k-stage.k-kick-xl { animation: k-kick-xl 0.44s cubic-bezier(.3,.9,.3,1); }
+@keyframes k-kick { 20% { transform: translate(2px,1px); } 55% { transform: translate(-2px,-1px); } }
+@keyframes k-kick-lg { 15% { transform: translate(5px,2px); }
+  45% { transform: translate(-4px,-2px); } 75% { transform: translate(2px,1px); } }
+@keyframes k-kick-xl { 12% { transform: translate(9px,4px); }
+  38% { transform: translate(-7px,-3px); } 66% { transform: translate(4px,2px); }
+  86% { transform: translate(-2px,-1px); } }
+.k-pulse { position: absolute; inset: 0; pointer-events: none; z-index: 35;
+  animation: k-pulseout 0.32s ease-out forwards; }
+.k-pulse-hit { background: radial-gradient(ellipse at 50% 45%, rgba(255,240,210,0.2), rgba(255,240,210,0) 62%); }
+.k-pulse-hurt { background: radial-gradient(ellipse at 50% 45%, rgba(210,60,48,0.24), rgba(210,60,48,0) 66%);
+  box-shadow: inset 0 0 120px rgba(150,20,14,0.5); }
+.k-pulse-gold { background: radial-gradient(ellipse at 50% 45%, rgba(255,225,116,0.28), rgba(255,225,116,0) 60%); }
+@keyframes k-pulseout { 0% { opacity: 1; } 100% { opacity: 0; } }
+.k-struck img { animation: k-struck 0.32s ease; }
+@keyframes k-struck { 0% { filter: brightness(3.6) saturate(0); }
+  40% { filter: brightness(1.5) saturate(0.6); } 100% { filter: none; } }
+.k-pop-big { font-size: 30px !important; }
+.k-pop-hurt { color: #ff8a76 !important; }
+
+/* ═══ the note vocabulary ═══ */
+.k-pr-arrow { position: absolute; left: 0; top: 0; transform: translate(-50%,-50%);
+  font-size: 21px; color: #ffe14a; text-shadow: 0 0 10px rgba(255,225,74,0.8); }
+.k-pr-x { position: absolute; left: 0; top: 0; transform: translate(-50%,-50%);
+  font-size: 20px; color: #e0665a; text-shadow: 0 0 10px rgba(224,102,90,0.9); }
+.k-pr-burst { position: absolute; left: 0; top: 0; width: 26px; height: 26px;
+  transform: translate(-50%,-50%); border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,225,74,0.5), rgba(255,225,74,0) 70%);
+  animation: k-burstbeat 0.34s ease-in-out infinite; }
+@keyframes k-burstbeat { 50% { transform: translate(-50%,-50%) scale(1.35); } }
+/* BAIT — a red ring that must be left alone */
+.k-pring-bait .k-pr-target { border-color: rgba(224,102,90,0.75); border-style: solid; }
+.k-pring-bait .k-pr-close { border-color: rgba(224,102,90,0.7); box-shadow: 0 0 12px rgba(224,102,90,0.5); }
+.k-pring-bait.k-pr-live .k-pr-target { border-color: #e0665a;
+  box-shadow: 0 0 16px rgba(224,102,90,0.8), inset 0 0 10px rgba(224,102,90,0.35); animation: none; }
+.k-pring-bait.k-pr-live .k-pr-close { border-color: #e0665a; }
+.k-pring-bait .k-pr-lbl { color: #e8907f; }
+/* FEINT — the ring stalls mid-close, then snaps shut */
+.k-pring-feint .k-pr-close { animation-name: k-prfeint; }
+@keyframes k-prfeint {
+  0% { transform: translate(-50%,-50%) scale(3.2); opacity: 0.22; }
+  46% { transform: translate(-50%,-50%) scale(1.7); opacity: 0.75; }
+  70% { transform: translate(-50%,-50%) scale(1.62); opacity: 0.8; }
+  100% { transform: translate(-50%,-50%) scale(1); opacity: 1; } }
+.k-pring-feint .k-pr-target { border-color: rgba(190,150,220,0.45); }
+.k-pring-feint.k-pr-live .k-pr-target { border-color: rgba(206,160,240,0.95);
+  box-shadow: 0 0 15px rgba(196,150,230,0.75), inset 0 0 10px rgba(196,150,230,0.35); }
+/* BURST — open from the first frame, and it ticks as you land strikes */
+.k-pring-burst.k-pr-open .k-pr-target { border-style: solid; border-color: rgba(255,225,74,0.8);
+  box-shadow: 0 0 12px rgba(255,225,74,0.5); }
+.k-pring.k-pr-tick .k-pr-target { animation: k-prtick 0.16s ease; }
+@keyframes k-prtick { 40% { transform: translate(-50%,-50%) scale(1.22); } }
