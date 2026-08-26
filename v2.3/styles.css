@@ -24,26 +24,47 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   height: 100%; width: 100%; object-fit: contain; object-position: bottom;
   filter: drop-shadow(0 10px 18px rgba(0,0,0,0.75));
   -webkit-box-reflect: below -6px linear-gradient(rgba(0,0,0,0) 58%, rgba(255,255,255,0.14)); }
-/* SCALED ABOUT THE FEET. With the default 50% 50% origin a hero shrinking one
-   row back also rose off the ground by half the size difference, so the figures
-   floated above the lane they were standing in. */
-.k-hero { position: absolute; transform-origin: 50% 100%;
-  transition: left 0.34s ease, transform 0.34s ease, filter 0.3s ease, opacity 0.3s ease; }
+/* THE FIELD — one perspective volume. The rows are honest translateZ depths
+   inside it rather than a translate+scale fake: the lens supplies both the
+   shrink AND the lift toward the horizon, and the lanes, the figures and the
+   Regent all sit in the same projection, which is the whole of the 2.5D read. */
+#k-field { position: absolute; inset: 0; z-index: 3;
+  perspective: 700px; perspective-origin: 50% 22%;
+  transform-style: preserve-3d; pointer-events: none;
+  transform: scale(var(--cam-z, 1)) translateY(var(--cam-y, 0px));
+  transition: transform 340ms cubic-bezier(.2,.8,.3,1); }
+.k-hero, #k-boss-art, #k-rows, .k-row { pointer-events: auto; }
+#k-rows { transform-style: preserve-3d; }
+/* THE LANES RUN LEFT TO RIGHT. Back is furthest from the Regent, front is
+   nearest her — the axis the fight is actually fought along. Depth is the
+   same axis, so stepping back is stepping away in both senses at once. */
+/* the ground line clears the top of the hand fan (430 - 13 - 142 = 275): at
+   the old 292 the front rank stood knee-deep in its own cards */
+.k-hero { position: absolute; bottom: 164px; left: 0; transform-origin: 50% 100%;
+  transform: translate3d(calc(var(--lane-x, 460px) - 50%), 0, var(--lane-z, 0px));
+  transition: transform 380ms cubic-bezier(.25,.85,.3,1), filter 0.3s ease, opacity 0.3s ease; }
 /* ONE LINE, EVEN SPACING. Centres at 240 / 360 / 480 and a shared ground line
    at y=292: uneven gaps and a 50px height spread made a row swap read as the
    art changing rather than a figure stepping back. */
-.k-hero[data-hero="elin"] { left: 181px; top: 132px; height: 160px; width: 118px; }
-.k-hero[data-hero="ash"]  { left: 285px; top: 116px; height: 176px; width: 150px; }
-.k-hero[data-hero="mira"] { left: 419px; top: 136px; height: 156px; width: 122px; }
+.k-hero[data-hero="elin"] { height: 160px; width: 118px; }
+.k-hero[data-hero="ash"]  { height: 176px; width: 150px; }
+.k-hero[data-hero="mira"] { height: 156px; width: 122px; }
+/* the three stations. x is chosen so the PROJECTED centres land evenly at
+   ~250 / 350 / 460 once the lens has done its work on the z. */
+.k-hero.k-row-back  { --lane-x: 176px; --lane-z: -240px; }
+.k-hero.k-row-mid   { --lane-x: 332px; --lane-z: -110px; }
+.k-hero.k-row-front { --lane-x: 460px; --lane-z: 0px; }
+/* ATMOSPHERIC PERSPECTIVE — the rank ladder in air and warmth, v2.2's single
+   strongest diorama cue after the parallax itself. */
+.k-hero.k-row-back img  { filter: saturate(0.78) brightness(0.84) drop-shadow(0 8px 12px rgba(0,0,0,0.6)); }
+.k-hero.k-row-mid img   { filter: saturate(0.92) brightness(0.93) drop-shadow(0 8px 12px rgba(0,0,0,0.68)); }
+.k-hero.k-row-front img { filter: saturate(1.08) brightness(1.06) drop-shadow(0 8px 14px rgba(0,0,0,0.75)); }
 .k-hero img { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
   height: 100%; width: auto; filter: drop-shadow(0 8px 12px rgba(0,0,0,0.72));
   -webkit-box-reflect: below -4px linear-gradient(rgba(0,0,0,0) 62%, rgba(255,255,255,0.16)); }
 /* THREE STATIONS ON THE DEPTH AXIS. Each step upstage is the same step: 30px
    left, 34px up, 0.84 the size — so a hero two rows back is unmistakably twice
    as far away as one row back, and the eye reads the ladder without labels. */
-.k-hero.k-row-front { transform: none; opacity: 1; }
-.k-hero.k-row-mid  { transform: translate(-30px, -42px) scale(0.84); opacity: 0.93; }
-.k-hero.k-row-back { transform: translate(-60px, -84px) scale(0.7); opacity: 0.84; }
 .k-shadow { position: absolute; left: 50%; bottom: -3px; transform: translateX(-50%);
   width: 86%; height: 8px; border-radius: 50%;
   background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 72%); }
@@ -53,9 +74,11 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-hero.k-hero-drag { cursor: grabbing; z-index: 8; }
 .k-hero.k-hero-drag img { filter: drop-shadow(0 12px 18px rgba(0,0,0,0.82)) brightness(1.14); }
 /* the figure PREVIEWS where it would stand — it is not dragged by the chest */
-.k-hero.k-prev-front { transform: translateY(-9px) !important; opacity: 1 !important; }
-.k-hero.k-prev-mid   { transform: translate(-30px, -51px) scale(0.84) !important; opacity: 1 !important; }
-.k-hero.k-prev-back  { transform: translate(-60px, -93px) scale(0.7) !important; opacity: 1 !important; }
+.k-hero.k-prev-front { --lane-x: 460px; --lane-z: 0px; }
+.k-hero.k-prev-mid   { --lane-x: 332px; --lane-z: -110px; }
+.k-hero.k-prev-back  { --lane-x: 176px; --lane-z: -240px; }
+.k-hero.k-prev-front, .k-hero.k-prev-mid, .k-hero.k-prev-back {
+  z-index: 8; filter: brightness(1.08); }
 /* the step itself: a push off the back foot, not a slide */
 .k-hero.k-stepping img { animation: k-step 0.44s cubic-bezier(.3,.7,.3,1); }
 @keyframes k-step {
@@ -746,18 +769,24 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    They do not exist until a hero is in your hand, and then they are the only
    question on the board. A blind drag threshold taught nobody anything. */
 #k-rows { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
-.k-row { position: absolute; border-radius: 50%;
+/* the reveal rides a VARIABLE, not the transform itself — the transform is
+   carrying the lane's depth now, and `transform: scale(1)` on the reveal wiped
+   it, which flattened the whole floor back into a stack of decals */
+.k-row { position: absolute; border-radius: 50%; bottom: 149px; height: 34px;
   border: 1.5px dashed rgba(201,164,92,0.5); background: rgba(201,164,92,0.06);
-  opacity: 0; transform: scale(0.96); transition: opacity 0.18s ease, transform 0.18s ease; }
+  opacity: 0; transform: translateZ(var(--rz, 0px)) scale(var(--rs, 0.94));
+  transition: opacity 0.18s ease, transform 0.18s ease; }
 /* each lane sits under the feet of a hero standing in it: 292 at the front,
    292-42 in the middle, 292-84 at the back */
-.k-row[data-row="back"]  { left: 116px; top: 195px; width: 336px; height: 26px; }
-.k-row[data-row="mid"]   { left: 148px; top: 236px; width: 356px; height: 29px; }
-.k-row[data-row="front"] { left: 180px; top: 282px; width: 372px; height: 32px; }
+/* each lane is a ring on the floor AT ITS OWN DEPTH and under its own hero's
+   feet, so the lens spaces the rings exactly as it spaces the figures */
+.k-row[data-row="back"]  { left: 106px; width: 140px; --rz: -240px; }
+.k-row[data-row="mid"]   { left: 262px; width: 140px; --rz: -110px; }
+.k-row[data-row="front"] { left: 390px; width: 140px; --rz: 0px; }
 .k-row-lbl { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   font-size: 8px; letter-spacing: 0.24em; color: rgba(224,192,132,0.75);
   text-shadow: 0 1px 4px #000; }
-#k-stage.k-moving .k-row { opacity: 1; transform: scale(1); }
+#k-stage.k-moving .k-row { opacity: 1; --rs: 1; }
 /* while the rows are up they ARE the labels — the per-hero tags would say the
    same words a second time, in a smaller voice, in the same place */
 #k-stage.k-moving .k-hero-row { opacity: 0; }
@@ -845,3 +874,31 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   62%  { transform: translateX(calc(-50% + 74px)) scale(1.06); filter: brightness(1.4); }
   100% { transform: translateX(-50%); filter: none; } }
 .k-allout-call { letter-spacing: 0.34em !important; }
+
+
+/* ═══ THE BOARD BREATHES ═══
+   A diorama whose figures hold perfectly still reads as a stack of decals no
+   matter how good the depth is. Each figure gets its own slow rise and fall on
+   its OWN wrapper, so the strike, recoil and charge animations on the <img>
+   underneath still play without fighting it — and each is offset so the three
+   of them are never in lockstep, which is what makes a crowd look alive. */
+.k-fig { position: absolute; left: 0; right: 0; bottom: 0; top: 0; display: block;
+  transform-origin: 50% 100%; animation: k-breathe 4.4s ease-in-out infinite; }
+.k-hero[data-hero="ash"]  .k-fig { animation-duration: 4.6s; animation-delay: -0.4s; }
+.k-hero[data-hero="elin"] .k-fig { animation-duration: 5.2s; animation-delay: -2.1s; }
+.k-hero[data-hero="mira"] .k-fig { animation-duration: 4.1s; animation-delay: -1.3s; }
+#k-boss-art .k-fig { animation-duration: 6.4s; animation-delay: -3s; }
+@keyframes k-breathe {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50%      { transform: translateY(-2.5px) scaleY(1.008); } }
+/* a figure that is being struck, acting or charging holds its pose — the idle
+   must never fight an authored beat */
+.k-hero.k-struck .k-fig, .k-hero.k-acts .k-fig, .k-hero.k-charging .k-fig,
+#k-boss-art.k-struck .k-fig, #k-boss-art.k-recoil .k-fig { animation-play-state: paused; }
+
+/* ═══ THE CAMERA ANSWERS ═══
+   #k-field is the only thing that moves, so the painted backdrop behind it
+   stays put and the push-in reads as parallax rather than a zoom. */
+#k-stage.k-cam-hit  #k-field { --cam-z: 1.022; --cam-y: -3px; }
+#k-stage.k-cam-big  #k-field { --cam-z: 1.045; --cam-y: -7px; }
+#k-stage.k-cam-huge #k-field { --cam-z: 1.075; --cam-y: -12px; }

@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 20;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 21;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -475,7 +475,7 @@ function resolveEffects(effects, ownerId, allyId) {
     if (fx.chill)      C.boss.chill += fx.chill;
     if (fx.counterstance) C.counterstance = true;
     if (fx.intercede && allyId) C.intercession = allyId;
-    if (fx.moveSelf)   { const h = C.heroes[ownerId]; h.row = fx.moveSelf; }
+    if (fx.moveSelf)   placeHero(ownerId, fx.moveSelf);
     if (fx.drawDiscard){ if (drawOne()) C.pendingDiscard = true; }
     if (fx.draw)       { for (let i = 0; i < fx.draw; i++) drawOne(); }
     if (C.phase === 'VICTORY') return;
@@ -580,6 +580,20 @@ const KIZUNA_FLAWLESS = 14;
 const ROWS = ['front', 'mid', 'back'];
 const ROW_SHELTER = { front: 1, mid: 0.62, back: 0.3 };
 const MOVE_COST = 1;
+// ONE HERO TO A LANE. Three of them could stand in the front row at once,
+// which made a row a label rather than a position; now a move TRADES PLACES
+// with whoever is already there, the way v2.2's slots did. Returns whoever was
+// displaced, or null.
+function placeHero(heroId, row) {
+  const h = C.heroes[heroId];
+  if (!h || h.row === row) return null;
+  const other = Object.keys(C.heroes).find(id => id !== heroId && C.heroes[id].row === row);
+  const from = h.row;
+  h.row = row;
+  if (other) { C.heroes[other].row = from; fxStep(other); }
+  fxStep(heroId);
+  return other || null;
+}
 function moveReason(heroId) {
   if (!C || C.phase !== 'PLAYER_READY' || C.pendingDiscard) return 'not your turn';
   if (!C.heroes[heroId] || C.heroes[heroId].downed) return 'down';
@@ -598,8 +612,9 @@ function moveHero(heroId, toRow) {
   if (!ROWS.includes(want) || want === h.row) return false;
   C.ap -= MOVE_COST;
   C.turnState.moved++;
-  h.row = want;
-  logLine(HEROES23[heroId].name + ' steps to the ' + want + ' row.');
+  const displaced = placeHero(heroId, want);
+  logLine(HEROES23[heroId].name + ' steps to the ' + want + ' row'
+    + (displaced ? ', trading places with ' + HEROES23[displaced].name : '') + '.');
   renderAll();
   fxStep(heroId);
   return true;
@@ -1132,6 +1147,19 @@ function shockRing(x, y, power, tone) {
   S.st.appendChild(r);
   setTimeout(() => r.remove(), 520);
 }
+// THE LENS LEANS IN. A shake moves the frame; a push moves the WORLD, and the
+// painted plate behind the field stays put, so the two separate into parallax.
+// Kept to the beats that resolve outside a live parry bar — the notes are
+// placed on the stage, not in the field, and would drift off their heroes.
+function camPush(tier) {
+  const s = document.getElementById('k-stage'); if (!s) return;
+  const cls = tier >= 3 ? 'k-cam-huge' : tier >= 2 ? 'k-cam-big' : 'k-cam-hit';
+  s.classList.remove('k-cam-hit', 'k-cam-big', 'k-cam-huge');
+  void s.offsetWidth;
+  s.classList.add(cls);
+  clearTimeout(s._camT);
+  s._camT = setTimeout(() => s.classList.remove(cls), tier >= 3 ? 420 : 300);
+}
 function screenKick(power) {
   const s = document.getElementById('k-stage'); if (!s) return;
   const cls = power > 1.5 ? 'k-kick-xl' : power > 0.8 ? 'k-kick-lg' : 'k-kick';
@@ -1155,6 +1183,7 @@ function fxImpact(node, power, tone, dir) {
   if (c) shockRing(c.x, c.y, power, tone);
   screenKick(power);
   hitFlash(tier, tone);
+  camPush(tier);
   if (tier >= 2) screenPulse(tone);
   struck(node, dir, tier);
   hitstop(tier >= 3 ? 165 : tier >= 2 ? 105 : 75);
@@ -1249,6 +1278,7 @@ function fxDeflect(node, flawless) {
   burst.innerHTML = '<span class="k-df-crescent"></span><span class="k-df-flash"></span>' + shards;
   S.st.appendChild(burst);
   setTimeout(() => burst.remove(), 720);
+  camPush(flawless ? 3 : 2);
   shockRing(c.x, c.y, flawless ? 2.1 : 1.5, 'gold');
   setTimeout(() => shockRing(c.x, c.y, flawless ? 1.3 : 0.9, 'gold'), 90);
   screenPulse('gold');
@@ -1512,6 +1542,7 @@ function fxKizunaReady() {
 async function fxAllOut(living) {
   const stage = el('k-stage'); if (!stage) return;
   stage.classList.add('k-allout');
+  camPush(3);
   const tag = document.createElement('div');
   tag.className = 'k-combo-call k-combo-call-big k-allout-call';
   tag.textContent = 'All-Out';
@@ -1900,8 +1931,14 @@ function rowTargetAt(clientX, clientY) {
   const px = (clientX - sr.left) / k, py = (clientY - sr.top) / k;
   let best = null, bd = Infinity;
   document.querySelectorAll('#k-rows .k-row').forEach(r => {
-    const cx = r.offsetLeft + r.offsetWidth / 2, cy = r.offsetTop + r.offsetHeight / 2;
-    const d = Math.hypot(px - cx, (py - cy) * 1.7);
+    // MEASURED, not laid out: a lane sits at a real translateZ now, so its
+    // offsetLeft is where the browser put the box before the lens moved it.
+    const b = r.getBoundingClientRect();
+    const cx = (b.left + b.width / 2 - sr.left) / k;
+    const cy = (b.top + b.height / 2 - sr.top) / k;
+    // the lanes are side by side now, so ACROSS is the intent and depth is
+    // only a tiebreak — the old 1.7 weighting was for a purely vertical ladder
+    const d = Math.hypot(px - cx, (py - cy) * 0.55);
     if (d < bd) { bd = d; best = r.dataset.row; }
   });
   return bd <= ROW_SNAP ? best : null;
@@ -2155,14 +2192,25 @@ function bindChrome() {
       // THE FIGURE PREVIEWS THE DESTINATION rather than being glued to the
       // finger. A hero is a tall sprite: dragging one by the chest sends the
       // body the opposite way from the row being aimed at, and the eye
-      // believes the body.
-      for (const r of ROWS) h.classList.toggle('k-prev-' + r, want === r);
+      // believes the body. The hero already standing there previews the TRADE,
+      // so the swap is visible before you commit to it rather than after.
+      const occupant = want && Object.keys(C.heroes)
+        .find(id => id !== h.dataset.hero && C.heroes[id].row === want);
+      document.querySelectorAll('.k-hero').forEach(o => {
+        const isSelf = o === h;
+        for (const r of ROWS) {
+          o.classList.toggle('k-prev-' + r,
+            (isSelf && want === r) || (!isSelf && o.dataset.hero === occupant && here === r));
+        }
+      });
       moveHint(h.dataset.hero, null, legal);      // the price rides with them
     });
     const up = (e) => {
       if (!live) return;
       live = false;
-      h.classList.remove('k-hero-drag', 'k-prev-front', 'k-prev-mid', 'k-prev-back');
+      h.classList.remove('k-hero-drag');
+      document.querySelectorAll('.k-hero').forEach(o =>
+        o.classList.remove('k-prev-front', 'k-prev-mid', 'k-prev-back'));
       el('k-stage').classList.remove('k-moving', 'k-moving-no');
       moveHint(null);
       rows().forEach(r => r.classList.remove('k-row-hot', 'k-row-here'));

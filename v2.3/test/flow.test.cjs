@@ -861,9 +861,14 @@ const { boot } = require('./harness.cjs');
       at(hr.left + hr.width / 2, hr.top + hr.height / 2, 'pointerdown');
       await new Promise(r => setTimeout(r, 260));      // past the rise transition
       out.raised = vis(back) > 0.9 && vis(mid) > 0.9 && vis(front) > 0.9;
-      // the three lanes must be separable by a thumb, not stacked on each other
-      const cy = (n) => n.offsetTop + n.offsetHeight / 2;
-      out.spread = Math.min(cy(mid) - cy(back), cy(front) - cy(mid));
+      // MEASURED, not laid out — the lanes sit at real translateZ depths, so
+      // offsetLeft is where the box was before the lens moved it.
+      const cx = (n) => { const b = n.getBoundingClientRect(); return b.left + b.width / 2; };
+      // they run left to right, BACK furthest from the Regent and FRONT nearest
+      out.order = cx(back) < cx(mid) && cx(mid) < cx(front);
+      out.toward = cx(front) < document.getElementById('k-boss-art').getBoundingClientRect().left;
+      // and they must be separable by a thumb, not stacked on each other
+      out.spread = Math.min(cx(mid) - cx(back), cx(front) - cx(mid));
       out.here = front.classList.contains('k-row-here');   // Ash starts FRONT
       const hint = document.getElementById('k-movehint');
       out.hint = hint.classList.contains('k-hidden') ? null : hint.textContent.trim();
@@ -879,11 +884,12 @@ const { boot } = require('./harness.cjs');
         && !stage.classList.contains('k-moving');
       return out;
     });
-    check('ROWS: three named slots rise, the one they stand in is named, the move is priced',
+    check('ROWS: three named slots run BACK to FRONT toward the Regent, the move is priced',
       rows.slots === 3 && rows.named === 'BACK,MID,FRONT' && rows.hidden < 0.1
-      && rows.raised && rows.spread >= 34 && rows.here && /MOVE/.test(rows.hint || ''),
-      JSON.stringify({ slots: rows.slots, named: rows.named, spread: rows.spread,
-        raised: rows.raised, here: rows.here, hint: rows.hint }));
+      && rows.raised && rows.order && rows.toward && rows.spread >= 70
+      && rows.here && /MOVE/.test(rows.hint || ''),
+      JSON.stringify({ slots: rows.slots, named: rows.named, order: rows.order,
+        toward: rows.toward, spread: Math.round(rows.spread), here: rows.here, hint: rows.hint }));
     check('ROWS: carrying a hero to a named slot and letting go puts them there',
       rows.lit && rows.row === 'back' && rows.ap === 2 && rows.moved === 1 && rows.cleared,
       JSON.stringify({ lit: rows.lit, row: rows.row, ap: rows.ap, moved: rows.moved, cleared: rows.cleared }));
@@ -918,6 +924,59 @@ const { boot } = require('./harness.cjs');
     check('ROWS: a move that cannot happen says why and refuses — never a silent nothing',
       sealed.reason === 'already moved' && /ALREADY MOVED/.test(sealed.why)
       && sealed.sealed && !sealed.lit && sealed.row === 'front', JSON.stringify(sealed));
+  }
+  await settle();
+  // ── the diorama: real depth, and a board that is not a stack of decals ──
+  await fresh(12);
+  {
+    const dio = await J(async () => {
+      const st = document.getElementById('k-stage');
+      const field = document.getElementById('k-field');
+      // the figures GLIDE between lanes, so a fresh board is still settling
+      await new Promise(r => setTimeout(r, 460));
+      const q = (r) => document.querySelector('.k-hero.k-row-' + r).getBoundingClientRect();
+      const back = q('back'), mid = q('mid'), front = q('front');
+      const out = {
+        // the lens is real, not a scale fake
+        lens: getComputedStyle(field).perspective,
+        // DEPTH: further from the Regent is further away, so smaller and higher
+        shrinks: back.width < mid.width && mid.width < front.width,
+        lifts: back.bottom < mid.bottom && mid.bottom < front.bottom,
+        // and further LEFT — the axis the fight is fought along
+        leftward: back.left < mid.left && mid.left < front.left,
+        raw: [back, mid, front].map(r => [Math.round(r.left), Math.round(r.bottom),
+          Math.round(r.width)].join('/')).join('  '),
+        who: [...document.querySelectorAll('.k-hero')].map(h =>
+          h.dataset.hero + ':' + (h.className.match(/k-row-\w+/) || [''])[0]).join(' '),
+        // atmospheric perspective: the back rank is cooler and dimmer
+        airBack: getComputedStyle(document.querySelector('.k-hero.k-row-back img')).filter,
+        airFront: getComputedStyle(document.querySelector('.k-hero.k-row-front img')).filter,
+        // the figures breathe, each on its own clock
+        breathing: [...document.querySelectorAll('.k-hero .k-fig')]
+          .map(n => getComputedStyle(n).animationName),
+        clocks: new Set([...document.querySelectorAll('.k-hero .k-fig')]
+          .map(n => getComputedStyle(n).animationDuration)).size,
+      };
+      // and the lens answers a blow
+      window.K.forceHand(['lastlight', 'cleave', 'mend', 'serrate', 'frostbind']);
+      window.K.playCard('cleave');
+      out.pushed = /k-cam-/.test(st.className);
+      await new Promise(r => setTimeout(r, 520));
+      out.released = !/k-cam-/.test(st.className);
+      return out;
+    });
+    const sat = (f) => { const m = /saturate\(([\d.]+)\)/.exec(f || ''); return m ? +m[1] : 1; };
+    check('DIORAMA: the rows are real depth — the far rank is smaller, higher, further left and hazier',
+      /px/.test(dio.lens) && dio.shrinks && dio.lifts && dio.leftward
+      && sat(dio.airBack) < sat(dio.airFront),
+      JSON.stringify({ lens: dio.lens, shrinks: dio.shrinks, lifts: dio.lifts,
+        leftward: dio.leftward, back: sat(dio.airBack), front: sat(dio.airFront),
+        raw: dio.raw, who: dio.who }));
+    check('DIORAMA: the board is not static — every figure breathes on its own clock, and the lens answers a blow',
+      dio.breathing.length === 3 && dio.breathing.every(n => n === 'k-breathe')
+      && dio.clocks === 3 && dio.pushed && dio.released,
+      JSON.stringify({ breathing: dio.breathing, clocks: dio.clocks,
+        pushed: dio.pushed, released: dio.released }));
   }
   await settle();
   // ── the beam cannot outlive the card that is throwing it ──
@@ -1237,8 +1296,9 @@ const { boot } = require('./harness.cjs');
         nearMiss: K.dropTargetAt(boss.left - 70, boss.top + boss.height / 2, enemyCard.dataset.card),
         // an attack never snaps to a hero, however close the finger is
         wrongSide: K.dropTargetAt(ash.left + 5, ash.top + 20, enemyCard.dataset.card),
-        // a party card near Ash picks Ash specifically
-        ally: K.dropTargetAt(ash.left + 4, ash.top + 30, partyCard.dataset.card),
+        // a party card over Ash picks Ash specifically
+        ally: K.dropTargetAt(ash.left + ash.width / 2, ash.top + ash.height / 2,
+                             partyCard.dataset.card),
         // and nothing at all when the finger is miles away. NOT the bottom-left
         // corner any more — that is the draw pile, which is now the swap zone.
         far: K.dropTargetAt(6, 6, enemyCard.dataset.card),

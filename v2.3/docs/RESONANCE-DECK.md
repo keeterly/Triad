@@ -840,3 +840,73 @@ than to the far row, so she never reached BACK from the front and `BACK_ROW`
 reported 0% armed. The condition was not dead, it was unvisited. With the
 destination named the probe reads 100% armed, and the combo layer at the new
 scale is 55% of plays / 90% armed / FINALE 60% hot.
+
+---
+
+## Build 21 — the lanes turn sideways, and the board stops being a decal stack
+
+Two notes, both about the same thing: the board did not read as a place.
+
+### The lanes run left to right, the way v2.2 had them
+
+Build 20 stacked the rows on a diagonal receding up-left, which put BACK both
+away from the Regent *and* higher up the screen — two axes for one idea. In
+v2.2 the party half is a three-column grid and the slots are laid `back, mid,
+front` left to right, so **BACK is the column furthest from the enemy and FRONT
+is the one nearest her**. That is the axis the fight is actually fought along,
+and it is now the axis the lanes use.
+
+### Real perspective, not a scale fake
+
+The old depth was `translate(-30px, -42px) scale(0.84)` per step — a fake, and
+one whose lift and shrink had to be hand-tuned against each other. The whole
+cast now lives in `#k-field`, a `perspective: 700px` volume with
+`perspective-origin: 50% 22%`, and the rows are honest depths inside it:
+
+```
+  front  translateZ(0)      x 460
+  mid    translateZ(-110px) x 332
+  back   translateZ(-240px) x 176
+```
+
+The lens supplies the shrink *and* the lift toward the horizon, and the lane
+rings sit at the same depths so the floor is spaced by the same projection as
+the figures standing on it. The x values are chosen so the **projected**
+centres land evenly at roughly 250 / 350 / 460 once the lens has done its work.
+On top of that the ranks grade in air and warmth — `saturate .78/.92/1.08`,
+`brightness .84/.93/1.06` — which is v2.2's strongest diorama cue after the
+parallax itself.
+
+Two bugs this surfaced:
+
+- **The reveal wiped the depth.** `#k-stage.k-moving .k-row { transform:
+  scale(1) }` beat the per-lane `translateZ` on specificity and flattened the
+  entire floor back into a stack of decals. The reveal rides a `--rs` variable
+  now, and the transform is left to carry the depth.
+- **`rowTargetAt` was measuring layout, not the lens.** It read `offsetLeft`,
+  which is where the browser put the box *before* the projection moved it. It
+  measures bounding rects now, and the snap weights ACROSS rather than depth,
+  because the lanes are side by side instead of stacked.
+
+### One hero to a lane
+
+Three heroes could stand in the front row at once, which made a row a label
+rather than a position. A move now **trades places** with whoever is already
+there, the way v2.2's slots did — and the drag previews the trade, so you see
+the swap before you commit rather than after.
+
+### The board breathes
+
+*"Right now it's static."* Every figure gets a slow rise and fall on its own
+wrapper — its own clock, so the three of them are never in lockstep, which is
+what makes a crowd look alive — and the idle pauses whenever an authored beat
+(a strike, a recoil, a charge) is playing so the two never fight.
+
+And the lens leans in. `camPush` scales `#k-field` alone on a landed blow, a
+deflect and the all-out; the painted plate behind it does not move, so the push
+separates into parallax instead of reading as a zoom. It is kept off the live
+parry bar deliberately — the notes are placed on the stage rather than in the
+field, and a camera move mid-bar would slide them off their heroes.
+
+The party's ground line also moved up to y=268: the top of the hand fan is at
+275, so at the old 292 the front rank stood knee-deep in its own cards.
