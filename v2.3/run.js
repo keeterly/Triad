@@ -92,6 +92,48 @@
              to: up ? K.effectText(up.base) : '' };
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // THE MEMORIES — what a scene is for
+  // ═══════════════════════════════════════════════════════════════════════
+  // A cutscene in a run-based game earns its interruption or it does not get
+  // one. These earn it twice over: each is the only thing that opens a tier of
+  // the tree, and each is about the three of them becoming more capable
+  // TOGETHER, which is the mechanical thing the tier then sells you.
+  //
+  // Authored in order, not shuffled. Two memories fit on a road and they are a
+  // conversation with a first half and a second half; picking them at random
+  // would trade a small amount of variety for the only continuity the slice
+  // has. `who: null` is the road talking rather than a person.
+  const SCENES = [
+    { id: 'lullaby', title: 'WHAT THE SONG IS FOR', beats: [
+      { who: null,   line: 'The road bends. The singing does not.' },
+      { who: 'elin', line: 'It isn’t a threat. Listen to the shape of it.' },
+      { who: 'mira', line: 'It’s a hymn. They’re always threats.' },
+      { who: 'elin', line: 'It’s a lullaby. She’s still trying to put something to sleep.' },
+      { who: 'mira', line: '…for who?' },
+      { who: 'elin', line: 'For whatever she couldn’t keep.' },
+      { who: 'ash',  line: 'Then we aren’t killing her. We’re finishing it.' },
+      { who: null,   line: 'Three people stop arguing about what they are walking toward.' },
+    ] },
+    { id: 'careful', title: 'THE THING NOBODY SAYS', beats: [
+      { who: null,   line: 'Nobody has said it since the first stop.' },
+      { who: 'mira', line: 'You two move like one thing. You don’t even look.' },
+      { who: 'ash',  line: 'We’ve had the practice.' },
+      { who: 'mira', line: 'And how did that end.' },
+      { who: 'elin', line: 'It ended.' },
+      { who: 'ash',  line: 'Which is why we’re careful with you.' },
+      { who: 'mira', line: 'Don’t be careful with me. Be fast.' },
+      { who: null,   line: 'She steps up into the line without being asked. Nobody moves her back.' },
+    ] },
+    { id: 'floor', title: 'ONE MORE FLOOR', beats: [
+      { who: null,   line: 'The stair keeps going. It should have stopped.' },
+      { who: 'ash',  line: 'How far down does she go?' },
+      { who: 'elin', line: 'As far as she has to. That’s what grief is.' },
+      { who: 'mira', line: 'Then we go one floor further than that.' },
+      { who: null,   line: 'It is not a plan. It is the closest thing they have.' },
+    ] },
+  ];
+
   // ── what a stop can be ────────────────────────────────────────────────────
   // Four kinds, and each one is a different SHAPE at a glance: blades cross,
   // a crown sits on a skull, a flame stands alone, an eye opens. Colour is the
@@ -194,6 +236,7 @@
       seed: s, map: buildMap(s), at: null, path: [], stop: 0,
       embers: 0, nodes: [],                       // the tree nodes this run has kindled
       flash: null,                                // the receipt from the last stop
+      seen: [],                                   // the memories this run has heard
       tier: 1,                                    // raised by MEMORY stops (Build 28)
       hp: null,                                   // null = everyone is whole
       over: null,                                 // 'win' | 'loss'
@@ -223,7 +266,7 @@
 
   // ── the screen ────────────────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
-  const SCREENS = { map: 'k-map', combat: 'k-stage', camp: 'k-camp' };
+  const SCREENS = { map: 'k-map', combat: 'k-stage', camp: 'k-camp', scene: 'k-scene' };
   function screen(which) {
     for (const k of Object.keys(SCREENS)) {
       const el2 = $(SCREENS[k]);
@@ -516,14 +559,74 @@
     save();
     toMap();
   }
-  // Build 28 lands the cutscene proper. The mechanical half — the tier the
-  // memory opens, which is the ONLY way to reach the deeper nodes — is live.
+  // ── a memory ──────────────────────────────────────────────────────────────
+  let _beat = 0, _scene = null;
   function enterStory(n) {
+    _scene = SCENES[Math.min(RUN.seen ? RUN.seen.length : 0, SCENES.length - 1)];
+    _beat = 0;
+    save();
+    screen('scene');
+    renderScene();
+  }
+
+  const CAST = { ash: { n: 'ASH', art: 'kai' }, elin: { n: 'ELIN', art: 'elin' },
+                 mira: { n: 'MIRA', art: 'mira' } };
+
+  function renderScene() {
+    const box = $('k-scene-line'), who = $('k-scene-who'), cast = $('k-scene-cast');
+    if (!box || !_scene) return;
+    $('k-scene-title').textContent = _scene.title;
+    const done = _beat >= _scene.beats.length;
+    $('k-scene').classList.toggle('k-sc-done', done);
+
+    if (done) {
+      // THE SCENE PAYS OUT ON SCREEN. A cutscene that changes the run silently
+      // is a cutscene the player has no reason to have watched.
+      who.textContent = '';
+      box.innerHTML = '<b class="k-sc-open">TIER ' + Math.min(5, RUN.tier + 1) + ' OPENS</b>'
+        + '<span class="k-sc-openx">The deeper nodes are theirs to kindle now.</span>';
+      $('k-scene-next').textContent = 'ON';
+    } else {
+      const b = _scene.beats[_beat];
+      who.textContent = b.who ? CAST[b.who].n : '';
+      who.classList.toggle('k-hidden', !b.who);
+      box.className = 'k-sc-line' + (b.who ? '' : ' k-sc-narr');
+      box.textContent = b.line;
+      $('k-scene-next').textContent = _beat === _scene.beats.length - 1 ? 'END' : 'NEXT';
+    }
+    // The speaker is lit and stands forward; the other two stay in the scene
+    // rather than vanishing from it, because a three-hander reads as a
+    // three-hander only while all three are on screen.
+    const speaker = done ? null : (_scene.beats[_beat].who || null);
+    cast.innerHTML = ['elin', 'ash', 'mira'].map(id => {
+      const c = CAST[id];
+      return '<div class="k-sc-fig' + (speaker === id ? ' k-sc-on' : (speaker ? ' k-sc-off' : ''))
+        + '" data-hero="' + id + '"><img src="../art/' + c.art + '.webp" alt="' + c.n + '"></div>';
+    }).join('');
+    const dots = $('k-scene-dots');
+    if (dots) dots.innerHTML = _scene.beats
+      .map((_, i) => '<i class="' + (i < _beat ? 'on' : i === _beat ? 'now' : '') + '"></i>').join('');
+  }
+
+  function sceneNext() {
+    if (!_scene) return;
+    if (_beat < _scene.beats.length) { _beat++; renderScene(); return; }
+    finishScene();
+  }
+  function sceneSkip() {
+    if (!_scene) return;
+    _beat = _scene.beats.length;      // straight to the payout, never past it:
+    renderScene();                     // skipping the scene must not skip the reward
+  }
+  function finishScene() {
+    RUN.seen = RUN.seen || [];
+    if (_scene && RUN.seen.indexOf(_scene.id) < 0) RUN.seen.push(_scene.id);
     RUN.tier = Math.min(5, RUN.tier + 1);
     RUN.embers += 1;
-    RUN.flash = { icon: 'story', tone: 'violet', title: 'SOMETHING IS SAID OUT LOUD',
+    RUN.flash = { icon: 'story', tone: 'violet', title: (_scene ? _scene.title : 'A MEMORY'),
       sub: 'Tier ' + RUN.tier + ' of the tree opens to the three of them.',
       gain: '+1', gainSub: 'ember · tier' };
+    _scene = null; _beat = 0;
     save();
     toMap();
   }
@@ -541,6 +644,15 @@
   function bindCamp() {
     const go = $('k-camp-leave');
     if (go) go.addEventListener('click', (e) => { e.stopPropagation(); leaveCamp(); });
+    // TAP ANYWHERE ADVANCES. A scene that can only be advanced from one 60px
+    // button is a scene read with the thumb hunting instead of with the eyes.
+    const sc = $('k-scene');
+    if (sc) sc.addEventListener('click', (e) => {
+      if (e.target.closest('#k-scene-skip')) return;
+      e.stopPropagation(); sceneNext();
+    });
+    const skip = $('k-scene-skip');
+    if (skip) skip.addEventListener('click', (e) => { e.stopPropagation(); sceneSkip(); });
   }
 
   function boot(opts) {
@@ -565,6 +677,7 @@
     screen,
     render: renderMap,
     TREE, treeNode, kindle, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
+    SCENES, sceneNext, sceneSkip, scene: () => _scene, beat: () => _beat,
     // test-only
     _set(patch) { Object.assign(RUN, patch || {}); save(); renderMap(); },
     _pick: () => _pick,

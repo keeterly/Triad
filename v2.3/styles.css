@@ -1202,3 +1202,58 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   border: 1px solid rgba(224,192,132,0.55); font-family: inherit;
   font-size: 11px; letter-spacing: 0.16em; font-weight: 700; }
 #k-camp-leave:active { transform: translateY(1px); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   A MEMORY — the scene that opens a tier
+   ═══════════════════════════════════════════════════════════════════════════
+   Letterboxed, because the frame is the cheapest way to tell a player that the
+   rules have paused. All three heroes stay on screen the whole time — a
+   three-hander reads as a three-hander only while all three are in the shot —
+   and the speaker is the one lit and standing forward. */
+#k-scene { position: absolute; inset: 0; width: 932px; height: 430px; overflow: hidden;
+  background: #08070a; color: #cfc8ba; cursor: pointer; }
+#k-scene, #k-scene * { -webkit-touch-callout: none !important; -webkit-user-select: none; user-select: none; }
+#k-scene img { -webkit-user-drag: none; pointer-events: none; }
+#k-scene-bg { position: absolute; inset: 0; }
+#k-scene-bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  object-position: 50% 40%; filter: saturate(0.32) brightness(0.24) contrast(1.1) blur(1.5px); }
+.k-scene-veil { position: absolute; inset: 0; background:
+  radial-gradient(80% 66% at 50% 44%, rgba(60,44,84,0.28) 0%, rgba(8,7,10,0.86) 78%),
+  linear-gradient(0deg, rgba(8,7,10,0.94) 0%, rgba(8,7,10,0.3) 34%, rgba(8,7,10,0) 56%); }
+.k-sc-bar { position: absolute; left: 0; right: 0; height: 26px; background: #08070a; z-index: 6; }
+.k-sc-bar-top { top: 0; } .k-sc-bar-bot { bottom: 0; }
+
+#k-scene-title { position: absolute; left: 24px; top: 36px; z-index: 5;
+  font-size: 11px; letter-spacing: 0.32em; color: #a58cc4; }
+#k-scene-skip { position: absolute; right: 22px; top: 32px; z-index: 7;
+  padding: 6px 12px; border-radius: 2px; cursor: pointer; font-family: inherit;
+  background: rgba(20,17,25,0.8); color: #9a9080; border: 1px solid rgba(154,144,128,0.34);
+  font-size: 9px; letter-spacing: 0.22em; }
+#k-scene-skip:active { transform: translateY(1px); }
+
+#k-scene-cast { position: absolute; left: 0; right: 0; top: 44px; height: 224px; z-index: 3;
+  display: flex; align-items: flex-end; justify-content: center; gap: 26px; }
+.k-sc-fig { height: 190px; transition: transform 320ms cubic-bezier(.2,.8,.3,1),
+  filter 320ms ease, opacity 320ms ease; }
+.k-sc-fig img { height: 100%; width: auto; object-fit: contain; object-position: bottom;
+  filter: drop-shadow(0 12px 22px rgba(0,0,0,0.8)); }
+.k-sc-off { filter: brightness(0.34) saturate(0.4); opacity: 0.7; transform: translateY(10px) scale(0.94); }
+.k-sc-on { transform: translateY(-8px) scale(1.06); filter: brightness(1.1) contrast(1.03); }
+
+#k-scene-plate { position: absolute; left: 50%; bottom: 44px; transform: translateX(-50%); z-index: 5;
+  width: 720px; min-height: 92px; padding: 12px 18px 14px; border-radius: 4px;
+  background: linear-gradient(180deg, rgba(24,20,30,0.95), rgba(14,12,18,0.97));
+  border: 1px solid rgba(165,140,196,0.34); box-shadow: 0 14px 40px rgba(0,0,0,0.7); }
+#k-scene-who { display: block; font-size: 11px; letter-spacing: 0.3em; color: #c9a45c; margin-bottom: 5px; }
+.k-sc-line { font-size: 19px; line-height: 1.34; color: #efe6d4; }
+/* the road talking rather than a person */
+.k-sc-narr { font-style: italic; color: #9a9080; font-size: 17px; }
+.k-sc-open { display: block; font-size: 22px; letter-spacing: 0.24em; color: #e0c084; }
+.k-sc-openx { display: block; font-size: 13px; color: #9a9080; margin-top: 4px; }
+#k-scene-dots { position: absolute; left: 18px; bottom: -16px; display: flex; gap: 4px; }
+#k-scene-dots i { width: 12px; height: 2px; background: rgba(190,178,158,0.2); }
+#k-scene-dots i.on { background: rgba(165,140,196,0.6); }
+#k-scene-dots i.now { background: #c9a45c; }
+#k-scene-next { position: absolute; right: 18px; bottom: -16px; font-size: 9px;
+  letter-spacing: 0.24em; color: #7d7466; }
+#k-scene.k-sc-done #k-scene-plate { border-color: rgba(224,192,132,0.5); }

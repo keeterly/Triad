@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=27" />
+  <link rel="stylesheet" href="styles.css?v=28" />
 </head>
 <body>
   <div id="k-scale">
@@ -204,9 +204,33 @@
       <div id="k-camp-shared"></div>
       <button type="button" id="k-camp-leave">BACK TO THE ROAD</button>
     </section>
+
+    <!-- ══ A MEMORY ══════════════════════════════════════════════════════════
+         A cutscene earns its interruption or it does not get one. These earn it
+         twice: each is the only thing that opens a tier of the tree, and each
+         is about the three of them becoming more capable together — which is
+         the mechanical thing the tier then sells you. Tap anywhere to advance;
+         SKIP goes to the payout, never past it. -->
+    <section id="k-scene" class="k-hidden" aria-label="A memory">
+      <div id="k-scene-bg" aria-hidden="true">
+        <img src="../art/bg-descent.webp" alt="">
+        <div class="k-scene-veil"></div>
+      </div>
+      <div class="k-sc-bar k-sc-bar-top" aria-hidden="true"></div>
+      <div class="k-sc-bar k-sc-bar-bot" aria-hidden="true"></div>
+      <div id="k-scene-title">A MEMORY</div>
+      <button type="button" id="k-scene-skip">SKIP</button>
+      <div id="k-scene-cast"></div>
+      <div id="k-scene-plate">
+        <b id="k-scene-who"></b>
+        <div id="k-scene-line" class="k-sc-line"></div>
+        <div id="k-scene-dots" aria-hidden="true"></div>
+        <span id="k-scene-next">NEXT</span>
+      </div>
+    </section>
   </div>
-  <script src="run.js?v=27"></script>
-  <script src="game.js?v=27"></script>
+  <script src="run.js?v=28"></script>
+  <script src="game.js?v=28"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

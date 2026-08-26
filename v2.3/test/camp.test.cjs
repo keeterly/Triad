@@ -1,5 +1,5 @@
-// KIZUNA v2.3 — the FIRE suite. The campfire, the tree, and the one thing that
-// makes a memory worth taking.
+// KIZUNA v2.3 — the FIRE suite. The campfire, the tree, and the memories that
+// are the only thing that opens it.
 //
 // The gauntlet asked for "a campfire and cutscene system that develops and
 // unlocks skill nodes". Two halves, and only one of them is a screen: a tree
@@ -255,6 +255,127 @@ const { boot } = require('./harness.cjs');
     });
     check('CARRY: the tree survives storage — a reloaded run is still the run you built',
       stored.nodes.length === 2 && stored.embers === 11, JSON.stringify(stored));
+  }
+
+  // ═══ F · THE MEMORY ═══
+  console.log('\n── a memory ──');
+  {
+    await reset(11);
+    const storyId = await J(() => {
+      const st = window.R.map().find(n => n.kind === 'story');
+      const prev = window.R.map().find(m => m.col === st.col - 1 && m.to.indexOf(st.id) >= 0);
+      window.R._set({ at: prev.id, path: [prev.id], stop: prev.col + 1 });
+      window.R.travel(st.id);
+      return st.id;
+    });
+    await sleep(320);
+
+    const S = await J(() => window.R.SCENES.map(s2 => ({ id: s2.id, title: s2.title, beats: s2.beats.length,
+      voices: [...new Set(s2.beats.map(b => b.who))].filter(Boolean) })));
+    check('MEMORY: the scenes are authored, and each is a conversation between all three',
+      S.length === 3 && S.every(s2 => s2.beats >= 5 && s2.voices.length === 3),
+      JSON.stringify(S.map(s2 => s2.id + ':' + s2.beats)));
+
+    const open = await J(() => ({
+      onScene: !document.getElementById('k-scene').classList.contains('k-hidden'),
+      onMap: !document.getElementById('k-map').classList.contains('k-hidden'),
+      title: document.getElementById('k-scene-title').textContent,
+      line: document.getElementById('k-scene-line').textContent,
+      figs: document.querySelectorAll('#k-scene-cast .k-sc-fig').length,
+      tier: window.R.state().tier,
+    }));
+    check('MEMORY: a memory stop opens a scene, not a number — and all three are in the shot',
+      open.onScene && !open.onMap && open.figs === 3 && open.line.length > 12 && open.tier === 1,
+      JSON.stringify({ title: open.title, figs: open.figs, tier: open.tier }));
+
+    // The speaker is lit and forward; the other two stay in the scene.
+    // MEASURED WHILE THE SCENE IS ON SCREEN. A hidden element's rects are all
+    // zero, so a fit check run after the scene closes passes without testing
+    // anything — which is exactly what the first draft of this check did.
+    const fits = await J(() => {
+      const st = document.getElementById('k-scene').getBoundingClientRect();
+      const plate = document.getElementById('k-scene-plate').getBoundingClientRect();
+      const cast = document.getElementById('k-scene-cast').getBoundingClientRect();
+      const bar = document.querySelector('.k-sc-bar-bot').getBoundingClientRect();
+      const skip = document.getElementById('k-scene-skip').getBoundingClientRect();
+      return { h: Math.round(plate.height), castH: Math.round(cast.height),
+               inside: plate.bottom <= st.bottom && plate.top >= st.top,
+               clearOfCast: plate.top >= cast.bottom - 30,
+               aboveBar: plate.bottom <= bar.top,
+               skipClear: skip.left > plate.right || skip.bottom < plate.top,
+               lineSize: parseFloat(getComputedStyle(document.getElementById('k-scene-line')).fontSize) };
+    });
+    check('MEMORY: the plate is a real, readable box inside the frame — clear of the cast and the letterbox',
+      fits.h >= 80 && fits.castH >= 150 && fits.inside && fits.clearOfCast
+      && fits.aboveBar && fits.skipClear && fits.lineSize >= 16, JSON.stringify(fits));
+
+    const lit = await J(() => {
+      // step to the first beat that has a speaker
+      for (let i = 0; i < 6; i++) {
+        const on = document.querySelectorAll('#k-scene-cast .k-sc-on').length;
+        if (on === 1) break;
+        window.R.sceneNext();
+      }
+      return { on: document.querySelectorAll('.k-sc-on').length,
+               off: document.querySelectorAll('.k-sc-off').length,
+               who: document.getElementById('k-scene-who').textContent };
+    });
+    check('MEMORY: exactly one hero is lit at a time, and the plate names them',
+      lit.on === 1 && lit.off === 2 && lit.who.length > 1, JSON.stringify(lit));
+
+    // TAPPING ANYWHERE ADVANCES. A scene advanced only from one 60px button is
+    // a scene read with the thumb hunting instead of with the eyes.
+    const tapped = await J(() => {
+      const before = window.R.beat();
+      document.getElementById('k-scene-cast').click();
+      return { before, after: window.R.beat() };
+    });
+    check('MEMORY: tapping anywhere in the frame advances it',
+      tapped.after === tapped.before + 1, JSON.stringify(tapped));
+
+    const paid = await J(() => {
+      window.R.sceneSkip();
+      return { done: document.getElementById('k-scene').classList.contains('k-sc-done'),
+               text: document.getElementById('k-scene-line').textContent,
+               tier: window.R.state().tier,
+               onScene: !document.getElementById('k-scene').classList.contains('k-hidden') };
+    });
+    check('MEMORY: SKIP goes to the payout, never past it — skipping a scene never skips its reward',
+      paid.done && /TIER 2 OPENS/.test(paid.text) && paid.onScene && paid.tier === 1,
+      JSON.stringify(paid));
+
+    await J(() => window.R.sceneNext());
+    await sleep(240);
+    const after = await R();
+    const back = await J(() => ({
+      onMap: !document.getElementById('k-map').classList.contains('k-hidden'),
+      card: document.getElementById('k-map-card').textContent,
+    }));
+    check('MEMORY: leaving the scene raises the tier, pays an ember, and says so on the road',
+      after.tier === 2 && after.embers >= 1 && after.seen.length === 1
+      && back.onMap && /tier 2/i.test(back.card),
+      JSON.stringify({ tier: after.tier, embers: after.embers, seen: after.seen }));
+
+    // The two memories on a road are a conversation with a first half and a
+    // second half — the same scene twice would be worse than one scene once.
+    const second = await J(() => {
+      const st = window.R.map().filter(n => n.kind === 'story')[1];
+      const prev = window.R.map().find(m => m.col === st.col - 1 && m.to.indexOf(st.id) >= 0);
+      window.R._set({ at: prev.id, path: [prev.id], stop: prev.col + 1 });
+      window.R.travel(st.id);
+      return true;
+    });
+    await sleep(320);
+    const which = await J(() => ({ id: window.R.scene().id, title: document.getElementById('k-scene-title').textContent }));
+    check('MEMORY: the second memory is the second scene — they are halves of one conversation',
+      which.id === 'careful', JSON.stringify(which));
+
+    await J(() => { window.R.sceneSkip(); window.R.sceneNext(); });
+    await sleep(240);
+    const tier3 = await R();
+    check('MEMORY: two memories reach tier 3 — the deep nodes are unreachable any other way',
+      tier3.tier === 3 && tier3.seen.length === 2, JSON.stringify({ tier: tier3.tier, seen: tier3.seen }));
+
   }
 
   const r = report();

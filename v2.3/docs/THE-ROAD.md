@@ -304,3 +304,95 @@ The twenty-third check is a fit test, and it earned its place immediately: ten
 nodes on a 932×430 landscape phone is the entire risk of this screen, and the
 check caught the shared node sitting 20px under the leave button at 32px tall
 — a layout I had written without being able to look at it.
+
+---
+
+## Build 28 — the memory, and what a cutscene has to earn
+
+**The gauntlet item, completed.** *"A campfire and cutscene system that develops
+and unlocks skill nodes."* Build 27 built the fire and the tree; this is the
+scene that opens it.
+
+### A cutscene earns its interruption or it does not get one
+
+That is the whole design constraint. In a run-based game a cutscene is a thing
+that stops the game, and a player who has been stopped for nothing learns to
+stop watching. These earn it twice over:
+
+1. **A memory is the only thing that opens a tier.** No purse, however large,
+   reaches tier 2. That was wired at Build 26 and locked at Build 27 —
+   deliberately, in that order, so the scene arrived into a slot the systems
+   had already made load-bearing.
+2. **Each scene is about the three of them becoming more capable together**,
+   which is the mechanical thing the tier then sells you. The first ends with
+   them agreeing on what they are walking toward; the second ends with Mira
+   stepping up into the line and nobody moving her back. The tier that opens
+   afterward is that, priced.
+
+### Authored in order, not shuffled
+
+Two memories fit on a road, and they are one conversation with a first half and
+a second half. Shuffling them would trade a small amount of variety for the
+only narrative continuity a six-stop slice has. Three scenes exist; the third
+is a spare for a road that somehow serves a third memory.
+
+`who: null` is the road talking rather than a person, and renders in italic at
+a smaller size — the one typographic distinction the plate makes, because it is
+the only one it needs.
+
+### The frame
+
+Letterboxed, because two black bars are the cheapest way to tell a player the
+rules have paused. **All three heroes stay on screen for the whole scene** —
+a three-hander reads as a three-hander only while all three are in the shot —
+and the speaker is the one lit and standing forward while the other two dim
+and drop back rather than disappearing.
+
+**Tap anywhere advances.** A scene you can only advance from one 60px button is
+a scene read with the thumb hunting instead of with the eyes.
+
+**SKIP goes to the payout, never past it.** Skipping a scene must never skip
+its reward — the player who has read it before is skipping the words, not
+declining the tier. The suite asserts exactly that: after SKIP, the scene is
+still on screen, showing `TIER 2 OPENS`, and the tier has not yet moved.
+
+### Two test bugs worth recording
+
+Both were in checks I wrote, and both would have passed silently forever:
+
+- The scene's fit check measured the plate **after the scene had closed**. A
+  hidden element's bounding rects are all zero, so `plate.bottom <= stage.bottom`
+  was trivially true and the check tested nothing. It now runs while the scene
+  is on screen and asserts real numbers — a 92px plate, a 224px cast band, a
+  17px line, clear of both the letterbox and the SKIP button.
+- The road's payout check compared the flash text against `/TIER 2/` while the
+  flash reads `Tier 2`. It failed loudly, which is the good case; the first one
+  is the cautionary one.
+
+### Coverage
+
+`test/camp.test.cjs` — **32/32**, of which ten are the memory. Plus
+`road.test.cjs` 32/32 and `flow.test.cjs` 106/106, all with zero page errors.
+The road suite's own memory check was rewritten: a memory stop now has to open
+a scene and *hold the road* until it is heard, with what happens inside the
+scene owned by the camp suite.
+
+---
+
+## Where the vertical slice stands
+
+| Gauntlet item | State |
+|---|---|
+| Perfected combat | 106 checks, 3/3 balance gates at 220 runs/tier |
+| A refined parry that is the best thing in the game | 0% / 33% / 100% per fight; **0% / 26% / 95% per run** — a road compounds skill instead of averaging it |
+| Node-based travel that reads at a glance | Build 26, 32 checks |
+| A campfire that develops and unlocks skill nodes | Build 27, ten nodes on three tiers |
+| A cutscene system that unlocks them | Build 28, the only key to tiers 2 and 3 |
+
+**The honest remaining gap** is the same one named at Build 24 and it has
+narrowed rather than closed: StS's hour-to-hour fun is in the *run* — card
+acquisition, card removal, relics, path risk across multiple acts. v2.3 now has
+a run, a road, attrition, a purse and a tree, which is most of that skeleton.
+What it does not have is **acquisition** — you sharpen the fifteen cards you
+started with and never gain or drop one — and it is one act, not three. Those
+are the next two things worth building, in that order.

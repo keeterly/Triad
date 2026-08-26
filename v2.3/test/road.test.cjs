@@ -281,8 +281,20 @@ const { boot } = require('./harness.cjs');
     const preTier = (await R()).tier;
     await J((id) => window.R.travel(id), storyId);
     await sleep(420);
+    // A memory is a SCENE now (camp.test.cjs owns what happens inside it); what
+    // the road has to guarantee is that the stop opens one and that finishing
+    // it pays back into the run.
+    const opened = await J(() => ({
+      scene: !document.getElementById('k-scene').classList.contains('k-hidden'),
+      map: !document.getElementById('k-map').classList.contains('k-hidden'),
+      tier: window.R.state().tier,
+    }));
+    check('MEMORY: a memory stop opens a scene, and holds the road until it is heard',
+      opened.scene && !opened.map && opened.tier === preTier, JSON.stringify(opened));
+    await J(() => { window.R.sceneSkip(); window.R.sceneNext(); });
+    await sleep(300);
     const post = await R();
-    check('MEMORY: a memory opens the next tier of the tree and pays an ember',
+    check('MEMORY: hearing it opens the next tier of the tree and pays an ember',
       post.tier === preTier + 1 && post.embers >= 1, JSON.stringify({ tier: post.tier, embers: post.embers }));
 
     // The Regent, and what beating her means.
