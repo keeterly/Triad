@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 7;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 8;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -619,94 +619,142 @@ function logLine(t) { C.log.push(t); const el = document.getElementById('k-log')
 // hero; the player answers ON the character. Tap anywhere, slide in any
 // direction, hold-and-release. Graded against impact time.
 // ═════════════════════════════════════════════════════════════════════════════
-const NOTE_TRAVEL = 1100;   // ms from launch to impact
-const NOTE_GAP = 620;       // ms between notes
-function runRhythmHit(hit, tgtId, parrierId) {
-  const notes = hit.notes;
+// The ring CLOSES onto the sweet spot. Everything else on screen desaturates
+// and holds still, so the only live thing is the read. This is v2.2's parry
+// presentation, restored: a big pale ring shrinking onto a dashed gold target,
+// the note's index over it, and a dotted thread back to whatever is swinging.
+const NOTE_CLOSE = 880;    // ms for a ring to close
+const NOTE_GAP = 150;      // ms between notes of a string
+const GESTURE_WORD = { tap: 'TAP', slide: 'SLIDE', hold: 'HOLD' };
+
+function parryFocus(on) {
+  const st = el('k-stage'); if (!st) return;
+  st.classList.toggle('k-parry-focus', !!on);
+}
+// Clair-Obscur slow-mo: the instant a note becomes tappable, time dilates.
+function parrySlowmo(on) {
+  const st = el('k-stage'); if (!st) return;
+  st.classList.toggle('k-slowmo', !!on);
+}
+// A dotted thread from whatever is swinging to the ring, so the blow reads as
+// coming from the Regent rather than appearing out of the air.
+function parryThread(fromEl, x, y) {
+  const stage = el('k-stage'); if (!stage || !fromEl) return null;
+  const sr = stage.getBoundingClientRect(), r = fromEl.getBoundingClientRect();
+  const k = sr.width / stage.offsetWidth || 1;
+  const fx = (r.left + r.width * 0.42 - sr.left) / k, fy = (r.top + r.height * 0.4 - sr.top) / k;
+  const svg = document.createElementNS(AIMNS, 'svg');
+  svg.setAttribute('class', 'k-pthread');
+  svg.setAttribute('viewBox', '0 0 932 430');
+  svg.innerHTML = '<path d="M ' + fx + ' ' + fy + ' Q ' + ((fx + x) / 2) + ' '
+    + (Math.min(fy, y) - 40) + ' ' + x + ' ' + y + '" fill="none" stroke="#e0c084"'
+    + ' stroke-width="1.6" stroke-dasharray="2 8" opacity="0.55"/>';
+  stage.appendChild(svg);
+  return svg;
+}
+
+// One note: a ring closing on (ax, ay). Resolves with its grade.
+function runParryNote(type, ax, ay, idx, total, dur) {
   return new Promise(resolve => {
+    const stage = el('k-stage');
+    if (!stage) return resolve('miss');
+    const ring = document.createElement('div');
+    ring.className = 'k-pring k-pring-' + type;
+    ring.style.left = ax + 'px'; ring.style.top = ay + 'px';
+    ring.innerHTML = '<span class="k-pr-target"></span><span class="k-pr-close"></span>'
+      + '<span class="k-pr-lbl">' + (total > 1 ? idx + '/' + total : GESTURE_WORD[type]) + '</span>';
+    stage.appendChild(ring);
+    ring.querySelector('.k-pr-close').style.animationDuration = dur + 'ms';
+    const lbl = ring.querySelector('.k-pr-lbl');
+
+    const t0 = performance.now();
+    ring.dataset.impact = String(t0 + dur);      // the bots aim at the beat
+    let done = false, downAt = null, moved = 0;
+
+    // it lights up the moment it becomes gradeable — an unmistakable "now"
+    const liveT = setTimeout(() => {
+      if (done) return;
+      ring.classList.add('k-pr-live');
+      lbl.textContent = GESTURE_WORD[type] + '!';
+      parrySlowmo(true);
+    }, Math.max(0, dur - PARRY_GOOD_MS));
+
+    const finish = (q) => {
+      if (done) return;
+      done = true;
+      clearTimeout(liveT); clearTimeout(missT);
+      parrySlowmo(false);
+      stage.removeEventListener('pointerdown', onDown, true);
+      stage.removeEventListener('pointermove', onMove, true);
+      stage.removeEventListener('pointerup', onUp, true);
+      fxNoteGrade(ring, ax, ay, q);
+      resolve(q);
+    };
+    // A press that is way early does NOT consume the note — it nudges and the
+    // ring keeps listening. That forgiveness is what makes the read learnable.
+    const tryGrade = () => {
+      const g = parryGrade(performance.now() - t0 - dur);
+      if (g === null) { earlyNudge(ring, ax, ay); return false; }
+      finish(g); return true;
+    };
+    const onDown = (e) => {
+      downAt = performance.now(); moved = 0;
+      ring._dx = e.clientX; ring._dy = e.clientY;
+      if (type === 'tap') tryGrade();
+    };
+    const onMove = (e) => {
+      if (downAt == null) return;
+      moved = Math.max(moved, Math.hypot(e.clientX - ring._dx, e.clientY - ring._dy));
+      if (type === 'slide' && moved > 24) tryGrade();
+    };
+    const onUp = () => {
+      if (type === 'hold' && downAt != null) tryGrade();
+      downAt = null;
+    };
+    stage.addEventListener('pointerdown', onDown, true);
+    stage.addEventListener('pointermove', onMove, true);
+    stage.addEventListener('pointerup', onUp, true);
+    // the note outlives its own beat, so a late catch is still a catch
+    const missT = setTimeout(() => finish('miss'), dur + PARRY_GOOD_MS + PARRY_LATE_MS);
+  });
+}
+function earlyNudge(ring, ax, ay) {
+  ring.classList.remove('k-pr-early'); void ring.offsetWidth; ring.classList.add('k-pr-early');
+  const tag = document.createElement('div');
+  tag.className = 'k-grade k-grade-early';
+  tag.textContent = 'WAIT…';
+  tag.style.left = ax + 'px'; tag.style.top = (ay - 44) + 'px';
+  el('k-stage').appendChild(tag);
+  setTimeout(() => tag.remove(), 420);
+}
+
+// A whole hit's string, answered note by note over the hero who must answer it.
+function runRhythmHit(hit, tgtId, parrierId) {
+  return new Promise(async (resolve) => {
+    const notes = hit.notes;
     if (!notes.length) return resolve([]);
-    const stage = document.getElementById('k-stage');
-    const bossEl = document.getElementById('k-boss-art');
-    const heroEl = document.querySelector('.k-hero[data-hero="' + (parrierId || tgtId) + '"]') ||
-                   document.querySelector('.k-hero');
-    if (!stage || !bossEl || !heroEl) {
-      return resolve(notes.map(() => 'miss'));      // headless / torn-down DOM: the hit lands
-    }
-    const sr = stage.getBoundingClientRect();
-    const br = bossEl.getBoundingClientRect(), hr = heroEl.getBoundingClientRect();
-    const scale = sr.width / stage.offsetWidth || 1;
-    const from = { x: (br.left + br.width * 0.4 - sr.left) / scale, y: (br.top + br.height * 0.35 - sr.top) / scale };
-    const to   = { x: (hr.left + hr.width * 0.5 - sr.left) / scale, y: (hr.top + hr.height * 0.42 - sr.top) / scale };
-    // the hero answering this hit lights up, so the eye knows where to look
-    document.querySelectorAll('.k-hero').forEach(h => h.classList.toggle('k-parrying', h.dataset.hero === (parrierId || tgtId)));
+    const stage = el('k-stage');
+    const heroEl = document.querySelector('.k-hero[data-hero="' + (parrierId || tgtId) + '"]');
+    if (!stage || !heroEl) return resolve(notes.map(() => 'miss'));   // headless: the hit lands
+    const sr = stage.getBoundingClientRect(), hr = heroEl.getBoundingClientRect();
+    const k = sr.width / stage.offsetWidth || 1;
+    const ax = (hr.left + hr.width / 2 - sr.left) / k;
+    const ay = (hr.top + hr.height * 0.26 - sr.top) / k;
+
+    document.querySelectorAll('.k-hero').forEach(h =>
+      h.classList.toggle('k-parrying', h.dataset.hero === (parrierId || tgtId)));
+    parryFocus(true);
+    const thread = parryThread(el('k-boss-art'), ax, ay);
 
     const grades = [];
-    let noteIx = 0, live = null;
-    let downXY = null, moved = 0;
-
-    const finishNote = (grade) => {
-      grades.push(grade);
-      if (live) { fxNoteGrade(live.el, grade); live = null; }
-      noteIx++;
-      if (noteIx >= notes.length) { cleanup(); resolve(grades); }
-      else setTimeout(launch, NOTE_GAP);
-    };
-    const launch = () => {
-      const type = notes[noteIx];
-      const el = document.createElement('div');
-      el.className = 'k-note k-note-' + type;
-      el.innerHTML = type === 'slide' ? '<span class="k-note-arrow">➤</span>' : type === 'hold' ? '<span class="k-note-hold"></span>' : '';
-      el.style.left = from.x + 'px'; el.style.top = from.y + 'px';
-      stage.appendChild(el);
-      const t0 = performance.now();
-      const impact = t0 + NOTE_TRAVEL;
-      live = { el, type, impact, judged: false, holdDown: false };
-      const step = () => {
-        if (!live || live.el !== el) { el.remove(); return; }
-        const t = Math.min(1, (performance.now() - t0) / NOTE_TRAVEL);
-        el.style.left = (from.x + (to.x - from.x) * t) + 'px';
-        el.style.top = (from.y + (to.y - from.y) * t - Math.sin(t * Math.PI) * 34) + 'px';
-        el.style.setProperty('--k-note-t', t.toFixed(3));
-        if (t >= 1) {
-          // grace after impact — a late input inside GOOD still counts
-          setTimeout(() => { if (live && live.el === el && !live.judged) { live.judged = true; finishNote('miss'); } }, PARRY_GOOD_MS + PARRY_LATE_MS);
-          return;
-        }
-        requestAnimationFrame(step);
-      };
-      requestAnimationFrame(step);
-    };
-    const judge = (type) => {
-      if (!live || live.judged) return;
-      if (type !== live.type) return;               // wrong gesture: let it ride (may still miss)
-      const g = parryGrade(performance.now() - live.impact);   // SIGNED — early is negative
-      if (g === null) { fxTooEarly(live.el); return; }         // way early: the note keeps listening
-      live.judged = true;
-      finishNote(g);
-    };
-    const down = (e) => {
-      moved = 0;
-      downXY = { x: e.clientX, y: e.clientY };
-      if (live && live.type === 'hold' && !live.judged) live.holdDown = true;
-    };
-    const move = (e) => { if (downXY) moved = Math.max(moved, Math.hypot(e.clientX - downXY.x, e.clientY - downXY.y)); };
-    const up = () => {
-      if (!live || live.judged) { downXY = null; return; }
-      if (live.type === 'hold') { if (live.holdDown) judge('hold'); }
-      else if (live.type === 'slide') { if (moved > 24) judge('slide'); }
-      else { if (moved <= 24) judge('tap'); }
-      downXY = null;
-    };
-    const cleanup = () => {
-      stage.removeEventListener('pointerdown', down);
-      stage.removeEventListener('pointermove', move);
-      stage.removeEventListener('pointerup', up);
-      document.querySelectorAll('.k-hero').forEach(h => h.classList.remove('k-parrying'));
-    };
-    stage.addEventListener('pointerdown', down);
-    stage.addEventListener('pointermove', move);
-    stage.addEventListener('pointerup', up);
-    launch();
+    for (let i = 0; i < notes.length; i++) {
+      grades.push(await runParryNote(notes[i], ax, ay, i + 1, notes.length, NOTE_CLOSE));
+      if (i < notes.length - 1) await sleep(NOTE_GAP);
+    }
+    if (thread) thread.remove();
+    parryFocus(false);
+    document.querySelectorAll('.k-hero').forEach(h => h.classList.remove('k-parrying'));
+    resolve(grades);
   });
 }
 
@@ -743,10 +791,6 @@ function fxPlayCard(cardId, ev) {
   if (h) { h.classList.remove('k-acts'); void h.offsetWidth; h.classList.add('k-acts'); }
 }
 function fxResonanceCharge() { const el = document.querySelector('.k-bond-row'); if (el) { el.classList.remove('k-flash'); void el.offsetWidth; el.classList.add('k-flash'); } }
-function fxTooEarly(el) {
-  if (!el) return;
-  el.classList.remove('k-note-early'); void el.offsetWidth; el.classList.add('k-note-early');
-}
 // THE LINE THAT CONNECTS THE GRADES TO THE HP BAR. Without it the player reads
 // a stack of ratings fly past and then watches a number leave their health with
 // no stated relationship between the two.
@@ -767,17 +811,22 @@ function fxParryReceipt(heroId, read) {
   stage.appendChild(tag);
   setTimeout(() => tag.remove(), 1150);
 }
-function fxNoteGrade(el, grade) {
-  if (!el) return;
-  const tag = document.createElement('div');
-  tag.className = 'k-grade k-grade-' + grade;
-  tag.textContent = grade === 'perfect' ? 'PERFECT' : grade === 'great' ? 'GREAT'
-    : grade === 'good' ? 'GOOD' : grade === 'late' ? 'LATE' : 'MISS';
-  el.parentElement && el.parentElement.appendChild(tag);
-  tag.style.left = el.style.left; tag.style.top = el.style.top;
-  setTimeout(() => tag.remove(), 700);
+function fxNoteGrade(ring, ax, ay, grade) {
+  const stage = document.getElementById('k-stage');
+  if (ring) {
+    ring.classList.add('k-pr-land', 'k-pr-' + grade);
+    setTimeout(() => ring.remove(), 200);
+  }
+  if (stage) {
+    const tag = document.createElement('div');
+    tag.className = 'k-grade k-grade-' + grade;
+    tag.textContent = grade === 'perfect' ? 'PERFECT' : grade === 'great' ? 'GREAT'
+      : grade === 'good' ? 'GOOD' : grade === 'late' ? 'LATE' : 'MISS';
+    tag.style.left = ax + 'px'; tag.style.top = (ay - 40) + 'px';
+    stage.appendChild(tag);
+    setTimeout(() => tag.remove(), 700);
+  }
   if (grade === 'perfect') hitstop(94);
-  el.remove();
 }
 // __SIM: the balance simulator runs thousands of fights; every beat is skipped.
 const sleep = (ms) => new Promise(r => setTimeout(r, (typeof window !== 'undefined' && window.__SIM) ? 0 : (testMode() ? Math.min(ms, 24) : ms)));
@@ -1009,11 +1058,11 @@ function dropCommit(id, drop) {
 // core, travelling dotted thread) cast from the card you are holding, ending in
 // a rotating JRPG reticle on the thing you are about to hit.
 // ═════════════════════════════════════════════════════════════════════════════
-// Where a lifted card parks while you aim. Slay the Spire's model: the card
-// does NOT chase the finger — it commits to one spot and the beam does the
-// targeting. Chasing the finger made the card cover its own beam; clamping it
-// part-way made it feel stuck against an invisible wall.
-const CARD_PARK = { x: 424, y: 268 };
+// The card FOLLOWS THE FINGER (v2.2's feel) and trails DOWN-LEFT of it, which
+// is how the original played: your thumb sits on the target, the reticle is
+// under your thumb, and the card hangs below-left where you can still read it
+// and where it never covers the arc it is casting.
+const CARD_OFFSET = { x: -58, y: 104 };
 const AIMNS = 'http://www.w3.org/2000/svg';
 let _aim = null;
 function aimLayer() {
@@ -1053,36 +1102,35 @@ function drawAim(fx, fy, ex, ey, valid, color, phase) {
   const R = 16;
   const shape = (valid ? 'v' : 'i') + c;
   if (!_aim || _aim.shape !== shape) {
+    // v2.2's reticle: four corner brackets around a bright dot, breathing.
     const ret = valid
       ? `<g class="k-aim-ret">`
-        + `<g class="k-aim-r1"><rect x="${-R}" y="${-R}" width="${2 * R}" height="${2 * R}" rx="2" fill="none" stroke="${c}" stroke-width="1.6" opacity="0.85"/></g>`
-        + `<g class="k-aim-r2"><path d="${cornerPath(R + 5)}" fill="none" stroke="#fff6d8" stroke-width="2.4" stroke-linecap="round"/></g>`
-        + `<circle r="3" fill="#fff6d8"/></g>`
+        + `<g class="k-aim-r1"><path d="${cornerPath(R)}" fill="none" stroke="${c}" stroke-width="2.6" stroke-linecap="round"/></g>`
+        + `<circle class="k-aim-dot" r="3.4" fill="#fff2ea"/></g>`
       : '';
     // no SVG filter on the per-frame paths — a wide low-opacity underlay fakes
     // the glow without a blur rasterization every frame
+    // the DASH is the line — a travelling dotted arc, with a soft underlay
     svg.innerHTML =
-        `<path class="k-aim-glow" fill="none" stroke="${c}" stroke-width="10" stroke-linecap="round" opacity="0.2"/>`
-      + `<path class="k-aim-core" fill="none" stroke="${c}" stroke-width="4" stroke-linecap="round" opacity="0.55"/>`
-      + `<path class="k-aim-dash" fill="none" stroke="#fff6d8" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="2 7"/>`
+        `<path class="k-aim-glow" fill="none" stroke="${c}" stroke-width="9" stroke-linecap="round" opacity="0.16"/>`
+      + `<path class="k-aim-dash" fill="none" stroke="${c}" stroke-width="3.4" stroke-linecap="round" stroke-dasharray="3 9"/>`
       + ret;
-    _aim = { shape, glow: svg.querySelector('.k-aim-glow'), core: svg.querySelector('.k-aim-core'),
+    _aim = { shape, glow: svg.querySelector('.k-aim-glow'),
       dash: svg.querySelector('.k-aim-dash'), ret: svg.querySelector('.k-aim-ret'),
-      r1: svg.querySelector('.k-aim-r1'), r2: svg.querySelector('.k-aim-r2') };
+      r1: svg.querySelector('.k-aim-r1') };
   }
   // a bowed ribbon, not a straight line — it reads as thrown, not aimed
   const bow = Math.min(60, Math.max(22, Math.abs(ex - fx) * 0.11));
   const d = `M ${fx} ${fy} Q ${(fx + ex) / 2} ${Math.max(10, Math.min(fy, ey) - bow)} ${ex} ${ey}`;
   if (_aim.glow) _aim.glow.setAttribute('d', d);
-  if (_aim.core) _aim.core.setAttribute('d', d);
   if (_aim.dash) { _aim.dash.setAttribute('d', d); _aim.dash.setAttribute('stroke-dashoffset', -phase); }
   if (_aim.ret) _aim.ret.setAttribute('transform', `translate(${ex} ${ey})`);
-  if (_aim.r1) _aim.r1.setAttribute('transform', `rotate(${phase})`);
-  if (_aim.r2) _aim.r2.setAttribute('transform', `rotate(${-phase * 0.7})`);
+  // the brackets breathe rather than spin — a lock-on, not a radar
+  if (_aim.r1) _aim.r1.setAttribute('transform', `scale(${(1 + Math.sin(phase / 26) * 0.07).toFixed(3)})`);
 }
 // A card wanting the enemy is gold; one tending the party is green.
 function aimColor(cardId) {
-  return CARD_DEFS[cardId].target === 'enemy' ? '#f0d488' : '#98d878';
+  return CARD_DEFS[cardId].target === 'enemy' ? '#e05b52' : '#98d878';
 }
 // Stage-space centre of whatever a drop would land on.
 function aimAnchor(drop) {
@@ -1107,7 +1155,7 @@ function attachCardInput(btn) {
   // pointermove measured its delta from (0,0), decided it was a drag, and
   // flung the card 375px off the hand before the button ever went down.
   let holdT = null, held = false, dragging = false, armed = false, sx = 0, sy = 0;
-  let raf = 0, phase = 0, lastPt = null, park = null;
+  let raf = 0, phase = 0, lastPt = null, home = null;
   // the beam is redrawn on its own frame loop so the dotted thread keeps
   // travelling and the reticle keeps turning even when the finger is still
   const spin = () => {
@@ -1145,23 +1193,37 @@ function attachCardInput(btn) {
     const dx = e.clientX - sx, dy = e.clientY - sy;
     if (!dragging && Math.hypot(dx, dy) > 14) {
       clearTimeout(holdT); dragging = true;
-      // park it: measure where the card sits in the fan, then move it once
-      const stg = el('k-stage'), sre = stg.getBoundingClientRect();
-      const kk = sre.width / stg.offsetWidth || 1;
-      const home = btn.getBoundingClientRect();
-      park = { x: CARD_PARK.x - (home.left + home.width / 2 - sre.left) / kk,
-               y: CARD_PARK.y - (home.top + home.height / 2 - sre.top) / kk };
-      btn.style.setProperty('--dragx', park.x + 'px');
-      btn.style.setProperty('--dragy', park.y + 'px');
+      // Measure the card's rest position UNDER the aiming transform — the fan's
+      // rotate/translate moves its visual centre, so measuring before the swap
+      // would anchor the drag to the wrong point and the card would sit off the
+      // finger by the fan's offset.
+      btn.style.setProperty('--dragx', '0px');
+      btn.style.setProperty('--dragy', '0px');
       btn.classList.add('k-aiming');
+      const stg0 = el('k-stage'), sr0 = stg0.getBoundingClientRect();
+      const k0 = sr0.width / stg0.offsetWidth || 1;
+      const h0 = btn.getBoundingClientRect();
+      home = { x: (h0.left + h0.width / 2 - sr0.left) / k0,
+               y: (h0.top + h0.height / 2 - sr0.top) / k0,
+               hw: h0.width / k0 / 2, hh: h0.height / k0 / 2 };
       // light every figure this card could legally land on
       const want = CARD_DEFS[btn.dataset.card].target === 'enemy' ? 'enemy' : 'party';
       if (want === 'enemy') el('k-boss-art').classList.add('k-aim-valid');
       else document.querySelectorAll('.k-hero').forEach(h => h.classList.add('k-aim-valid'));
       if (!raf) raf = requestAnimationFrame(spin);
     }
-    if (dragging) {
-      // the card stays parked — only the beam and the reticle track the finger
+    if (dragging && home) {
+      // the card rides the finger: centred on it, lifted clear of the thumb
+      const stg = el('k-stage'), sr2 = stg.getBoundingClientRect();
+      const k = sr2.width / stg.offsetWidth || 1;
+      const px = (e.clientX - sr2.left) / k, py = (e.clientY - sr2.top) / k;
+      // clamped only to the STAGE edge — a real boundary, not a leash: it can
+      // only bite at the very rim, never in the middle of an ordinary drag
+      const hw = home.hw, hh = home.hh;      // measured under the aiming transform
+      const cx2 = Math.max(hw + 2, Math.min(932 - hw - 2, px + CARD_OFFSET.x));
+      const cy2 = Math.max(hh + 2, Math.min(430 - hh - 2, py + CARD_OFFSET.y));
+      btn.style.setProperty('--dragx', (cx2 - home.x) + 'px');
+      btn.style.setProperty('--dragy', (cy2 - home.y) + 'px');
       const over = dropTargetAt(e.clientX, e.clientY);
       const want = CARD_DEFS[btn.dataset.card].target === 'enemy' ? 'enemy' : 'party';
       btn.classList.toggle('k-drop-ok', !!over && (over.zone === want || over.zone === 'piles'));

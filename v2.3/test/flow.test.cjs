@@ -64,7 +64,7 @@ const { boot } = require('./harness.cjs');
     check('OPENING COVERAGE: 5 cards, at least one per hero, across 8 seeds', ok, detail);
   }
   {
-    const src = await J(async () => (await (await fetch('game.js?v=7')).text()));
+    const src = await J(async () => (await (await fetch('game.js?v=8')).text()));
     const phaseWrites = (src.match(/C\.phase = /g) || []).length;
     check('ONE TRANSITION OWNER: setPhase is the only C.phase mutator', phaseWrites === 1, phaseWrites + ' assignments');
     check('NO FLOW METER, NO ACTION TRAIL: nothing renders a meter or a trail', await J(() =>
@@ -485,31 +485,33 @@ const { boot } = require('./harness.cjs');
       const out = {
         layer: !!svg,
         glow: !!svg && !!svg.querySelector('.k-aim-glow'),
-        core: !!svg && !!svg.querySelector('.k-aim-core'),
         dotted: !!svg && svg.querySelector('.k-aim-dash')
-          && svg.querySelector('.k-aim-dash').getAttribute('stroke-dasharray') === '2 7',
+          && svg.querySelector('.k-aim-dash').getAttribute('stroke-dasharray') === '3 9',
+        crimson: !!svg && /#e05b52/i.test(svg.querySelector('.k-aim-dash').getAttribute('stroke') || ''),
         reticle: !!svg && !!svg.querySelector('.k-aim-ret'),
-        bowed: !!svg && /^M .+ Q .+ .+$/.test(svg.querySelector('.k-aim-core').getAttribute('d') || ''),
+        brackets: !!svg && !!svg.querySelector('.k-aim-r1 path') && !!svg.querySelector('.k-aim-dot'),
+        bowed: !!svg && /^M .+ Q .+ .+$/.test(svg.querySelector('.k-aim-dash').getAttribute('d') || ''),
         snapped: document.getElementById('k-boss-art').classList.contains('k-aim-snap'),
       };
-      // the held card must stay near the hand, never fly onto the target and
-      // cover the beam it is casting
-      const held = card.getBoundingClientRect(), st = document.getElementById('k-stage').getBoundingClientRect();
-      out.cardStaysLow = held.top > st.top + st.height * 0.45;
-      out.cardClearOfTarget = held.left > boss.right || held.right < boss.left
-        || held.top > boss.bottom || held.bottom < boss.top;
+      // the card TRACKS the finger (v2.2 feel), trailing down-left of it so it
+      // never covers the arc and reticle it is casting
+      const held = card.getBoundingClientRect();
+      const pxx = boss.left + boss.width / 2, pyy = boss.top + boss.height / 2;
+      out.tracksFinger = Math.abs(held.left + held.width / 2 - pxx) < 140;
+      out.trailsBelowLeft = (held.top + held.height / 2) > pyy
+        && (held.left + held.width / 2) < pxx;
       at(boss.left + boss.width / 2, boss.top + boss.height / 2, 'pointerup');
-      out.cleared = !document.getElementById('k-aim').querySelector('.k-aim-core');
+      out.cleared = !document.getElementById('k-aim').querySelector('.k-aim-dash');
       return out;
     });
-    check('AIM: picking a card casts the v2.2 beam — glow, core, travelling dotted thread, reticle',
-      beam.layer && beam.glow && beam.core && beam.dotted && beam.reticle && beam.bowed,
-      JSON.stringify(beam));
+    check('AIM: picking a card casts the v2.2 beam — crimson dotted arc, bracket reticle',
+      beam.layer && beam.glow && beam.dotted && beam.crimson && beam.reticle
+      && beam.brackets && beam.bowed, JSON.stringify(beam));
     check('AIM: the beam snaps to a legal target and clears on release',
       beam.snapped && beam.cleared, JSON.stringify({ snapped: beam.snapped, cleared: beam.cleared }));
-    check('AIM: the card is HELD low, so it never covers the beam it casts',
-      beam.cardStaysLow && beam.cardClearOfTarget,
-      JSON.stringify({ low: beam.cardStaysLow, clear: beam.cardClearOfTarget }));
+    check('AIM: the card follows the finger, trailing clear of its own reticle',
+      beam.tracksFinger && beam.trailsBelowLeft,
+      JSON.stringify({ tracks: beam.tracksFinger, trails: beam.trailsBelowLeft }));
   }
   // ── card anatomy: Slay-the-Spire readability on a phone ──
   await fresh(11);
@@ -562,7 +564,7 @@ const { boot } = require('./harness.cjs');
       scale.ash === '42' && scale.boss === '120' && scale.commas === 0
       && Number(scale.intent) < 100, JSON.stringify(scale));
   }
-  // ── lifting a card: it parks and commits, it does not fight the finger ──
+  // ── lifting a card: it follows the finger, the way v2.2 played ──
   await fresh(7);
   {
     const lift = await J(async () => {
@@ -573,26 +575,72 @@ const { boot } = require('./harness.cjs');
       const at = (x, y, t) => card.dispatchEvent(new PointerEvent(t, { bubbles: true, clientX: x, clientY: y, pointerId: 1 }));
       at(r0.left + r0.width / 2, r0.top + 10, 'pointerdown');
       at(r0.left + r0.width / 2, r0.top - 60, 'pointermove');
-      await new Promise(res => setTimeout(res, 220));
-      const parked = card.getBoundingClientRect();
-      const aiming = card.classList.contains('k-aiming');
-      // keep sliding: the card must STAY put while the beam tracks the finger
+      await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+      const a1 = card.getBoundingClientRect();
       const boss = document.getElementById('k-boss-art').getBoundingClientRect();
       at(boss.left + boss.width / 2, boss.top + boss.height / 2, 'pointermove');
       await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
-      const after = card.getBoundingClientRect();
+      const a2 = card.getBoundingClientRect();
       const out = {
-        aiming, lifted: parked.top < r0.top - 20,
-        steady: Math.abs(after.left - parked.left) < 1 && Math.abs(after.top - parked.top) < 1,
-        onStage: parked.top > st.top && parked.bottom < st.bottom,
-        beamTracks: document.getElementById('k-boss-art').classList.contains('k-aim-snap'),
+        aiming: card.classList.contains('k-aiming'),
+        lifted: a1.top < r0.top - 20,
+        // the whole point: the card KEEPS moving with the finger, no wall
+        followed: a2.left - a1.left > 60,
+        onStage: a2.top > st.top && a2.bottom < st.bottom + 1,
+        snapped: document.getElementById('k-boss-art').classList.contains('k-aim-snap'),
       };
       at(boss.left + boss.width / 2, boss.top + boss.height / 2, 'pointerup');
       return out;
     });
-    check('LIFT: a lifted card parks clear of the hand and stops fighting the finger',
-      lift.aiming && lift.lifted && lift.steady && lift.onStage && lift.beamTracks,
+    check('LIFT: the card tracks the finger the whole way — nothing parks or sticks',
+      lift.aiming && lift.lifted && lift.followed && lift.onStage && lift.snapped,
       JSON.stringify(lift));
+  }
+  // ── the parry: v2.2's closing ring over a dimmed board ──
+  await fresh(7);
+  {
+    const ring = await J(async () => {
+      window.K.forceIntent('hymn');
+      window.K.endTurn();                      // live rhythm, no grades passed
+      await new Promise(res => setTimeout(res, 420));
+      const st = document.getElementById('k-stage');
+      const r = st.querySelector('.k-pring');
+      const cs = r && getComputedStyle(r.querySelector('.k-pr-close'));
+      const out = {
+        ring: !!r,
+        target: !!(r && r.querySelector('.k-pr-target')),
+        closing: !!(cs && cs.animationName === 'k-prclose'),
+        label: r && r.querySelector('.k-pr-lbl').textContent.trim(),
+        focus: st.classList.contains('k-parry-focus'),
+        thread: !!st.querySelector('.k-pthread'),
+        lit: !!st.querySelector('.k-hero.k-parrying'),
+        noTravellers: !st.querySelector('.k-note'),
+      };
+      await new Promise(res => setTimeout(res, 700));
+      out.livesUp = !!st.querySelector('.k-pring.k-pr-live');
+      return out;
+    });
+    check('PARRY: a ring closes on a dashed sweet spot over a desaturated board',
+      ring.ring && ring.target && ring.closing && ring.focus && ring.thread
+      && ring.lit && ring.noTravellers, JSON.stringify(ring));
+    check('PARRY: the note counts itself and lights when it becomes gradeable',
+      ring.label === '1/2' && ring.livesUp, JSON.stringify({ label: ring.label, live: ring.livesUp }));
+  }
+  // ── an early press is forgiven, not consumed ──
+  await fresh(7);
+  {
+    const early = await J(async () => {
+      window.K.forceIntent('hymn');
+      window.K.endTurn();
+      await new Promise(res => setTimeout(res, 120));     // way before the beat
+      const st = document.getElementById('k-stage');
+      st.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 400, clientY: 200, pointerId: 3 }));
+      await new Promise(res => setTimeout(res, 60));
+      return { stillLive: !!st.querySelector('.k-pring'),
+               nudged: !!st.querySelector('.k-grade-early') || !!st.querySelector('.k-pr-early') };
+    });
+    check('PARRY: pressing way early nudges and keeps listening — the note is not spent',
+      early.stillLive && early.nudged, JSON.stringify(early));
   }
   // ── hold to inspect, release to dismiss (MTG Arena) ──
   await fresh(7);
@@ -627,7 +675,7 @@ const { boot } = require('./harness.cjs');
       const prevented = !card.dispatchEvent(ev);
       // Chromium does not implement -webkit-touch-callout, so assert the
       // declaration ships in the stylesheet rather than reading it back
-      const css = await (await fetch('styles.css?v=7')).text();
+      const css = await (await fetch('styles.css?v=8')).text();
       const rule = css.slice(css.indexOf('.k-card {'), css.indexOf('.k-card {') + 260);
       return { calloutShipped: /-webkit-touch-callout:\s*none/.test(rule),
                highlightShipped: /-webkit-tap-highlight-color:\s*transparent/.test(rule),

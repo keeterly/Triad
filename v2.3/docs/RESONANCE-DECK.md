@@ -245,6 +245,32 @@ mastery wins. Round length still lands inside the deck's 7–9 target.
   turn. On iOS the callout, the tap highlight and text selection are all
   suppressed on cards.
 
+### Build 8 — v2.2's parry and card feel, on the new systems
+
+The designer sent a screen recording of v2.2 and asked for that feel back,
+keeping the v2.3 deck and card systems. Both presentations are restored from
+the original implementation, not approximated:
+
+**The parry is a closing ring again.** Everything but the read desaturates and
+holds still (`k-parry-focus`); a pale ring shrinks from 3.2× onto a dashed gold
+sweet spot over the hero who must answer, with the note's index over it
+("1/2") and a dotted thread back to whatever is swinging. The instant the note
+becomes gradeable it goes gold, pulses, and the label snaps to the verb —
+TAP! / SLIDE! / HOLD! — and time dilates while it is live. A press that is way
+early shakes the ring, says WAIT…, and does **not** consume the note. A late
+catch is still a catch. This replaces the travelling-note dots of Builds 5–7.
+
+**The card follows the finger again.** No park, no leash. It trails down-left
+of the touch point — the arrangement in the recording — so your thumb sits on
+the target while the card stays readable and never covers the arc it casts.
+The only clamp left is the stage rim, which can bite only at the very edge.
+The aim line is v2.2's: a **crimson** travelling dotted arc (green when the
+card tends the party) ending in four corner brackets around a bright dot that
+breathe rather than spin.
+
+The grading, weighting and TURNED/FLAWLESS tiers are unchanged from Build 6 —
+this round changed how the parry *presents*, not how it *scores*.
+
 ### The Dirge — an addition the deck does not list
 
 The Regent's hymn settles on the whole party each enemy phase for unparryable
