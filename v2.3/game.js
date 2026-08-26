@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 9;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 10;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -498,10 +498,15 @@ async function endTurn(opts) {
     setPhase('ENEMY_ATTACK_LAUNCH');
     result.targetId = intentTargetId();
     const negatedThisAction = {};      // one full negate per hero per ACTION
-    // Tests and the no-input path may pass a flat grade list; it is consumed
-    // hit by hit, in order.
-    let flat = opts.grades ? opts.grades.slice() : null;
-
+    // Who answers each hit, decided BEFORE the bar so the rhythm can be played
+    // as one continuous phrase rather than stopping to resolve between notes.
+    const answerers = it.hits.map(h => {
+      const t = hitTargetId(h);
+      return (C.intercession && C.intercession === t && !C.heroes.elin.downed) ? 'elin' : t;
+    });
+    // Tests and the no-input path may pass a flat grade list; otherwise the
+    // player plays the whole bar now and the volley resolves against it.
+    let flat = opts.grades ? opts.grades.slice() : await runVolleyRhythm(it.hits, answerers);
     for (const hit of it.hits) {
       if (!livingHeroes().length) break;
       const tgtId = hitTargetId(hit);
@@ -514,9 +519,7 @@ async function endTurn(opts) {
         ? 'elin' : tgtId;
 
       setPhase('RHYTHM_DEFENSE');
-      let grades;
-      if (flat) { grades = flat.splice(0, hit.notes.length); }
-      else grades = await runRhythmHit(hit, tgtId, parrierId);
+      const grades = flat.splice(0, hit.notes.length);
       while (grades.length < hit.notes.length) grades.push('miss');
       result.grades.push(...grades);
 
@@ -623,9 +626,50 @@ function logLine(t) { C.log.push(t); const el = document.getElementById('k-log')
 // and holds still, so the only live thing is the read. This is v2.2's parry
 // presentation, restored: a big pale ring shrinking onto a dashed gold target,
 // the note's index over it, and a dotted thread back to whatever is swinging.
-const NOTE_CLOSE = 880;    // ms for a ring to close
-const NOTE_GAP = 150;      // ms between notes of a string
+// THE GRID IS THE CONTRACT (v2.2). The whole volley runs on ONE metronome at
+// 120 BPM: every ring closes exactly on a beat, so a three-hit barrage reads as
+// a bar of music rather than a handful of unrelated timers. Independent
+// per-note timers are what made the last build feel flat.
+// Musical waits are NEVER throttled: the fx sleep() collapses to 24ms under
+// ?test=1 so the suite runs fast, and routing the metronome through it turned
+// the grid into noise. The beat keeps real time in every mode.
+const beatWait = (ms) => new Promise(r => setTimeout(r, Math.max(0, ms)));
+const BEAT_MS = 500;             // 120 BPM
+const BEAT_LEADIN = 2;           // beats of empty runway before the first note
 const GESTURE_WORD = { tap: 'TAP', slide: 'SLIDE', hold: 'HOLD' };
+let _grid = null;                // { t0, idx } — the live volley's beat clock
+
+// Opens the metronome for a volley: the pulse, the runway, the beat count.
+function beatOpen(totalNotes) {
+  _grid = { t0: performance.now() + BEAT_LEADIN * BEAT_MS, idx: 0, note: 0, total: totalNotes };
+  const st = el('k-stage'); if (!st) return;
+  const pulse = document.createElement('div');
+  pulse.id = 'k-beat';
+  pulse.style.setProperty('--beat', BEAT_MS + 'ms');
+  st.appendChild(pulse);
+}
+function beatClose() {
+  _grid = null;
+  const p = el('k-beat'); if (p) p.remove();
+  const t = el('k-seq'); if (t) t.remove();
+}
+// The sequence track — every note of the volley as a dot, so the player can
+// SEE the bar coming and count it. v2.2 called these the sq-dots.
+function seqTrack(kinds) {
+  const st = el('k-stage'); if (!st) return;
+  const box = document.createElement('div');
+  box.id = 'k-seq';
+  box.innerHTML = kinds.map(k => '<span class="k-sq k-sq-' + k + '"></span>').join('');
+  st.appendChild(box);
+}
+function seqMark(i, cls) {
+  const box = el('k-seq'); if (!box) return;
+  const d = box.children[i]; if (d) { d.classList.remove('k-sq-on'); d.classList.add(cls); }
+}
+function seqActive(i) {
+  const box = el('k-seq'); if (!box) return;
+  const d = box.children[i]; if (d) d.classList.add('k-sq-on');
+}
 
 function parryFocus(on) {
   const st = el('k-stage'); if (!st) return;
@@ -653,7 +697,7 @@ function parryThread(fromEl, x, y) {
   return svg;
 }
 
-// One note: a ring closing on (ax, ay). Resolves with its grade.
+// One note: a ring closing on (ax, ay), exactly on its beat.
 function runParryNote(type, ax, ay, idx, total, dur) {
   return new Promise(resolve => {
     const stage = el('k-stage');
@@ -715,7 +759,10 @@ function runParryNote(type, ax, ay, idx, total, dur) {
     stage.addEventListener('pointermove', onMove, true);
     stage.addEventListener('pointerup', onUp, true);
     // the note outlives its own beat, so a late catch is still a catch
-    const missT = setTimeout(() => finish('miss'), dur + PARRY_GOOD_MS + PARRY_LATE_MS);
+    // The input window shuts when the GOOD window does. A ring may linger a
+    // moment as it fades, but it must never still be listening when the next
+    // beat's ring opens, or one tap would be judged by two notes.
+    const missT = setTimeout(() => finish('miss'), dur + PARRY_GOOD_MS + 30);
   });
 }
 function earlyNudge(ring, ax, ay) {
@@ -728,34 +775,58 @@ function earlyNudge(ring, ax, ay) {
   setTimeout(() => tag.remove(), 420);
 }
 
-// A whole hit's string, answered note by note over the hero who must answer it.
-function runRhythmHit(hit, tgtId, parrierId) {
-  return new Promise(async (resolve) => {
-    const notes = hit.notes;
-    if (!notes.length) return resolve([]);
-    const stage = el('k-stage');
-    const heroEl = document.querySelector('.k-hero[data-hero="' + (parrierId || tgtId) + '"]');
-    if (!stage || !heroEl) return resolve(notes.map(() => 'miss'));   // headless: the hit lands
-    const sr = stage.getBoundingClientRect(), hr = heroEl.getBoundingClientRect();
-    const k = sr.width / stage.offsetWidth || 1;
-    const ax = (hr.left + hr.width / 2 - sr.left) / k;
-    const ay = (hr.top + hr.height * 0.26 - sr.top) / k;
+// THE WHOLE VOLLEY IS ONE BAR. Every note owns a fixed beat and is launched on
+// it, whatever happened to the note before — a missed ring cannot drag the
+// tempo, which is the difference between a rhythm and a queue of timers.
+// Returns one flat grade list, in note order.
+function anchorFor(heroId) {
+  const stage = el('k-stage');
+  const h = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
+  if (!stage || !h) return null;
+  const sr = stage.getBoundingClientRect(), hr = h.getBoundingClientRect();
+  const k = sr.width / stage.offsetWidth || 1;
+  return { x: (hr.left + hr.width / 2 - sr.left) / k,
+           y: (hr.top + hr.height * 0.26 - sr.top) / k };
+}
+async function runVolleyRhythm(hits, answerers) {
+  const kinds = hits.reduce((a, h) => a.concat(h.notes), []);
+  const stage = el('k-stage');
+  if (!stage || !kinds.length) return kinds.map(() => 'miss');
+  parryFocus(true);
+  beatOpen(kinds.length);
+  seqTrack(kinds);
+  await beatWait(BEAT_LEADIN * BEAT_MS * 0.5);
 
-    document.querySelectorAll('.k-hero').forEach(h =>
-      h.classList.toggle('k-parrying', h.dataset.hero === (parrierId || tgtId)));
-    parryFocus(true);
-    const thread = parryThread(el('k-boss-art'), ax, ay);
-
-    const grades = [];
-    for (let i = 0; i < notes.length; i++) {
-      grades.push(await runParryNote(notes[i], ax, ay, i + 1, notes.length, NOTE_CLOSE));
-      if (i < notes.length - 1) await sleep(NOTE_GAP);
+  const jobs = [];
+  let gi = 0;
+  for (let hi = 0; hi < hits.length; hi++) {
+    const who = answerers[hi];
+    const pos = anchorFor(who);
+    for (const type of hits[hi].notes) {
+      const idx = gi++;
+      jobs.push((async () => {
+        const land = _grid.t0 + idx * BEAT_MS;             // this note's beat, fixed
+        const wait = (land - BEAT_MS) - performance.now();
+        if (wait > 4) await beatWait(wait);
+        if (!pos) return 'miss';
+        document.querySelectorAll('.k-hero').forEach(h =>
+          h.classList.toggle('k-parrying', h.dataset.hero === who));
+        seqActive(idx);
+        const dur = Math.max(180, Math.round(land - performance.now()));
+        const g = await runParryNote(type, pos.x, pos.y, idx + 1, kinds.length, dur);
+        seqMark(idx, (g === 'perfect' || g === 'great' || g === 'good') ? 'k-sq-hit' : 'k-sq-miss');
+        return g;
+      })());
     }
-    if (thread) thread.remove();
-    parryFocus(false);
-    document.querySelectorAll('.k-hero').forEach(h => h.classList.remove('k-parrying'));
-    resolve(grades);
-  });
+  }
+  const thread = parryThread(el('k-boss-art'), anchorFor(answerers[0]) ? anchorFor(answerers[0]).x : 466,
+                             anchorFor(answerers[0]) ? anchorFor(answerers[0]).y : 200);
+  const grades = await Promise.all(jobs);
+  if (thread) thread.remove();
+  beatClose();
+  parryFocus(false);
+  document.querySelectorAll('.k-hero').forEach(h => h.classList.remove('k-parrying'));
+  return grades;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -944,9 +1015,34 @@ const COND_LABEL = {
   FOLLOW_UP: 'Follow-Up', FINALE: 'Finale',
   BROKEN: 'If Broken', BROKEN_OR_LOW: 'Broken or ≤30% HP',
 };
+// A small, consistent icon vocabulary — the same mark means the same thing on
+// a card, in the inspect panel and in the Regent's intent line.
+const ICON_PATHS = {
+  atk:   'M2 14 L11 5 M9 3 L13 1 L11 5 M4 12 L2 14 L1 12',            // a blade
+  guard: 'M8 1 L14 4 V8 Q14 12 8 15 Q2 12 2 8 V4 Z',                  // a shield
+  heal:  'M8 3 V13 M3 8 H13',                                          // a cross
+  bleed: 'M8 2 Q12 8 12 10 A4 4 0 0 1 4 10 Q4 8 8 2 Z',                // a drop
+  chill: 'M8 2 V14 M3 5 L13 11 M13 5 L3 11',                           // a flake
+  brk:   'M8 1 L11 6 L15 8 L11 10 L8 15 L5 10 L1 8 L5 6 Z',            // a shard
+  follow:'M3 8 A3 3 0 0 1 8 8 A3 3 0 0 0 13 8 M11 6 L13 8 L11 10',     // a linked arc
+  finale:'M8 1 L10 6 L15 6.5 L11.5 10 L12.5 15 L8 12.5 L3.5 15 L4.5 10 L1 6.5 L6 6 Z',
+  broken:'M6 1 L9 7 L5 8 L10 15 L8 9 L12 8 Z',                         // a crack
+  draw:  'M3 5 H10 V13 H3 Z M6 3 H13 V11',                             // two cards
+  move:  'M2 8 H14 M11 5 L14 8 L11 11',                                // a step
+};
+function icon(name, cls) {
+  const d = ICON_PATHS[name]; if (!d) return '';
+  const fill = (name === 'guard' || name === 'bleed' || name === 'brk' || name === 'finale' || name === 'broken');
+  return '<svg class="k-ico ' + (cls || '') + '" viewBox="0 0 16 16" aria-hidden="true">'
+    + '<path d="' + d + '" ' + (fill ? 'fill="currentColor" stroke="none"' : 'fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"')
+    + '/></svg>';
+}
+const COND_ICON = { FOLLOW_UP: 'follow', FINALE: 'finale', BROKEN: 'broken', BROKEN_OR_LOW: 'broken' };
+
 function cardFaceHTML(c, ev, gem, ownerArt) {
   const cond = c.cond
     ? '<span class="k-cline' + (ev.condActive ? ' on' : '') + '">'
+      + icon(COND_ICON[c.cond.type] || 'follow')
       + '<em>' + (COND_LABEL[c.cond.type] || c.cond.type) + ':</em> ' + condReward(c) + '</span>'
     : c.exhaust ? '<span class="k-cline on"><em>Exhaust.</em></span>' : '';
   return '<span class="k-cgem' + (ev.condActive && ev.currentCost !== c.cost ? ' on' : '') + '">' + gem + '</span>'
@@ -956,24 +1052,25 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
     + '<span class="k-ctext"><span class="k-cprose">' + prose(c.base) + '</span>' + cond + '</span>';
 }
 // Plain sentences, numbers bolded — the way a card is read at a glance.
-function prose(effects) {
+function prose(effects, plain) {
+  const I = plain ? () => '' : icon;
   const out = [];
   const hits = effects.filter(f => f.dmg);
-  if (hits.length === 1) out.push('Deal <b>' + fmtN(hits[0].dmg) + '</b> damage.');
-  else if (hits.length > 1) out.push('Deal <b>' + fmtN(hits[0].dmg) + '</b> damage <b>' + hits.length + '</b> times.');
+  if (hits.length === 1) out.push(I('atk') + '<b>' + fmtN(hits[0].dmg) + '</b> damage.');
+  else if (hits.length > 1) out.push(I('atk') + '<b>' + fmtN(hits[0].dmg) + '</b> damage <b>×' + hits.length + '</b>.');
   for (const fx of effects) {
-    if (fx.brk) out.push('<b>' + fx.brk + '</b> Break.');
-    if (fx.guardSelf) out.push('Gain <b>' + fmtN(fx.guardSelf) + '</b> Guard.');
-    if (fx.guardAll) out.push('All heroes gain <b>' + fmtN(fx.guardAll) + '</b> Guard.');
-    if (fx.guardAlly) out.push('An ally gains <b>' + fmtN(fx.guardAlly) + '</b> Guard.');
-    if (fx.guardLowest) out.push('Lowest ally gains <b>' + fmtN(fx.guardLowest) + '</b> Guard.');
-    if (fx.heal) out.push('Heal <b>' + fmtN(fx.heal) + '</b> HP.');
-    if (fx.bleed) out.push('Apply <b>' + fmtN(fx.bleed) + '</b> Bleed.');
-    if (fx.chill) out.push('Apply <b>' + fmtN(fx.chill) + '</b> Chill.');
-    if (fx.counterstance) out.push('Next parry deals <b>+2</b> Break.');
-    if (fx.intercede) out.push('Take their parry window.');
-    if (fx.moveSelf) out.push('Switch row.');
-    if (fx.drawDiscard) out.push('Draw <b>1</b>, discard <b>1</b>.');
+    if (fx.brk) out.push(I('brk') + '<b>' + fx.brk + '</b> Break.');
+    if (fx.guardSelf) out.push(I('guard') + '<b>' + fmtN(fx.guardSelf) + '</b> Guard.');
+    if (fx.guardAll) out.push(I('guard') + '<b>' + fmtN(fx.guardAll) + '</b> Guard to all.');
+    if (fx.guardAlly) out.push(I('guard') + '<b>' + fmtN(fx.guardAlly) + '</b> Guard to an ally.');
+    if (fx.guardLowest) out.push(I('guard') + '<b>' + fmtN(fx.guardLowest) + '</b> Guard to the lowest ally.');
+    if (fx.heal) out.push(I('heal') + 'Heal <b>' + fmtN(fx.heal) + '</b>.');
+    if (fx.bleed) out.push(I('bleed') + '<b>' + fmtN(fx.bleed) + '</b> Bleed.');
+    if (fx.chill) out.push(I('chill') + '<b>' + fmtN(fx.chill) + '</b> Chill.');
+    if (fx.counterstance) out.push(I('brk') + 'Next parry <b>+2</b> Break.');
+    if (fx.intercede) out.push(I('guard') + 'Take their parry window.');
+    if (fx.moveSelf) out.push(I('move') + 'Switch row.');
+    if (fx.drawDiscard) out.push(I('draw') + 'Draw <b>1</b>, discard <b>1</b>.');
   }
   return out.join(' ');
 }
@@ -983,16 +1080,16 @@ function condReward(card) {
   if (card.cond.reward === 'cost') return 'costs <b>' + card.cond.costTo + '</b> AP.';
   const hits = card.cond.bonus.filter(f => f.dmg);
   const parts = [];
-  if (hits.length) parts.push('<b>+' + fmtN(hits.reduce((n, f) => n + f.dmg, 0)) + '</b> damage.');
+  if (hits.length) parts.push(icon('atk') + '<b>+' + fmtN(hits.reduce((n, f) => n + f.dmg, 0)) + '</b> damage.');
   const rest = prose(card.cond.bonus.filter(f => !f.dmg));
   if (rest) parts.push(rest);
   return parts.join(' ');
 }
 function condText(card) {
   if (!card.cond) return '';
-  return (COND_LABEL[card.cond.type] || card.cond.type) + ': ' + condReward(card).replace(/<\/?b>/g, '');
+  return (COND_LABEL[card.cond.type] || card.cond.type) + ': ' + condReward(card).replace(/<[^>]*>/g, '');
 }
-function effectText(effects) { return prose(effects).replace(/<\/?b>/g, ''); }
+function effectText(effects) { return prose(effects, true).replace(/<[^>]*>/g, ''); }
 function renderApDial() {
   el('k-ap-num').textContent = C.ap;
 }
@@ -1022,18 +1119,46 @@ function stageScale() {
   const st = el('k-stage');
   return (st.getBoundingClientRect().width / st.offsetWidth) || 1;
 }
-// What lies under a released card: the Regent, a specific hero, the roster,
-// or the piles corner (the free cycle's drop zone).
-function dropTargetAt(x, y) {
+// SNAP, not a hit-test. A finger is a blunt instrument on a phone: rather than
+// asking "is the pointer inside this box", find the NEAREST legal target and
+// snap to it if it is anywhere close. Only targets the held card could
+// actually accept are considered, so the snap can never suggest an illegal play.
+const SNAP_RADIUS = 210;
+function dropTargetAt(x, y, cardId) {
+  const stage = el('k-stage');
+  if (!stage) return null;
   const inside = (r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  // the piles corner is a discrete zone, not a snap candidate
   const piles = el('k-piles');
-  if (piles) { const r = piles.getBoundingClientRect();
-    if (inside({ left: r.left - 20, right: r.right + 20, top: r.top - 20, bottom: r.bottom + 20 })) return { zone: 'piles' }; }
-  if (inside(el('k-boss-art').getBoundingClientRect())) return { zone: 'enemy' };
-  for (const h of document.querySelectorAll('.k-hero')) if (inside(h.getBoundingClientRect())) return { zone: 'party', hero: h.dataset.hero };
-  for (const row of document.querySelectorAll('.k-pt-hero')) if (inside(row.getBoundingClientRect())) return { zone: 'party', hero: row.dataset.hero };
-  if (inside(el('k-party-hud').getBoundingClientRect())) return { zone: 'party' };
-  return null;
+  if (piles) {
+    const r = piles.getBoundingClientRect();
+    if (inside({ left: r.left - 24, right: r.right + 24, top: r.top - 24, bottom: r.bottom + 24 }))
+      return { zone: 'piles' };
+  }
+  const want = cardId ? (CARD_DEFS[cardId].target === 'enemy' ? 'enemy' : 'party') : null;
+  const cands = [];
+  if (!want || want === 'enemy') {
+    const b = el('k-boss-art');
+    if (b) cands.push({ zone: 'enemy', el: b, r: b.getBoundingClientRect() });
+  }
+  if (!want || want === 'party') {
+    document.querySelectorAll('.k-hero').forEach(h => {
+      if (C.heroes[h.dataset.hero] && !C.heroes[h.dataset.hero].downed)
+        cands.push({ zone: 'party', hero: h.dataset.hero, el: h, r: h.getBoundingClientRect() });
+    });
+    const hud = el('k-party-hud');
+    if (hud) cands.push({ zone: 'party', el: hud, r: hud.getBoundingClientRect() });
+  }
+  let best = null, bestD = Infinity;
+  for (const c of cands) {
+    // distance to the box, zero when the pointer is already inside it
+    const dx = Math.max(c.r.left - x, 0, x - c.r.right);
+    const dy = Math.max(c.r.top - y, 0, y - c.r.bottom);
+    const d = Math.hypot(dx, dy);
+    if (d < bestD) { bestD = d; best = c; }
+  }
+  if (!best || bestD > SNAP_RADIUS) return null;
+  return { zone: best.zone, hero: best.hero, el: best.el, snapped: bestD > 0 };
 }
 function dropCommit(id, drop) {
   if (!drop) return false;
@@ -1161,7 +1286,7 @@ function attachCardInput(btn) {
     const cr = btn.getBoundingClientRect();
     const from = { x: (cr.left + cr.width / 2 - sr.left) / k, y: (cr.top - sr.top) / k };
     const id = btn.dataset.card;
-    const drop = dropTargetAt(lastPt.x, lastPt.y);
+    const drop = dropTargetAt(lastPt.x, lastPt.y, id);
     const want = CARD_DEFS[id].target === 'enemy' ? 'enemy' : 'party';
     const ok = !!drop && (drop.zone === want || drop.zone === 'piles');
     const snap = ok ? aimAnchor(drop) : null;
@@ -1213,7 +1338,7 @@ function attachCardInput(btn) {
       const cy2 = Math.max(hh + 2, Math.min(430 - hh - 2, py + CARD_OFFSET.y));
       btn.style.setProperty('--dragx', (cx2 - home.x) + 'px');
       btn.style.setProperty('--dragy', (cy2 - home.y) + 'px');
-      const over = dropTargetAt(e.clientX, e.clientY);
+      const over = dropTargetAt(e.clientX, e.clientY, btn.dataset.card);
       const want = CARD_DEFS[btn.dataset.card].target === 'enemy' ? 'enemy' : 'party';
       btn.classList.toggle('k-drop-ok', !!over && (over.zone === want || over.zone === 'piles'));
       lastPt = { x: e.clientX, y: e.clientY };
@@ -1232,7 +1357,7 @@ function attachCardInput(btn) {
       aimClear();
       btn.classList.remove('k-dragging', 'k-aiming', 'k-drop-ok');
       btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy');
-      const over = dropTargetAt(e.clientX, e.clientY);
+      const over = dropTargetAt(e.clientX, e.clientY, id);
       if (!dropCommit(id, over)) renderHand();
       else { _sel = null; el('k-target-ring').classList.add('k-hidden'); }
       return;
@@ -1296,8 +1421,36 @@ function closeInspect() {
   document.querySelectorAll('.k-hero').forEach(h => h.classList.remove('k-dim', 'k-fwd'));
 }
 
+// THE PILES, OPENED — Slay the Spire lets you read the draw and discard piles
+// at any time, and a deckbuilder is unplayable without it. The draw pile is
+// shown sorted, not in draw order, so opening it cannot leak the shuffle.
+function openPile(which) {
+  const ids = which === 'deck' ? C.deck.slice().sort() : C.discard.slice();
+  const f = el('k-focus');
+  const title = which === 'deck' ? 'DRAW PILE' : 'DISCARD';
+  f.innerHTML = '<div class="k-pile-view" id="k-pile-view">'
+    + '<div class="k-pile-head">' + title + ' <b>' + ids.length + '</b>'
+    + (which === 'deck' ? '<em>order hidden</em>' : '') + '</div>'
+    + '<div class="k-pile-grid">'
+    + (ids.length ? ids.map(id => {
+        const ev = evaluateCard(id), c = ev.card;
+        const art = c.owner === 'bond' ? HEROES23.ash.art : HEROES23[c.owner].art;
+        return '<div class="k-card k-card-static">' + cardFaceHTML(c, ev, String(c.cost), art) + '</div>';
+      }).join('') : '<div class="k-pile-empty">empty</div>')
+    + '</div><div class="k-pile-hint">tap anywhere to close</div></div>';
+  f.classList.remove('k-hidden');
+  el('k-stage').classList.add('k-inspecting');
+  _focus = 'pile:' + which;
+}
+
 function bindChrome() {
   el('k-endturn').onclick = () => { _sel = null; el('k-target-ring').classList.add('k-hidden'); endTurn(); };
+  const pileBtn = (id, which) => {
+    const n = el(id); if (!n) return;
+    n.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); openPile(which); });
+  };
+  pileBtn('k-deck-btn', 'deck');
+  pileBtn('k-disc-btn', 'discard');
   // MOVE IS DRAG. Pull a hero sideways past the threshold and release —
   // rows are a toggle, so either direction reads as "step to the other row".
   document.querySelectorAll('.k-hero').forEach(h => {
@@ -1325,7 +1478,7 @@ function bindChrome() {
     h.addEventListener('pointercancel', up);
   });
   el('k-stage').addEventListener('pointerdown', (e) => {
-    if (_focus) closeInspect();
+    if (_focus) { closeInspect(); return; }
     if (_sel && !e.target.closest('.k-card') && !e.target.closest('#k-target-ring')) {
       _sel = null; el('k-target-ring').classList.add('k-hidden'); renderHand();
     }
@@ -1357,6 +1510,6 @@ window.K = {
     const ix = REGENT_INTENTS.findIndex(i => i.id === id);
     if (ix >= 0) { C.boss.intentIx = ix; renderAll(); }
   },
-  parryGrade, readString, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
+  parryGrade, readString, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
   tune(t) { Object.assign(TUNE, t || {}); return TUNE; },
 };

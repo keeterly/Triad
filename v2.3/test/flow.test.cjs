@@ -15,6 +15,14 @@ const { boot } = require('./harness.cjs');
   const grades = (kind) => J((k) => (window.K.currentIntent().hits || [])
     .flatMap(h => h.notes.map(() => k)), kind);
   // what the barrage is about to do, straight from the engine
+  // a live bar runs ~4s; let it finish before the next block touches the DOM
+  const settle = () => J(async () => {
+    for (let i = 0; i < 120; i++) {
+      if (!document.getElementById('k-beat') && !document.querySelector('.k-pring')) return true;
+      await new Promise(r => setTimeout(r, 60));
+    }
+    return false;
+  });
   const volley = () => J(() => {
     const it = window.K.currentIntent();
     return { total: window.K.intentPreviewDmg(), hits: (it.hits || []).length,
@@ -64,7 +72,7 @@ const { boot } = require('./harness.cjs');
     check('OPENING COVERAGE: 5 cards, at least one per hero, across 8 seeds', ok, detail);
   }
   {
-    const src = await J(async () => (await (await fetch('game.js?v=9')).text()));
+    const src = await J(async () => (await (await fetch('game.js?v=10')).text()));
     const phaseWrites = (src.match(/C\.phase = /g) || []).length;
     check('ONE TRANSITION OWNER: setPhase is the only C.phase mutator', phaseWrites === 1, phaseWrites + ' assignments');
     check('NO FLOW METER, NO ACTION TRAIL: nothing renders a meter or a trail', await J(() =>
@@ -538,6 +546,9 @@ const { boot } = require('./harness.cjs');
         gem: cs.querySelector('.k-cgem').textContent.trim(),
         prose: cs.querySelector('.k-cprose').textContent.replace(/\s+/g, ' ').trim(),
         bolded: cs.querySelectorAll('.k-cprose b').length,
+        icons: cs.querySelectorAll('.k-cprose .k-ico').length,
+        condIcon: !!cs.querySelector('.k-cline .k-ico'),
+        ratio: +(cs.offsetWidth / cs.offsetHeight).toFixed(3),
         cond: cs.querySelector('.k-cline').textContent.replace(/\s+/g, ' ').trim(),
         plainProse: cl.querySelector('.k-cprose').textContent.replace(/\s+/g, ' ').trim(),
         noCondOnCore: !cl.querySelector('.k-cline'),
@@ -546,13 +557,16 @@ const { boot } = require('./harness.cjs');
         textBox: !!cs.querySelector('.k-ctext'),
       };
     });
-    check('CARD: the rules are plain sentences with the numbers bolded',
-      anat.prose === 'Deal 9 damage. 2 Break.' && anat.bolded === 2
-      && anat.plainProse === 'Deal 6 damage.' && anat.textBox && anat.noCondOnCore,
+    check('CARD: the rules are plain sentences, iconed and with the numbers bolded',
+      anat.prose === '9 damage. 2 Break.' && anat.bolded === 2 && anat.icons === 2
+      && anat.plainProse === '6 damage.' && anat.textBox && anat.noCondOnCore,
       JSON.stringify(anat));
-    check('CARD: the conditional clause is labelled, in the same text box',
-      anat.cond === 'Follow-Up: costs 1 AP.' && anat.proseSize >= 9.5 && anat.gemSize >= 14,
-      JSON.stringify({ cond: anat.cond, prose: anat.proseSize, gem: anat.gemSize }));
+    check('CARD: the conditional clause is labelled and iconed, in the same text box',
+      anat.cond === 'Follow-Up: costs 1 AP.' && anat.condIcon
+      && anat.proseSize >= 8 && anat.gemSize >= 12,
+      JSON.stringify({ cond: anat.cond, icon: anat.condIcon, prose: anat.proseSize, gem: anat.gemSize }));
+    check('CARD: MTG-Arena proportion — the face is 63:88, not a tall slab',
+      Math.abs(anat.ratio - 63 / 88) < 0.02, 'w/h = ' + anat.ratio + ' (target ' + (63 / 88).toFixed(3) + ')');
     const live = await J(() => {
       window.K.playCard('serrate');   // Mira first — Follow-Up needs a DIFFERENT hero
       const cs = document.querySelector('.k-card[data-card="crosssever"]');
@@ -615,7 +629,7 @@ const { boot } = require('./harness.cjs');
     const ring = await J(async () => {
       window.K.forceIntent('hymn');
       window.K.endTurn();                      // live rhythm, no grades passed
-      await new Promise(res => setTimeout(res, 420));
+      await new Promise(res => setTimeout(res, 620));   // past the lead-in
       const st = document.getElementById('k-stage');
       const r = st.querySelector('.k-pring');
       const cs = r && getComputedStyle(r.querySelector('.k-pr-close'));
@@ -629,23 +643,62 @@ const { boot } = require('./harness.cjs');
         lit: !!st.querySelector('.k-hero.k-parrying'),
         noTravellers: !st.querySelector('.k-note'),
       };
-      await new Promise(res => setTimeout(res, 700));
+      await new Promise(res => setTimeout(res, 420));
       out.livesUp = !!st.querySelector('.k-pring.k-pr-live');
       return out;
     });
     check('PARRY: a ring closes on a dashed sweet spot over a desaturated board',
       ring.ring && ring.target && ring.closing && ring.focus && ring.thread
       && ring.lit && ring.noTravellers, JSON.stringify(ring));
-    check('PARRY: the note counts itself and lights when it becomes gradeable',
-      ring.label === '1/2' && ring.livesUp, JSON.stringify({ label: ring.label, live: ring.livesUp }));
+    check('PARRY: the note counts itself against the whole volley and lights when gradeable',
+      /^1\/7$|^TAP!$/.test(ring.label) && ring.livesUp, JSON.stringify({ label: ring.label, live: ring.livesUp }));
   }
+  await settle();
+  // ── the beat: one metronome across the whole volley ──
+  await fresh(7);
+  {
+    const beat = await J(async () => {
+      window.K.forceIntent('hymn');
+      window.K.endTurn();
+      await new Promise(res => setTimeout(res, 620));
+      const st = document.getElementById('k-stage');
+      const seq = st.querySelector('#k-seq');
+      const out = {
+        pulse: !!st.querySelector('#k-beat'),
+        beatMs: st.querySelector('#k-beat') && st.querySelector('#k-beat').style.getPropertyValue('--beat'),
+        track: !!seq,
+        dots: seq ? seq.children.length : 0,
+        kinds: seq ? [...seq.children].map(d => d.className.replace('k-sq ', '').split(' ')[0]).join(',') : '',
+      };
+      // ring closes ON the beat: measure two successive impacts
+      const stamps = new Set();
+      for (let i = 0; i < 60; i++) {
+        st.querySelectorAll('.k-pring').forEach(r => {
+          if (r.dataset.impact) stamps.add(Math.round(+r.dataset.impact));
+        });
+        await new Promise(res => setTimeout(res, 40));
+      }
+      const sorted = [...stamps].sort((a, b) => a - b);
+      out.gaps = sorted.slice(1).map((v, i) => v - sorted[i]);
+      return out;
+    });
+    // every gap must be a whole number of beats — a skipped beat is still on grid
+    const onGrid = beat.gaps.length && beat.gaps.every(g => Math.abs(g / 500 - Math.round(g / 500)) < 0.08);
+    check('BEAT: the whole volley runs on one 120 BPM metronome, rings closing on the beat',
+      beat.pulse && beat.beatMs === '500ms' && onGrid,
+      JSON.stringify({ pulse: beat.pulse, beat: beat.beatMs, gaps: beat.gaps }));
+    check('BEAT: a sequence track shows every note of the bar, typed by gesture',
+      beat.track && beat.dots === 7 && /k-sq-slide/.test(beat.kinds) && /k-sq-hold/.test(beat.kinds),
+      JSON.stringify({ dots: beat.dots, kinds: beat.kinds }));
+  }
+  await settle();
   // ── an early press is forgiven, not consumed ──
   await fresh(7);
   {
     const early = await J(async () => {
       window.K.forceIntent('hymn');
       window.K.endTurn();
-      await new Promise(res => setTimeout(res, 120));     // way before the beat
+      await new Promise(res => setTimeout(res, 640));     // ring is up, beat is not
       const st = document.getElementById('k-stage');
       st.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 400, clientY: 200, pointerId: 3 }));
       await new Promise(res => setTimeout(res, 60));
@@ -654,6 +707,64 @@ const { boot } = require('./harness.cjs');
     });
     check('PARRY: pressing way early nudges and keeps listening — the note is not spent',
       early.stillLive && early.nudged, JSON.stringify(early));
+  }
+  await settle();
+  // ── snapping: a blunt finger still finds the right target ──
+  await fresh(7);
+  {
+    const snap = await J(() => {
+      const enemyCard = [...document.querySelectorAll('#k-hand .k-card')]
+        .find(c => window.K.evaluateCard(c.dataset.card).card.target === 'enemy');
+      const partyCard = [...document.querySelectorAll('#k-hand .k-card')]
+        .find(c => window.K.evaluateCard(c.dataset.card).card.target !== 'enemy');
+      const boss = document.getElementById('k-boss-art').getBoundingClientRect();
+      const ash = document.querySelector('.k-hero[data-hero="ash"]').getBoundingClientRect();
+      const K = window.K;
+      return {
+        // well short of the Regent, but nothing else is nearer: still snaps
+        nearMiss: K.dropTargetAt(boss.left - 70, boss.top + boss.height / 2, enemyCard.dataset.card),
+        // an attack never snaps to a hero, however close the finger is
+        wrongSide: K.dropTargetAt(ash.left + 5, ash.top + 20, enemyCard.dataset.card),
+        // a party card near Ash picks Ash specifically
+        ally: K.dropTargetAt(ash.left + 4, ash.top + 30, partyCard.dataset.card),
+        // and nothing at all when the finger is miles away
+        far: K.dropTargetAt(6, 424, enemyCard.dataset.card),
+      };
+    });
+    check('SNAP: a near miss still finds the Regent, and an attack never snaps to an ally',
+      snap.nearMiss && snap.nearMiss.zone === 'enemy' && snap.nearMiss.snapped
+      && (!snap.wrongSide || snap.wrongSide.zone === 'enemy'),
+      JSON.stringify({ near: snap.nearMiss, wrong: snap.wrongSide }));
+    check('SNAP: a party card picks the nearest hero, and a wild throw picks nothing',
+      snap.ally && snap.ally.zone === 'party' && snap.ally.hero === 'ash' && !snap.far,
+      JSON.stringify({ ally: snap.ally, far: snap.far }));
+  }
+  // ── the piles open, Slay-the-Spire style ──
+  await fresh(7);
+  {
+    const pile = await J(() => {
+      document.getElementById('k-deck-btn').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      const f = document.getElementById('k-focus');
+      const out = {
+        open: !f.classList.contains('k-hidden'),
+        head: f.querySelector('.k-pile-head') && f.querySelector('.k-pile-head').textContent.replace(/\s+/g, ' ').trim(),
+        cards: f.querySelectorAll('.k-pile-grid .k-card').length,
+        deckN: window.K.state().deck.length,
+        readable: !!f.querySelector('.k-pile-grid .k-cprose'),
+        // opening the draw pile must not leak the shuffle
+        sorted: [...f.querySelectorAll('.k-pile-grid .k-cname')].map(n => n.textContent),
+        drawOrder: window.K.state().deck.slice().map(id => window.K.evaluateCard(id).card.name),
+      };
+      document.getElementById('k-stage').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 460, clientY: 40 }));
+      out.closed = document.getElementById('k-focus').classList.contains('k-hidden');
+      return out;
+    });
+    check('PILES: the draw pile opens as readable cards and closes on a tap',
+      pile.open && pile.cards === pile.deckN && pile.readable && pile.closed
+      && /DRAW PILE/.test(pile.head), JSON.stringify({ head: pile.head, cards: pile.cards, deck: pile.deckN }));
+    check('PILES: opening the draw pile does not leak the shuffle order',
+      pile.sorted.join('|') !== pile.drawOrder.join('|') || pile.cards <= 1,
+      'shown: ' + pile.sorted.slice(0, 3).join(',') + ' … actual: ' + pile.drawOrder.slice(0, 3).join(','));
   }
   // ── hold to inspect, release to dismiss (MTG Arena) ──
   await fresh(7);
@@ -688,7 +799,7 @@ const { boot } = require('./harness.cjs');
       const prevented = !card.dispatchEvent(ev);
       // Chromium does not implement -webkit-touch-callout, so assert the
       // declaration ships in the stylesheet rather than reading it back
-      const css = await (await fetch('styles.css?v=9')).text();
+      const css = await (await fetch('styles.css?v=10')).text();
       const rule = css.slice(css.indexOf('.k-card {'), css.indexOf('.k-card {') + 260);
       return { calloutShipped: /-webkit-touch-callout:\s*none/.test(rule),
                highlightShipped: /-webkit-tap-highlight-color:\s*transparent/.test(rule),

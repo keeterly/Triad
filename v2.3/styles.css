@@ -147,7 +147,7 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 #k-hand.k-discarding .k-card { transform: translateY(140px) rotate(4deg); opacity: 0; transition: all 0.3s ease-in; }
 .k-card { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
   touch-action: none; -webkit-tap-highlight-color: transparent;
-  position: relative; width: 122px; height: 162px; border-radius: 3px; cursor: pointer;
+  position: relative; width: 102px; height: 142px; border-radius: 3px; cursor: pointer;
   font-family: inherit; padding: 0; display: flex; flex-direction: column; text-align: center;
   background:
     radial-gradient(140% 120% at 50% 30%, rgba(240,235,222,0.25) 0%, rgba(240,235,222,0) 55%),
@@ -169,34 +169,34 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-card-active { border: 1.5px solid #c9a45c;
   box-shadow: 0 4px 14px rgba(0,0,0,0.6), 0 0 14px rgba(201,164,92,0.35); }
 .k-card-poor { opacity: 0.55; filter: grayscale(0.4); }
-.k-owner { position: absolute; right: 5px; top: 5px; width: 17px; height: 17px; border-radius: 50%;
+.k-owner { position: absolute; right: 4px; top: 25px; width: 15px; height: 15px; border-radius: 50%;
   border: 1px solid #8f866f; object-fit: cover; object-position: top; opacity: 0.9; z-index: 2; }
 /* COST — a Spire-style orb, the first thing the eye lands on */
-.k-cgem { position: absolute; left: 4px; top: 3px; z-index: 2;
-  min-width: 23px; height: 23px; padding: 0 3px; border-radius: 50%;
+.k-cgem { position: absolute; left: 3px; top: 24px; z-index: 2;
+  min-width: 20px; height: 20px; padding: 0 3px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; gap: 2px;
   background: radial-gradient(circle at 38% 30%, #554b39, #221d16);
-  border: 1.5px solid #a98c4e; color: #ffeec4; font-size: 15px; font-weight: 700;
+  border: 1.5px solid #a98c4e; color: #ffeec4; font-size: 13px; font-weight: 700;
   box-shadow: 0 1px 4px rgba(0,0,0,0.8), inset 0 0 6px rgba(0,0,0,0.55); }
 .k-cgem.on { border-color: #f0d488; color: #fff3d0; box-shadow: 0 0 11px rgba(240,212,136,0.7); }
 .k-cgem s { font-size: 9px; font-weight: 400; color: #9a9080; }
-.k-cname { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
-  color: #241f18; padding: 5px 25px 4px; line-height: 1.12; min-height: 25px;
+.k-cname { font-size: 9.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase;
+  color: #241f18; padding: 4px 5px 3px; line-height: 1.1; min-height: 21px; overflow-wrap: anywhere;
   display: flex; align-items: center; justify-content: center; text-align: center; }
-.k-cart { height: 62px; flex-shrink: 0; margin: 0 6px; overflow: hidden; position: relative;
+.k-cart { height: 52px; flex-shrink: 0; margin: 0 6px; overflow: hidden; position: relative;
   background: linear-gradient(180deg, #cdc5b1, #b0a68c); box-shadow: inset 0 0 10px rgba(90,78,56,0.35);
   display: flex; justify-content: center; }
 .k-cart img { height: 150%; width: auto; margin-top: -6%;
   filter: grayscale(0.95) contrast(1.18) brightness(0.85); mix-blend-mode: multiply; }
 /* THE TEXT BOX — one block of plain sentences. This is the card. */
-.k-ctext { flex-grow: 1; margin: 5px 5px 6px; padding: 4px 5px; min-height: 0;
+.k-ctext { flex-grow: 1; margin: 4px 4px 5px; padding: 3px 4px; min-height: 0;
   background: linear-gradient(180deg, rgba(246,241,228,0.72), rgba(228,220,201,0.72));
   border: 1px solid rgba(90,78,56,0.3); border-radius: 2px;
   display: flex; flex-direction: column; gap: 3px; text-align: center; }
-.k-cprose { font-size: 10px; line-height: 1.26; color: #2b2620; }
+.k-cprose { font-size: 8.5px; line-height: 1.28; color: #2b2620; }
 .k-cprose b { font-weight: 700; color: #101010; }
 /* the conditional clause — same box, its own line, labelled */
-.k-cline { font-size: 9.5px; line-height: 1.24; color: #6d6450;
+.k-cline { font-size: 8px; line-height: 1.24; color: #6d6450;
   border-top: 1px solid rgba(90,78,56,0.28); padding-top: 3px; margin-top: auto; }
 .k-cline em { font-style: normal; font-weight: 700; letter-spacing: 0.03em; color: #7d735d; }
 .k-cline b { font-weight: 700; color: #4a4438; }
@@ -328,9 +328,9 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   background: radial-gradient(ellipse at 50% 50%, rgba(8,7,10,0.55), rgba(8,7,10,0.82)); }
 #k-focus.k-hidden { display: none; }
 /* the wrapper reserves the SCALED footprint so flex centring works on it */
-.k-insp-wrap { width: 226px; height: 300px; display: flex; align-items: center; justify-content: center; flex: none; }
-.k-insp-card { width: 122px; height: 162px; flex: none;
-  transform: scale(1.85); transform-origin: center; animation: k-insp 160ms ease; }
+.k-insp-wrap { width: 224px; height: 312px; display: flex; align-items: center; justify-content: center; flex: none; }
+.k-insp-card { width: 102px; height: 142px; flex: none;
+  transform: scale(2.15); transform-origin: center; animation: k-insp 160ms ease; }
 .k-insp-card { position: relative; display: flex; flex-direction: column; border-radius: 3px;
   background:
     radial-gradient(140% 120% at 50% 30%, rgba(240,235,222,0.25) 0%, rgba(240,235,222,0) 55%),
@@ -390,3 +390,50 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-grade-early { color: #cbb26a !important; }
 /* the aim reticle breathes rather than spins — a lock-on, not a radar */
 #k-aim .k-aim-dot { filter: drop-shadow(0 0 6px rgba(255,120,100,0.9)); }
+
+/* ── the icon vocabulary ── */
+.k-ico { width: 9px; height: 9px; vertical-align: -1px; margin-right: 2px; opacity: 0.88; }
+.k-cline .k-ico { width: 8.5px; height: 8.5px; }
+.k-insp-now .k-ico { width: 12px; height: 12px; vertical-align: -1.5px; }
+
+/* ── the beat: a pulse on every downbeat, and the volley's sequence track ── */
+#k-beat { position: absolute; left: 0; right: 0; top: 0; height: 3px; z-index: 33;
+  background: linear-gradient(90deg, rgba(255,225,74,0) 0%, rgba(255,225,74,0.75) 50%, rgba(255,225,74,0) 100%);
+  animation: k-beatpulse var(--beat, 500ms) linear infinite; transform-origin: 50% 50%; }
+@keyframes k-beatpulse { 0% { opacity: 0.9; transform: scaleX(1); } 60% { opacity: 0.12; transform: scaleX(0.55); }
+  100% { opacity: 0.12; transform: scaleX(0.55); } }
+#k-seq { position: absolute; left: 50%; bottom: 168px; transform: translateX(-50%);
+  display: flex; gap: 9px; z-index: 33; padding: 6px 12px; border-radius: 20px;
+  background: rgba(10,9,12,0.62); border: 1px solid rgba(150,138,114,0.28); }
+.k-sq { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid rgba(201,164,92,0.55);
+  background: rgba(10,9,12,0.5); transition: all 0.12s ease; }
+.k-sq-slide { border-radius: 2px; transform: rotate(45deg); }
+.k-sq-hold { width: 20px; border-radius: 6px; }
+.k-sq-on { border-color: #ffe14a; background: rgba(255,225,74,0.3);
+  box-shadow: 0 0 10px rgba(255,225,74,0.8); transform: scale(1.25); }
+.k-sq-hold.k-sq-on { transform: scale(1.15); }
+.k-sq-slide.k-sq-on { transform: rotate(45deg) scale(1.25); }
+.k-sq-hit { border-color: #e0c084; background: #c9a45c; box-shadow: none; transform: none; }
+.k-sq-slide.k-sq-hit { transform: rotate(45deg); }
+.k-sq-miss { border-color: rgba(184,87,74,0.7); background: rgba(120,40,34,0.5);
+  box-shadow: none; transform: none; }
+.k-sq-slide.k-sq-miss { transform: rotate(45deg); }
+
+/* ── the piles, opened ── */
+.k-pile-btn { font-family: inherit; font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: #9a9080; background: none; border: none; padding: 1px 0; cursor: pointer; text-align: right; }
+.k-pile-btn:hover { color: #e0c084; }
+.k-pile-btn b { color: #cfc8ba; }
+.k-pile-note { font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #9a9080; }
+.k-pile-note b { color: #cfc8ba; }
+.k-pile-view { width: 574px; max-height: 392px; display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none; }
+.k-pile-head { font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; color: #e0c084;
+  text-align: center; }
+.k-pile-head b { color: #fff3d0; margin-left: 4px; }
+.k-pile-head em { font-style: normal; font-size: 8.5px; letter-spacing: 0.14em; color: #8e8574; margin-left: 10px; }
+.k-pile-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+  overflow: hidden; padding: 2px; }
+.k-card-static { pointer-events: none; transform: none !important; }
+.k-pile-empty { font-size: 12px; color: #8e8574; letter-spacing: 0.14em; padding: 30px; }
+.k-pile-hint { font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #6d6450; text-align: center; }

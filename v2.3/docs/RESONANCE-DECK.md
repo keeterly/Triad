@@ -286,6 +286,30 @@ contract §1 ("readable pressure — enemy intent is visible before commitment")
 still holds: the number a player needs to size Guard, healing and a row Move is
 still on screen before they spend a single AP.
 
+### Build 10 — beat, icons, snap, piles, Arena proportion
+
+- **The parry is a bar of music.** The whole volley runs on one 120 BPM
+  metronome: every ring closes exactly on a beat, and notes are launched on
+  their beat whatever happened to the note before — a missed ring can no longer
+  drag the tempo, which is what made the last build feel flat. A pulse marks
+  the downbeat and a **sequence track** shows every note of the bar, typed by
+  gesture (dot / diamond / pill), lighting as it arrives and marking hit or
+  miss behind it. A note's input window shuts when its GOOD window does, so two
+  rings never fight over one tap. Musical waits bypass the test-mode sleep cap —
+  routing them through it had been shredding the grid.
+- **Icons.** One vocabulary — blade, shield, cross, drop, flake, shard, linked
+  arc, star, crack, cards, step — used identically on card faces, in the
+  inspect panel and in the piles.
+- **Snap targeting.** Dropping is no longer a hit-test: the nearest *legal*
+  target within 210px wins, so a blunt finger still lands the card, and an
+  attack can never snap onto an ally.
+- **The piles open.** DECK and DISCARD are buttons; either opens as a grid of
+  readable cards. The draw pile is shown **sorted**, so opening it cannot leak
+  the shuffle.
+- **MTG-Arena proportion.** Card faces are 102×142 — 63:88 — smaller than
+  before, with the cost orb and owner chip moved onto the art corners so the
+  title gets the full width.
+
 ### The Dirge — an addition the deck does not list
 
 The Regent's hymn settles on the whole party each enemy phase for unparryable
