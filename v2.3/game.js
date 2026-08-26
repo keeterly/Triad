@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 17;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 18;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -142,7 +142,18 @@ const RESONANCE_PAIR = ['ash', 'elin'];
 // bossHp joined the knobs in Build 17: once the combo layer actually fired the
 // party gained a real damage engine, and the encounter had to be re-scaled to
 // it rather than the deck being walked back to fit the old encounter.
-const TUNE = { dmgScale: 1.0, dirge: [4, 4], heal: [7, 9], parryKeep: 0.3, bossHp: 120 };
+// Swept in Build 17 against the mid band alone (SIM_BAND=HALF, the only tier
+// that moved — the outer two are pinned at 0% and 100% by the parry's
+// all-or-nothing turn). 120 HP left a half-parrying party winning 76% once the
+// combo layer started firing; 150 lands at 35% in nine rounds, inside the
+// deck's own 25-40% band, with dmgScale still at 1.0 so the authored hit
+// numbers stay the real numbers.
+//
+// A note for whoever sweeps this next: seed-block variance is large. The same
+// 140 HP config reads 39% over the first 100 seeds and 51.8% over 220. Do not
+// trust a sweep at n<200 for a shipping number — rank candidates cheaply, then
+// measure the winner at the full run count.
+const TUNE = { dmgScale: 1.0, dirge: [4, 4], heal: [7, 9], parryKeep: 0.3, bossHp: 150 };
 
 const REGENT_INTENTS = [
   // Each intent has its own HANDWRITING. The Hymn is a dirge you brace

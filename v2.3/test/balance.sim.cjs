@@ -218,19 +218,27 @@ const BOT = `
   if (process.env.SIM_SWEEP) {
     const grid = JSON.parse(process.env.SIM_SWEEP);
     const runs = Number(process.env.SIM_RUNS || 40);
+    // SIM_BAND narrows the sweep to the band that is actually adrift. The outer
+    // two tiers are pinned at 0% and 100% by the parry's all-or-nothing turn,
+    // so sweeping them costs two thirds of the wall clock to re-learn that.
+    const bands = process.env.SIM_BAND
+      ? BANDS.filter(b => b.name.toLowerCase().includes(process.env.SIM_BAND.toLowerCase()))
+      : BANDS;
     let best = null;
     for (const tune of grid) {
       const out = [];
-      for (const band of BANDS) out.push(await runBand(tune, band, runs));
+      for (const band of bands) out.push(await runBand(tune, band, runs));
       const err = out.reduce((e, o, i) => {
-        const b = BANDS[i], mid = (b.lo + b.hi) / 2;
+        const b = bands[i], mid = (b.glo + b.ghi) / 2;
         return e + Math.abs(o.rate - mid);
       }, 0);
-      const hits = out.filter((o, i) => o.rate >= BANDS[i].lo && o.rate <= BANDS[i].hi).length;
-      console.log(`  ${JSON.stringify(tune).padEnd(52)} ${out.map(o => o.rate.toFixed(0).padStart(3) + '%').join(' ')}  bands ${hits}/3  err ${err.toFixed(0)}`);
+      const hits = out.filter((o, i) => o.rate >= bands[i].glo && o.rate <= bands[i].ghi).length;
+      console.log(`  ${JSON.stringify(tune).padEnd(46)} `
+        + out.map((o, i) => o.rate.toFixed(0).padStart(3) + '% @' + o.med).join('  ')
+        + `   gates ${hits}/${bands.length}  err ${err.toFixed(0)}`);
       if (!best || hits > best.hits || (hits === best.hits && err < best.err)) best = { tune, hits, err, out };
     }
-    console.log('\n  BEST ' + JSON.stringify(best.tune) + '  bands ' + best.hits + '/3');
+    console.log('\n  BEST ' + JSON.stringify(best.tune) + '  gates ' + best.hits + '/' + bands.length);
     await H.browser.close();
     process.exit(0);
   }

@@ -666,12 +666,32 @@ strictly worse than the vanilla strike, but the low number is the probe's
 blind spot as much as the card's, and it is recorded here rather than tuned
 away.
 
-### Outstanding at the time of this commit
+### Re-scaling the encounter to the deck that now works
 
-Making the deck work moved the encounter. The mid-skill band went 30.5% →
-75.9%, outside its 25–55% gate, because the party now has a damage engine it
-did not have before. The fix belongs in the encounter rather than in walking
-the deck back, so `bossHp` joined `TUNE` as a swept knob and a HP × damage
-sweep is the next step. **Build 17 is not balanced yet** — the combo layer is
-correct and gated at 85/85 flow checks, but `test/balance.sim.cjs` reports
-2/3 shipped gates until that sweep lands.
+Making the deck work moved the encounter: the mid-skill band went 30.5% →
+75.9%, outside its 25–55% gate, because the party gained a damage engine it did
+not have before. That fix belongs in the encounter, not in walking the deck
+back, so `bossHp` joined `TUNE` as a swept knob and `SIM_BAND` was added to
+`balance.sim.cjs` so a sweep can target the one tier that is actually adrift —
+the outer two are pinned at 0% and 100% by the parry's all-or-nothing turn, and
+sweeping them costs two thirds of the wall clock to re-learn that.
+
+**The Mourning Regent goes 120 → 150 HP**, with `dmgScale` still at 1.0 so the
+authored hit values stay the real numbers:
+
+```
+  NO PARRY        0.0%   [gate 0–15%]
+  ~HALF PARRIES  35.5%   [gate 25–55%  · deck 25–40% ✓]   9 rounds
+  EXCELLENT     100.0%   [gate 85–100%]
+  3/3 shipped gates · rounds 7–9 · monotone · 220 runs each
+```
+
+The half-parry tier is back inside the deck's own 25–40% band for the first
+time since Build 5.
+
+**A methodology note, because it nearly shipped a wrong number.** Seed-block
+variance in this sim is large: the same 140 HP config reads **39%** over the
+first 100 seeds and **51.8%** over 220. A 30-run sweep called 140 HP a 33%
+config; the real answer was 52%. Rank candidates cheaply if you like, but never
+take a shipping number from a sweep at n<200 — measure the winner at the full
+run count.

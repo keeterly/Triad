@@ -697,7 +697,7 @@ const { boot } = require('./harness.cjs');
         .filter(e => /\d,\d/.test(e.textContent)).length,
     }));
     check('SCALE: HP and damage read at Slay-the-Spire size — no four-digit numbers',
-      scale.ash === '42' && scale.boss === '120' && scale.commas === 0
+      scale.ash === '42' && scale.boss === '150' && scale.commas === 0
       && Number(scale.intent) < 100, JSON.stringify(scale));
   }
   // ── lifting a card: it follows the finger, the way v2.2 played ──
