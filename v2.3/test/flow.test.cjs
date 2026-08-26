@@ -977,6 +977,32 @@ const { boot } = require('./harness.cjs');
       && sealed.sealed && !sealed.lit && sealed.row === 'front', JSON.stringify(sealed));
   }
   await settle();
+  // ── a blow lands NOW, not at the top of the next turn ──
+  await fresh(7);
+  {
+    const live = await J(async () => {
+      window.K.forceIntent('hymn');
+      const bar = () => document.querySelector('.k-pt-hero[data-hero="ash"] .k-bar-fill').style.width;
+      const num = () => document.querySelector('.k-pt-hero[data-hero="ash"] .k-pt-hp b').textContent;
+      const before = { bar: bar(), num: num() };
+      const done = window.K.endTurn({ grades: Array(8).fill('miss') });
+      const out = { before, drainedDuring: false, phaseWhen: null };
+      for (let i = 0; i < 400; i++) {
+        const ph = window.K.state().phase;
+        if (ph === 'PLAYER_READY' || ph === 'DEFEAT') break;
+        if (bar() !== before.bar) { out.drainedDuring = true; out.phaseWhen = ph;
+                                    out.midNum = num(); break; }
+        await new Promise(r => setTimeout(r, 6));
+      }
+      await done;
+      out.after = { bar: bar(), num: num() };
+      return out;
+    });
+    check('DAMAGE LANDS NOW: the party bar drains while the blow is resolving, not at the next turn',
+      live.drainedDuring && live.phaseWhen !== 'PLAYER_READY' && live.after.num !== live.before.num,
+      JSON.stringify(live));
+  }
+  await settle();
   // ── damage numbers are the loudest voice on the board ──
   await fresh(7);
   {
@@ -984,6 +1010,7 @@ const { boot } = require('./harness.cjs');
       const clear = () => document.querySelectorAll('.k-pop').forEach(n => n.remove());
       const px = () => { const p = document.querySelector('.k-pop-dmg');
         return p ? parseFloat(getComputedStyle(p).fontSize) : null; };
+      clear();                       // nothing from an earlier block may be measured
       window.K.forceHand(['serrate', 'cleave', 'frostbind', 'lcascade', 'lastlight']);
       window.K.playCard('serrate');            // 3 — the chip tier
       const small = px();
@@ -1232,6 +1259,29 @@ const { boot } = require('./harness.cjs');
     });
     check('DILATION: the world drains and a vignette rushes in — not just paused animation',
       !!dil && !dil.none && dil.sat <= 0.1 && dil.bright <= 0.4 && dil.vig, JSON.stringify(dil));
+  }
+  await settle();
+  // ── a gesture always has time to finish before the next is asked for ──
+  {
+    const gaps = await J(() => {
+      const MIN = { tap: 0.5, feint: 1, bait: 1, slide: 1.5, hold: 1.5, burst: 2 };
+      const bad = [];
+      for (const id of ['hymn', 'scythe', 'benediction', 'rain']) {
+        window.K.forceIntent(id);
+        for (const h of window.K.currentIntent().hits) {
+          const want = h.beats || h.notes.map((_, i) => i);
+          for (let i = 1; i < h.notes.length; i++) {
+            const prev = String(h.notes[i - 1]).split(':')[0];
+            const gap = (want[i] == null ? i : want[i]) - (want[i - 1] == null ? i - 1 : want[i - 1]);
+            if (gap < MIN[prev]) bad.push(id + ' ' + h.notes[i - 1] + '→' + h.notes[i] + ' @' + gap);
+          }
+        }
+      }
+      return { bad, min: MIN };
+    });
+    // authored as well as enforced: the clamp is the safety net, not the design
+    check('RHYTHM: no string asks for a travelling gesture before the last one could finish',
+      gaps.bad.length === 0, JSON.stringify(gaps.bad));
   }
   await settle();
   // ── a mash gets its own air, and counts itself out loud ──

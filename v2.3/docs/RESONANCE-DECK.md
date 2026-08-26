@@ -1066,3 +1066,44 @@ combat is competitive; as a roguelike it is not one yet. That work is the
 campfire and node-travel items, not a tuning pass, and it is the honest answer to
 "is this as fun as StS2" — the minute-to-minute is there, the hour-to-hour is
 not built.
+
+---
+
+## Build 24 — a blow lands now, and a gesture gets time to finish
+
+### The bar drains with the number
+
+A hero's HP was applied the moment a blow landed, but nothing redrew until the
+whole turn was over — so the popup said `9` while the party stayed at full
+health until the next player phase, and a three-hit volley arrived as one lump
+of damage after the fact. The party HUD redraws as each hit resolves now, and
+the Regent's bar moves when she is hit rather than at the end of the exchange.
+Gated: *the bar drains during `ENEMY_RESOLUTION`, not at `PLAYER_READY`.*
+
+### A gesture has to finish before the next one is asked for
+
+Build 22 gave the strings syncopation and put a slide and a tap a half-beat
+apart — 250ms for two different gestures. That is not a hard read, it is an
+impossible one: a tap is over the instant it lands, but a swipe, a brace or a
+flurry is still *travelling* when it grades, so the hand is not back where the
+next note needs it.
+
+Both halves are fixed, because re-authoring alone would let it happen again:
+
+- **The rule.** `MIN_GAP_AFTER` gives every gesture the beats it needs to
+  finish — `tap 0.5, feint/bait 1, slide/hold 1.5, burst 2` — and the scheduler
+  clamps every authored beat up to that floor. No future string can re-create
+  the problem whatever the data says.
+- **The data.** The quick doubles are now **taps**, which is the one gesture you
+  can genuinely repeat inside half a beat because your hand is already where it
+  needs to be. Everything that travels got a beat and a half: the Advance
+  sweeps, arrives, and only then jabs.
+
+The suite checks the authored strings against the rule directly, so the clamp
+stays a safety net rather than the design.
+
+**Playtested after.** A practised hand cleans 90–100% on every kind. A sloppy
+one runs 60–100%. And across both hands, over ten passes, there is **not a
+single MISS** — the worst outcome any note produces now is GOOD, which still
+pays. The skill gradient lives in how much of a blow you turn, not in whether
+the input was physically possible.

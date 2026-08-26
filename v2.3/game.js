@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 23;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 24;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -174,16 +174,19 @@ const REGENT_INTENTS = [
   // marching — a metronome is a thing you solve once, not a thing you play.
   { id: 'hymn', name: 'Ruinous Hymn', kind: 'attack',
     hits: [
-      // a steady toll, then a caught breath, then the long note
-      { dmg: [9, 12], target: 'ash',  notes: ['tap', 'tap'] },
+      // a quick double toll, then a caught breath, then the long note. The
+      // double is two TAPS — the one gesture you can genuinely repeat inside
+      // half a beat, because your hand is already where it needs to be.
+      { dmg: [9, 12], target: 'ash',  notes: ['tap', 'tap'], beats: [0, 0.5] },
       { dmg: [9, 12], target: 'ash',  notes: ['feint', 'tap'], beats: [0, 1.5] },
       { dmg: [9, 12], target: 'elin', notes: ['tap', 'hold'] },
     ] },
   { id: 'scythe', name: 'Scything Advance', kind: 'attack', frontOnly: true,
     hits: [
-      // sweep and jab, on the half-beat: one motion, not two decisions
-      { dmg: [13, 17], target: 'mira', notes: ['slide:R', 'tap'], beats: [0, 0.5], sweep: true },
-      { dmg: [13, 17], target: 'ash',  notes: ['slide:L', 'hold', 'tap'], beats: [0, 1, 2.5], sweep: true },
+      // sweep, then the jab a beat and a half later — the hand has to arrive
+      // before it can strike again
+      { dmg: [13, 17], target: 'mira', notes: ['slide:R', 'tap'], beats: [0, 1.5], sweep: true },
+      { dmg: [13, 17], target: 'ash',  notes: ['slide:L', 'hold', 'tap'], beats: [0, 1.5, 3], sweep: true },
     ] },
   { id: 'benediction', name: 'Hollow Benediction', kind: 'heal',
     hits: [
@@ -193,7 +196,7 @@ const REGENT_INTENTS = [
     hits: [
       { dmg: [9, 13], target: 'ash',  notes: ['burst'] },
       { dmg: [9, 13], target: 'elin', notes: ['burst'] },
-      { dmg: [9, 13], target: 'mira', notes: ['tap', 'slide:D'], beats: [0, 0.5] },
+      { dmg: [9, 13], target: 'mira', notes: ['tap', 'slide:D'], beats: [0, 1.5] },
     ] },
 ];
 
@@ -450,6 +453,7 @@ function dealToBoss(n, why) {
   if (why !== 'allout') kizunaGain(n * KIZUNA_PER_DAMAGE);   // the all-out cannot feed itself
   if (_dmgBatch) { _dmgBatch.n += n; if (why) _dmgBatch.why = why; fxStrikeBoss(n, why); }
   else fxDamageBoss(n, why);
+  renderBossHud();          // the Regent's bar moves when she is hit, not later
   checkBossPhase();
   if (C.boss.hp <= 0) setPhase('VICTORY');
 }
@@ -505,6 +509,7 @@ function breakDamage(n) {
   }
 }
 function guardHero(heroId, n) {
+  if (C && C.phase !== 'PLAYER_ACTION_RESOLVING') setTimeout(renderPartyHud, 0);
   const h = C.heroes[heroId];
   if (h && !h.downed) h.guard += n;
 }
@@ -977,6 +982,14 @@ const NOTE_LEAD = { slide: 1.7, bait: 1.7, burst: 1.6, feint: 1.3 };
 const REST_BEATS = 1;
 // …and a burst gets a whole extra one after it.
 const BURST_REST = 1;
+// HOW LONG A GESTURE TAKES TO FINISH. A tap is over the instant it lands, so a
+// second tap can follow half a beat later and read as a quick double. Anything
+// that TRAVELS — a swipe, a held brace, a flurry — is not finished when it is
+// graded: the hand is still moving. Authoring a slide and a tap a half-beat
+// apart asks for two different gestures inside 250ms, which is not a hard read,
+// it is an impossible one. The scheduler enforces this so no future string can
+// re-create it, whatever the data says.
+const MIN_GAP_AFTER = { tap: 0.5, feint: 1, bait: 1, slide: 1.5, hold: 1.5, burst: 2 };
 // Sideways room between the notes of one hit, so a string reads as a run of
 // positions rather than one point being shouted at repeatedly.
 const NOTE_SPREAD = 58;
@@ -1169,10 +1182,19 @@ async function runVolleyRhythm(hits, answerers, sub) {
     // A HIT CAN HAVE A RHYTHM. `beats` places each note in the hit's own bar,
     // so a string can syncopate — a quick double on the half-beat, a hesitation
     // before the last blow — instead of every enemy playing a metronome.
-    const beats = hits[hi].beats || hits[hi].notes.map((_, i) => i);
+    const want = hits[hi].beats || hits[hi].notes.map((_, i) => i);
+    // …clamped so a gesture always has time to finish before the next is asked for
+    const beats = [];
+    for (let ni = 0; ni < inHit; ni++) {
+      const asked = want[ni] == null ? ni : want[ni];
+      if (ni === 0) { beats.push(asked); continue; }
+      const prev = parseNote(hits[hi].notes[ni - 1]).kind;
+      const floor = beats[ni - 1] + (MIN_GAP_AFTER[prev] == null ? 1 : MIN_GAP_AFTER[prev]);
+      beats.push(Math.max(asked, floor));
+    }
     for (let ni = 0; ni < inHit; ni++) {
       const type = hits[hi].notes[ni];
-      const idx = gi++, beat = slot + (beats[ni] == null ? ni : beats[ni]);
+      const idx = gi++, beat = slot + beats[ni];
       const lead = NOTE_LEAD[parseNote(type).kind] || 1;
       // A hit's notes READ LEFT TO RIGHT across its hero. Longer runways mean
       // two rings share the air, and stacked on one point their labels and
@@ -1696,6 +1718,7 @@ async function fxDrawOne() {
   await sleep(testMode() ? 8 : 230);
 }
 async function fxDirge(n) {
+  renderPartyHud();
   for (const id of livingHeroes()) {
     popupOver(document.querySelector('.k-hero[data-hero="' + id + '"]'), fmtN(n), 'k-pop-dirge k-pop-md');
   }
@@ -1707,6 +1730,11 @@ async function fxDirge(n) {
 async function fxInterrupt() { const b = document.getElementById('k-boss-art'); if (b) { b.classList.add('k-broken'); await sleep(700); b.classList.remove('k-broken'); } }
 async function fxBossHeal() { popupOver(document.getElementById('k-boss-art'), '+heal', 'k-pop-heal'); await sleep(500); }
 async function fxHitResolved(tgtId, taken, negated, flawless) {
+  // THE BAR DRAINS WITH THE NUMBER. The HP was applied the moment the blow
+  // landed but nothing redrew until the whole turn was over, so the popup said
+  // "-9" and the party stayed at full health until the next player phase —
+  // three hits of a volley arrived as one lump of damage after the fact.
+  renderPartyHud();
   const at = tgtId && document.querySelector('.k-hero[data-hero="' + tgtId + '"]');
   if (taken > 0) {
     popupOver(at || document.getElementById('k-party-hud'), fmtN(taken),
