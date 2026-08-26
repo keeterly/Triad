@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 16;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 17;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -67,27 +67,54 @@ const CARD_DEFS = {
   // ── Ash — Vanguard ──
   cleave:      { owner: 'ash', name: 'Cleave',        cost: 1, target: 'enemy', base: [{ dmg: 6 }], cond: null },
   guardcut:    { owner: 'ash', name: 'Guarding Cut',  cost: 1, target: 'enemy', base: [{ dmg: 4 }, { guardSelf: 4 }], cond: null },
-  cstance:     { owner: 'ash', name: 'Counterstance', cost: 1, target: 'party', base: [{ guardSelf: 7 }, { counterstance: true }], cond: null },
+  // A chain that can extend itself is what makes a combo deck play. Counterstance
+  // was 0.15 plays a fight: Guard competes with a parry that negates outright,
+  // so it had to be worth playing for something other than the Guard.
+  cstance:     { owner: 'ash', name: 'Counterstance', cost: 1, target: 'party', base: [{ guardSelf: 5 }, { counterstance: true }],
+                 cond: { type: 'FOLLOW_UP', reward: 'output', bonus: [{ draw: 1 }] } },
   crosssever:  { owner: 'ash', name: 'Cross Sever',   cost: 2, target: 'enemy', base: [{ dmg: 9 }, { brk: 2 }],
                  cond: { type: 'FOLLOW_UP', reward: 'cost', costTo: 1 } },
-  lastlight:   { owner: 'ash', name: 'Last Light',    cost: 2, target: 'enemy', base: [{ dmg: 10 }],
-                 cond: { type: 'FINALE', reward: 'output', bonus: [{ dmg: 5 }] } },
+  // Priced so the whole line fits in one turn: Elin (1) + Mira (1) + this (1).
+  // At 2 AP the finisher could never BE the third card, which is the only
+  // place a finale can happen.
+  // The cold floor has to be LOW or the card sabotages itself: at 7 raw for
+  // 1 AP the best greedy play was to lead with it, which is the one thing that
+  // guarantees the finale never happens. 5 cold is mediocre, 15 armed is
+  // enormous, and the gap is the reason to hold it for third.
+  lastlight:   { owner: 'ash', name: 'Last Light',    cost: 1, target: 'enemy', base: [{ dmg: 5 }],
+                 cond: { type: 'FINALE', reward: 'output', bonus: [{ dmg: 10 }, { brk: 2 }] } },
   // ── Elin — Oracle ──
   lcascade:    { owner: 'elin', name: 'Lumen Cascade', cost: 1, target: 'enemy', base: [{ dmg: 4 }, { guardLowest: 5 }], cond: null },
-  mend:        { owner: 'elin', name: 'Mend',          cost: 1, target: 'party', base: [{ heal: 6 }], cond: null },
+  // THE SECOND FINALE, so the trio is a fork and not a script: close the round
+  // with Ash and it is a killing blow, close it with Elin and the party stands
+  // back up. One turn, one finisher, two very different turns.
+  mend:        { owner: 'elin', name: 'Mend',          cost: 1, target: 'party', base: [{ heal: 6 }],
+                 cond: { type: 'FINALE', reward: 'output', bonus: [{ healAll: 5 }] } },
   frostbind:   { owner: 'elin', name: 'Frost Bind',    cost: 1, target: 'enemy', base: [{ dmg: 4 }, { chill: 4 }], cond: null },
-  sgrace:      { owner: 'elin', name: 'Shared Grace',  cost: 2, target: 'party', base: [{ guardAll: 3 }],
-                 cond: { type: 'FOLLOW_UP', reward: 'cost', costTo: 1 } },
+  // 2 AP for 3 Guard to a party that would rather parry was the worst rate in
+  // the deck. At 1 AP with Break on the chain it becomes the SETUP card: the
+  // thing you play mid-combo to arm next turn's BROKEN payoffs.
+  sgrace:      { owner: 'elin', name: 'Shared Grace',  cost: 1, target: 'party', base: [{ guardAll: 3 }],
+                 cond: { type: 'FOLLOW_UP', reward: 'output', bonus: [{ brk: 2 }] } },
   intercession:{ owner: 'elin', name: 'Intercession',  cost: 1, target: 'ally',  base: [{ guardSelf: 3 }, { guardAlly: 3 }, { intercede: true }], cond: null },
   // ── Mira — Shade ──
   serrate:     { owner: 'mira', name: 'Serrate',       cost: 1, target: 'enemy', base: [{ dmg: 3 }, { bleed: 3 }], cond: null },
-  qthrow:      { owner: 'mira', name: 'Quick Throw',   cost: 1, target: 'enemy', base: [{ dmg: 4 }, { drawDiscard: true }], cond: null },
+  // The deck's only filter: what you play to FIND the hero missing from the
+  // round you are building. Nudged to 5 so it is never strictly worse than the
+  // vanilla strike while doing that job.
+  qthrow:      { owner: 'mira', name: 'Quick Throw',   cost: 1, target: 'enemy', base: [{ dmg: 5 }, { drawDiscard: true }], cond: null },
   twinfang:    { owner: 'mira', name: 'Twin Fang',     cost: 1, target: 'enemy', base: [{ dmg: 3 }, { dmg: 3 }],
                  cond: { type: 'FOLLOW_UP', reward: 'output', bonus: [{ dmg: 3 }] } },
+  // Backstab already steps Mira across the rows; now the row she steps OUT of
+  // is the condition. "If Broken" fired 7% of the time and was a coin; this is
+  // a two-beat plan the player sets up themselves.
   backstab:    { owner: 'mira', name: 'Backstab',      cost: 1, target: 'enemy', base: [{ moveSelf: true }, { dmg: 5 }],
-                 cond: { type: 'BROKEN', reward: 'output', bonus: [{ dmg: 4 }] } },
-  execute:     { owner: 'mira', name: 'Execute',       cost: 2, target: 'enemy', base: [{ dmg: 9 }],
-                 cond: { type: 'BROKEN_OR_LOW', reward: 'output', bonus: [{ dmg: 6 }] } },
+                 cond: { type: 'BACK_ROW', reward: 'output', bonus: [{ dmg: 5 }] } },
+  // An execute should be dead weight until the target is finishable and then
+  // decisive. At 2 AP it was neither: too expensive to hold in a 3 AP turn, and
+  // 9 raw was a worse rate than two ordinary cards. 0.08 plays a fight.
+  execute:     { owner: 'mira', name: 'Execute',       cost: 1, target: 'enemy', base: [{ dmg: 6 }],
+                 cond: { type: 'BROKEN_OR_LOW', reward: 'output', bonus: [{ dmg: 8 }] } },
   // ── the generated Resonance card (deck §8) — never in the 15-card deck ──
   lightsteel:  { owner: 'bond', name: 'Light Through Steel', cost: 1, target: 'enemy',
                  base: [{ dmg: 10 }, { guardAll: 4 }], cond: null, exhaust: true },
@@ -112,7 +139,10 @@ const RESONANCE_PAIR = ['ash', 'elin'];
 // sweep and its finding are recorded in docs/RESONANCE-DECK.md. dmgScale is
 // left at 1.0: the swept scale is baked into the authored hit values below so
 // the data reads as the real numbers.
-const TUNE = { dmgScale: 1.0, dirge: [4, 4], heal: [7, 9], parryKeep: 0.3 };
+// bossHp joined the knobs in Build 17: once the combo layer actually fired the
+// party gained a real damage engine, and the encounter had to be re-scaled to
+// it rather than the deck being walked back to fit the old encounter.
+const TUNE = { dmgScale: 1.0, dirge: [4, 4], heal: [7, 9], parryKeep: 0.3, bossHp: 120 };
 
 const REGENT_INTENTS = [
   // Each intent has its own HANDWRITING. The Hymn is a dirge you brace
@@ -223,7 +253,7 @@ function startCombat(opts) {
       mira: { row: HEROES23.mira.row0, hp: HEROES23.mira.maxHp, max: HEROES23.mira.maxHp, guard: 0, downed: false },
     },
     boss: {
-      name: 'The Mourning Regent', hp: 120, max: 120, phase: 1,
+      name: 'The Mourning Regent', hp: TUNE.bossHp, max: TUNE.bossHp, phase: 1,
       breakMax: 12, brk: 12, broken: false, cancelNext: false,
       bleed: 0, chill: 0, intentIx: 0,
     },
@@ -310,9 +340,22 @@ function evalCondition(cond, ownerId) {
   const ts = C.turnState, last = ts.actionsPlayed[ts.actionsPlayed.length - 1];
   switch (cond) {
     case 'FOLLOW_UP':     return !!last && last.ownerId !== ownerId;
-    case 'FINALE':        return ['ash', 'elin', 'mira'].every(h => ts.actionsPlayed.some(a => a.ownerId === h));
+    // A FINALE is the LAST BLOW of the round, not something you pay for after
+    // it. Requiring all three heroes to have ALREADY acted made the card
+    // unreachable: the trio costs the whole turn, so nothing was left to
+    // finish with, and the probe measured it firing 0 times in 466 turns.
+    // The card that completes the trio IS the finale.
+    case 'FINALE': {
+      const seen = new Set(ts.actionsPlayed.map(a => a.ownerId));
+      seen.add(ownerId);
+      return ['ash', 'elin', 'mira'].every(h => seen.has(h));
+    }
     case 'BROKEN':        return C.boss.broken;
     case 'BROKEN_OR_LOW': return C.boss.broken || C.boss.hp <= C.boss.max * 0.30;
+    // Movement was a dead lever and "If Broken" was a coin that landed 7% of
+    // the time. Tying a card to the row a hero stands in makes the rows worth
+    // using and gives the player a condition they can CAUSE.
+    case 'BACK_ROW':      return !!C.heroes[ownerId] && C.heroes[ownerId].row === 'back';
     default: return false;
   }
 }
@@ -373,12 +416,15 @@ function resolveEffects(effects, ownerId, allyId) {
     if (fx.heal)       { const m = livingHeroes().sort((a, b) =>
         (C.heroes[b].max - C.heroes[b].hp) - (C.heroes[a].max - C.heroes[a].hp))[0];
       if (m) C.heroes[m].hp = Math.min(C.heroes[m].max, C.heroes[m].hp + fx.heal); }
+    if (fx.healAll)    livingHeroes().forEach(id => {
+      C.heroes[id].hp = Math.min(C.heroes[id].max, C.heroes[id].hp + fx.healAll); });
     if (fx.bleed)      C.boss.bleed += fx.bleed;
     if (fx.chill)      C.boss.chill += fx.chill;
     if (fx.counterstance) C.counterstance = true;
     if (fx.intercede && allyId) C.intercession = allyId;
     if (fx.moveSelf)   { const h = C.heroes[ownerId]; h.row = h.row === 'front' ? 'back' : 'front'; }
     if (fx.drawDiscard){ if (drawOne()) C.pendingDiscard = true; }
+    if (fx.draw)       { for (let i = 0; i < fx.draw; i++) drawOne(); }
     if (C.phase === 'VICTORY') return;
   }
 }
@@ -1021,6 +1067,24 @@ function fxPlayCard(cardId, ev) {
   const heroId = ev.card.owner === 'bond' ? 'ash' : ev.card.owner;
   const h = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
   if (h) { h.classList.remove('k-acts'); void h.offsetWidth; h.classList.add('k-acts'); }
+  if (ev.condActive && ev.card.cond) fxComboCall(ev.card.cond.type, h);
+}
+// A combo that only shows up as a bigger number is a combo nobody notices they
+// built. It gets its own name, struck over the hero who closed it, and a
+// FINALE gets the whole board — this is the payoff the deck is named for.
+function fxComboCall(type, node) {
+  const S = stageBox(); const c = centreOf(node);
+  if (!S) return;
+  const big = type === 'FINALE';
+  const tag = document.createElement('div');
+  tag.className = 'k-combo-call' + (big ? ' k-combo-call-big' : '');
+  tag.textContent = COND_LABEL[type] || type;
+  tag.style.left = (c ? c.x : 466) + 'px';
+  tag.style.top = ((c ? c.y : 200) - 46) + 'px';
+  S.st.appendChild(tag);
+  setTimeout(() => tag.remove(), big ? 1100 : 760);
+  if (c) shockRing(c.x, c.y, big ? 1.8 : 0.8, 'gold');
+  if (big) { screenPulse('gold'); screenKick(1.2); hitstop(140); }
 }
 function fxResonanceCharge() { const el = document.querySelector('.k-bond-row'); if (el) { el.classList.remove('k-flash'); void el.offsetWidth; el.classList.add('k-flash'); } }
 // THE LINE THAT CONNECTS THE GRADES TO THE HP BAR. Without it the player reads
@@ -1368,6 +1432,7 @@ function renderHand() {
 const COND_LABEL = {
   FOLLOW_UP: 'Follow-Up', FINALE: 'Finale',
   BROKEN: 'If Broken', BROKEN_OR_LOW: 'Broken or ≤30% HP',
+  BACK_ROW: 'From the Back',
 };
 // A small, consistent icon vocabulary — the same mark means the same thing on
 // a card, in the inspect panel and in the Regent's intent line.
@@ -1391,7 +1456,8 @@ function icon(name, cls) {
     + '<path d="' + d + '" ' + (fill ? 'fill="currentColor" stroke="none"' : 'fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"')
     + '/></svg>';
 }
-const COND_ICON = { FOLLOW_UP: 'follow', FINALE: 'finale', BROKEN: 'broken', BROKEN_OR_LOW: 'broken' };
+const COND_ICON = { FOLLOW_UP: 'follow', FINALE: 'finale', BROKEN: 'broken',
+  BROKEN_OR_LOW: 'broken', BACK_ROW: 'move' };
 
 function cardFaceHTML(c, ev, gem, ownerArt) {
   // THE CARD ANSWERS TWO QUESTIONS, so it is drawn as two blocks. The top is
@@ -1433,12 +1499,14 @@ function prose(effects, plain) {
     if (fx.guardAlly) out.push(I('guard') + '<b>' + fmtN(fx.guardAlly) + '</b> Guard to an ally.');
     if (fx.guardLowest) out.push(I('guard') + '<b>' + fmtN(fx.guardLowest) + '</b> Guard to the lowest ally.');
     if (fx.heal) out.push(I('heal') + 'Heal <b>' + fmtN(fx.heal) + '</b>.');
+    if (fx.healAll) out.push(I('heal') + 'Heal <b>' + fmtN(fx.healAll) + '</b> to all.');
     if (fx.bleed) out.push(I('bleed') + '<b>' + fmtN(fx.bleed) + '</b> Bleed.');
     if (fx.chill) out.push(I('chill') + '<b>' + fmtN(fx.chill) + '</b> Chill.');
     if (fx.counterstance) out.push(I('brk') + 'Next parry <b>+2</b> Break.');
     if (fx.intercede) out.push(I('guard') + 'Take their parry window.');
     if (fx.moveSelf) out.push(I('move') + 'Switch row.');
     if (fx.drawDiscard) out.push(I('draw') + 'Draw <b>1</b>, discard <b>1</b>.');
+    if (fx.draw) out.push(I('draw') + 'Draw <b>' + fx.draw + '</b>.');
   }
   return out.join(' ');
 }

@@ -102,26 +102,119 @@ const { boot } = require('./harness.cjs');
   }
   await fresh(12);
   {
-    await J(() => window.K.forceHand(['cleave', 'lcascade', 'serrate', 'lastlight', 'mend']));
+    // THE FINALE IS THE LAST BLOW, not something bought after it. The card
+    // completing the trio is what fires it — the old rule wanted all three to
+    // have already acted, which costs the whole turn and left nothing to
+    // finish with. Measured firing 0 times in 466 turns.
+    await J(() => window.K.forceHand(['lcascade', 'serrate', 'lastlight', 'mend', 'cleave']));
     const cold = await J(() => window.K.evaluateCard('lastlight'));
-    await J(() => { window.K.playCard('cleave'); window.K.playCard('lcascade'); });
+    await J(() => window.K.playCard('lcascade'));                 // Elin
     const two = await J(() => window.K.evaluateCard('lastlight').condActive);
-    await J(() => window.K.playCard('serrate'));
+    await J(() => window.K.playCard('serrate'));                  // Mira
     const fin = await J(() => {
       const ev = window.K.evaluateCard('lastlight');
       return { active: ev.condActive, cost: ev.currentCost,
-               dmg: ev.resolvedEffects.reduce((n, fx) => n + (fx.dmg || 0), 0) };
+               dmg: ev.resolvedEffects.reduce((n, fx) => n + (fx.dmg || 0), 0),
+               ap: window.K.state().ap };
     });
-    check('FINALE: gated until ALL THREE heroes have played this phase',
-      !cold.condActive && !two && fin.active, 'after 2 heroes: ' + two);
-    check('NO DUAL BONUS: Finale grants +5 output, cost stays 2',
-      fin.cost === 2 && fin.dmg === 15 && cold.currentCost === 2, JSON.stringify(fin));
     const cs = await J(() => {
-      const ev = window.K.evaluateCard('crosssever');   // follow-up is live after serrate
+      const ev = window.K.evaluateCard('crosssever');   // follow-up is live after Mira
       return { cost: ev.currentCost, dmg: ev.resolvedEffects.reduce((n, fx) => n + (fx.dmg || 0), 0) };
     });
+    const landed = await J(() => {
+      const before = window.K.state().boss.hp;
+      const ok = window.K.playCard('lastlight');                  // Ash completes it
+      return { ok, dealt: before - window.K.state().boss.hp, ap: window.K.state().ap };
+    });
+    check('FINALE: the card that completes the trio IS the finale',
+      !cold.condActive && !two && fin.active, 'after one other hero: ' + two);
+    check('FINALE IS REACHABLE: Elin, Mira, then the finisher — inside one 3 AP turn',
+      fin.ap === 1 && landed.ok && landed.dealt === 15 && landed.ap === 0,
+      JSON.stringify({ apBefore: fin.ap, landed }));
+    check('NO DUAL BONUS: Finale grants output, cost stays 1',
+      fin.cost === 1 && fin.dmg === 15 && cold.currentCost === 1, JSON.stringify(fin));
     check('NO DUAL BONUS: Follow-Up Cross Sever costs 1, output stays 9',
       cs.cost === 1 && cs.dmg === 9, JSON.stringify(cs));
+  }
+
+  // ── two finales, so the trio is a fork and not a script ──
+  await fresh(21);
+  {
+    const fork = await J(() => {
+      window.K.forceHand(['serrate', 'cleave', 'mend', 'twinfang', 'frostbind']);
+      const st = window.K.state();
+      st.heroes.elin.hp = 20; st.heroes.ash.hp = 30; st.heroes.mira.hp = 24;
+      window.K.playCard('serrate');                      // Mira
+      window.K.playCard('cleave');                       // Ash
+      const ev = window.K.evaluateCard('mend');          // Elin closes the round
+      const before = { ash: st.heroes.ash.hp, elin: st.heroes.elin.hp, mira: st.heroes.mira.hp };
+      window.K.playCard('mend');
+      const s2 = window.K.state();
+      return { armed: ev.condActive,
+               ash: s2.heroes.ash.hp - before.ash, elin: s2.heroes.elin.hp - before.elin,
+               mira: s2.heroes.mira.hp - before.mira };
+    });
+    // Mend heals the most-hurt hero 6, and the FINALE adds 5 to everyone
+    check('TWO FINALES: closing with Elin stands the party up instead of killing',
+      fork.armed && fork.elin === 11 && fork.ash === 5 && fork.mira === 5, JSON.stringify(fork));
+  }
+  await settle();
+  // ── the combo announces itself ──
+  await fresh(21);
+  {
+    const call = await J(async () => {
+      window.K.forceHand(['serrate', 'lcascade', 'lastlight', 'mend', 'cleave']);
+      window.K.playCard('serrate'); window.K.playCard('lcascade');
+      document.querySelectorAll('.k-combo-call').forEach(t => t.remove());
+      window.K.playCard('lastlight');                    // Ash closes: FINALE
+      await new Promise(r => setTimeout(r, 40));
+      const tags = [...document.querySelectorAll('.k-combo-call')];
+      const tag = tags[tags.length - 1];
+      return { shown: !!tag, all: tags.map(t => t.textContent.trim()),
+               text: tag && tag.textContent.trim(),
+               big: !!(tag && tag.classList.contains('k-combo-call-big')),
+               shock: document.querySelectorAll('.k-shock-gold').length };
+    });
+    check('COMBO CALL: a combo you built announces itself, and a FINALE takes the board',
+      call.all.length === 1 && call.text === 'Finale' && call.big && call.shock >= 1,
+      JSON.stringify(call));
+  }
+  await settle();
+  // ── the three cards the combo probe indicted ──
+  await fresh(17);
+  {
+    const back = await J(() => {
+      window.K.forceHand(['backstab', 'cleave', 'mend', 'serrate', 'twinfang']);
+      const front = window.K.evaluateCard('backstab');
+      window.K.moveHero('mira');                       // step her upstage
+      const ev = window.K.evaluateCard('backstab');
+      const hp0 = window.K.state().boss.hp;
+      window.K.playCard('backstab');
+      return { fromFront: front.condActive, fromBack: ev.condActive,
+               row: window.K.state().heroes.mira.row,   // Backstab steps her out again
+               dealt: hp0 - window.K.state().boss.hp,
+               coldDmg: front.resolvedEffects.reduce((n, f) => n + (f.dmg || 0), 0) };
+    });
+    check('FROM THE BACK: Backstab pays for the row Mira stands in, and steps her out of it',
+      !back.fromFront && back.fromBack && back.coldDmg === 5 && back.dealt === 10
+      && back.row === 'front', JSON.stringify(back));
+
+    const chain = await J(() => {
+      window.K.startCombat({ seed: 17 });
+      window.K.forceHand(['serrate', 'cstance', 'sgrace', 'cleave', 'mend']);
+      const cold = window.K.evaluateCard('cstance').condActive;
+      window.K.playCard('serrate');                    // Mira opens
+      const held = window.K.state().hand.length;
+      window.K.playCard('cstance');                    // Ash follows: draws
+      const drew = window.K.state().hand.length - (held - 1);
+      const brk0 = window.K.state().boss.brk;
+      window.K.playCard('sgrace');                     // Elin follows: 2 Break
+      return { cold, drew, broke: brk0 - window.K.state().boss.brk,
+               ap: window.K.state().ap, cost: window.K.evaluateCard('sgrace').currentCost };
+    });
+    check('CHAIN: a follow-up Counterstance draws, and a follow-up Shared Grace chips Break',
+      !chain.cold && chain.drew === 1 && chain.broke === 2 && chain.ap === 0 && chain.cost === 1,
+      JSON.stringify(chain));
   }
 
   // ═══ C · ECONOMY: cycle, hand persistence, move, Quick Throw ═══
@@ -247,7 +340,7 @@ const { boot } = require('./harness.cjs');
     const r = await J(() => window.K.endTurn({ grades: [] }));
     const s = await S();
     check('BREAK → BROKEN: meter to zero staggers the Regent and arms the cancel',
-      b.brk === 0 && b.broken && b.cancel && conds.backstab && conds.execute, JSON.stringify(b));
+      b.brk === 0 && b.broken && b.cancel && conds.execute, JSON.stringify(b));
     check('BROKEN: +25% damage taken during the player phase (6 → 8)',
       hp0 - hp1 === 8, 'took ' + (hp0 - hp1));
     check('BREAK CANCELLATION: the next enemy action dies; the meter refills to 12',

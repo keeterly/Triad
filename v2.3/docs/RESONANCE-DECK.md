@@ -584,3 +584,94 @@ being aimed at, which the eye believes over the lanes. A move that cannot
 happen says why (`ALREADY MOVED`, `NEEDS 1 AP`) instead of silently doing
 nothing. BACK also became genuinely upstage — up and smaller, not merely left —
 so the two lanes are separable by eye and by thumb.
+
+---
+
+## Build 17 — the combo probe, and the mechanic that could not happen
+
+v2.3 exists to make **deck and card play** the fun part, so before tuning
+anything I measured the thing that claim rests on. `test/combo.probe.cjs`
+plays sixty fights and reports the *shape* of a turn rather than the winrate:
+how wide the choice was, how often a conditional card was played armed versus
+cold, whether FOLLOW-UP is a decision or a default, how often FINALE lands,
+how much AP is left on the table, and which cards never get played at all.
+
+### What it found
+
+```
+                          BEFORE            AFTER
+conditional cards          33% of plays      56% of plays
+…played ARMED              51%               90%
+FOLLOW-UP taken            58%               95%
+FINALE fired               0 of 19  (0%)     60 of 101 (59%)
+three heroes in a turn     19%               24%
+dead cards (<0.25/fight)   cstance, sgrace   —
+```
+
+**FINALE fired zero times in 466 turns.** Not rarely — never. Last Light cost
+2 AP and the condition wanted all three heroes to have *already* acted; the
+trio costs the whole 3 AP turn, so there was never anything left to finish
+with. The marquee combo of a game about comboing was arithmetically
+impossible, and nothing in the suite could see it because every test asserted
+the rule rather than asking whether the rule was reachable.
+
+### What changed
+
+**A FINALE is the last blow of the round, not something bought after it.** The
+card that *completes* the trio is what fires it. The line is now Elin (1) +
+Mira (1) + finisher (1) = one 3 AP turn, and the suite gates the arithmetic,
+not just the rule: *FINALE IS REACHABLE — Elin, Mira, then the finisher,
+inside one 3 AP turn.*
+
+**Last Light 2 AP / 10 raw → 1 AP / 5 raw, FINALE +10 and 2 Break.** The cold
+floor has to be low or the card sabotages itself: at 7 raw for 1 AP the best
+greedy play was to lead with it, which is the one move that guarantees the
+finale never happens. 5 cold is mediocre; 15 armed is enormous; the gap is the
+reason to hold it for third.
+
+**Mend becomes the second FINALE,** so the trio is a fork instead of a script:
+close the round with Ash and it is a killing blow, close it with Elin and the
+party stands back up. One turn, one finisher, two very different turns.
+
+**Backstab trades "If Broken" for "From the Back."** Broken landed 7% of the
+time — a coin, not a plan. Backstab already steps Mira across the rows, so the
+row she steps *out of* is now the condition: a two-beat play the player sets up
+themselves, and the first thing that makes Build 16's row lanes worth using.
+
+**Counterstance draws on a follow-up** (0.15 → 1.8 plays a fight). Guard
+competes with a parry that negates outright, so it had to be worth playing for
+something other than the Guard; a chain that can extend itself is what makes a
+combo deck play.
+
+**Shared Grace 2 AP → 1 AP, and chips 2 Break on a follow-up** (0.15 → 2.3).
+It becomes the setup card — the thing you play mid-combo to arm next turn's
+BROKEN payoffs — which also drags BROKEN_OR_LOW from a dead condition to 77–97%
+armed.
+
+**Execute 2 AP / 9 → 1 AP / 6, BROKEN_OR_LOW +8.** An execute should be dead
+weight until the target is finishable and then decisive. At 2 AP it was
+neither, and played 0.08 times a fight.
+
+**The combo announces itself.** `fxComboCall` strikes the combo's name over
+the hero who closed it, with a gold shock; a FINALE takes the whole board —
+big type, a rule beneath it, screen pulse, kick and a 140ms stop. A combo that
+shows up only as a bigger number is a combo nobody notices they built.
+
+### One honest caveat
+
+`qthrow` still measures at 0.17 plays a fight. Draw-1-discard-1 is card
+*filtering*, and its value is entirely about finding a specific card — which a
+rig that plans one step ahead never wants. It went to 5 damage so it is never
+strictly worse than the vanilla strike, but the low number is the probe's
+blind spot as much as the card's, and it is recorded here rather than tuned
+away.
+
+### Outstanding at the time of this commit
+
+Making the deck work moved the encounter. The mid-skill band went 30.5% →
+75.9%, outside its 25–55% gate, because the party now has a damage engine it
+did not have before. The fix belongs in the encounter rather than in walking
+the deck back, so `bossHp` joined `TUNE` as a swept knob and a HP × damage
+sweep is the next step. **Build 17 is not balanced yet** — the combo layer is
+correct and gated at 85/85 flow checks, but `test/balance.sim.cjs` reports
+2/3 shipped gates until that sweep lands.
