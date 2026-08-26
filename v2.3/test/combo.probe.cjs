@@ -74,9 +74,13 @@ const DRIVER = `
       if (st0.phase === 'VICTORY' || st0.phase === 'DEFEAT') break;
       T.turns++;
       T.apTotal += st0.ap;
-      // the move is a combo piece now: Backstab pays for the row she leaves
-      if (st0.hand.includes('backstab') && st0.heroes.mira.row === 'front'
-          && !st0.turnState.moved && st0.ap >= 2 && !st0.heroes.mira.downed) K.moveHero('mira');
+      // the move is a combo piece: Backstab pays for the row she leaves. With
+      // three rows the destination has to be named — the old bare toggle only
+      // stepped her one row back, so she never reached BACK from the front and
+      // the rig reported the condition as dead when it was merely unvisited.
+      if (st0.hand.includes('backstab') && st0.heroes.mira.row !== 'back'
+          && !st0.turnState.moved && st0.ap >= 2 && !st0.heroes.mira.downed)
+        K.moveHero('mira', 'back');
 
       // ── the decision space, measured BEFORE anything is played ──
       const opts = playable();

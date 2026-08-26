@@ -106,6 +106,13 @@ const BOT = `
       }
     }
 
+    // SPEND THE LADDER. A bot that never fires the all-out measures a party
+    // that never uses its best turn, and reports the fight as harder than it is.
+    if (S().kizuna >= 100) {
+      await K.allOut();
+      if (S().phase === 'VICTORY') return { win: true, turns: S().turn };
+    }
+
     // TRIAGE FIRST — buy exactly enough survival, then swing with the rest.
     // This is the deck's core tradeoff: defense costs AP, so a player who
     // cannot parry spends their whole turn staying alive and never kills.

@@ -217,6 +217,54 @@ const { boot } = require('./harness.cjs');
       JSON.stringify(chain));
   }
 
+  // ── the KIZUNA ladder: what the three of them build together ──
+  await fresh(19);
+  {
+    const kz = await J(async () => {
+      const st = window.K.state();
+      const bar = document.getElementById('k-kizuna');
+      const out = { start: st.kizuna, disabled: bar.disabled, refused: await window.K.allOut() };
+      window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'twinfang']);
+      window.K.playCard('cleave');                      // 6 damage
+      out.fromDamage = window.K.state().kizuna;
+      return out;
+    });
+    check('KIZUNA: the ladder starts empty and cannot be spent until it is full',
+      kz.start === 0 && kz.disabled && kz.refused === false && kz.fromDamage > 0,
+      JSON.stringify(kz));
+
+    const turned = await J(async () => {
+      const s0 = window.K.state();
+      s0.kizuna = 0;
+      window.K.forceIntent('benediction');              // one hit, two notes
+      const before = window.K.state().kizuna;
+      await window.K.endTurn({ grades: ['perfect', 'perfect'] });   // FLAWLESS
+      return { before, after: window.K.state().kizuna };
+    });
+    check('KIZUNA: turning a blow aside charges it — mastery is what builds the ladder',
+      turned.after - turned.before >= 14, JSON.stringify(turned));
+
+    const fired = await J(async () => {
+      const st = window.K.state();
+      st.kizuna = 100; st.boss.hp = 140; window.K.render();
+      const bar = document.getElementById('k-kizuna');
+      const out = { ready: bar.classList.contains('k-kz-ready'), label: bar.textContent.trim(),
+                    enabled: !bar.disabled, hp0: st.boss.hp, brk0: st.boss.brk };
+      const ok = await window.K.allOut();
+      const s2 = window.K.state();
+      out.ok = ok; out.dealt = out.hp0 - s2.boss.hp; out.broke = out.brk0 - s2.boss.brk;
+      out.spent = s2.kizuna; out.ap = s2.ap; out.phase = s2.phase;
+      out.again = await window.K.allOut();
+      return out;
+    });
+    check('KIZUNA: full, it becomes a button — all three strike, it costs no AP, and it empties',
+      fired.ready && /ALL-OUT/.test(fired.label) && fired.enabled && fired.ok
+      && fired.dealt >= 24 && fired.broke === 4 && fired.spent === 0 && fired.ap === 3
+      && fired.phase === 'PLAYER_READY' && fired.again === false,
+      JSON.stringify(fired));
+  }
+  await settle();
+
   // ═══ C · ECONOMY: cycle, hand persistence, move, Quick Throw ═══
   console.log('\n── economy ──');
   await fresh(13);
@@ -255,8 +303,8 @@ const { boot } = require('./harness.cjs');
     await J(() => window.K.playCard('backstab'));
     const s = await S();
     const canStillMove = await J(() => window.K.moveHero('ash'));
-    check('PRINTED MOVEMENT: Backstab switches Mira\'s row without spending the phase Move',
-      s.heroes.mira.row !== row0 && s.moved === 0 && canStillMove,
+    check('PRINTED MOVEMENT: Backstab lunges Mira to the FRONT without spending the phase Move',
+      row0 === 'mid' && s.heroes.mira.row === 'front' && s.moved === 0 && canStillMove,
       row0 + '→' + s.heroes.mira.row);
   }
   await fresh(17);
@@ -576,6 +624,18 @@ const { boot } = require('./harness.cjs');
           const b = document.getElementById('k-break').getBoundingClientRect();
           return a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom;
         })(),
+        // the ladder lives in the open sky: it must clear both HUDs, the
+        // telegraph and every hero — inside the party stack it sat on top of
+        // whoever was standing in the back row
+        kzClear: (() => {
+          const k = document.getElementById('k-kizuna').getBoundingClientRect();
+          const hit = (r) => !(k.right <= r.left || k.left >= r.right
+            || k.bottom <= r.top || k.top >= r.bottom);
+          const others = [document.getElementById('k-party-hud'),
+            document.getElementById('k-boss-hud'), document.getElementById('k-intent'),
+            ...document.querySelectorAll('.k-hero')];
+          return !others.some(n => hit(n.getBoundingClientRect()));
+        })(),
         clipped, worstOver,
         overHead, oneLine, noBanner, iconed, noWords, chipN: chips.length,
         preview: window.K.intentPreviewDmg(),
@@ -587,7 +647,7 @@ const { boot } = require('./harness.cjs');
     check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; telegraph is icon chips above the Regent; no card clipped',
       ui.disjoint && ui.rows === 3 && ui.bars === 3 && ui.cards === 5 && ui.fanned
       && ui.pips === 12 && ui.noMove && ui.ap === '3' && ui.apPips === 3 && ui.apLit === 3
-      && ui.gone && ui.breakClear
+      && ui.gone && ui.breakClear && ui.kzClear
       && ui.clipped === 0 && ui.overHead && ui.oneLine && ui.noBanner
       && ui.iconed && ui.noWords && ui.atk === String(ui.preview) && ui.hasTargetFace && ui.hasDirge,
       JSON.stringify(ui));
@@ -683,6 +743,42 @@ const { boot } = require('./harness.cjs');
       && parseFloat(anat.banded) >= 1 && anat.gemSize >= 12,
       JSON.stringify({ tag: anat.tag, pay: anat.pay, icon: anat.condIcon,
         prose: anat.proseSize, pay_px: anat.paySize, band: anat.banded, gem: anat.gemSize }));
+    const face = await J(() => {
+      window.K.startCombat({ seed: 11 });
+      window.K.forceHand(['serrate', 'crosssever', 'mend', 'lastlight', 'cstance']);
+      window.K.playCard('serrate');                    // arms the Follow-Ups
+      const c = document.querySelector('.k-card[data-card="crosssever"]');
+      const r = c.getBoundingClientRect();
+      const box = (sel) => { const n = c.querySelector(sel); const b = n.getBoundingClientRect();
+        return { l: b.left - r.left, t: b.top - r.top, r: b.right - r.left, b: b.bottom - r.top }; };
+      const gem = box('.k-cgem'), own = box('.k-owner'), name = box('.k-cname');
+      const out = {
+        // what it costs, top-LEFT. whose it is, top-RIGHT. Both above the name.
+        costTopLeft: gem.l < r.width * 0.3 && gem.t < r.height * 0.16,
+        ownTopRight: own.r > r.width * 0.7 && own.t < r.height * 0.16,
+        nameClear: name.t >= gem.b - 1 && name.t >= own.b - 1,
+        nameOneLine: c.querySelector('.k-cname').getBoundingClientRect().height < 26
+          && getComputedStyle(c.querySelector('.k-cname')).whiteSpace === 'nowrap',
+        armedGlow: getComputedStyle(c).animationName,
+      };
+      window.K.state().ap = 0; window.K.render();      // nothing affordable now
+      const p = document.querySelector('.k-card[data-card="crosssever"]');
+      out.poor = p.classList.contains('k-card-poor');
+      out.veil = getComputedStyle(p, '::after').backgroundColor;
+      out.orbRed = getComputedStyle(p.querySelector('.k-cgem')).borderTopColor;
+      out.stillGlows = getComputedStyle(p).animationName;
+      return out;
+    });
+    check('CARD: cost top-left, owner top-right, name on its own line beneath them',
+      face.costTopLeft && face.ownTopRight && face.nameClear && face.nameOneLine,
+      JSON.stringify(face));
+    check('CARD: an armed combo glows gold; an unaffordable card greys out and reddens its cost',
+      face.armedGlow === 'k-armed' && face.poor && /rgba?\(/.test(face.veil)
+      && face.veil !== 'rgba(0, 0, 0, 0)' && face.stillGlows === 'none'
+      && (() => { const m = /rgb\((\d+), (\d+), (\d+)\)/.exec(face.orbRed);
+                  return !!m && +m[1] > +m[2] + 40 && +m[1] > +m[3] + 40; })(),
+      JSON.stringify({ glow: face.armedGlow, poor: face.poor, veil: face.veil,
+        orb: face.orbRed, glowWhenPoor: face.stillGlows }));
     check('CARD: MTG-Arena proportion — the face is 63:88, not a tall slab',
       Math.abs(anat.ratio - 63 / 88) < 0.02, 'w/h = ' + anat.ratio + ' (target ' + (63 / 88).toFixed(3) + ')');
     const live = await J(() => {
@@ -708,7 +804,7 @@ const { boot } = require('./harness.cjs');
         .filter(e => /\d,\d/.test(e.textContent)).length,
     }));
     check('SCALE: HP and damage read at Slay-the-Spire size — no four-digit numbers',
-      scale.ash === '42' && scale.boss === '150' && scale.commas === 0
+      scale.ash === '42' && scale.boss === '160' && scale.commas === 0
       && Number(scale.intent) < 100, JSON.stringify(scale));
   }
   // ── lifting a card: it follows the finger, the way v2.2 played ──
@@ -751,9 +847,12 @@ const { boot } = require('./harness.cjs');
       const h = document.querySelector('.k-hero[data-hero="ash"]');
       const hr = h.getBoundingClientRect();
       const back = document.querySelector('.k-row[data-row="back"]');
+      const mid = document.querySelector('.k-row[data-row="mid"]');
       const front = document.querySelector('.k-row[data-row="front"]');
       const vis = (n) => parseFloat(getComputedStyle(n).opacity);
-      const out = { hidden: vis(back) };
+      const out = { hidden: vis(back), slots: document.querySelectorAll('#k-rows .k-row').length,
+                    named: [...document.querySelectorAll('#k-rows .k-row-lbl')]
+                      .map(n => n.textContent.trim()).join(',') };
       const at = (x, y, t) => h.dispatchEvent(new PointerEvent(t,
         { bubbles: true, clientX: x, clientY: y, pointerId: 7 }));
       const sr = stage.getBoundingClientRect(), k = sr.width / stage.offsetWidth || 1;
@@ -761,7 +860,10 @@ const { boot } = require('./harness.cjs');
                                y: sr.top + (n.offsetTop + n.offsetHeight / 2) * k });
       at(hr.left + hr.width / 2, hr.top + hr.height / 2, 'pointerdown');
       await new Promise(r => setTimeout(r, 260));      // past the rise transition
-      out.raised = vis(back) > 0.9 && vis(front) > 0.9;
+      out.raised = vis(back) > 0.9 && vis(mid) > 0.9 && vis(front) > 0.9;
+      // the three lanes must be separable by a thumb, not stacked on each other
+      const cy = (n) => n.offsetTop + n.offsetHeight / 2;
+      out.spread = Math.min(cy(mid) - cy(back), cy(front) - cy(mid));
       out.here = front.classList.contains('k-row-here');   // Ash starts FRONT
       const hint = document.getElementById('k-movehint');
       out.hint = hint.classList.contains('k-hidden') ? null : hint.textContent.trim();
@@ -777,10 +879,12 @@ const { boot } = require('./harness.cjs');
         && !stage.classList.contains('k-moving');
       return out;
     });
-    check('ROWS: grabbing a hero raises both rows, names the one they stand in, prices the move',
-      rows.hidden < 0.1 && rows.raised && rows.here && /MOVE/.test(rows.hint || ''),
-      JSON.stringify({ hidden: rows.hidden, raised: rows.raised, here: rows.here, hint: rows.hint }));
-    check('ROWS: carrying a hero to the other row and letting go puts them there',
+    check('ROWS: three named slots rise, the one they stand in is named, the move is priced',
+      rows.slots === 3 && rows.named === 'BACK,MID,FRONT' && rows.hidden < 0.1
+      && rows.raised && rows.spread >= 34 && rows.here && /MOVE/.test(rows.hint || ''),
+      JSON.stringify({ slots: rows.slots, named: rows.named, spread: rows.spread,
+        raised: rows.raised, here: rows.here, hint: rows.hint }));
+    check('ROWS: carrying a hero to a named slot and letting go puts them there',
       rows.lit && rows.row === 'back' && rows.ap === 2 && rows.moved === 1 && rows.cleared,
       JSON.stringify({ lit: rows.lit, row: rows.row, ap: rows.ap, moved: rows.moved, cleared: rows.cleared }));
   }
@@ -1230,6 +1334,36 @@ const { boot } = require('./harness.cjs');
       piles.flying >= 1 && piles.thumped && piles.landed && piles.discAfter === '1',
       JSON.stringify({ flying: piles.flying, thump: piles.thumped, after: piles.discAfter }));
   }
+  // ── the draw is SEEN: cards fly out of the deck and grow into the hand ──
+  await fresh(9);
+  {
+    const draw = await J(async () => {
+      window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'twinfang']);
+      window.K.forceIntent('benediction');
+      window.K.endTurn({ grades: ['miss', 'miss'] });
+      const out = { flew: 0, faceDown: 0, grew: false, hidden: false };
+      for (let i = 0; i < 200; i++) {
+        if (window.K.state().phase === 'HAND_DRAWING') {
+          const g = document.querySelectorAll('.k-fly');
+          out.flew = Math.max(out.flew, g.length);
+          out.faceDown = Math.max(out.faceDown,
+            document.querySelectorAll('.k-fly.k-fly-back').length);
+          // the real card stays invisible until its ghost lands on it
+          if ([...document.querySelectorAll('#k-hand .k-card')].some(c => c.style.opacity === '0'))
+            out.hidden = true;
+        }
+        await new Promise(r => setTimeout(r, 6));
+      }
+      await new Promise(r => setTimeout(r, 400));
+      out.settled = [...document.querySelectorAll('#k-hand .k-card')].every(c => c.style.opacity !== '0');
+      out.hand = window.K.state().hand.length;
+      return out;
+    });
+    check('DRAW: a card is seen leaving the deck face down and arriving in the hand',
+      draw.flew >= 1 && draw.faceDown >= 1 && draw.hidden && draw.settled && draw.hand === 5,
+      JSON.stringify(draw));
+  }
+  await settle();
   // ── the end-of-turn sweep, card by card ──
   await fresh(8);
   {

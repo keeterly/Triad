@@ -758,3 +758,85 @@ the suite counts flash elements so a collision like that fails loudly.
   offers to save. They are on the whole stage now, with `-webkit-user-drag`,
   `touch-action: none`, and `contextmenu` / `selectstart` / `dragstart`
   cancelled at the stage. The suite checks all four figure types, not one.
+
+---
+
+## Build 20 — three rows, a ladder, and a card you can read across the table
+
+### FRONT · MID · BACK
+
+Two lanes made "move" a switch you flipped. Three named slots make it a place
+you choose. The lanes recede up-left in equal steps (30px across, 42px up, 0.84
+the size per step), so a hero two rows back is unmistakably twice as far away as
+one row back and the depth reads without the labels.
+
+Two things had to be rewritten to suit it:
+
+- **`backFactor` becomes `sweep`.** A sweeping attack used to have a single
+  on/off shelter — full damage unless you were in the back. It now falls off
+  across the ladder: `front 1.0 · mid 0.62 · back 0.30`, so standing in the
+  middle is a real, partial answer rather than a wasted step.
+- **`moveSelf` takes a destination.** "Switch row" means nothing with three of
+  them; Backstab now reads *"Step to the front"* and lunges Mira out of
+  whatever row she struck from, which keeps the two-beat plan (put her back,
+  strike from the back for +5, land at the front) legible.
+
+A bug this surfaced: `.k-hero` scaled about its centre, so a hero shrinking one
+row back also rose off the ground by half the size difference and floated above
+the lane they were standing in. `transform-origin: 50% 100%` puts their feet on
+the floor.
+
+### The KIZUNA ladder
+
+The premise of this game is a party whose team attacks develop as they fight
+together, and there was nothing on the board measuring that. The ladder fills
+from the two things the party does well:
+
+```
+  damage dealt      +1 per 3
+  a blow TURNED     +8
+  a string FLAWLESS +14
+```
+
+At 100 it stops being a meter and becomes the button that spends it: every hero
+still standing lands one blow at once, for `TUNE.alloutDmg` split three ways
+plus 4 Break. It costs no AP — the cost was the fight it took to charge — and
+the all-out's own damage does not feed it back.
+
+It lives in the open sky between the two HUDs. Inside the party stack, where it
+started, it sat on top of whoever was standing in the back row; the suite now
+asserts it clears both HUDs, the telegraph and every hero.
+
+**Balance.** A bot that never fires the all-out measures a party that never
+takes its best turn, so the sim bot spends the ladder now. That alone moved the
+half-parry tier 35.5% → 41.4% — the all-out is worth about six points of
+winrate — so the Regent goes **150 -> 160 HP** and the half-parry tier
+lands back at 35% in nine rounds, inside the deck's own band. The ladder was
+re-scaled to, not trimmed to fit the old Regent.
+
+### The card face
+
+- **Cost top-left, owner top-right, both sitting on the art.** They used to
+  flank the *name*, which ate 50 of its 102px and wrapped every two-word title
+  onto a second line. The art leads now and the name gets a full-width line
+  under it.
+- **An armed combo takes a gold rim and breathes.** The old treatment was a
+  border one shade warmer than the frame — invisible in a fan of five.
+- **An unaffordable card greys out MTG-Arena style,** and its cost orb turns
+  red so the *reason* reads rather than just the refusal. This is a scrim over
+  the face rather than a `filter` on it: a filter composites the children too
+  and took the orb's colour with it, which is the one thing that had to stay.
+
+### The flights
+
+A card leaving the hand morphs down into the pile over 460ms with a wider arc
+and more turn; one arriving from the deck now *grows* to full size on the way in
+over 380ms, and the real card stays invisible until its ghost lands on it. Both
+were previously too quick to read as an event at all.
+
+One thing the three-row change broke in the RIG rather than the game: the combo
+probe moved Mira with a bare `moveHero`, which now steps her one row back rather
+than to the far row, so she never reached BACK from the front and `BACK_ROW`
+reported 0% armed. The condition was not dead, it was unvisited. With the
+destination named the probe reads 100% armed, and the combo layer at the new
+scale is 55% of plays / 90% armed / FINALE 60% hot.

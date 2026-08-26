@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 19;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 20;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -57,7 +57,7 @@ function shuffle(a) {
 const HEROES23 = {
   ash:  { name: 'ASH',  cls: 'Vanguard', art: '../art/kai.webp',  row0: 'front', maxHp: 42 },
   elin: { name: 'ELIN', cls: 'Oracle',   art: '../art/elin.webp', row0: 'back',  maxHp: 36 },
-  mira: { name: 'MIRA', cls: 'Shade',    art: '../art/mira.webp', row0: 'front', maxHp: 34 },
+  mira: { name: 'MIRA', cls: 'Shade',    art: '../art/mira.webp', row0: 'mid',   maxHp: 34 },
 };
 
 // Effects are tiny data atoms; resolveEffects() is the only interpreter.
@@ -108,7 +108,7 @@ const CARD_DEFS = {
   // Backstab already steps Mira across the rows; now the row she steps OUT of
   // is the condition. "If Broken" fired 7% of the time and was a coin; this is
   // a two-beat plan the player sets up themselves.
-  backstab:    { owner: 'mira', name: 'Backstab',      cost: 1, target: 'enemy', base: [{ moveSelf: true }, { dmg: 5 }],
+  backstab:    { owner: 'mira', name: 'Backstab',      cost: 1, target: 'enemy', base: [{ moveSelf: 'front' }, { dmg: 5 }],
                  cond: { type: 'BACK_ROW', reward: 'output', bonus: [{ dmg: 5 }] } },
   // An execute should be dead weight until the target is finishable and then
   // decisive. At 2 AP it was neither: too expensive to hold in a 3 AP turn, and
@@ -145,15 +145,18 @@ const RESONANCE_PAIR = ['ash', 'elin'];
 // Swept in Build 17 against the mid band alone (SIM_BAND=HALF, the only tier
 // that moved — the outer two are pinned at 0% and 100% by the parry's
 // all-or-nothing turn). 120 HP left a half-parrying party winning 76% once the
-// combo layer started firing; 150 lands at 35% in nine rounds, inside the
-// deck's own 25-40% band, with dmgScale still at 1.0 so the authored hit
-// numbers stay the real numbers.
+// combo layer started firing, and 150 put that back at 35%. Build 20's KIZUNA
+// all-out is worth about six more points of winrate on its own — a bot that
+// never spends the ladder measures a party that never takes its best turn — so
+// 160 restores 35% in nine rounds, inside the deck's own 25-40% band, with
+// dmgScale still at 1.0 so the authored hit numbers stay the real numbers.
 //
 // A note for whoever sweeps this next: seed-block variance is large. The same
 // 140 HP config reads 39% over the first 100 seeds and 51.8% over 220. Do not
 // trust a sweep at n<200 for a shipping number — rank candidates cheaply, then
 // measure the winner at the full run count.
-const TUNE = { dmgScale: 1.0, dirge: [4, 4], heal: [7, 9], parryKeep: 0.3, bossHp: 150 };
+const TUNE = { dmgScale: 1.0, dirge: [4, 4], heal: [7, 9], parryKeep: 0.3, bossHp: 160,
+  alloutDmg: 26, alloutBrk: 4 };
 
 const REGENT_INTENTS = [
   // Each intent has its own HANDWRITING. The Hymn is a dirge you brace
@@ -167,8 +170,8 @@ const REGENT_INTENTS = [
     ] },
   { id: 'scythe', name: 'Scything Advance', kind: 'attack', frontOnly: true,
     hits: [
-      { dmg: [13, 17], target: 'mira', notes: ['slide:R', 'tap'], backFactor: 0.35 },
-      { dmg: [13, 17], target: 'ash',  notes: ['slide:L', 'hold', 'tap'], backFactor: 0.35 },
+      { dmg: [13, 17], target: 'mira', notes: ['slide:R', 'tap'], sweep: true },
+      { dmg: [13, 17], target: 'ash',  notes: ['slide:L', 'hold', 'tap'], sweep: true },
     ] },
   { id: 'benediction', name: 'Hollow Benediction', kind: 'heal',
     hits: [
@@ -268,6 +271,7 @@ function startCombat(opts) {
       breakMax: 12, brk: 12, broken: false, cancelNext: false,
       bleed: 0, chill: 0, intentIx: 0,
     },
+    kizuna: 0, allOuts: 0,
     deck: shuffle(DECK_IDS), hand: [], discard: [], exhausted: [],
     ap: AP_PER_TURN, apMax: AP_PER_TURN,
     turnState: freshTurnState(),
@@ -322,7 +326,10 @@ function hitDamage(hit, chillLeft) {
   const raw = Math.round(hit.dmg[C.boss.phase - 1] * TUNE.dmgScale);
   const tgt = hitTargetId(hit);
   let d = raw;
-  if (hit.backFactor != null && tgt && C.heroes[tgt].row === 'back') d = Math.ceil(raw * hit.backFactor);
+  // A sweep loses its edge with distance: full weight at the front, most of it
+  // blunted at the back. `sweep` replaces the old backFactor on/off shelter.
+  if (hit.sweep && tgt) d = Math.ceil(raw * (ROW_SHELTER[C.heroes[tgt].row] != null
+    ? ROW_SHELTER[C.heroes[tgt].row] : 1));
   return Math.max(0, d - (chillLeft || 0));
 }
 // The dirge: unparryable chip on every living hero, each enemy phase.
@@ -389,9 +396,44 @@ function evaluateCard(cardId) {
 function dealToBoss(n, why) {
   if (C.boss.broken) n = Math.round(n * 1.25);   // BROKEN: +25% damage taken
   C.boss.hp = Math.max(0, C.boss.hp - n);
+  if (why !== 'allout') kizunaGain(n * KIZUNA_PER_DAMAGE);   // the all-out cannot feed itself
   fxDamageBoss(n, why);
   checkBossPhase();
   if (C.boss.hp <= 0) setPhase('VICTORY');
+}
+function kizunaGain(n) {
+  if (!C || C.kizuna >= KIZUNA_MAX) return;
+  const was = C.kizuna;
+  C.kizuna = Math.min(KIZUNA_MAX, C.kizuna + n);
+  if (was < KIZUNA_MAX && C.kizuna >= KIZUNA_MAX) {
+    logLine('KIZUNA — the three of them are ready.');
+    fxKizunaReady();
+  }
+  renderKizuna();
+}
+// ALL-OUT: every hero still standing lands one blow at once. It costs no AP —
+// the cost was the whole fight it took to charge — and it empties the meter.
+async function allOut() {
+  if (!C || C.phase !== 'PLAYER_READY' || C.pendingDiscard) return false;
+  if (C.kizuna < KIZUNA_MAX) return false;
+  const living = livingHeroes();
+  if (!living.length) return false;
+  C.kizuna = 0;
+  C.allOuts = (C.allOuts || 0) + 1;
+  setPhase('PLAYER_ACTION_RESOLVING');
+  renderKizuna();
+  await fxAllOut(living);
+  const each = Math.round(TUNE.alloutDmg / 3);
+  for (const id of living) {
+    if (C.phase === 'VICTORY') break;
+    dealToBoss(each, 'allout');
+    await sleep(150);
+  }
+  breakDamage(TUNE.alloutBrk);
+  logLine('ALL-OUT — ' + living.length + ' as one.');
+  if (C.phase !== 'VICTORY') setPhase('PLAYER_READY');
+  renderAll();
+  return true;
 }
 function checkBossPhase() {
   if (C.boss.phase === 1 && C.boss.hp <= C.boss.max / 2 && C.boss.hp > 0) {
@@ -433,7 +475,7 @@ function resolveEffects(effects, ownerId, allyId) {
     if (fx.chill)      C.boss.chill += fx.chill;
     if (fx.counterstance) C.counterstance = true;
     if (fx.intercede && allyId) C.intercession = allyId;
-    if (fx.moveSelf)   { const h = C.heroes[ownerId]; h.row = h.row === 'front' ? 'back' : 'front'; }
+    if (fx.moveSelf)   { const h = C.heroes[ownerId]; h.row = fx.moveSelf; }
     if (fx.drawDiscard){ if (drawOne()) C.pendingDiscard = true; }
     if (fx.draw)       { for (let i = 0; i < fx.draw; i++) drawOne(); }
     if (C.phase === 'VICTORY') return;
@@ -524,6 +566,19 @@ function cycleCard(cardId) {
 // refusal has to say WHY — "nothing happened" is the worst answer a board can
 // give a finger that just did something deliberate.
 const AP_PER_TURN = 3;
+// THREE ROWS, not a toggle. Two lanes made "move" a switch you flipped; three
+// named slots make it a place you choose, and give the sweeping attacks a real
+// falloff to hide behind instead of a single on/off shelter.
+// THE KIZUNA LADDER. The premise of the game is a party whose team attacks
+// develop as they fight together, and there was nothing on the board measuring
+// that. It fills from the two things the party does well — landing blows and
+// turning blows aside — and cashes out as one strike from all three of them.
+const KIZUNA_MAX = 100;
+const KIZUNA_PER_DAMAGE = 1 / 3;      // a 15-damage FINALE is worth 5
+const KIZUNA_TURNED = 8;              // a whole string read clean
+const KIZUNA_FLAWLESS = 14;
+const ROWS = ['front', 'mid', 'back'];
+const ROW_SHELTER = { front: 1, mid: 0.62, back: 0.3 };
 const MOVE_COST = 1;
 function moveReason(heroId) {
   if (!C || C.phase !== 'PLAYER_READY' || C.pendingDiscard) return 'not your turn';
@@ -537,8 +592,10 @@ function moveReason(heroId) {
 function moveHero(heroId, toRow) {
   if (moveReason(heroId)) return false;
   const h = C.heroes[heroId];
-  const want = toRow || (h.row === 'front' ? 'back' : 'front');
-  if (want !== 'front' && want !== 'back' || want === h.row) return false;
+  // called bare it steps one row back, which is what "move" meant when there
+  // were only two of them and is still what the printed movement wants
+  const want = toRow || ROWS[Math.min(ROWS.length - 1, ROWS.indexOf(h.row) + 1)];
+  if (!ROWS.includes(want) || want === h.row) return false;
   C.ap -= MOVE_COST;
   C.turnState.moved++;
   h.row = want;
@@ -643,7 +700,9 @@ async function endTurn(opts) {
           result.negated++;
           logLine('TURNED — ' + HEROES23[parrierId].name + ' reads the whole string.');
         }
+        if (turned) kizunaGain(KIZUNA_TURNED);
         if (read.flawless) {
+          kizunaGain(KIZUNA_FLAWLESS - KIZUNA_TURNED);
           const rip = RIPOSTE_PER_NOTE * read.notes;
           result.riposte = (result.riposte || 0) + rip;
           dealToBoss(rip, 'riposte');
@@ -1266,10 +1325,13 @@ function flyCard(from, toEl, opts) {
     + 'px;height:' + from.h + 'px;opacity:' + (o.fadeIn ? 0 : 1);
   if (o.html) g.innerHTML = o.html;
   S.st.appendChild(g);
-  const ms = testMode() ? 40 : (o.ms || 260);
+  const ms = testMode() ? 40 : (o.ms || 380);
   const dx = (to.x + to.w / 2) - (from.x + from.w / 2);
   const dy = (to.y + to.h / 2) - (from.y + from.h / 2);
-  const scale = Math.min(1, to.w / Math.max(1, from.w));
+  // a card leaving the hand MORPHS DOWN into the stack; one arriving from the
+  // deck grows to full size on the way in
+  const scale = o.grow ? (to.w / Math.max(1, from.w))
+                       : Math.min(1, to.w / Math.max(1, from.w));
   // A CARD DOES NOT SLIDE INTO A PILE, IT IS THROWN. A straight lerp is what
   // made the sweep read like a spreadsheet row moving; the card lifts off the
   // hand, arcs over, and drops onto the stack, turning as it goes.
@@ -1352,12 +1414,12 @@ async function fxSweepHand() {
     renderHand();                       // the ranks close in the same frame
     renderPiles();
     if (from && target) {
-      flyCard(from, target, { spin: -14 - i * 6, arc: 40 + i * 7, ms: 320, html });
+      flyCard(from, target, { spin: -16 - i * 7, arc: 46 + i * 8, ms: 460, html });
       pileThump('discard');
     }
-    await sleep(testMode() ? 4 : 58);
+    await sleep(testMode() ? 4 : 95);
   }
-  await sleep(testMode() ? 6 : 210);
+  await sleep(testMode() ? 6 : 260);
 }
 async function fxDrawOne() {
   const S = stageBox();
@@ -1371,12 +1433,13 @@ async function fxDrawOne() {
     const to = boxOf(node, S);
     if (to) {
       if (node) node.style.opacity = '0';
-      flyCard(before, node, { faceDown: true, fadeOut: false, spin: 8, ms: 200 })
+      flyCard(before, node, { faceDown: true, fadeOut: false, grow: true,
+                              spin: -10, arc: 38, ms: 380 })
         .then(() => { if (node) node.style.opacity = ''; });
       pileThump('deck');
     }
   }
-  await sleep(testMode() ? 8 : 150);
+  await sleep(testMode() ? 8 : 190);
 }
 async function fxDirge(n) {
   for (const id of livingHeroes()) {
@@ -1428,6 +1491,42 @@ function renderPartyHud() {
   const inter = el('k-intercede');
   if (inter) inter.textContent = C.intercession
     ? '⚔ Elin shields ' + HEROES23[C.intercession].name : '';
+  renderKizuna();
+}
+function renderKizuna() {
+  const bar = el('k-kizuna'); if (!bar || !C) return;
+  const pct = Math.round(C.kizuna / KIZUNA_MAX * 100);
+  const ready = C.kizuna >= KIZUNA_MAX;
+  el('k-kz-fill').style.width = pct + '%';
+  el('k-kz-n').textContent = ready ? 'ALL-OUT' : pct + '%';
+  bar.classList.toggle('k-kz-ready', ready);
+  bar.disabled = !ready || C.phase !== 'PLAYER_READY';
+}
+function fxKizunaReady() {
+  const bar = el('k-kizuna'); if (!bar) return;
+  bar.classList.remove('k-kz-born'); void bar.offsetWidth; bar.classList.add('k-kz-born');
+  screenPulse('gold');
+}
+// The three of them cross the floor at once. The camera drains, they strike,
+// and the frame holds — this is the payoff for a whole fight of charging it.
+async function fxAllOut(living) {
+  const stage = el('k-stage'); if (!stage) return;
+  stage.classList.add('k-allout');
+  const tag = document.createElement('div');
+  tag.className = 'k-combo-call k-combo-call-big k-allout-call';
+  tag.textContent = 'All-Out';
+  tag.style.left = '466px'; tag.style.top = '150px';
+  stage.appendChild(tag);
+  living.forEach((id, i) => {
+    const h = document.querySelector('.k-hero[data-hero="' + id + '"]');
+    if (h) setTimeout(() => {
+      h.classList.add('k-charging');
+      setTimeout(() => h.classList.remove('k-charging'), 620);
+    }, i * 90);
+  });
+  await sleep(520);
+  tag.remove();
+  stage.classList.remove('k-allout');
 }
 function renderBossHud() {
   el('k-bhp').textContent = fmtN(C.boss.hp);
@@ -1549,10 +1648,13 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
         + icon('finale') + 'Exhaust<i class="k-combo-state">ON</i></span>'
         + '<span class="k-combo-pay">Leaves the fight when played.</span></span>'
       : '';
+  // THE ART LEADS, and the two corners sit ON it: cost top-left, whose card it
+  // is top-right. With the name above the art instead, those corners ate 50 of
+  // its 102px and every two-word name wrapped to two lines.
   return '<span class="k-cgem' + (ev.condActive && ev.currentCost !== c.cost ? ' on' : '') + '">' + gem + '</span>'
     + '<img class="k-owner" src="' + ownerArt + '" alt="">'
-    + '<span class="k-cname">' + c.name + '</span>'
     + '<span class="k-cart"><img src="' + ownerArt + '" alt=""></span>'
+    + '<span class="k-cname">' + c.name + '</span>'
     // the prose sits in its own inner span: .k-cprose centres its content with
     // flex, and a flex container turns each inline child into an item — which
     // silently ate the spaces and printed "9damage."
@@ -1578,7 +1680,7 @@ function prose(effects, plain) {
     if (fx.chill) out.push(I('chill') + '<b>' + fmtN(fx.chill) + '</b> Chill.');
     if (fx.counterstance) out.push(I('brk') + 'Next parry <b>+2</b> Break.');
     if (fx.intercede) out.push(I('guard') + 'Take their parry window.');
-    if (fx.moveSelf) out.push(I('move') + 'Switch row.');
+    if (fx.moveSelf) out.push(I('move') + 'Step to the <b>' + fx.moveSelf + '</b>.');
     if (fx.drawDiscard) out.push(I('draw') + 'Draw <b>1</b>, discard <b>1</b>.');
     if (fx.draw) out.push(I('draw') + 'Draw <b>' + fx.draw + '</b>.');
   }
@@ -1623,7 +1725,7 @@ function renderPiles() {
 function renderHeroes() {
   document.querySelectorAll('.k-hero').forEach(h => {
     const id = h.dataset.hero;
-    h.classList.toggle('k-back', C.heroes[id].row === 'back');
+    for (const r of ROWS) h.classList.toggle('k-row-' + r, C.heroes[id].row === r);
     h.querySelector('.k-hero-row').textContent = C.heroes[id].row.toUpperCase();
   });
 }
@@ -2023,6 +2125,8 @@ function bindChrome() {
   };
   pileBtn('k-deck-btn', 'deck');
   pileBtn('k-disc-btn', 'discard');
+  const kz = el('k-kizuna');
+  if (kz) kz.addEventListener('click', (e) => { e.stopPropagation(); allOut(); });
   // MOVE IS A PLACE YOU PUT SOMEONE. Grabbing a hero raises the two rows out
   // of the ground; you carry them to one and let go. The old version was a
   // blind 44px threshold with nothing on screen to say a threshold existed.
@@ -2052,14 +2156,13 @@ function bindChrome() {
       // finger. A hero is a tall sprite: dragging one by the chest sends the
       // body the opposite way from the row being aimed at, and the eye
       // believes the body.
-      h.classList.toggle('k-prev-back', want === 'back');
-      h.classList.toggle('k-prev-front', want === 'front');
+      for (const r of ROWS) h.classList.toggle('k-prev-' + r, want === r);
       moveHint(h.dataset.hero, null, legal);      // the price rides with them
     });
     const up = (e) => {
       if (!live) return;
       live = false;
-      h.classList.remove('k-hero-drag', 'k-prev-back', 'k-prev-front');
+      h.classList.remove('k-hero-drag', 'k-prev-front', 'k-prev-mid', 'k-prev-back');
       el('k-stage').classList.remove('k-moving', 'k-moving-no');
       moveHint(null);
       rows().forEach(r => r.classList.remove('k-row-hot', 'k-row-here'));
@@ -2095,6 +2198,7 @@ window.addEventListener('DOMContentLoaded', () => {
 window.K = {
   state: () => C,
   evaluateCard, playCard, moveHero, moveReason, rowTargetAt, cycleCard, pickDiscard,
+  allOut: () => allOut(),
   endTurn: (opts) => endTurn(opts),
   startCombat, setSeed,
   render: () => renderAll(),

@@ -24,7 +24,11 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   height: 100%; width: 100%; object-fit: contain; object-position: bottom;
   filter: drop-shadow(0 10px 18px rgba(0,0,0,0.75));
   -webkit-box-reflect: below -6px linear-gradient(rgba(0,0,0,0) 58%, rgba(255,255,255,0.14)); }
-.k-hero { position: absolute; transition: left 0.34s ease, transform 0.34s ease, filter 0.3s ease, opacity 0.3s ease; }
+/* SCALED ABOUT THE FEET. With the default 50% 50% origin a hero shrinking one
+   row back also rose off the ground by half the size difference, so the figures
+   floated above the lane they were standing in. */
+.k-hero { position: absolute; transform-origin: 50% 100%;
+  transition: left 0.34s ease, transform 0.34s ease, filter 0.3s ease, opacity 0.3s ease; }
 /* ONE LINE, EVEN SPACING. Centres at 240 / 360 / 480 and a shared ground line
    at y=292: uneven gaps and a 50px height spread made a row swap read as the
    art changing rather than a figure stepping back. */
@@ -34,9 +38,12 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-hero img { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
   height: 100%; width: auto; filter: drop-shadow(0 8px 12px rgba(0,0,0,0.72));
   -webkit-box-reflect: below -4px linear-gradient(rgba(0,0,0,0) 62%, rgba(255,255,255,0.16)); }
-/* BACK is upstage, not merely left of front: further away, smaller, dimmer.
-   Two rows the eye can separate are two rows a finger can aim at. */
-.k-hero.k-back { transform: translate(-30px, -34px) scale(0.84); opacity: 0.86; }
+/* THREE STATIONS ON THE DEPTH AXIS. Each step upstage is the same step: 30px
+   left, 34px up, 0.84 the size — so a hero two rows back is unmistakably twice
+   as far away as one row back, and the eye reads the ladder without labels. */
+.k-hero.k-row-front { transform: none; opacity: 1; }
+.k-hero.k-row-mid  { transform: translate(-30px, -42px) scale(0.84); opacity: 0.93; }
+.k-hero.k-row-back { transform: translate(-60px, -84px) scale(0.7); opacity: 0.84; }
 .k-shadow { position: absolute; left: 50%; bottom: -3px; transform: translateX(-50%);
   width: 86%; height: 8px; border-radius: 50%;
   background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 72%); }
@@ -47,7 +54,8 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-hero.k-hero-drag img { filter: drop-shadow(0 12px 18px rgba(0,0,0,0.82)) brightness(1.14); }
 /* the figure PREVIEWS where it would stand — it is not dragged by the chest */
 .k-hero.k-prev-front { transform: translateY(-9px) !important; opacity: 1 !important; }
-.k-hero.k-prev-back  { transform: translate(-30px, -43px) scale(0.84) !important; opacity: 1 !important; }
+.k-hero.k-prev-mid   { transform: translate(-30px, -51px) scale(0.84) !important; opacity: 1 !important; }
+.k-hero.k-prev-back  { transform: translate(-60px, -93px) scale(0.7) !important; opacity: 1 !important; }
 /* the step itself: a push off the back foot, not a slide */
 .k-hero.k-stepping img { animation: k-step 0.44s cubic-bezier(.3,.7,.3,1); }
 @keyframes k-step {
@@ -201,15 +209,34 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   transition: none; z-index: 30; }
 .k-card.k-drop-ok { box-shadow: 0 10px 22px rgba(0,0,0,0.7), 0 0 0 2px #e0c084, 0 0 20px rgba(201,164,92,0.5); }
 .k-card-dead { opacity: 0.35; filter: grayscale(0.8); pointer-events: none; }
-.k-card-active { border: 1.5px solid #c9a45c;
-  box-shadow: 0 5px 14px rgba(0,0,0,0.65), 0 0 16px rgba(201,164,92,0.4), inset 0 0 14px rgba(90,78,56,0.3); }
-.k-card-active { border: 1.5px solid #c9a45c;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.6), 0 0 14px rgba(201,164,92,0.35); }
-.k-card-poor { opacity: 0.55; filter: grayscale(0.4); }
-.k-owner { position: absolute; right: 4px; top: 25px; width: 15px; height: 15px; border-radius: 50%;
-  border: 1px solid #8f866f; object-fit: cover; object-position: top; opacity: 0.9; z-index: 2; }
-/* COST — a Spire-style orb, the first thing the eye lands on */
-.k-cgem { position: absolute; left: 3px; top: 24px; z-index: 2;
+/* ARMED — a combo that is live right now takes a gold rim and breathes. The
+   old treatment was a static border a shade warmer than the frame, which is
+   invisible in a fan of five. */
+.k-card-active { border: 1.5px solid #e0c084;
+  box-shadow: 0 5px 14px rgba(0,0,0,0.65), 0 0 0 1.5px rgba(224,192,132,0.5),
+              0 0 20px rgba(224,192,132,0.6), inset 0 0 14px rgba(120,96,44,0.35);
+  animation: k-armed 1.9s ease-in-out infinite; }
+@keyframes k-armed { 50% { box-shadow: 0 5px 14px rgba(0,0,0,0.65),
+  0 0 0 2px rgba(240,212,136,0.75), 0 0 30px rgba(224,192,132,0.85),
+  inset 0 0 16px rgba(140,112,52,0.45); } }
+/* UNPLAYABLE — greyed the way MTG Arena greys a card you cannot pay for: a
+   scrim over the face rather than a filter on it, because a filter on the card
+   composites its children too and took the cost orb's colour with it — and the
+   orb going RED is the whole point. The refusal has to say why. */
+.k-card-poor::after { content: ''; position: absolute; inset: 0; border-radius: 3px;
+  background: rgba(22,20,18,0.55); pointer-events: none; z-index: 4; }
+.k-card-poor .k-cart img { filter: grayscale(1) contrast(1.05) brightness(0.7); }
+/* .k-card. prefix so this beats .k-cgem.on — an armed combo you cannot pay for
+   must still read as unaffordable, and the gold orb was winning the tie */
+.k-card.k-card-poor .k-cgem { z-index: 5; border-color: #d4776a; color: #ffd7ce;
+  background: radial-gradient(circle at 38% 30%, #7d3a2e, #33150f);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.8), 0 0 9px rgba(200,90,72,0.5); }
+.k-card-poor.k-card-active { animation: none; }
+/* corners: what it costs on the left, whose it is on the right */
+.k-owner { position: absolute; right: 4px; top: 4px; width: 17px; height: 17px; border-radius: 50%;
+  border: 1px solid #8f866f; object-fit: cover; object-position: top; opacity: 0.92; z-index: 3; }
+/* COST — a Spire-style orb in the top-left corner, the first thing the eye lands on */
+.k-cgem { position: absolute; left: 4px; top: 4px; z-index: 3;
   min-width: 20px; height: 20px; padding: 0 3px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; gap: 2px;
   background: radial-gradient(circle at 38% 30%, #554b39, #221d16);
@@ -218,9 +245,10 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-cgem.on { border-color: #f0d488; color: #fff3d0; box-shadow: 0 0 11px rgba(240,212,136,0.7); }
 .k-cgem s { font-size: 9px; font-weight: 400; color: #9a9080; }
 .k-cname { font-size: 9.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase;
-  color: #241f18; padding: 4px 5px 3px; line-height: 1.1; min-height: 21px; overflow-wrap: anywhere;
+  color: #241f18; padding: 3px 4px 2px; line-height: 1.05; min-height: 18px; overflow-wrap: anywhere;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   display: flex; align-items: center; justify-content: center; text-align: center; }
-.k-cart { height: 52px; flex-shrink: 0; margin: 0 6px; overflow: hidden; position: relative;
+.k-cart { height: 58px; flex-shrink: 0; margin: 0; overflow: hidden; position: relative;
   background: linear-gradient(180deg, #cdc5b1, #b0a68c); box-shadow: inset 0 0 10px rgba(90,78,56,0.35);
   display: flex; justify-content: center; }
 .k-cart img { height: 150%; width: auto; margin-top: -6%;
@@ -721,8 +749,11 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-row { position: absolute; border-radius: 50%;
   border: 1.5px dashed rgba(201,164,92,0.5); background: rgba(201,164,92,0.06);
   opacity: 0; transform: scale(0.96); transition: opacity 0.18s ease, transform 0.18s ease; }
-.k-row[data-row="back"]  { left: 150px; top: 242px; width: 360px; height: 30px; }
-.k-row[data-row="front"] { left: 180px; top: 282px; width: 360px; height: 32px; }
+/* each lane sits under the feet of a hero standing in it: 292 at the front,
+   292-42 in the middle, 292-84 at the back */
+.k-row[data-row="back"]  { left: 116px; top: 195px; width: 336px; height: 26px; }
+.k-row[data-row="mid"]   { left: 148px; top: 236px; width: 356px; height: 29px; }
+.k-row[data-row="front"] { left: 180px; top: 282px; width: 372px; height: 32px; }
 .k-row-lbl { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   font-size: 8px; letter-spacing: 0.24em; color: rgba(224,192,132,0.75);
   text-shadow: 0 1px 4px #000; }
@@ -774,3 +805,43 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-combo-call-big::after { content: ''; position: absolute; left: 50%; top: 116%;
   transform: translateX(-50%); width: 190px; height: 1.5px;
   background: linear-gradient(90deg, rgba(224,192,132,0), #ffeec4, rgba(224,192,132,0)); }
+
+
+/* ═══ THE KIZUNA LADDER ═══
+   What the three of them have built together this fight, in one bar: it fills
+   from blows landed and blows turned aside, and when it is full it stops being
+   a meter and becomes the button that spends it. */
+#k-kizuna { position: absolute; left: 366px; top: 14px; transform: translateX(-50%);
+  z-index: 12; display: flex; align-items: center; gap: 7px; padding: 4px 9px;
+  width: 250px; border-radius: 4px; cursor: default; font-family: inherit;
+  background: rgba(14,12,16,0.55); border: 1px solid rgba(150,138,114,0.32); }
+.k-kz-lbl { font-size: 7.5px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: #9a9080; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
+.k-kz-bar { flex-grow: 1; height: 5px; border-radius: 3px; overflow: hidden;
+  background: rgba(8,7,9,0.8); box-shadow: inset 0 1px 3px rgba(0,0,0,0.8); }
+#k-kz-fill { display: block; height: 100%; width: 0%; border-radius: 3px;
+  background: linear-gradient(90deg, #8f7439, #e0c084 70%, #ffeec4);
+  transition: width 0.36s cubic-bezier(.2,.8,.3,1); }
+#k-kz-n { font-size: 8px; letter-spacing: 0.12em; color: #b0a894; min-width: 44px;
+  text-align: right; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
+/* FULL — it becomes a thing you press */
+#k-kizuna.k-kz-ready { cursor: pointer; border-color: #e0c084;
+  background: linear-gradient(90deg, rgba(52,40,14,0.85), rgba(90,70,26,0.7));
+  box-shadow: 0 0 18px rgba(224,192,132,0.45);
+  animation: k-kzready 1.7s ease-in-out infinite; }
+#k-kizuna.k-kz-ready .k-kz-lbl { color: #ffeec4; }
+#k-kizuna.k-kz-ready #k-kz-n { color: #ffeec4; font-weight: 700; }
+@keyframes k-kzready { 50% { box-shadow: 0 0 30px rgba(224,192,132,0.8); } }
+#k-kizuna.k-kz-born { animation: k-kzborn 0.7s ease; }
+@keyframes k-kzborn { 0% { transform: scale(1); } 30% { transform: scale(1.07); } 100% { transform: scale(1); } }
+#k-kizuna:disabled { opacity: 0.9; }
+/* the strike itself */
+#k-stage.k-allout > *:not(.k-combo-call):not(.k-hero) {
+  filter: saturate(0.1) brightness(0.4); transition: filter 160ms ease-out; }
+.k-hero.k-charging img { animation: k-charge 0.6s cubic-bezier(.2,.85,.3,1); }
+@keyframes k-charge {
+  0%   { transform: translateX(-50%); filter: none; }
+  38%  { transform: translateX(calc(-50% + 74px)) scale(1.06); filter: brightness(1.9); }
+  62%  { transform: translateX(calc(-50% + 74px)) scale(1.06); filter: brightness(1.4); }
+  100% { transform: translateX(-50%); filter: none; } }
+.k-allout-call { letter-spacing: 0.34em !important; }
