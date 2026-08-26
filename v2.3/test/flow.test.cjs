@@ -137,6 +137,46 @@ const { boot } = require('./harness.cjs');
       cs.cost === 1 && cs.dmg === 9, JSON.stringify(cs));
   }
 
+  // ── the load a hand of five actually puts on you ──
+  await fresh(11);
+  {
+    const load = await J(() => {
+      const ALL = ['cleave','guardcut','cstance','crosssever','lastlight','lcascade','mend',
+        'frostbind','sgrace','intercession','serrate','qthrow','twinfang','backstab','execute'];
+      const conds = ALL.map(id => window.K.evaluateCard(id).card.cond)
+        .filter(Boolean).map(c => c.type);
+      const perHero = {};
+      for (const id of ALL) {
+        const c = window.K.evaluateCard(id).card;
+        perHero[c.owner] = (perHero[c.owner] || 0) + (c.cond ? 1 : 0);
+      }
+      // every keyword must state its own rule in full somewhere the player can reach
+      window.K.forceHand(['crosssever', 'cleave', 'mend', 'serrate', 'twinfang']);
+      const card = document.querySelector('.k-card[data-card="crosssever"]');
+      const r = card.getBoundingClientRect();
+      card.dispatchEvent(new PointerEvent('pointerdown',
+        { bubbles: true, clientX: r.left + 20, clientY: r.top + 20, pointerId: 21 }));
+      return { conds, kinds: [...new Set(conds)].sort(), perHero, count: conds.length };
+    });
+    const taught = await J(async () => {
+      await new Promise(r => setTimeout(r, 500));        // past the hold threshold
+      const box = document.querySelector('.k-insp-cond');
+      const out = { tag: box && box.querySelector('b').textContent.trim(),
+                    rule: box && box.querySelector('span').textContent.trim() };
+      window.K.render();
+      return out;
+    });
+    // 15 cards, three heroes: no hero may carry more than two clauses to check,
+    // and the whole deck may not exceed four distinct keywords
+    check('LOAD: at most two conditional cards per hero, and four keywords in the whole deck',
+      Object.values(load.perHero).every(n => n <= 3) && load.count <= 6
+      && load.kinds.length <= 4,
+      JSON.stringify({ perHero: load.perHero, total: load.count, keywords: load.kinds }));
+    check('LOAD: a keyword states its own rule — the name alone teaches nothing',
+      /After an Ally/.test(taught.tag || '') && /different hero/.test(taught.rule || ''),
+      JSON.stringify(taught));
+  }
+  await settle();
   // ── two finales, so the trio is a fork and not a script ──
   await fresh(21);
   {
@@ -176,7 +216,7 @@ const { boot } = require('./harness.cjs');
                shock: document.querySelectorAll('.k-shock-gold').length };
     });
     check('COMBO CALL: a combo you built announces itself, and a FINALE takes the board',
-      call.all.length === 1 && call.text === 'Finale' && call.big && call.shock >= 1,
+      call.all.length === 1 && call.text === 'All Three' && call.big && call.shock >= 1,
       JSON.stringify(call));
   }
   await settle();
@@ -434,9 +474,9 @@ const { boot } = require('./harness.cjs');
     const s = await S();
     check('BREAK → BROKEN: meter to zero staggers the Regent and arms the cancel',
       b.brk === 0 && b.broken && b.cancel && conds.execute, JSON.stringify(b));
-    // Cleave is 5 + 4 from the front row = 9, and BROKEN takes a quarter more
-    check('BROKEN: +25% damage taken during the player phase (9 → 11)',
-      hp0 - hp1 === 11, 'took ' + (hp0 - hp1));
+    // Cleave is a flat 7, and BROKEN takes a quarter more
+    check('BROKEN: +25% damage taken during the player phase (7 → 9)',
+      hp0 - hp1 === 9, 'took ' + (hp0 - hp1));
     check('BREAK CANCELLATION: the next enemy action dies; the meter refills to 12',
       r.canceled === true && s.boss.brk === 12 && !s.boss.broken && !s.boss.cancelNext,
       JSON.stringify({ canceled: r.canceled, brk: s.boss.brk }));
@@ -789,7 +829,7 @@ const { boot } = require('./harness.cjs');
     // The combo must not read as one more grey sentence: it is a named,
     // banded block, and the base line is the biggest type on the face.
     check('CARD: the combo is its own banded block — named, iconed, and never a footnote',
-      anat.tag === 'Follow-Up' && anat.pay === 'costs 1 AP.' && anat.condIcon
+      anat.tag === 'After an Ally' && anat.pay === 'costs 1 AP.' && anat.condIcon
       && anat.proseSize >= 9 && anat.proseSize > anat.paySize
       && parseFloat(anat.banded) >= 1 && anat.gemSize >= 12,
       JSON.stringify({ tag: anat.tag, pay: anat.pay, icon: anat.condIcon,

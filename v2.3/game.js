@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 24;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 25;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -65,12 +65,11 @@ const HEROES23 = {
 // grant reward:'cost' (costTo) OR reward:'output' (bonus atoms) — never both.
 const CARD_DEFS = {
   // ── Ash — Vanguard ──
-  // NOTHING MAY BE A DEAD DRAW. Slay the Spire can afford a deliberately weak
-  // Strike because you REMOVE it; a fixed 15-card deck cannot, so the vanilla
-  // attack gets a reason to exist — and it pays for the risk of leaving Ash
-  // where the sweeps land hardest.
-  cleave:      { owner: 'ash', name: 'Cleave',        cost: 1, target: 'enemy', base: [{ dmg: 5 }],
-                 cond: { type: 'FRONT_ROW', reward: 'output', bonus: [{ dmg: 4 }] } },
+  // NOTHING MAY BE A DEAD DRAW — but the answer does not have to be a keyword.
+  // Build 23 gave Cleave a row condition and it worked; it also meant nine of
+  // fifteen cards had a clause to check. This is the deck's plain hard hit: the
+  // best flat number in it, nothing to read, nothing to set up.
+  cleave:      { owner: 'ash', name: 'Cleave',        cost: 1, target: 'enemy', base: [{ dmg: 7 }], cond: null },
   guardcut:    { owner: 'ash', name: 'Guarding Cut',  cost: 1, target: 'enemy', base: [{ dmg: 4 }, { guardSelf: 4 }], cond: null },
   // A chain that can extend itself is what makes a combo deck play. Counterstance
   // was 0.15 plays a fight: Guard competes with a parry that negates outright,
@@ -96,11 +95,11 @@ const CARD_DEFS = {
   mend:        { owner: 'elin', name: 'Mend',          cost: 1, target: 'party', base: [{ heal: 6 }],
                  cond: { type: 'FINALE', reward: 'output', bonus: [{ healAll: 5 }] } },
   frostbind:   { owner: 'elin', name: 'Frost Bind',    cost: 1, target: 'enemy', base: [{ dmg: 4 }, { chill: 4 }], cond: null },
-  // 2 AP for 3 Guard to a party that would rather parry was the worst rate in
-  // the deck. At 1 AP with Break on the chain it becomes the SETUP card: the
-  // thing you play mid-combo to arm next turn's BROKEN payoffs.
-  sgrace:      { owner: 'elin', name: 'Shared Grace',  cost: 1, target: 'party', base: [{ guardAll: 3 }],
-                 cond: { type: 'FOLLOW_UP', reward: 'output', bonus: [{ brk: 2 }] } },
+  // The setup card: the thing you play mid-combo to arm next turn's BROKEN
+  // payoffs. Its Follow-Up landed 94% of the time, so the clause was a tax on
+  // reading rather than a decision — it just does both now.
+  sgrace:      { owner: 'elin', name: 'Shared Grace',  cost: 1, target: 'party',
+                 base: [{ guardAll: 3 }, { brk: 2 }], cond: null },
   intercession:{ owner: 'elin', name: 'Intercession',  cost: 1, target: 'ally',  base: [{ guardSelf: 3 }, { guardAlly: 3 }, { intercede: true }], cond: null },
   // ── Mira — Shade ──
   serrate:     { owner: 'mira', name: 'Serrate',       cost: 1, target: 'enemy', base: [{ dmg: 3 }, { bleed: 3 }], cond: null },
@@ -108,8 +107,10 @@ const CARD_DEFS = {
   // round you are building. Nudged to 5 so it is never strictly worse than the
   // vanilla strike while doing that job.
   qthrow:      { owner: 'mira', name: 'Quick Throw',   cost: 1, target: 'enemy', base: [{ dmg: 5 }, { drawDiscard: true }], cond: null },
-  twinfang:    { owner: 'mira', name: 'Twin Fang',     cost: 1, target: 'enemy', base: [{ dmg: 3 }, { dmg: 3 }],
-                 cond: { type: 'FOLLOW_UP', reward: 'output', bonus: [{ dmg: 3 }] } },
+  // Two strikes, always. Its Follow-Up landed 97% of the time — a clause that
+  // is almost always true is not a decision, it is a thing to read every turn.
+  twinfang:    { owner: 'mira', name: 'Twin Fang',     cost: 1, target: 'enemy',
+                 base: [{ dmg: 4 }, { dmg: 4 }], cond: null },
   // Backstab already steps Mira across the rows; now the row she steps OUT of
   // is the condition. "If Broken" fired 7% of the time and was a coin; this is
   // a two-beat plan the player sets up themselves.
@@ -427,7 +428,6 @@ function evalCondition(cond, ownerId) {
     // the time. Tying a card to the row a hero stands in makes the rows worth
     // using and gives the player a condition they can CAUSE.
     case 'BACK_ROW':      return !!C.heroes[ownerId] && C.heroes[ownerId].row === 'back';
-    case 'FRONT_ROW':     return !!C.heroes[ownerId] && C.heroes[ownerId].row === 'front';
     default: return false;
   }
 }
@@ -1891,10 +1891,22 @@ function renderHand() {
   // corner of the screen with nothing holding the other end.
   aimClear();
 }
+// A KEYWORD MUST STATE ITS OWN RULE. "Finale" is a name for a thing that
+// happens, not a description of how to make it happen — a player who has not
+// read a manual has no way to find out what it wants. Every tag now says the
+// condition in the two or three words the card has room for, and the inspect
+// panel spells it out in full.
 const COND_LABEL = {
-  FOLLOW_UP: 'Follow-Up', FINALE: 'Finale',
-  BROKEN: 'If Broken', BROKEN_OR_LOW: 'Broken or ≤30% HP',
-  BACK_ROW: 'From the Back', FRONT_ROW: 'From the Front',
+  FOLLOW_UP: 'After an Ally', FINALE: 'All Three',
+  BROKEN: 'When Broken', BROKEN_OR_LOW: 'When Broken',
+  BACK_ROW: 'From the Back',
+};
+const COND_RULE = {
+  FOLLOW_UP: 'Play this straight after a different hero acts, in the same turn.',
+  FINALE: 'Play this as the card that completes all three heroes in one turn.',
+  BROKEN: 'The Regent must be BROKEN.',
+  BROKEN_OR_LOW: 'The Regent must be BROKEN, or under 30% health.',
+  BACK_ROW: 'This hero must be standing in the BACK row.',
 };
 // A small, consistent icon vocabulary — the same mark means the same thing on
 // a card, in the inspect panel and in the Regent's intent line.
@@ -1919,7 +1931,7 @@ function icon(name, cls) {
     + '/></svg>';
 }
 const COND_ICON = { FOLLOW_UP: 'follow', FINALE: 'finale', BROKEN: 'broken',
-  BROKEN_OR_LOW: 'broken', BACK_ROW: 'move', FRONT_ROW: 'move' };
+  BROKEN_OR_LOW: 'broken', BACK_ROW: 'move' };
 
 function cardFaceHTML(c, ev, gem, ownerArt) {
   // THE CARD ANSWERS TWO QUESTIONS, so it is drawn as two blocks. The top is
@@ -2382,7 +2394,9 @@ function openInspect(cardId) {
     + '<div class="k-insp-who">' + who + '</div>'
     + '<div class="k-insp-now"><em>Resolves now</em>' + prose(ev.resolvedEffects) + '</div>'
     + (c.cond ? '<div class="k-insp-cond' + (ev.condActive ? ' on' : '') + '">'
-        + (COND_LABEL[c.cond.type] || c.cond.type) + ' — ' + (ev.condActive ? 'ACTIVE' : 'not yet') + '</div>' : '')
+        + '<b>' + (COND_LABEL[c.cond.type] || c.cond.type) + ' — '
+        + (ev.condActive ? 'ACTIVE' : 'not yet') + '</b>'
+        + '<span>' + (COND_RULE[c.cond.type] || '') + '</span></div>' : '')
     + '<div class="k-insp-hint">release to close · drag the card to play it</div>'
     + '</div>';
   f.classList.remove('k-hidden');

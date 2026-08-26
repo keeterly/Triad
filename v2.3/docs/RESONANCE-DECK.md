@@ -1107,3 +1107,83 @@ one runs 60–100%. And across both hands, over ten passes, there is **not a
 single MISS** — the worst outcome any note produces now is GOOD, which still
 pays. The skill gradient lives in how much of a blow you turn, not in whether
 the input was physically possible.
+
+---
+
+## Build 25 — nine conditionals become six, and every keyword states its own rule
+
+**Feedback.** *"We should look into the 15 cards and possibly reduce cognitive
+load a little bit. Maybe 1 less card with combo per character. Also not sure
+what Finale is."*
+
+### What the deck actually looked like
+
+Fifteen cards carried **nine conditional clauses across five distinct
+keywords** — FOLLOW-UP ×4, FINALE ×2, FRONT_ROW, BACK_ROW, BROKEN_OR_LOW.
+Ash alone carried four. Reading a hand of five meant holding five separate
+rules in your head and checking each against the board.
+
+Worse, every keyword was a **name for a thing rather than a statement of the
+thing**. "Finale" is a word; it is not a rule. Nothing on the card, and
+nothing in the inspect panel, ever said *play this as the card that completes
+all three heroes in one turn*. The player was expected to infer a mechanic
+from a noun. That is the whole of the "not sure what Finale is" complaint,
+and it applied equally to the other four.
+
+### Three cards go vanilla
+
+Picked by measuring how often each clause was actually a **decision** rather
+than a tax — a condition that is live 95% of the time is not a choice, it is
+a sentence you re-read every turn for nothing.
+
+| Card | Was | Now | Why |
+|---|---|---|---|
+| **Cleave** (ash) | 6 dmg, +2 from FRONT_ROW | flat **7 dmg** | Retires the FRONT_ROW keyword outright — one fewer rule in the whole game. Ash 4 → 3 conditionals. |
+| **Shared Grace** (elin) | guard 3 + brk 2, FOLLOW-UP bonus | flat **guard 3 all, brk 2** | Its Follow-Up landed **94%** of the time. Elin 2 → 1. |
+| **Twin Fang** (mira) | 3+3, FOLLOW-UP bonus | flat **4 + 4** | Its Follow-Up landed **97%**. Mira 3 → 2. |
+
+**Result: 6 conditionals of 15 across 4 keywords** — ash 3, elin 1, mira 2.
+Exactly the "one fewer combo card per character" that was asked for, and one
+whole keyword deleted.
+
+**A correction found in measurement.** Twin Fang first went vanilla at 3+3=6,
+which made it strictly worse than Cleave's 7 for the same 1 AP — the bot
+dropped it to **0.24 plays/fight**, a dead card. Raised to 4+4=8: two small
+hits still read differently from one big one against guard, and it climbs back
+to 1.48/fight. Every card in the deck now sees ≥0.28 plays/fight.
+
+### Keywords now say what they do
+
+Renamed so the **tag on the card face is the rule**, not a label for it:
+
+| Keyword | Old face | New face | Rule shown on inspect |
+|---|---|---|---|
+| FOLLOW_UP | Follow-Up | **After an Ally** | Play this straight after a different hero acts, in the same turn. |
+| FINALE | Finale | **All Three** | Play this as the card that completes all three heroes in one turn. |
+| BROKEN_OR_LOW | Broken/Low | **When Broken** | The Regent must be BROKEN, or under 30% health. |
+| BACK_ROW | Back Row | **From the Back** | This hero must be standing in the BACK row. |
+
+Press-and-hold inspect now prints the full sentence under a live
+**ACTIVE / not yet** readout, so the rule and its current truth are learned in
+the same glance. New `COND_RULE` map, new `.k-insp-cond` block.
+
+### Measured after
+
+- Flow suite **106/106**, pageErrors 0.
+- Conditional plays **58% → 39%** of all plays, with **86% armed** when
+  played — the clauses that remain are the ones you steer toward.
+- Balance at 220 runs/tier: NO PARRY **0.0%**, ~HALF **33.2%** (deck band
+  25–40% ✓), EXCELLENT **100%**, rounds inside 7–9, monotone. All three
+  shipped gates hold — the deck's small output loss did not move the curve,
+  so `bossHp` stays at 168.
+
+### Two new gates so this cannot regress
+
+```js
+check('LOAD: at most two conditional cards per hero, and four keywords in the whole deck', …)
+check('LOAD: a keyword states its own rule — the name alone teaches nothing', …)
+```
+
+The second one is the important one: it asserts that the tag reads *After an
+Ally* **and** that the inspect rule contains the words *different hero*. A
+future keyword that is only a name will fail the suite.

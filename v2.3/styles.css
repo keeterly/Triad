@@ -542,8 +542,15 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-insp-now em { display: block; font-style: normal; font-size: 8.5px; letter-spacing: 0.18em;
   text-transform: uppercase; color: #8e8574; margin-bottom: 3px; }
 .k-insp-now b { color: #fff3d0; }
-.k-insp-cond { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #7d735d; }
-.k-insp-cond.on { color: #e0c084; }
+/* the inspect panel is where a keyword gets to explain itself in a whole
+   sentence — the card face only ever has room for the name */
+.k-insp-cond { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
+.k-insp-cond b { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  font-weight: 700; color: #7d735d; }
+.k-insp-cond span { font-size: 10.5px; line-height: 1.4; letter-spacing: 0.01em;
+  text-transform: none; color: #b0a894; }
+.k-insp-cond.on b { color: #e0c084; }
+.k-insp-cond.on span { color: #e6ddc8; }
 .k-insp-hint { font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase; color: #6d6450; margin-top: 4px; }
 
 /* ═══ THE PARRY, as v2.2 played it ═══
