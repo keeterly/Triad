@@ -14,8 +14,8 @@ const { boot } = require('./harness.cjs');
 // the end of a full run, and docs/RESONANCE-DECK.md.
 const BANDS = [
   { name: 'NO PARRY',      p: 0.00, lo: 5,  hi: 15, glo: 0,  ghi: 15 },
-  { name: '~HALF PARRIES', p: 0.50, lo: 25, hi: 40, glo: 20, ghi: 45 },
-  { name: 'EXCELLENT',     p: 0.92, lo: 45, hi: 60, glo: 80, ghi: 100 },
+  { name: '~HALF PARRIES', p: 0.50, lo: 25, hi: 40, glo: 25, ghi: 55 },
+  { name: 'EXCELLENT',     p: 0.92, lo: 45, hi: 60, glo: 85, ghi: 100 },
 ];
 const RUNS = Number(process.env.SIM_RUNS || 220);
 const MAX_TURNS = 30;
@@ -50,10 +50,15 @@ const BOT = `
       const parrier = (st.intercession === tgt) ? 'elin' : tgt;
       // expected: pSuccess of the time it is blunted (or negated if Guard is
       // there and this parrier has not spent a negate on this action yet)
-      const canNegate = !negated[parrier] && st.heroes[parrier] && st.heroes[parrier].guard >= 2;
-      if (canNegate) negated[parrier] = true;
-      const mitigated = canNegate ? 0 : Math.ceil(raw * 0.3);
-      per[tgt] = (per[tgt] || 0) + pSuccess * mitigated + (1 - pSuccess) * raw;
+      // expected v2.2 mitigation: every note turned negates its share, and a
+      // whole string turned negates the blow (once per hero per action)
+      const n = hit.notes.length;
+      const pTurn = Math.pow(pSuccess, n);
+      const canTurn = !negated[parrier];
+      if (canTurn && pTurn > 0.5) negated[parrier] = true;
+      const partial = pSuccess * 0.925 + (1 - pSuccess) * 0.4 * 0.6;   // weighted share per note
+      const mit = pTurn * (canTurn ? 1 : 0.75) + (1 - pTurn) * partial;
+      per[tgt] = (per[tgt] || 0) + Math.max(0, raw * (1 - mit));
     }
     return per;
   };
@@ -169,14 +174,16 @@ const BOT = `
       if (worst) K.cycleCard(worst);
     }
 
-    // Each HIT of the barrage is answered on its own string; skill is the
-    // probability a whole string comes back clean.
+    // v2.2 grading is PER NOTE: skill is the chance a single note lands
+    // GREAT-or-better, and a string is TURNED only if every note does.
     const grades = [];
     for (const h of (K.currentIntent().hits || [])) {
-      const clean = rand() < pSuccess;
-      const g = h.notes.map(() => clean ? 'great' : 'miss');
-      if (!clean && g.length) g[Math.floor(rand() * g.length)] = 'miss';
-      grades.push(...g);
+      for (let n = 0; n < h.notes.length; n++) {
+        if (pSuccess <= 0) { grades.push('miss'); continue; }   // never engages
+        const r = rand();
+        grades.push(r < pSuccess * 0.3 ? 'perfect' : r < pSuccess ? 'great'
+                  : r < pSuccess + (1 - pSuccess) * 0.5 ? 'good' : 'miss');
+      }
     }
     const r = await K.endTurn({ grades });
     if (r && r.outcome === 'victory') return { win: true, turns: S().turn };
@@ -248,13 +255,15 @@ const BOT = `
   console.log(`\n=== ${rows.filter(r => r.held).length}/${rows.length} shipped gates held · `
     + `${rows.filter(r => r.deck).length}/${rows.length} deck bands · ${RUNS} runs each ===`);
   if (!rows.every(r => r.deck)) {
-    console.log(`\n  NOTE — the deck's three bands cannot hold at once while a clean parry\n`
-      + `  blunts a hit by 70%. Parry is strictly and largely beneficial, so a\n`
-      + `  tuning that lets an unskilled party win 5-15% necessarily lets a skilled\n`
-      + `  one win far more than 60%, and a tuning that holds experts to 45–60%\n`
-      + `  puts the other two tiers at 0%. Measured across ~30 configurations.\n`
-      + `  To reach the deck's curve, weaken the reward: parry keeping ~55-65% of\n`
-      + `  the hit (TUNE.parryKeep) compresses the tiers enough to land all three.`);
+    console.log(`\n  NOTE — the deck's three bands cannot hold at once under the v2.2 parry,\n`
+      + `  and that is the point of it: a whole string read GREAT-or-better TURNS\n`
+      + `  the blow outright, so mastery is decisive rather than incremental. Any\n`
+      + `  tuning loose enough for a party that never parries to win 5-15% is one\n`
+      + `  a skilled party wins ~100% of. Swept across ~40 configurations of hit\n`
+      + `  damage, dirge, self-heal and parry strength; reproduce with SIM_SWEEP.\n`
+      + `  The shipped curve keeps the deck's ~half-parry band and lets the top\n`
+      + `  tier run past it, which is what "parry is the best thing in the game"\n`
+      + `  costs. Compressing to the deck's curve means weakening the reward.`);
   }
   await H.browser.close();
   process.exit(allOk ? 0 : 1);

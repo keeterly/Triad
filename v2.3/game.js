@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 5;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 6;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: the engine runs the deck's normalized values; the
 // SCREEN multiplies every HP and damage number by one uniform factor so the
@@ -111,39 +111,74 @@ const RESONANCE_PAIR = ['ash', 'elin'];
 // sweep and its finding are recorded in docs/RESONANCE-DECK.md. dmgScale is
 // left at 1.0: the swept scale is baked into the authored hit values below so
 // the data reads as the real numbers.
-const TUNE = { dmgScale: 1.0, dirge: [3, 4], heal: [7, 9], parryKeep: 0.3 };
+const TUNE = { dmgScale: 1.0, dirge: [4, 4], heal: [7, 9], parryKeep: 0.3 };
 
 const REGENT_INTENTS = [
   { id: 'hymn', name: 'Ruinous Hymn', kind: 'attack',
     hits: [
-      { dmg: [5, 6], target: 'ash',  notes: ['tap', 'tap'] },
-      { dmg: [5, 6], target: 'ash',  notes: ['tap', 'slide'] },
-      { dmg: [5, 6], target: 'elin', notes: ['tap', 'tap', 'hold'] },
+      { dmg: [7, 9], target: 'ash',  notes: ['tap', 'tap'] },
+      { dmg: [7, 9], target: 'ash',  notes: ['tap', 'slide'] },
+      { dmg: [7, 9], target: 'elin', notes: ['tap', 'tap', 'hold'] },
     ] },
   { id: 'scythe', name: 'Scything Advance', kind: 'attack', frontOnly: true,
     hits: [
-      { dmg: [7, 9], target: 'mira', notes: ['tap', 'slide'], backFactor: 0.35 },
-      { dmg: [7, 9], target: 'ash',  notes: ['slide', 'tap', 'hold'], backFactor: 0.35 },
+      { dmg: [10, 13], target: 'mira', notes: ['tap', 'slide'], backFactor: 0.35 },
+      { dmg: [10, 13], target: 'ash',  notes: ['slide', 'tap', 'hold'], backFactor: 0.35 },
     ] },
   { id: 'benediction', name: 'Hollow Benediction', kind: 'heal',
     hits: [
-      { dmg: [4, 6], target: 'elin', notes: ['tap', 'tap'] },
+      { dmg: [6, 9], target: 'elin', notes: ['tap', 'tap'] },
     ] },
   { id: 'rain', name: 'Ashen Rain', kind: 'attack',
     hits: [
-      { dmg: [5, 7], target: 'ash',  notes: ['tap', 'tap'] },
-      { dmg: [5, 7], target: 'elin', notes: ['tap', 'slide'] },
-      { dmg: [5, 7], target: 'mira', notes: ['tap', 'tap'] },
+      { dmg: [7, 10], target: 'ash',  notes: ['tap', 'tap'] },
+      { dmg: [7, 10], target: 'elin', notes: ['tap', 'slide'] },
+      { dmg: [7, 10], target: 'mira', notes: ['tap', 'tap'] },
     ] },
 ];
 
-// ── rhythm grade windows — the v2.2 parry windows, unchanged
-const PERF_MS = 80, GREAT_MS = 140, GOOD_MS = 220;
-function gradeOffset(absMs) {
-  if (absMs <= PERF_MS) return 'perfect';
-  if (absMs <= GREAT_MS) return 'great';
-  if (absMs <= GOOD_MS) return 'good';
-  return 'miss';
+// ═════════════════════════════════════════════════════════════════════════════
+// THE PARRY — restored from v2.2, whole.
+// ═════════════════════════════════════════════════════════════════════════════
+// The impact instant is the CENTRE of the window, not its end: a late catch is
+// a catch. The bands are wide because the GRADES are made to mean different
+// things, not made unreachable.
+//
+//   perfect  ±80ms   touch latency (56-78ms measured) plus human jitter
+//   great    ±140ms  the modal outcome — it must feel good, not like a near-miss
+//   good     ±220ms  genuinely sloppy, and still worth something
+//   late     +200ms  past good: a labelled miss, so a miss always says why
+// Way early returns null — the note stays live and keeps listening, which is
+// the forgiving behaviour a rhythm read needs.
+const PARRY_PERF_MS = 80, PARRY_GREAT_MS = 140, PARRY_GOOD_MS = 220, PARRY_LATE_MS = 200;
+function parryGrade(off) {
+  const a = Math.abs(off);
+  if (off < -PARRY_GOOD_MS) return null;      // way early: WAIT… — the note holds
+  if (a <= PARRY_PERF_MS) return 'perfect';
+  if (a <= PARRY_GREAT_MS) return 'great';
+  if (a <= PARRY_GOOD_MS) return 'good';
+  return 'late';
+}
+// WEIGHTED, not counted. A note is not caught-or-not: a perfect turns its whole
+// share, a great turns most of it, a late-but-read one turns half. Counting
+// notes equally is what made "all caught" and "all perfect" the same outcome.
+const PARRY_WEIGHT = { perfect: 1, great: 0.9, good: 0.6, late: 0, miss: 0 };
+// Two tiers above PARTIAL, and they are different prizes:
+//   TURNED    every note GREAT or better -> the blow is negated entirely, and
+//             the Regent's poise chips for it. Mastery a good human reaches.
+//   FLAWLESS  every note PERFECT         -> TURNED, plus the riposte. The
+//             summit, still rare.
+const RIPOSTE_PER_NOTE = 2;
+function readString(grades, notes) {
+  let weight = 0, perfects = 0, greats = 0;
+  for (const g of grades) {
+    weight += PARRY_WEIGHT[g] || 0;
+    if (g === 'perfect') perfects++;
+    if (g === 'perfect' || g === 'great') greats++;
+  }
+  const turned = notes > 0 && greats === notes;
+  const flawless = notes > 0 && perfects === notes;
+  return { mit: turned ? 1 : (notes ? weight / notes : 0), turned, flawless, kept: greats, notes };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -444,7 +479,7 @@ async function endTurn(opts) {
   if (C.phase === 'VICTORY') { renderAll(); return report('victory'); }
 
   const it = currentIntent();
-  let result = { intent: it.id, grades: [], hits: [], taken: 0, negated: 0, canceled: false };
+  let result = { intent: it.id, grades: [], hits: [], taken: 0, negated: 0, riposte: 0, canceled: false };
 
   if (C.boss.cancelNext) {
     // BROKEN's cancel — the whole action dies unsung.
@@ -485,26 +520,34 @@ async function endTurn(opts) {
       result.grades.push(...grades);
 
       setPhase('ENEMY_RESOLUTION');
-      // Parry outcomes (deck §5): any miss fails the string; a clean string
-      // succeeds. A success negates outright only if the parrier can pay 2
-      // Guard AND has not already negated a hit this action.
-      const success = hit.notes.length > 0 && grades.every(g => g !== 'miss');
+      // v2.2 PARTIAL MITIGATION: every note you turn aside negates its share;
+      // the ones you miss still land. A whole string read GREAT-or-better is
+      // TURNED — negated outright — and a string read PERFECTLY ripostes.
+      const read = readString(grades, hit.notes.length);
       const parrier = C.heroes[parrierId];
-      let negated = false;
-      if (success && parrier && !parrier.downed) {
-        if (parrier.guard >= 2 && !negatedThisAction[parrierId]) {
-          parrier.guard -= 2;
-          negatedThisAction[parrierId] = true;
-          negated = true;
-          dmg = 0;
-          result.negated++;
+      let turned = read.turned, negated = false;
+      if (parrier && !parrier.downed && read.notes > 0) {
+        let mit = read.mit;
+        // RESPONSE LIMIT (deck §5): a hero fully negates only ONE hit per enemy
+        // action. A second turned string in the same volley still holds most of
+        // it, but the last quarter gets through.
+        if (turned && negatedThisAction[parrierId]) { mit = 0.75; turned = false; }
+        else if (turned) { negatedThisAction[parrierId] = true; negated = true; }
+        dmg = Math.max(0, Math.round(dmg * (1 - mit)));
+        if (turned) {
           breakDamage(1 + (C.counterstance ? 2 : 0));
           C.counterstance = false;
-          logLine('NEGATED — ' + HEROES23[parrierId].name + ' turns the blow aside. 1 Break.');
-        } else {
-          dmg = Math.ceil(dmg * TUNE.parryKeep);    // a clean string blunts the hit
-          if (C.counterstance) { breakDamage(2); C.counterstance = false; }
+          result.negated++;
+          logLine('TURNED — ' + HEROES23[parrierId].name + ' reads the whole string.');
         }
+        if (read.flawless) {
+          const rip = RIPOSTE_PER_NOTE * read.notes;
+          result.riposte = (result.riposte || 0) + rip;
+          dealToBoss(rip, 'riposte');
+          breakDamage(1);
+          logLine('FLAWLESS — ' + fmtN(rip) + ' returned.');
+        }
+        fxParryReceipt(parrierId, read);
       }
       // Guard absorbs first, on the hero actually struck; then flesh.
       const struck = C.heroes[tgtId];
@@ -515,9 +558,10 @@ async function endTurn(opts) {
           if (struck.hp === 0) { struck.downed = true; struck.guard = 0; logLine(HEROES23[tgtId].name + ' falls.'); }
         }
       }
-      result.hits.push({ targetId: tgtId, parrierId, success, negated, taken: dmg });
+      result.hits.push({ targetId: tgtId, parrierId, turned, negated, flawless: read.flawless,
+                         mit: read.mit, kept: read.kept, notes: read.notes, taken: dmg });
       result.taken += dmg;
-      await fxHitResolved(tgtId, dmg, negated);
+      await fxHitResolved(tgtId, dmg, turned);
       if (!livingHeroes().length) { setPhase('DEFEAT'); renderAll(); return report('defeat', result); }
     }
   }
@@ -624,7 +668,7 @@ function runRhythmHit(hit, tgtId, parrierId) {
         el.style.setProperty('--k-note-t', t.toFixed(3));
         if (t >= 1) {
           // grace after impact — a late input inside GOOD still counts
-          setTimeout(() => { if (live && live.el === el && !live.judged) { live.judged = true; finishNote('miss'); } }, GOOD_MS + 40);
+          setTimeout(() => { if (live && live.el === el && !live.judged) { live.judged = true; finishNote('miss'); } }, PARRY_GOOD_MS + PARRY_LATE_MS);
           return;
         }
         requestAnimationFrame(step);
@@ -634,9 +678,10 @@ function runRhythmHit(hit, tgtId, parrierId) {
     const judge = (type) => {
       if (!live || live.judged) return;
       if (type !== live.type) return;               // wrong gesture: let it ride (may still miss)
+      const g = parryGrade(performance.now() - live.impact);   // SIGNED — early is negative
+      if (g === null) { fxTooEarly(live.el); return; }         // way early: the note keeps listening
       live.judged = true;
-      const off = Math.abs(performance.now() - live.impact);
-      finishNote(gradeOffset(off));
+      finishNote(g);
     };
     const down = (e) => {
       moved = 0;
@@ -697,11 +742,36 @@ function fxPlayCard(cardId, ev) {
   if (h) { h.classList.remove('k-acts'); void h.offsetWidth; h.classList.add('k-acts'); }
 }
 function fxResonanceCharge() { const el = document.querySelector('.k-bond-row'); if (el) { el.classList.remove('k-flash'); void el.offsetWidth; el.classList.add('k-flash'); } }
+function fxTooEarly(el) {
+  if (!el) return;
+  el.classList.remove('k-note-early'); void el.offsetWidth; el.classList.add('k-note-early');
+}
+// THE LINE THAT CONNECTS THE GRADES TO THE HP BAR. Without it the player reads
+// a stack of ratings fly past and then watches a number leave their health with
+// no stated relationship between the two.
+function fxParryReceipt(heroId, read) {
+  const at = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
+  if (!at || !read.notes) return;
+  const stage = document.getElementById('k-stage'); if (!stage) return;
+  const sr = stage.getBoundingClientRect(), r = at.getBoundingClientRect();
+  const scale = sr.width / stage.offsetWidth || 1;
+  const tag = document.createElement('div');
+  const crown = read.flawless ? 'FLAWLESS' : read.turned ? 'TURNED' : null;
+  tag.className = 'k-receipt' + (crown ? ' k-receipt-crown' : '');
+  tag.innerHTML = crown
+    ? '<b>' + crown + '</b><span>the blow is turned aside</span>'
+    : '<b>' + read.kept + '/' + read.notes + ' turned</b><span>the rest gets through</span>';
+  tag.style.left = ((r.left + r.width / 2 - sr.left) / scale) + 'px';
+  tag.style.top = ((r.top - sr.top) / scale - 26) + 'px';
+  stage.appendChild(tag);
+  setTimeout(() => tag.remove(), 1150);
+}
 function fxNoteGrade(el, grade) {
   if (!el) return;
   const tag = document.createElement('div');
   tag.className = 'k-grade k-grade-' + grade;
-  tag.textContent = grade === 'perfect' ? 'PERFECT' : grade === 'great' ? 'GREAT' : grade === 'good' ? 'GOOD' : 'MISS';
+  tag.textContent = grade === 'perfect' ? 'PERFECT' : grade === 'great' ? 'GREAT'
+    : grade === 'good' ? 'GOOD' : grade === 'late' ? 'LATE' : 'MISS';
   el.parentElement && el.parentElement.appendChild(tag);
   tag.style.left = el.style.left; tag.style.top = el.style.top;
   setTimeout(() => tag.remove(), 700);
@@ -727,12 +797,7 @@ async function fxHitResolved(tgtId, taken, negated) {
   if (taken > 0) {
     popupOver(at || document.getElementById('k-party-hud'), '−' + fmtN(taken), 'k-pop-dmg');
     const s = document.getElementById('k-stage'); if (s) { s.classList.remove('k-shake'); void s.offsetWidth; s.classList.add('k-shake'); }
-  } else if (negated) {
-    popupOver(at, 'NEGATED', 'k-pop-gold');
-    hitstop(90);
-  } else {
-    popupOver(at, 'PARRIED', 'k-pop-gold');
-  }
+  } else if (negated) hitstop(90);
   await sleep(330);
 }
 function testMode() { return /[?&]test=1/.test(location.search); }
@@ -805,7 +870,7 @@ function renderIntent() {
     C.boss.cancelNext ? 'BROKEN — this action dies unsung'
     : it.id === 'scythe' ? 'Front row only — a hero in Back is nearly spared'
     : it.id === 'benediction' ? 'It heals itself — Break it to stop the hymn'
-    : 'Clean string blunts a hit · 2 Guard negates one per hero';
+    : 'Read the whole string to TURN a hit · every note perfect ripostes';
   const dg = el('k-int-dirge');
   if (dg) dg.textContent = dirgeAmount() > 0 ? 'DIRGE ' + fmtN(dirgeAmount()) + ' to all · unparryable' : '';
 }
@@ -820,56 +885,92 @@ function renderHand() {
     const dead = c.owner === 'bond' ? (C.heroes.ash.downed || C.heroes.elin.downed) : C.heroes[c.owner].downed;
     const ownerArt = c.owner === 'bond' ? HEROES23.ash.art : HEROES23[c.owner].art;
     // the FAN: a gentle arc, rotation from a low pivot plus a parabolic dip
-    const rot = ((i - mid) * 4).toFixed(1), dy = ((i - mid) * (i - mid) * 3).toFixed(1);
-    const costLine = ev.condActive && ev.currentCost !== c.cost
-      ? ev.currentCost + ' AP <s>' + c.cost + '</s>' : ev.currentCost + ' AP';
+    const rot = ((i - mid) * 3.4).toFixed(1), dy = ((i - mid) * (i - mid) * 2).toFixed(1);
+    // THE CARD READS TOP TO BOTTOM: what it costs, who swings it, what it is,
+    // what it ALWAYS does (BASE), and — in its own banded strip — what it does
+    // EXTRA when its condition is live. The two are never the same typography.
+    const gem = ev.condActive && ev.currentCost !== c.cost
+      ? ev.currentCost + '<s>' + c.cost + '</s>' : String(ev.currentCost);
+    const riders = fxRiders(c.base);
     return '<button class="k-card' + (ev.condActive && !dead ? ' k-card-active' : '') + (afford ? '' : ' k-card-poor')
       + (dead ? ' k-card-dead' : '') + (c.owner === 'bond' ? ' k-card-res' : '')
       + (_sel === id ? ' k-card-sel' : '') + '" data-card="' + id + '"'
       + ' style="--rot:' + rot + 'deg;--dy:' + dy + 'px">'
+      + '<span class="k-cgem' + (ev.condActive && ev.currentCost !== c.cost ? ' on' : '') + '">' + gem + '</span>'
       + '<img class="k-owner" src="' + ownerArt + '" alt="">'
       + '<span class="k-cname">' + c.name + (c.exhaust ? ' ◈' : '') + '</span>'
-      + '<span class="k-ccost' + (ev.condActive && ev.currentCost !== c.cost ? ' on' : '') + '">' + costLine + '</span>'
-      + '<span class="k-ceffect">' + effectText(c.base) + '</span>'
       + '<span class="k-cart"><img src="' + ownerArt + '" alt=""></span>'
-      + (c.cond ? '<span class="k-cmod' + (ev.condActive ? ' on' : '') + '">' + condText(c) + '</span>'
-         : c.exhaust ? '<span class="k-cmod on">Ash + Elin · Exhausts</span>' : '')
+      + '<span class="k-cbase"><span class="k-cbig">' + fxHeadline(c.base) + '</span>'
+      + (riders ? '<span class="k-criders">' + riders + '</span>' : '') + '</span>'
+      + (c.cond
+          ? '<span class="k-ccond' + (ev.condActive ? ' on' : '') + '">'
+            + '<em>' + (COND_LABEL[c.cond.type] || c.cond.type) + '</em>'
+            + '<span>' + condReward(c) + '</span></span>'
+          : c.exhaust
+            ? '<span class="k-ccond k-ccond-res on"><em>Ash + Elin</em><span>Exhausts</span></span>'
+            : '<span class="k-ccond k-ccond-core"><em>Core</em></span>')
       + '</button>';
   }).join('');
   hand.querySelectorAll('.k-card:not(.k-card-dead)').forEach(b => attachCardInput(b));
 }
 const COND_LABEL = {
   FOLLOW_UP: 'Follow-Up', FINALE: 'Finale',
-  BROKEN: 'If Broken', BROKEN_OR_LOW: 'Broken or ≤30% HP',
+  BROKEN: 'If Broken', BROKEN_OR_LOW: 'Broken · ≤30%',
 };
-// The strip's copy is BUILT from the data, never hand-authored — so its
-// numbers ride the same display scale as everything else on the card.
+// The ONE number the card is about, big enough to read while it is fanned.
+function fxHeadline(effects) {
+  const hits = effects.filter(f => f.dmg);
+  if (hits.length === 1) return fmtN(hits[0].dmg) + '<i>dmg</i>';
+  if (hits.length > 1) return hits.length + '×' + fmtN(hits[0].dmg) + '<i>dmg</i>';
+  const g = effects.find(f => f.guardSelf || f.guardAll || f.guardAlly || f.guardLowest);
+  if (g) return '+' + fmtN(g.guardSelf || g.guardAll || g.guardAlly || g.guardLowest) + '<i>guard</i>';
+  const h = effects.find(f => f.heal);
+  if (h) return '+' + fmtN(h.heal) + '<i>heal</i>';
+  return '';
+}
+// Everything the headline did not say, as short chips.
+function fxRiders(effects) {
+  const seenHeadline = { dmg: effects.some(f => f.dmg) };
+  const out = [];
+  for (const fx of effects) {
+    if (fx.brk) out.push(fx.brk + ' Break');
+    if (fx.guardSelf && seenHeadline.dmg) out.push('+' + fmtN(fx.guardSelf) + ' Guard');
+    if (fx.guardAll && seenHeadline.dmg) out.push('all +' + fmtN(fx.guardAll) + ' Guard');
+    if (fx.guardAlly) out.push('ally +' + fmtN(fx.guardAlly) + ' Guard');
+    if (fx.guardLowest) out.push('lowest +' + fmtN(fx.guardLowest) + ' Guard');
+    if (fx.heal && seenHeadline.dmg) out.push('heal ' + fmtN(fx.heal));
+    if (fx.bleed) out.push('Bleed ' + fmtN(fx.bleed));
+    if (fx.chill) out.push('Chill ' + fmtN(fx.chill));
+    if (fx.counterstance) out.push('next parry +2 Break');
+    if (fx.intercede) out.push('take their window');
+    if (fx.moveSelf) out.push('switch row');
+    if (fx.drawDiscard) out.push('draw 1, discard 1');
+  }
+  return out.join(' · ');
+}
+// What the condition PAYS — never the condition's name, which is its own label.
+function condReward(card) {
+  if (!card.cond) return '';
+  if (card.cond.reward === 'cost') return 'costs ' + card.cond.costTo + ' AP';
+  // an output reward is ALWAYS on top of the base, so it reads with a plus
+  const hits = card.cond.bonus.filter(f => f.dmg);
+  const parts = [];
+  if (hits.length) parts.push('+' + fmtN(hits.reduce((n, f) => n + f.dmg, 0)) + ' dmg');
+  const rest = fxRiders(card.cond.bonus.filter(f => !f.dmg));
+  if (rest) parts.push(rest);
+  return parts.join(' · ');
+}
 function condText(card) {
   if (!card.cond) return '';
-  const bits = [COND_LABEL[card.cond.type] || card.cond.type];
-  if (card.cond.reward === 'cost') bits.push('costs ' + card.cond.costTo + ' AP');
-  else bits.push(effectText(card.cond.bonus));
-  return bits.join(' · ');
+  return (COND_LABEL[card.cond.type] || card.cond.type) + ' · ' + condReward(card);
 }
 function effectText(effects) {
   const hits = effects.filter(fx => fx.dmg);
   const parts = [];
   if (hits.length === 1) parts.push(fmtN(hits[0].dmg) + ' damage');
   else if (hits.length > 1) parts.push(hits.length + '× ' + fmtN(hits[0].dmg) + ' damage');
-  for (const fx of effects) {
-    if (fx.brk)        parts.push(fx.brk + ' Break');
-    if (fx.guardSelf)  parts.push('+' + fmtN(fx.guardSelf) + ' Guard');
-    if (fx.guardAlly)  parts.push('ally +' + fmtN(fx.guardAlly) + ' Guard');
-    if (fx.guardAll)   parts.push('all +' + fmtN(fx.guardAll) + ' Guard');
-    if (fx.guardLowest)parts.push('lowest ally +' + fmtN(fx.guardLowest) + ' Guard');
-    if (fx.heal)       parts.push('Heal ' + fmtN(fx.heal));
-    if (fx.bleed)      parts.push('Bleed ' + fmtN(fx.bleed));
-    if (fx.chill)      parts.push('Chill ' + fmtN(fx.chill));
-    if (fx.counterstance) parts.push('next parry +2 Break');
-    if (fx.intercede)  parts.push('shield their window');
-    if (fx.moveSelf)   parts.push('switch row');
-    if (fx.drawDiscard)parts.push('draw 1, discard 1');
-  }
+  const rest = fxRiders(effects.filter(fx => !fx.dmg));
+  if (rest) parts.push(rest);
   return parts.join(' · ');
 }
 function renderApDial() {
@@ -921,11 +1022,132 @@ function dropCommit(id, drop) {
   if (drop.zone !== want) return false;
   return playCard(id, drop.hero && drop.hero !== CARD_DEFS[id].owner ? drop.hero : undefined);
 }
+// ═════════════════════════════════════════════════════════════════════════════
+// THE AIM BEAM — restored from v2.2. A glowing energy ribbon (soft halo, bright
+// core, travelling dotted thread) cast from the card you are holding, ending in
+// a rotating JRPG reticle on the thing you are about to hit.
+// ═════════════════════════════════════════════════════════════════════════════
+// How far the held card may travel from the hand while aiming.
+const DRAG_CLAMP_X = 150, DRAG_CLAMP_UP = 54, DRAG_CLAMP_DOWN = 16;
+const AIMNS = 'http://www.w3.org/2000/svg';
+let _aim = null;
+function aimLayer() {
+  let svg = document.getElementById('k-aim');
+  if (!svg) {
+    svg = document.createElementNS(AIMNS, 'svg');
+    svg.id = 'k-aim';
+    // its own compositor layer: the drag loop redraws this ~60x/s and must not
+    // re-rasterize the drop-shadowed figures underneath
+    svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;'
+      + 'z-index:26;overflow:visible;will-change:transform;transform:translateZ(0)';
+    el('k-stage').appendChild(svg);
+  }
+  svg.setAttribute('viewBox', '0 0 932 430');
+  return svg;
+}
+function aimClear() {
+  const s = document.getElementById('k-aim'); if (s) s.innerHTML = '';
+  _aim = null;
+  document.querySelectorAll('.k-aim-valid, .k-aim-snap')
+    .forEach(f => f.classList.remove('k-aim-valid', 'k-aim-snap'));
+}
+function cornerPath(r) {
+  const L = 6;
+  return `M ${-r} ${-r + L} L ${-r} ${-r} L ${-r + L} ${-r}`
+       + ` M ${r - L} ${-r} L ${r} ${-r} L ${r} ${-r + L}`
+       + ` M ${r} ${r - L} L ${r} ${r} L ${r - L} ${r}`
+       + ` M ${-r + L} ${r} L ${-r} ${r} L ${-r} ${r - L}`;
+}
+// Build the beam DOM ONCE per shape and only nudge geometry per frame — an
+// innerHTML rewrite every frame is what made this stutter in v2.2.
+function drawAim(fx, fy, ex, ey, valid, color, phase) {
+  const svg = aimLayer();
+  const cx = (v) => Math.max(6, Math.min(926, v)), cy = (v) => Math.max(6, Math.min(424, v));
+  fx = cx(fx); fy = cy(fy); ex = cx(ex); ey = cy(ey);
+  const c = valid ? color : '#7a7060';
+  const R = 16;
+  const shape = (valid ? 'v' : 'i') + c;
+  if (!_aim || _aim.shape !== shape) {
+    const ret = valid
+      ? `<g class="k-aim-ret">`
+        + `<g class="k-aim-r1"><rect x="${-R}" y="${-R}" width="${2 * R}" height="${2 * R}" rx="2" fill="none" stroke="${c}" stroke-width="1.6" opacity="0.85"/></g>`
+        + `<g class="k-aim-r2"><path d="${cornerPath(R + 5)}" fill="none" stroke="#fff6d8" stroke-width="2.4" stroke-linecap="round"/></g>`
+        + `<circle r="3" fill="#fff6d8"/></g>`
+      : '';
+    // no SVG filter on the per-frame paths — a wide low-opacity underlay fakes
+    // the glow without a blur rasterization every frame
+    svg.innerHTML =
+        `<path class="k-aim-glow" fill="none" stroke="${c}" stroke-width="10" stroke-linecap="round" opacity="0.2"/>`
+      + `<path class="k-aim-core" fill="none" stroke="${c}" stroke-width="4" stroke-linecap="round" opacity="0.55"/>`
+      + `<path class="k-aim-dash" fill="none" stroke="#fff6d8" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="2 7"/>`
+      + ret;
+    _aim = { shape, glow: svg.querySelector('.k-aim-glow'), core: svg.querySelector('.k-aim-core'),
+      dash: svg.querySelector('.k-aim-dash'), ret: svg.querySelector('.k-aim-ret'),
+      r1: svg.querySelector('.k-aim-r1'), r2: svg.querySelector('.k-aim-r2') };
+  }
+  // a bowed ribbon, not a straight line — it reads as thrown, not aimed
+  const bow = Math.min(60, Math.max(22, Math.abs(ex - fx) * 0.11));
+  const d = `M ${fx} ${fy} Q ${(fx + ex) / 2} ${Math.max(10, Math.min(fy, ey) - bow)} ${ex} ${ey}`;
+  if (_aim.glow) _aim.glow.setAttribute('d', d);
+  if (_aim.core) _aim.core.setAttribute('d', d);
+  if (_aim.dash) { _aim.dash.setAttribute('d', d); _aim.dash.setAttribute('stroke-dashoffset', -phase); }
+  if (_aim.ret) _aim.ret.setAttribute('transform', `translate(${ex} ${ey})`);
+  if (_aim.r1) _aim.r1.setAttribute('transform', `rotate(${phase})`);
+  if (_aim.r2) _aim.r2.setAttribute('transform', `rotate(${-phase * 0.7})`);
+}
+// A card wanting the enemy is gold; one tending the party is green.
+function aimColor(cardId) {
+  return CARD_DEFS[cardId].target === 'enemy' ? '#f0d488' : '#98d878';
+}
+// Stage-space centre of whatever a drop would land on.
+function aimAnchor(drop) {
+  const stage = el('k-stage');
+  const sr = stage.getBoundingClientRect();
+  const scale = sr.width / stage.offsetWidth || 1;
+  let node = null;
+  if (!drop) return null;
+  if (drop.zone === 'enemy') node = el('k-boss-art');
+  else if (drop.zone === 'piles') node = el('k-piles');
+  else if (drop.hero) node = document.querySelector('.k-hero[data-hero="' + drop.hero + '"]');
+  else node = el('k-party-hud');
+  if (!node) return null;
+  const r = node.getBoundingClientRect();
+  return { x: (r.left + r.width / 2 - sr.left) / scale,
+           y: (r.top + r.height * (drop.zone === 'enemy' ? 0.42 : 0.4) - sr.top) / scale,
+           node };
+}
+
 function attachCardInput(btn) {
   // `armed` gates everything on a REAL press. Without it a bare hover's
   // pointermove measured its delta from (0,0), decided it was a drag, and
   // flung the card 375px off the hand before the button ever went down.
   let holdT = null, held = false, dragging = false, armed = false, sx = 0, sy = 0;
+  let raf = 0, phase = 0, lastPt = null;
+  // the beam is redrawn on its own frame loop so the dotted thread keeps
+  // travelling and the reticle keeps turning even when the finger is still
+  const spin = () => {
+    if (!dragging) { raf = 0; return; }
+    phase = (phase + 1.6) % 360;
+    paintAim();
+    raf = requestAnimationFrame(spin);
+  };
+  const paintAim = () => {
+    if (!lastPt) return;
+    const stage = el('k-stage');
+    const sr = stage.getBoundingClientRect();
+    const k = sr.width / stage.offsetWidth || 1;
+    const cr = btn.getBoundingClientRect();
+    const from = { x: (cr.left + cr.width / 2 - sr.left) / k, y: (cr.top - sr.top) / k };
+    const id = btn.dataset.card;
+    const drop = dropTargetAt(lastPt.x, lastPt.y);
+    const want = CARD_DEFS[id].target === 'enemy' ? 'enemy' : 'party';
+    const ok = !!drop && (drop.zone === want || drop.zone === 'piles');
+    const snap = ok ? aimAnchor(drop) : null;
+    document.querySelectorAll('.k-aim-snap').forEach(f => f.classList.remove('k-aim-snap'));
+    if (snap && snap.node) snap.node.classList.add('k-aim-snap');
+    const to = snap || { x: (lastPt.x - sr.left) / k, y: (lastPt.y - sr.top) / k };
+    drawAim(from.x, from.y, to.x, to.y, ok, aimColor(id), phase);
+  };
   btn.addEventListener('pointerdown', (e) => {
     held = false; dragging = false; armed = true; sx = e.clientX; sy = e.clientY;
     holdT = setTimeout(() => { if (!C.pendingDiscard) { held = true; openFocus(btn.dataset.card); } }, 480);
@@ -934,14 +1156,28 @@ function attachCardInput(btn) {
   btn.addEventListener('pointermove', (e) => {
     if (!armed || held) return;
     const dx = e.clientX - sx, dy = e.clientY - sy;
-    if (!dragging && Math.hypot(dx, dy) > 14) { clearTimeout(holdT); dragging = true; btn.classList.add('k-dragging'); }
+    if (!dragging && Math.hypot(dx, dy) > 14) {
+      clearTimeout(holdT); dragging = true; btn.classList.add('k-dragging');
+      // light every figure this card could legally land on
+      const want = CARD_DEFS[btn.dataset.card].target === 'enemy' ? 'enemy' : 'party';
+      if (want === 'enemy') el('k-boss-art').classList.add('k-aim-valid');
+      else document.querySelectorAll('.k-hero').forEach(h => h.classList.add('k-aim-valid'));
+      if (!raf) raf = requestAnimationFrame(spin);
+    }
     if (dragging) {
       const k = stageScale();
-      btn.style.setProperty('--dragx', (dx / k) + 'px');
-      btn.style.setProperty('--dragy', (dy / k) + 'px');
+      // THE CARD IS HELD, NOT THROWN (v2.2). It stays in a lower-central band so
+      // the beam always reads as cast FROM the card you are holding — let it
+      // follow the finger onto the target and it covers its own aim.
+      const cx = Math.max(-DRAG_CLAMP_X, Math.min(DRAG_CLAMP_X, dx / k));
+      const cy = Math.max(-DRAG_CLAMP_UP, Math.min(DRAG_CLAMP_DOWN, dy / k));
+      btn.style.setProperty('--dragx', cx + 'px');
+      btn.style.setProperty('--dragy', cy + 'px');
       const over = dropTargetAt(e.clientX, e.clientY);
       const want = CARD_DEFS[btn.dataset.card].target === 'enemy' ? 'enemy' : 'party';
       btn.classList.toggle('k-drop-ok', !!over && (over.zone === want || over.zone === 'piles'));
+      lastPt = { x: e.clientX, y: e.clientY };
+      paintAim();
     }
   });
   btn.addEventListener('pointerup', (e) => {
@@ -952,6 +1188,8 @@ function attachCardInput(btn) {
     const id = btn.dataset.card;
     if (C.pendingDiscard) { pickDiscard(id); return; }   // Quick Throw's second half
     if (dragging) {
+      dragging = false; if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      aimClear();
       btn.classList.remove('k-dragging', 'k-drop-ok');
       btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy');
       const over = dropTargetAt(e.clientX, e.clientY);
@@ -963,6 +1201,8 @@ function attachCardInput(btn) {
     else { _sel = id; renderHand(); showTargetRing(id); }
   });
   btn.addEventListener('pointercancel', () => { clearTimeout(holdT); armed = false; dragging = false;
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    aimClear();
     btn.classList.remove('k-dragging', 'k-drop-ok');
     btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy'); });
 }
@@ -1076,6 +1316,6 @@ window.K = {
     const ix = REGENT_INTENTS.findIndex(i => i.id === id);
     if (ix >= 0) { C.boss.intentIx = ix; renderAll(); }
   },
-  gradeOffset, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
+  parryGrade, readString, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
   tune(t) { Object.assign(TUNE, t || {}); return TUNE; },
 };

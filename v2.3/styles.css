@@ -141,11 +141,11 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 @keyframes k-login { from { opacity: 0; transform: translateY(4px); } }
 
 /* ── the hand ── */
-#k-hand { position: absolute; left: 50%; bottom: 18px; transform: translateX(-56%);
-  display: flex; gap: 8px; align-items: flex-end; z-index: 14; }
+#k-hand { position: absolute; left: 50%; bottom: 22px; transform: translateX(-56%);
+  display: flex; gap: 6px; align-items: flex-end; z-index: 14; }
 #k-hand .k-card-active { margin-bottom: 0; }
 #k-hand.k-discarding .k-card { transform: translateY(140px) rotate(4deg); opacity: 0; transition: all 0.3s ease-in; }
-.k-card { position: relative; width: 98px; height: 138px; border-radius: 3px; cursor: pointer;
+.k-card { position: relative; width: 108px; height: 144px; border-radius: 3px; cursor: pointer;
   font-family: inherit; padding: 0; display: flex; flex-direction: column; text-align: center;
   background:
     radial-gradient(140% 120% at 50% 30%, rgba(240,235,222,0.25) 0%, rgba(240,235,222,0) 55%),
@@ -164,25 +164,46 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-card-dead { opacity: 0.35; filter: grayscale(0.8); pointer-events: none; }
 .k-card-active { border: 1.5px solid #c9a45c;
   box-shadow: 0 5px 14px rgba(0,0,0,0.65), 0 0 16px rgba(201,164,92,0.4), inset 0 0 14px rgba(90,78,56,0.3); }
-.k-card-active { border: 1.5px solid #c9a45c; height: 132px;
+.k-card-active { border: 1.5px solid #c9a45c;
   box-shadow: 0 4px 14px rgba(0,0,0,0.6), 0 0 14px rgba(201,164,92,0.35); }
 .k-card-poor { opacity: 0.55; filter: grayscale(0.4); }
-.k-owner { position: absolute; right: 4px; top: 4px; width: 14px; height: 14px; border-radius: 50%;
-  border: 1px solid #8f866f; object-fit: cover; object-position: top; opacity: 0.85; }
-.k-cname { font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-  color: #2b2620; padding: 7px 15px 0; line-height: 1.2; }
-.k-ccost { font-size: 8px; letter-spacing: 0.18em; text-transform: uppercase; color: #6d6450; padding-top: 3px; }
-.k-ccost.on { color: #8f6f2a; font-weight: 700; }
-.k-ccost s { color: #9a9080; }
-.k-ceffect { font-size: 8.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #4a4438; padding: 1px 5px 4px; }
-.k-cart { flex-grow: 1; margin: 0 7px 7px; overflow: hidden; position: relative;
+.k-owner { position: absolute; right: 4px; top: 4px; width: 15px; height: 15px; border-radius: 50%;
+  border: 1px solid #8f866f; object-fit: cover; object-position: top; opacity: 0.9; z-index: 2; }
+/* COST — a struck gem in the corner, never a line of text competing with the effect */
+.k-cgem { position: absolute; left: 4px; top: 3px; z-index: 2;
+  min-width: 19px; height: 19px; padding: 0 3px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; gap: 2px;
+  background: radial-gradient(circle at 38% 32%, #4a4234, #241f18);
+  border: 1px solid #8f7439; color: #f0e4c4; font-size: 12px; font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.7), inset 0 0 5px rgba(0,0,0,0.5); }
+.k-cgem.on { border-color: #e0c084; color: #ffe9b8; box-shadow: 0 0 9px rgba(224,192,132,0.6); }
+.k-cgem s { font-size: 8px; font-weight: 400; color: #9a9080; }
+.k-cname { font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+  color: #2b2620; padding: 5px 21px 3px; line-height: 1.15; min-height: 24px;
+  display: flex; align-items: center; justify-content: center; text-align: center; }
+.k-cart { flex-grow: 1; margin: 0 6px; overflow: hidden; position: relative; min-height: 0;
   background: linear-gradient(180deg, #cdc5b1, #b0a68c); box-shadow: inset 0 0 10px rgba(90,78,56,0.35);
   display: flex; justify-content: center; }
 .k-cart img { height: 128%; width: auto; margin-top: -3%;
   filter: grayscale(0.95) contrast(1.18) brightness(0.85); mix-blend-mode: multiply; }
-.k-cmod { font-size: 7.5px; color: #6d6450; line-height: 1.3; padding: 3px 5px 5px; margin-top: -3px; }
-.k-cmod.on { color: #efe6cf; background: linear-gradient(180deg, rgba(34,28,20,0.92), rgba(24,19,13,0.92));
-  border-top: 1px solid #c9a45c; padding: 4px 5px 5px; }
+/* BASE — what the card ALWAYS does. The big number lives here and nowhere else. */
+.k-cbase { padding: 3px 5px 3px; text-align: center; }
+.k-cbig { display: block; font-size: 14px; font-weight: 700; color: #241f18; line-height: 1.05;
+  letter-spacing: 0.01em; }
+.k-cbig i { font-style: normal; font-size: 7.5px; font-weight: 600; letter-spacing: 0.14em;
+  text-transform: uppercase; color: #6d6450; margin-left: 3px; }
+.k-criders { display: block; font-size: 7.5px; line-height: 1.25; color: #5c5445; margin-top: 1px; }
+/* CONDITION — its own band, its own type. Dim while it sleeps, gold when it is live. */
+.k-ccond { display: block; padding: 3px 5px 4px; border-top: 1px solid rgba(90,78,56,0.35);
+  background: rgba(120,106,80,0.14); text-align: center; }
+.k-ccond em { display: block; font-style: normal; font-size: 7px; font-weight: 700;
+  letter-spacing: 0.16em; text-transform: uppercase; color: #7d735d; }
+.k-ccond span { display: block; font-size: 8px; line-height: 1.25; color: #4a4438; }
+.k-ccond.on { background: linear-gradient(180deg, rgba(34,28,20,0.94), rgba(22,17,11,0.94));
+  border-top: 1px solid #c9a45c; }
+.k-ccond.on em { color: #e0c084; }
+.k-ccond.on span { color: #efe6cf; }
+.k-ccond-core em { color: #9a9080; letter-spacing: 0.22em; }
 
 /* ── resonance ── */
 .k-res { position: absolute; right: 118px; bottom: 8px; width: 66px; height: 126px; border-radius: 5px;
@@ -299,3 +320,26 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   background: radial-gradient(ellipse at 50% 60%, rgba(150,40,30,0) 40%, rgba(120,30,24,0.28) 100%);
   animation: k-dirgepulse 0.7s ease; }
 @keyframes k-dirgepulse { 0% { opacity: 0; } 35% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ── the parry, restored from v2.2 ── */
+.k-note.k-note-early { animation: k-note-early 0.3s ease; }
+@keyframes k-note-early { 50% { transform: scale(0.86); border-color: #9a9080; } }
+.k-grade-late { color: #b8874a !important; }
+.k-receipt { position: absolute; transform: translate(-50%, -100%); z-index: 34; text-align: center;
+  pointer-events: none; animation: k-receipt 1.15s ease forwards; white-space: nowrap; }
+.k-receipt b { display: block; font-size: 13px; font-weight: 700; letter-spacing: 0.1em;
+  color: #e6ddc8; text-shadow: 0 1px 4px rgba(0,0,0,0.95); }
+.k-receipt span { display: block; font-size: 8px; letter-spacing: 0.12em; color: #b0a894;
+  text-transform: uppercase; text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
+.k-receipt-crown b { color: #f0d488; font-size: 15px; text-shadow: 0 0 12px rgba(240,212,136,0.7), 0 1px 4px rgba(0,0,0,0.95); }
+@keyframes k-receipt { 0% { opacity: 0; transform: translate(-50%, -80%); }
+  18% { opacity: 1; transform: translate(-50%, -105%); }
+  78% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -130%); } }
+
+/* ── the aim beam, restored from v2.2 ── */
+#k-aim .k-aim-r2 { filter: drop-shadow(0 0 4px rgba(240,212,136,0.9)); }
+.k-aim-valid { filter: drop-shadow(0 0 10px rgba(240,212,136,0.28)); }
+.k-aim-snap { filter: drop-shadow(0 0 18px rgba(240,212,136,0.6)) !important; }
+#k-boss-art.k-aim-snap img, .k-hero.k-aim-snap img { filter: drop-shadow(0 0 16px rgba(240,212,136,0.65)) brightness(1.1); }
+/* while aiming, the held card gets out of its own way */
+.k-card.k-dragging { opacity: 0.94; }

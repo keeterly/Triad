@@ -188,6 +188,43 @@ direction is that parry should be the best thing in the game. The simulator
 gates the shipped curve so a regression is caught, and prints the deck bands
 beside it every run.
 
+### Build 6 — the v2.2 parry, restored at the designer's direction
+
+The deck's §5 outcomes (clean string blunts 70%, 2 Guard negates) are replaced
+by the v2.2 parry system, whole:
+
+- **Weighted per note.** perfect 1.0 · great 0.9 · good 0.6 · miss 0. A hit's
+  mitigation is the average across its string, so every note you turn aside
+  negates its own share.
+- **TURNED** — every note GREAT or better negates the blow outright and chips
+  1 Break. Mastery a good human reaches most attempts.
+- **FLAWLESS** — every note PERFECT is TURNED plus a riposte of 2 per note and
+  another Break. The summit, still rare.
+- **Windows are centred on the beat, not ended by it**: perfect ±80ms, great
+  ±140ms, good ±220ms, then a labelled LATE tail. A tap that is way early does
+  not miss — the note keeps listening.
+- A **receipt** over the parrying hero states the outcome in the same breath as
+  the damage: "2/3 turned · the rest gets through", or TURNED / FLAWLESS.
+
+Two deck rules survive the swap. The **response limit** still holds — a hero
+fully turns only ONE hit per enemy action, and a second turned string in the
+same volley holds 75% instead of all of it. **Intercession** still hands Elin
+an ally's window. The riposte contradicts the deck's "no reward loop"; the
+standing direction that parry should be the best thing in the game wins.
+
+Re-measured after the swap (the v2.2 parry is far more generous, so the
+Regent's hits were re-tuned ×1.45 and the dirge set to 4/4):
+
+| Tier | Winrate | Deck band | Wins on round |
+|---|---|---|---|
+| No parry | 0.0% | 5–15% ✗ | — |
+| ~Half parries | 41.7% | 25–40% ✗ (just over) | 9 |
+| Excellent | 100% | 45–60% ✗ | 8 |
+
+The spread widened, which is what restoring the v2.2 parry buys: never
+parrying is death, a mediocre parrier wins about two fights in five, and
+mastery wins. Round length still lands inside the deck's 7–9 target.
+
 ### The Dirge — an addition the deck does not list
 
 The Regent's hymn settles on the whole party each enemy phase for unparryable

@@ -64,7 +64,7 @@ const { boot } = require('./harness.cjs');
     check('OPENING COVERAGE: 5 cards, at least one per hero, across 8 seeds', ok, detail);
   }
   {
-    const src = await J(async () => (await (await fetch('game.js?v=5')).text()));
+    const src = await J(async () => (await (await fetch('game.js?v=6')).text()));
     const phaseWrites = (src.match(/C\.phase = /g) || []).length;
     check('ONE TRANSITION OWNER: setPhase is the only C.phase mutator', phaseWrites === 1, phaseWrites + ' assignments');
     check('NO FLOW METER, NO ACTION TRAIL: nothing renders a meter or a trail', await J(() =>
@@ -261,32 +261,32 @@ const { boot } = require('./harness.cjs');
     await J(() => { window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'twinfang']); window.K.forceIntent('hymn'); });
     const hp0 = await J(() => window.K.state().boss.hp);
     const v = await volley();
-    const expect = await J(() => (window.K.currentIntent().hits || [])
-      .reduce((n, h, i) => n + Math.ceil(Math.max(0, h.dmg[0]) * 0.3), 0));
     const r = await J(async () => window.K.endTurn({ grades:
       (window.K.currentIntent().hits || []).flatMap(h => h.notes.map(() => 'great')) }));
     const hp1 = await J(() => window.K.state().boss.hp);
-    check('SUCCESS (no Guard): every clean string blunts its hit by 70%',
-      r.taken === expect && r.negated === 0, 'taken=' + r.taken + ' expected ' + expect + ' of ' + v.total);
-    check('NO REWARD LOOP: a clean parry deals no damage back', hp1 === hp0, hp0 + '→' + hp1);
+    // v2.2: a string read GREAT-or-better throughout is TURNED — negated whole.
+    // Ash answers two hits of the Hymn and may only fully turn one; the second
+    // still holds 75% of itself.
+    check('TURNED: a whole string read GREAT-or-better negates its hit outright',
+      r.hits.filter(h => h.turned).length === 2 && r.hits.filter(h => h.turned).every(h => h.taken === 0),
+      JSON.stringify(r.hits.map(h => ({ t: h.turned, taken: h.taken }))));
+    check('GREAT is not PERFECT: a turned string does not riposte',
+      hp1 === hp0 && !r.riposte, hp0 + '→' + hp1 + ' riposte=' + r.riposte);
   }
   await fresh(33);
   {
     await J(() => { window.K.forceHand(['guardcut', 'cleave', 'mend', 'serrate', 'frostbind']); window.K.forceIntent('hymn'); });
-    await J(() => window.K.playCard('guardcut'));
     const brk0 = await J(() => window.K.state().boss.brk);
     const r = await J(async () => window.K.endTurn({ grades:
       (window.K.currentIntent().hits || []).flatMap(h => h.notes.map(() => 'great')) }));
     const brk1 = await J(() => window.K.state().boss.brk);
-    // Ash answers two hits of the Hymn but may only NEGATE one of them
-    const negs = r.hits.filter(h => h.negated).length;
     const ashHits = r.hits.filter(h => h.targetId === 'ash');
-    check('SUCCESS + 2 GUARD: negate one hit, deal 1 Break',
-      r.negated === 1 && brk0 - brk1 === 1 && r.hits.some(h => h.negated && h.taken === 0),
-      JSON.stringify({ negated: r.negated, brkDelta: brk0 - brk1 }));
-    check('RESPONSE LIMIT: a hero fully negates only ONE hit per enemy action',
-      negs === 1 && ashHits.length === 2 && ashHits.filter(h => h.negated).length === 1,
-      JSON.stringify(ashHits.map(h => ({ neg: h.negated, taken: h.taken }))));
+    check('TURNED chips the Regent: each turned string costs it 1 Break',
+      brk0 - brk1 === r.negated && r.negated === 2, 'brkDelta=' + (brk0 - brk1) + ' turned=' + r.negated);
+    check('RESPONSE LIMIT: a hero fully turns only ONE hit per enemy action',
+      ashHits.length === 2 && ashHits.filter(h => h.turned).length === 1
+      && ashHits.some(h => !h.turned && h.mit === 1 && h.taken > 0),
+      JSON.stringify(ashHits.map(h => ({ turned: h.turned, taken: h.taken }))));
   }
   await fresh(34);
   {
@@ -296,9 +296,50 @@ const { boot } = require('./harness.cjs');
     const r = await J(async () => window.K.endTurn({ grades:
       (window.K.currentIntent().hits || []).flatMap(h => h.notes.map(() => 'great')) }));
     const brk1 = await J(() => window.K.state().boss.brk);
-    // 1 Break for the negate +2 from the stance, then the stance is spent
-    check('COUNTERSTANCE: the next successful parry deals +2 Break, once',
-      r.negated >= 1 && brk0 - brk1 === 3 + (r.negated - 1), 'delta=' + (brk0 - brk1) + ' negates=' + r.negated);
+    // 1 Break per turned string, +2 from the stance on the first one only
+    check('COUNTERSTANCE: the next turned string deals +2 Break, once',
+      r.negated >= 1 && brk0 - brk1 === r.negated + 2, 'delta=' + (brk0 - brk1) + ' turned=' + r.negated);
+  }
+  // ── FLAWLESS: the summit above TURNED ──
+  await fresh(36);
+  {
+    await J(() => { window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'twinfang']); window.K.forceIntent('hymn'); });
+    const hp0 = await J(() => window.K.state().boss.hp);
+    const notes = await J(() => (window.K.currentIntent().hits || []).reduce((n, h) => n + h.notes.length, 0));
+    const r = await J(async () => window.K.endTurn({ grades:
+      (window.K.currentIntent().hits || []).flatMap(h => h.notes.map(() => 'perfect')) }));
+    const hp1 = await J(() => window.K.state().boss.hp);
+    check('FLAWLESS: a string read PERFECTLY throughout ripostes, 2 per note',
+      r.riposte === notes * 2 && hp0 - hp1 === r.riposte,
+      'riposte=' + r.riposte + ' over ' + notes + ' notes, boss ' + hp0 + '→' + hp1);
+  }
+  // ── PARTIAL: the grades spread across the damage instead of bunching ──
+  await fresh(37);
+  {
+    await J(() => { window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'twinfang']); window.K.forceIntent('hymn'); });
+    const raw = await J(() => window.K.currentIntent().hits[0].dmg[0]);
+    const mixed = await J(async () => {
+      const hits = window.K.currentIntent().hits;
+      // first string: one great, one miss -> weighted 0.9/2 = 0.45 mitigation
+      const g = ['great', 'miss'];
+      for (let i = 1; i < hits.length; i++) hits[i].notes.forEach(() => g.push('miss'));
+      return window.K.endTurn({ grades: g });
+    });
+    const first = mixed.hits[0];
+    check('PARTIAL: each note turned aside negates its share, weighted by grade',
+      Math.abs(first.mit - 0.45) < 0.001 && first.taken === Math.round(raw * 0.55) && !first.turned,
+      JSON.stringify({ raw, mit: first.mit, taken: first.taken }));
+  }
+  // ── the grading windows themselves ──
+  {
+    const w = await J(() => ({
+      perfect: window.K.parryGrade(60), perfectEarly: window.K.parryGrade(-60),
+      great: window.K.parryGrade(120), good: window.K.parryGrade(-200),
+      late: window.K.parryGrade(300), tooEarly: window.K.parryGrade(-400),
+    }));
+    check('WINDOWS: the beat is the CENTRE of the window — a late catch is a catch',
+      w.perfect === 'perfect' && w.perfectEarly === 'perfect' && w.great === 'great'
+      && w.good === 'good' && w.late === 'late' && w.tooEarly === null, JSON.stringify(w));
   }
   await fresh(35);
   {
@@ -398,18 +439,25 @@ const { boot } = require('./harness.cjs');
       const fanned = [...cards].some(c => (c.style.getPropertyValue('--rot') || '0deg') !== '0deg');
       const pips = document.querySelectorAll('#k-break .k-pip').length;
       const groups = document.querySelectorAll('#k-int-notes .k-hitgrp').length;
+      // no card may hang off the stage — the fan grew when the faces were redesigned
+      const st = document.getElementById('k-stage').getBoundingClientRect();
+      const clipped = [...cards].filter(c => {
+        const b = c.getBoundingClientRect();
+        return b.bottom > st.bottom + 0.5 || b.top < st.top - 0.5
+            || b.left < st.left - 0.5 || b.right > st.right + 0.5;
+      }).length;
       const dirge = document.getElementById('k-int-dirge').textContent;
       return { disjoint, rows, bars, cards: cards.length,
         fanned, pips,
         noMove: !document.querySelector('.k-hero-move'),
         ap: document.getElementById('k-ap-num').textContent,
         cycle: document.getElementById('k-cycle-n').textContent,
-        bond: document.getElementById('k-bond-n').textContent, groups, dirge: !!dirge };
+        bond: document.getElementById('k-bond-n').textContent, groups, dirge: !!dirge, clipped };
     });
-    check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; per-hit volley groups; dirge named',
+    check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; per-hit volley groups; dirge named; no card clipped',
       ui.disjoint && ui.rows === 3 && ui.bars === 3 && ui.cards === 5 && ui.fanned
       && ui.pips === 12 && ui.noMove && ui.ap === '3' && ui.cycle === '1' && ui.bond === '0/2'
-      && ui.groups >= 2 && ui.dirge,
+      && ui.groups >= 2 && ui.dirge && ui.clipped === 0,
       JSON.stringify(ui));
     const hover = await J(async () => {
       const card = document.querySelector('#k-hand .k-card');
@@ -419,6 +467,88 @@ const { boot } = require('./harness.cjs');
       return !card.classList.contains('k-dragging');
     });
     check('UI: a bare hover is not a drag — pointer tracking arms only on a real press', hover, '');
+  }
+  // ── the aim beam, restored from v2.2 ──
+  await fresh(7);
+  {
+    const beam = await J(async () => {
+      const card = [...document.querySelectorAll('#k-hand .k-card')]
+        .find(c => c.dataset.card && window.K.evaluateCard(c.dataset.card).card.target === 'enemy');
+      const r = card.getBoundingClientRect();
+      const boss = document.getElementById('k-boss-art').getBoundingClientRect();
+      const at = (x, y, t) => card.dispatchEvent(new PointerEvent(t, { bubbles: true, clientX: x, clientY: y, pointerId: 1 }));
+      at(r.left + r.width / 2, r.top + 10, 'pointerdown');
+      at(boss.left + boss.width / 2, boss.top + boss.height / 2, 'pointermove');
+      await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+      const svg = document.getElementById('k-aim');
+      const out = {
+        layer: !!svg,
+        glow: !!svg && !!svg.querySelector('.k-aim-glow'),
+        core: !!svg && !!svg.querySelector('.k-aim-core'),
+        dotted: !!svg && svg.querySelector('.k-aim-dash')
+          && svg.querySelector('.k-aim-dash').getAttribute('stroke-dasharray') === '2 7',
+        reticle: !!svg && !!svg.querySelector('.k-aim-ret'),
+        bowed: !!svg && /^M .+ Q .+ .+$/.test(svg.querySelector('.k-aim-core').getAttribute('d') || ''),
+        snapped: document.getElementById('k-boss-art').classList.contains('k-aim-snap'),
+      };
+      // the held card must stay near the hand, never fly onto the target and
+      // cover the beam it is casting
+      const held = card.getBoundingClientRect(), st = document.getElementById('k-stage').getBoundingClientRect();
+      out.cardStaysLow = held.top > st.top + st.height * 0.45;
+      out.cardClearOfTarget = held.left > boss.right || held.right < boss.left
+        || held.top > boss.bottom || held.bottom < boss.top;
+      at(boss.left + boss.width / 2, boss.top + boss.height / 2, 'pointerup');
+      out.cleared = !document.getElementById('k-aim').querySelector('.k-aim-core');
+      return out;
+    });
+    check('AIM: picking a card casts the v2.2 beam — glow, core, travelling dotted thread, reticle',
+      beam.layer && beam.glow && beam.core && beam.dotted && beam.reticle && beam.bowed,
+      JSON.stringify(beam));
+    check('AIM: the beam snaps to a legal target and clears on release',
+      beam.snapped && beam.cleared, JSON.stringify({ snapped: beam.snapped, cleared: beam.cleared }));
+    check('AIM: the card is HELD low, so it never covers the beam it casts',
+      beam.cardStaysLow && beam.cardClearOfTarget,
+      JSON.stringify({ low: beam.cardStaysLow, clear: beam.cardClearOfTarget }));
+  }
+  // ── card anatomy: base and condition must never read as the same thing ──
+  await fresh(11);
+  {
+    const anat = await J(() => {
+      window.K.forceHand(['crosssever', 'cleave', 'mend', 'serrate', 'twinfang']);
+      const q = (id) => document.querySelector('.k-card[data-card="' + id + '"]');
+      const cs = q('crosssever'), cl = q('cleave');
+      const px = (el, p) => el ? parseFloat(getComputedStyle(el)[p]) : 0;
+      return {
+        gem: cs.querySelector('.k-cgem') && cs.querySelector('.k-cgem').textContent.trim(),
+        base: cs.querySelector('.k-cbase .k-cbig').textContent.replace(/\s+/g, ' ').trim(),
+        riders: cs.querySelector('.k-criders').textContent.trim(),
+        condLabel: cs.querySelector('.k-ccond em').textContent.trim(),
+        condReward: cs.querySelector('.k-ccond span').textContent.trim(),
+        // the base number must be visibly larger than the condition copy
+        baseSize: px(cs.querySelector('.k-cbig'), 'fontSize'),
+        condSize: px(cs.querySelector('.k-ccond span'), 'fontSize'),
+        // a Core card says so rather than leaving an empty band
+        core: cl.querySelector('.k-ccond-core em').textContent.trim(),
+        noCostLine: !cs.querySelector('.k-ccost'),
+      };
+    });
+    check('CARD: cost is a gem, the BASE effect is the big number, riders sit under it',
+      anat.gem === '2' && anat.base === '1,350dmg' && anat.riders === '2 Break' && anat.noCostLine,
+      JSON.stringify(anat));
+    check('CARD: the condition is a labelled band, typographically below the base',
+      anat.condLabel === 'Follow-Up' && anat.condReward === 'costs 1 AP'
+      && anat.baseSize > anat.condSize + 3 && anat.core === 'Core',
+      JSON.stringify({ label: anat.condLabel, reward: anat.condReward, base: anat.baseSize, cond: anat.condSize }));
+    // and when the condition goes live, the band lights and the gem follows
+    const live = await J(() => {
+      window.K.playCard('serrate');   // Mira first — Follow-Up needs a DIFFERENT hero
+      const cs = document.querySelector('.k-card[data-card="crosssever"]');
+      return { on: cs.querySelector('.k-ccond').classList.contains('on'),
+               gem: cs.querySelector('.k-cgem').textContent.replace(/\s+/g, ''),
+               gemLit: cs.querySelector('.k-cgem').classList.contains('on') };
+    });
+    check('CARD: a live condition lights its band and restrikes the cost gem',
+      live.on && live.gem === '12' && live.gemLit, JSON.stringify(live));
   }
 
   const summary = report();
