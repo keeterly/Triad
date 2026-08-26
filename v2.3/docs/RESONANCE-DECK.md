@@ -532,3 +532,55 @@ The skill gradient survived; the unfairness did not.
 Two new suite gates hold the line: *the volley breathes — a rest beat
 separates one hit from the next*, and *a misread arrow answered on the beat
 pays a grade, not the whole string*.
+
+---
+
+## Build 16 — six notes from the table
+
+**The dash glitch.** A red beam was left nailed to the top-left corner of the
+screen, still pointing at the Regent, with no card holding the other end. A
+drag can outlive its own card: anything that re-renders the hand detaches the
+button while the frame loop is still running, and a detached node measures as
+a zero rect — which the beam faithfully drew from. The loop now abandons
+itself when its card is gone, and rebuilding the hand clears any beam outright.
+Gated: *the beam dies with the card — a re-render cannot strand it in the
+corner*.
+
+**The combo now reads.** A card answers two questions — what it always does,
+and what the combo pays — and both were set as the same small grey prose in one
+box, so `Finale: +5 damage` read as a footnote rather than the payoff. The text
+box is now two blocks: the base line in the biggest type on the face, and the
+combo as a **banded strip with a named tag** (FOLLOW-UP / FINALE / IF BROKEN)
+that goes gold and says **ON** the moment it is armed. Fixing the layout
+surfaced a second bug: centring the prose with flex turned each inline child
+into a flex item and silently ate the spaces, printing `9damage.` — the prose
+now sits in its own inner span.
+
+**Bait wears a skull.** A crossed circle has to be taught. A skull does not.
+
+**Deflecting hits like it matters.** A turned blow is the best thing a player
+can do in this game and it was one gold ring. `fxDeflect` makes it struck
+steel: a crescent of light thrown back along the line the blow came in on,
+shards off the point of contact, a white flash, two staggered shock rings, a
+screen kick, the hero flaring white, and a 140–175ms stop. FLAWLESS gets the
+larger crescent and nine shards instead of six.
+
+**The sweep empties the hand.** The old end-of-turn discard flew a ghost of
+each card while the original sat in the fan until the last one had gone — the
+hand appeared to duplicate itself and then vanish. Each card now LEAVES the
+hand as its ghost launches, so the ranks close behind it and the pile grows
+under it, and `flyCard` throws a real arc (lift, curve, turn, drop) via
+keyframes instead of a straight lerp. Gated by an invariant rather than a
+screenshot: **cards in hand + ghosts in flight never exceeds what was held.**
+
+**Movement is a place you put someone.** v2.2 had row slots, a Move action with
+a price, a hint and drag-onto-a-row; v2.3 had a blind 44px threshold with
+nothing on screen to say a threshold existed. Grabbing a hero now raises two
+lanes out of the ground, dims and drops the hand out of the way, names the row
+they stand in, and prices the move over their head. The figure **previews the
+destination** rather than being glued to the finger — a hero is a tall sprite,
+and dragging one by the chest sends the body the opposite way from the row
+being aimed at, which the eye believes over the lanes. A move that cannot
+happen says why (`ALREADY MOVED`, `NEEDS 1 AP`) instead of silently doing
+nothing. BACK also became genuinely upstage — up and smaller, not merely left —
+so the two lanes are separable by eye and by thumb.

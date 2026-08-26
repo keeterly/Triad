@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 15;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 16;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -462,15 +462,30 @@ function cycleCard(cardId) {
   return true;
 }
 
-function moveHero(heroId) {
-  if (!C || C.phase !== 'PLAYER_READY' || C.pendingDiscard) return false;
-  if (C.turnState.moved >= 1) return false;           // Move once per phase
-  if (C.ap < 1 || C.heroes[heroId].downed) return false;
-  C.ap -= 1;
-  C.turnState.moved++;
+// MOVE, the way v2.2 asked it: the rows are places, not a toggle, and the
+// refusal has to say WHY — "nothing happened" is the worst answer a board can
+// give a finger that just did something deliberate.
+const MOVE_COST = 1;
+function moveReason(heroId) {
+  if (!C || C.phase !== 'PLAYER_READY' || C.pendingDiscard) return 'not your turn';
+  if (!C.heroes[heroId] || C.heroes[heroId].downed) return 'down';
+  if (C.turnState.moved >= 1) return 'already moved';
+  if (C.ap < MOVE_COST) return 'needs ' + MOVE_COST + ' AP';
+  return null;
+}
+// toRow is optional: called bare it toggles, which is what the tests and the
+// printed Backstab movement have always meant by "move".
+function moveHero(heroId, toRow) {
+  if (moveReason(heroId)) return false;
   const h = C.heroes[heroId];
-  h.row = h.row === 'front' ? 'back' : 'front';
+  const want = toRow || (h.row === 'front' ? 'back' : 'front');
+  if (want !== 'front' && want !== 'back' || want === h.row) return false;
+  C.ap -= MOVE_COST;
+  C.turnState.moved++;
+  h.row = want;
+  logLine(HEROES23[heroId].name + ' steps to the ' + want + ' row.');
   renderAll();
+  fxStep(heroId);
   return true;
 }
 
@@ -590,7 +605,7 @@ async function endTurn(opts) {
       result.hits.push({ targetId: tgtId, parrierId, turned, negated, flawless: read.flawless,
                          mit: read.mit, kept: read.kept, notes: read.notes, taken: dmg });
       result.taken += dmg;
-      await fxHitResolved(tgtId, dmg, turned);
+      await fxHitResolved(tgtId, dmg, turned, read.flawless);
       if (!livingHeroes().length) { setPhase('DEFEAT'); renderAll(); return report('defeat', result); }
     }
   }
@@ -722,6 +737,13 @@ function beatClose() {
 const BURST_TAPS = 3;
 const NOTE_WORD = { tap: 'TAP', slide: 'SLIDE', hold: 'HOLD', burst: 'MASH', feint: 'WAIT', bait: 'DON\u2019T' };
 const DIR_ARROW = { L: '\u2190', R: '\u2192', U: '\u2191', D: '\u2193' };
+// A crossed circle has to be learned. A skull does not.
+const SKULL_SVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true">'
+  + '<path d="M12 2C7 2 3.6 5.3 3.6 9.9c0 2.7 1.2 4.4 2.6 5.5.5.4.8 1 .8 1.6v1.3c0 .9.7 1.7 1.7 1.7h6.6c1 0 1.7-.8 1.7-1.7v-1.3c0-.6.3-1.2.8-1.6 1.4-1.1 2.6-2.8 2.6-5.5C20.4 5.3 17 2 12 2Z" fill="currentColor"/>'
+  + '<circle cx="8.6" cy="10.2" r="2.3" fill="#120d0c"/><circle cx="15.4" cy="10.2" r="2.3" fill="#120d0c"/>'
+  + '<path d="M12 13.2l-1.1 2.2h2.2L12 13.2Z" fill="#120d0c"/>'
+  + '<path d="M9.4 17.6v3M12 17.6v3M14.6 17.6v3" stroke="#120d0c" stroke-width="1.1"/></svg>';
 function parseNote(spec) {
   const parts = String(spec).split(':');
   return { kind: parts[0], dir: parts[1] || null };
@@ -761,7 +783,7 @@ function runParryNote(spec, ax, ay, idx, total, dur) {
     const ring = document.createElement('div');
     ring.className = 'k-pring k-pring-' + kind + (dir ? ' k-pring-dir' : '');
     ring.style.left = ax + 'px'; ring.style.top = ay + 'px';
-    const glyph = kind === 'bait' ? '<span class="k-pr-x">\u2715</span>'
+    const glyph = kind === 'bait' ? '<span class="k-pr-x">' + SKULL_SVG + '</span>'
       : dir ? '<span class="k-pr-arrow">' + DIR_ARROW[dir] + '</span>'
       : kind === 'burst' ? '<span class="k-pr-burst"></span>' : '';
     // The verb is on screen from the first frame. It used to read "3/6" until
@@ -1004,6 +1026,39 @@ function fxResonanceCharge() { const el = document.querySelector('.k-bond-row');
 // THE LINE THAT CONNECTS THE GRADES TO THE HP BAR. Without it the player reads
 // a stack of ratings fly past and then watches a number leave their health with
 // no stated relationship between the two.
+// THE CLASH. A blow turned aside is the best thing a player can do in this
+// game, and it used to read as one gold ring. Now it is a struck-steel beat:
+// the guard flares, a crescent of light throws off the hero in the direction
+// the blow came from, shards spray, and the frame stops long enough to feel it.
+function fxDeflect(node, flawless) {
+  const S = stageBox(); const c = centreOf(node);
+  if (!S || !c) { screenPulse('gold'); hitstop(120); return; }
+  const boss = centreOf(document.getElementById('k-boss-art'));
+  const ang = boss ? Math.atan2(boss.y - c.y, boss.x - c.x) * 180 / Math.PI : 0;
+  const burst = document.createElement('div');
+  burst.className = 'k-deflect' + (flawless ? ' k-deflect-max' : '');
+  burst.style.cssText = 'left:' + c.x + 'px;top:' + c.y + 'px;--ang:' + ang.toFixed(1) + 'deg';
+  // a crescent thrown toward whatever swung, plus shards off the point of contact
+  let shards = '';
+  const n = flawless ? 9 : 6;
+  for (let i = 0; i < n; i++) {
+    const a = ang - 62 + (124 / (n - 1)) * i + (i % 2 ? 7 : -7);
+    shards += '<i class="k-df-shard" style="--a:' + a.toFixed(1) + 'deg;--d:'
+      + (46 + (i % 3) * 20) + 'px;--t:' + (i * 14) + 'ms"></i>';
+  }
+  burst.innerHTML = '<span class="k-df-crescent"></span><span class="k-df-flash"></span>' + shards;
+  S.st.appendChild(burst);
+  setTimeout(() => burst.remove(), 720);
+  shockRing(c.x, c.y, flawless ? 2.1 : 1.5, 'gold');
+  setTimeout(() => shockRing(c.x, c.y, flawless ? 1.3 : 0.9, 'gold'), 90);
+  screenPulse('gold');
+  screenKick(flawless ? 1.4 : 0.9);
+  if (node) {
+    node.classList.remove('k-deflected'); void node.offsetWidth; node.classList.add('k-deflected');
+    setTimeout(() => node.classList.remove('k-deflected'), 620);
+  }
+  hitstop(flawless ? 175 : 140);
+}
 function fxParryReceipt(heroId, read) {
   const at = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
   if (!at || !read.notes) return;
@@ -1072,14 +1127,31 @@ function flyCard(from, toEl, opts) {
   const dx = (to.x + to.w / 2) - (from.x + from.w / 2);
   const dy = (to.y + to.h / 2) - (from.y + from.h / 2);
   const scale = Math.min(1, to.w / Math.max(1, from.w));
+  // A CARD DOES NOT SLIDE INTO A PILE, IT IS THROWN. A straight lerp is what
+  // made the sweep read like a spreadsheet row moving; the card lifts off the
+  // hand, arcs over, and drops onto the stack, turning as it goes.
+  const lift = o.arc == null ? 26 : o.arc;
+  const spin = o.spin || 0;
+  const end = o.fadeOut === false ? 1 : 0.1;
+  const mid = { transform: 'translate(' + (dx * 0.42).toFixed(1) + 'px,'
+      + (dy * 0.34 - lift).toFixed(1) + 'px) scale(' + (1 + (scale - 1) * 0.3).toFixed(3)
+      + ') rotate(' + (spin * 0.45).toFixed(1) + 'deg)',
+    opacity: 1, offset: 0.5 };
+  const last = { transform: 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1)
+      + 'px) scale(' + scale.toFixed(3) + ') rotate(' + spin + 'deg)', opacity: end };
   return new Promise(res => {
-    requestAnimationFrame(() => {
-      g.style.transition = 'transform ' + ms + 'ms cubic-bezier(.4,.05,.3,1), opacity ' + ms + 'ms ease';
-      g.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + scale + ') rotate('
-        + (o.spin || 0) + 'deg)';
-      g.style.opacity = o.fadeOut === false ? '1' : '0.15';
-      setTimeout(() => { g.remove(); res(); }, ms + 20);
-    });
+    const done = () => { g.remove(); res(); };
+    if (g.animate) {
+      g.animate([{ transform: 'translate(0,0) scale(1) rotate(0deg)', opacity: 1 }, mid, last],
+        { duration: ms, easing: 'cubic-bezier(.32,.02,.24,1)', fill: 'forwards' });
+      setTimeout(done, ms + 20);
+    } else {
+      requestAnimationFrame(() => {
+        g.style.transition = 'transform ' + ms + 'ms cubic-bezier(.4,.05,.3,1), opacity ' + ms + 'ms ease';
+        g.style.transform = last.transform; g.style.opacity = String(end);
+        setTimeout(done, ms + 20);
+      });
+    }
   });
 }
 // EXHAUST does not go to a pile — it burns out of the fight entirely.
@@ -1119,17 +1191,30 @@ function flyFromHand(cardId, which, opts) {
 }
 
 const sleep = (ms) => new Promise(r => setTimeout(r, (typeof window !== 'undefined' && window.__SIM) ? 0 : (testMode() ? Math.min(ms, 24) : ms)));
-// The sweep: every card left in hand thrown to the discard in quick succession.
+// THE SWEEP, Spire-style: each card LEAVES the hand as its ghost launches, so
+// the fan closes behind it and the pile grows under it. The old version flew a
+// ghost while the original sat in place until the last one had gone, which read
+// as the hand duplicating itself rather than emptying.
 async function fxSweepHand() {
-  const ids = C.hand.slice();
-  for (let i = 0; i < ids.length; i++) {
-    flyFromHand(ids[i], 'discard', { spin: -8 - i * 4, ms: 240 });
-    await sleep(testMode() ? 4 : 55);
+  const target = document.getElementById('k-disc-btn');
+  const n = C.hand.length;
+  for (let i = 0; i < n; i++) {
+    const S = stageBox();
+    const id = C.hand[0];
+    const node = document.querySelector('.k-card[data-card="' + id + '"]');
+    const from = S && node ? boxOf(node, S) : null;
+    const html = node ? node.innerHTML : '';
+    C.hand.shift();
+    C.discard.push(id);
+    renderHand();                       // the ranks close in the same frame
+    renderPiles();
+    if (from && target) {
+      flyCard(from, target, { spin: -14 - i * 6, arc: 40 + i * 7, ms: 320, html });
+      pileThump('discard');
+    }
+    await sleep(testMode() ? 4 : 58);
   }
-  while (C.hand.length) C.discard.push(C.hand.pop());
-  renderHand();
-  renderPiles();
-  await sleep(testMode() ? 6 : 180);
+  await sleep(testMode() ? 6 : 210);
 }
 async function fxDrawOne() {
   const S = stageBox();
@@ -1161,18 +1246,14 @@ async function fxDirge(n) {
 }
 async function fxInterrupt() { const b = document.getElementById('k-boss-art'); if (b) { b.classList.add('k-broken'); await sleep(700); b.classList.remove('k-broken'); } }
 async function fxBossHeal() { popupOver(document.getElementById('k-boss-art'), '+heal', 'k-pop-heal'); await sleep(500); }
-async function fxHitResolved(tgtId, taken, negated) {
+async function fxHitResolved(tgtId, taken, negated, flawless) {
   const at = tgtId && document.querySelector('.k-hero[data-hero="' + tgtId + '"]');
   if (taken > 0) {
     popupOver(at || document.getElementById('k-party-hud'), '−' + fmtN(taken),
       'k-pop-dmg k-pop-hurt' + (taken >= 9 ? ' k-pop-big' : ''));
     fxImpact(at, Math.min(2.4, taken / 5), 'hurt');
   } else if (negated) {
-    // a turned blow is a CLASH: gold shock, hard stop, no shake
-    const c = centreOf(at);
-    if (c) shockRing(c.x, c.y, 1.6, 'gold');
-    screenPulse('gold');
-    hitstop(120);
+    fxDeflect(at, !!flawless);
   }
   await sleep(330);
 }
@@ -1279,6 +1360,10 @@ function renderHand() {
       + '</button>';
   }).join('');
   hand.querySelectorAll('.k-card:not(.k-card-dead)').forEach(b => attachCardInput(b));
+  // Rebuilding the hand orphans whatever was being dragged, so no beam can
+  // still belong to anything. Leaving one alive is how it got stranded in the
+  // corner of the screen with nothing holding the other end.
+  aimClear();
 }
 const COND_LABEL = {
   FOLLOW_UP: 'Follow-Up', FINALE: 'Finale',
@@ -1309,16 +1394,30 @@ function icon(name, cls) {
 const COND_ICON = { FOLLOW_UP: 'follow', FINALE: 'finale', BROKEN: 'broken', BROKEN_OR_LOW: 'broken' };
 
 function cardFaceHTML(c, ev, gem, ownerArt) {
+  // THE CARD ANSWERS TWO QUESTIONS, so it is drawn as two blocks. The top is
+  // what the card does, always, in the biggest type on the face. The bottom is
+  // the COMBO — a banded strip with a named tag, because "Finale: +5 damage"
+  // set as one more grey sentence read as a footnote instead of the payoff.
   const cond = c.cond
-    ? '<span class="k-cline' + (ev.condActive ? ' on' : '') + '">'
-      + icon(COND_ICON[c.cond.type] || 'follow')
-      + '<em>' + (COND_LABEL[c.cond.type] || c.cond.type) + ':</em> ' + condReward(c) + '</span>'
-    : c.exhaust ? '<span class="k-cline on"><em>Exhaust.</em></span>' : '';
+    ? '<span class="k-combo' + (ev.condActive ? ' on' : '') + '">'
+      + '<span class="k-combo-tag">' + icon(COND_ICON[c.cond.type] || 'follow')
+      + (COND_LABEL[c.cond.type] || c.cond.type)
+      + (ev.condActive ? '<i class="k-combo-state">ON</i>' : '') + '</span>'
+      + '<span class="k-combo-pay">' + condReward(c) + '</span></span>'
+    : c.exhaust
+      ? '<span class="k-combo k-combo-exh on"><span class="k-combo-tag">'
+        + icon('finale') + 'Exhaust<i class="k-combo-state">ON</i></span>'
+        + '<span class="k-combo-pay">Leaves the fight when played.</span></span>'
+      : '';
   return '<span class="k-cgem' + (ev.condActive && ev.currentCost !== c.cost ? ' on' : '') + '">' + gem + '</span>'
     + '<img class="k-owner" src="' + ownerArt + '" alt="">'
     + '<span class="k-cname">' + c.name + '</span>'
     + '<span class="k-cart"><img src="' + ownerArt + '" alt=""></span>'
-    + '<span class="k-ctext"><span class="k-cprose">' + prose(c.base) + '</span>' + cond + '</span>';
+    // the prose sits in its own inner span: .k-cprose centres its content with
+    // flex, and a flex container turns each inline child into an item — which
+    // silently ate the spaces and printed "9damage."
+    + '<span class="k-ctext"><span class="k-cprose"><span>' + prose(c.base) + '</span></span>'
+    + cond + '</span>';
 }
 // Plain sentences, numbers bolded — the way a card is read at a glance.
 function prose(effects, plain) {
@@ -1536,6 +1635,44 @@ function aimAnchor(drop) {
            node };
 }
 
+// THE ROW SNAP, the same philosophy as the card snap: do not ask "is the
+// finger inside this band", ask which row it is nearest — and weight depth,
+// because "step back" is a movement up the screen, not sideways.
+const ROW_SNAP = 300;
+function rowTargetAt(clientX, clientY) {
+  const stage = el('k-stage'); if (!stage) return null;
+  const sr = stage.getBoundingClientRect();
+  const k = sr.width / stage.offsetWidth || 1;
+  const px = (clientX - sr.left) / k, py = (clientY - sr.top) / k;
+  let best = null, bd = Infinity;
+  document.querySelectorAll('#k-rows .k-row').forEach(r => {
+    const cx = r.offsetLeft + r.offsetWidth / 2, cy = r.offsetTop + r.offsetHeight / 2;
+    const d = Math.hypot(px - cx, (py - cy) * 1.7);
+    if (d < bd) { bd = d; best = r.dataset.row; }
+  });
+  return bd <= ROW_SNAP ? best : null;
+}
+// The price, or the reason there is no price to pay — over the hero's head,
+// where the hand already is.
+function moveHint(heroId, text, ok) {
+  const hint = el('k-movehint'); if (!hint) return;
+  if (!heroId) { hint.classList.add('k-hidden'); return; }
+  const stage = el('k-stage'), node = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
+  if (!stage || !node) return;
+  const sr = stage.getBoundingClientRect(), r = node.getBoundingClientRect();
+  const k = sr.width / stage.offsetWidth || 1;
+  if (text != null) hint.textContent = text;      // null: reposition, same words
+  hint.classList.toggle('k-movehint-no', !ok);
+  hint.style.left = ((r.left + r.width / 2 - sr.left) / k) + 'px';
+  hint.style.top = ((r.top - sr.top) / k - 20) + 'px';
+  hint.classList.remove('k-hidden');
+}
+function fxStep(heroId) {
+  const node = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
+  if (!node) return;
+  node.classList.remove('k-stepping'); void node.offsetWidth; node.classList.add('k-stepping');
+  setTimeout(() => node.classList.remove('k-stepping'), 460);
+}
 function attachCardInput(btn) {
   // `armed` gates everything on a REAL press. Without it a bare hover's
   // pointermove measured its delta from (0,0), decided it was a drag, and
@@ -1544,8 +1681,18 @@ function attachCardInput(btn) {
   let raf = 0, phase = 0, lastPt = null, home = null;
   // the beam is redrawn on its own frame loop so the dotted thread keeps
   // travelling and the reticle keeps turning even when the finger is still
+  // A drag can outlive its own card: anything that re-renders the hand detaches
+  // this button while the frame loop is still running, and a detached node
+  // measures as a zero rect — which is how the beam ended up nailed to the top
+  // corner of the screen, still pointing at the Regent, long after the drop.
+  const abandon = () => {
+    dragging = false; armed = false; held = false; lastPt = null;
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    aimClear();
+  };
   const spin = () => {
     if (!dragging) { raf = 0; return; }
+    if (!btn.isConnected) { abandon(); return; }
     phase = (phase + 1.6) % 360;
     paintAim();
     raf = requestAnimationFrame(spin);
@@ -1556,6 +1703,7 @@ function attachCardInput(btn) {
     const sr = stage.getBoundingClientRect();
     const k = sr.width / stage.offsetWidth || 1;
     const cr = btn.getBoundingClientRect();
+    if (!btn.isConnected || cr.width < 2) { abandon(); return; }
     const from = { x: (cr.left + cr.width / 2 - sr.left) / k, y: (cr.top - sr.top) / k };
     const id = btn.dataset.card;
     const drop = dropTargetAt(lastPt.x, lastPt.y, id);
@@ -1723,28 +1871,49 @@ function bindChrome() {
   };
   pileBtn('k-deck-btn', 'deck');
   pileBtn('k-disc-btn', 'discard');
-  // MOVE IS DRAG. Pull a hero sideways past the threshold and release —
-  // rows are a toggle, so either direction reads as "step to the other row".
+  // MOVE IS A PLACE YOU PUT SOMEONE. Grabbing a hero raises the two rows out
+  // of the ground; you carry them to one and let go. The old version was a
+  // blind 44px threshold with nothing on screen to say a threshold existed.
   document.querySelectorAll('.k-hero').forEach(h => {
-    let sx = 0, live = false;
+    let sx = 0, sy = 0, live = false, legal = false;
+    const rows = () => document.querySelectorAll('#k-rows .k-row');
     h.addEventListener('pointerdown', (e) => {
-      if (!C || C.phase !== 'PLAYER_READY') return;
-      sx = e.clientX; live = true;
+      if (!C) return;
+      const who = h.dataset.hero;
+      sx = e.clientX; sy = e.clientY; live = true;
+      const why = moveReason(who);
+      legal = !why;
+      el('k-stage').classList.add('k-moving');
+      el('k-stage').classList.toggle('k-moving-no', !legal);
+      moveHint(who, legal ? 'MOVE \u00b7 ' + MOVE_COST + ' AP' : why.toUpperCase(), legal);
+      rows().forEach(r => r.classList.toggle('k-row-here', r.dataset.row === C.heroes[who].row));
       try { h.setPointerCapture(e.pointerId); } catch (_) {}
     });
     h.addEventListener('pointermove', (e) => {
       if (!live) return;
-      const dx = (e.clientX - sx) / stageScale();
-      h.classList.add('k-hero-drag');
-      h.style.setProperty('--hdx', Math.max(-70, Math.min(70, dx)) + 'px');
+      if (Math.hypot(e.clientX - sx, e.clientY - sy) > 6) h.classList.add('k-hero-drag');
+      const here = C.heroes[h.dataset.hero].row;
+      const want = legal ? rowTargetAt(e.clientX, e.clientY) : null;
+      rows().forEach(r => r.classList.toggle('k-row-hot',
+        !!want && r.dataset.row === want && want !== here));
+      // THE FIGURE PREVIEWS THE DESTINATION rather than being glued to the
+      // finger. A hero is a tall sprite: dragging one by the chest sends the
+      // body the opposite way from the row being aimed at, and the eye
+      // believes the body.
+      h.classList.toggle('k-prev-back', want === 'back');
+      h.classList.toggle('k-prev-front', want === 'front');
+      moveHint(h.dataset.hero, null, legal);      // the price rides with them
     });
     const up = (e) => {
       if (!live) return;
       live = false;
-      const dx = (e.clientX - sx) / stageScale();
-      h.classList.remove('k-hero-drag');
-      h.style.removeProperty('--hdx');
-      if (Math.abs(dx) > 44) moveHero(h.dataset.hero);
+      h.classList.remove('k-hero-drag', 'k-prev-back', 'k-prev-front');
+      el('k-stage').classList.remove('k-moving', 'k-moving-no');
+      moveHint(null);
+      rows().forEach(r => r.classList.remove('k-row-hot', 'k-row-here'));
+      if (!legal) return;
+      const want = rowTargetAt(e.clientX, e.clientY);
+      if (want) moveHero(h.dataset.hero, want);
     };
     h.addEventListener('pointerup', up);
     h.addEventListener('pointercancel', up);
@@ -1766,7 +1935,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 window.K = {
   state: () => C,
-  evaluateCard, playCard, moveHero, cycleCard, pickDiscard,
+  evaluateCard, playCard, moveHero, moveReason, rowTargetAt, cycleCard, pickDiscard,
   endTurn: (opts) => endTurn(opts),
   startCombat, setSeed,
   render: () => renderAll(),

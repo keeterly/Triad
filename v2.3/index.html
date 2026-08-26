@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=15" />
+  <link rel="stylesheet" href="styles.css?v=16" />
 </head>
 <body>
   <div id="k-scale">
@@ -20,6 +20,14 @@
         <img id="k-bg" src="../art/bg23-plaza.webp" alt="">
         <div class="k-scrim"></div>
       </div>
+
+      <!-- THE TWO ROWS, as ground a hero can be dropped onto (v2.2's row slots).
+           Invisible until a hero is grabbed, then they are the whole question. -->
+      <div id="k-rows" aria-hidden="true">
+        <div class="k-row" data-row="back"><span class="k-row-lbl">BACK</span></div>
+        <div class="k-row" data-row="front"><span class="k-row-lbl">FRONT</span></div>
+      </div>
+      <div id="k-movehint" class="k-hidden"></div>
 
       <!-- actors: independent transparent plates on one ground line -->
       <div id="k-boss-art"><img src="../art/foe-mourner.webp" alt="The Mourning Regent"><span class="k-shadow"></span></div>
@@ -130,7 +138,7 @@
 
     </main>
   </div>
-  <script src="game.js?v=15"></script>
+  <script src="game.js?v=16"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

@@ -31,15 +31,27 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-hero img { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
   height: 100%; width: auto; filter: drop-shadow(0 8px 12px rgba(0,0,0,0.72));
   -webkit-box-reflect: below -4px linear-gradient(rgba(0,0,0,0) 62%, rgba(255,255,255,0.16)); }
-.k-hero.k-back { transform: translateX(-46px) scale(0.92); opacity: 0.88; }
+/* BACK is upstage, not merely left of front: further away, smaller, dimmer.
+   Two rows the eye can separate are two rows a finger can aim at. */
+.k-hero.k-back { transform: translate(-30px, -34px) scale(0.84); opacity: 0.86; }
 .k-shadow { position: absolute; left: 50%; bottom: -3px; transform: translateX(-50%);
   width: 86%; height: 8px; border-radius: 50%;
   background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 72%); }
 .k-hero-row { position: absolute; left: 50%; bottom: -16px; transform: translateX(-50%);
   font-size: 7px; letter-spacing: 0.18em; color: #8e8574; }
 .k-hero { cursor: grab; touch-action: none; }
-.k-hero.k-hero-drag { transition: none; transform: translateX(var(--hdx, 0px)); cursor: grabbing; z-index: 6; }
-.k-hero.k-back.k-hero-drag { transform: translateX(calc(-46px + var(--hdx, 0px))) scale(0.92); }
+.k-hero.k-hero-drag { cursor: grabbing; z-index: 8; }
+.k-hero.k-hero-drag img { filter: drop-shadow(0 12px 18px rgba(0,0,0,0.82)) brightness(1.14); }
+/* the figure PREVIEWS where it would stand — it is not dragged by the chest */
+.k-hero.k-prev-front { transform: translateY(-9px) !important; opacity: 1 !important; }
+.k-hero.k-prev-back  { transform: translate(-30px, -43px) scale(0.84) !important; opacity: 1 !important; }
+/* the step itself: a push off the back foot, not a slide */
+.k-hero.k-stepping img { animation: k-step 0.44s cubic-bezier(.3,.7,.3,1); }
+@keyframes k-step {
+  0%   { transform: translateX(-50%) translateY(0) ; }
+  40%  { transform: translateX(-50%) translateY(-11px) scale(1.03); }
+  70%  { transform: translateX(-50%) translateY(2px) scale(0.985); }
+  100% { transform: translateX(-50%) translateY(0); } }
 .k-hero.k-acts img { animation: k-act 0.42s ease; }
 @keyframes k-act { 30% { transform: translateX(-50%) translateY(-7px) scale(1.03); } }
 .k-hero.k-dim { opacity: 0.3; filter: grayscale(0.6); }
@@ -195,21 +207,35 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   display: flex; justify-content: center; }
 .k-cart img { height: 150%; width: auto; margin-top: -6%;
   filter: grayscale(0.95) contrast(1.18) brightness(0.85); mix-blend-mode: multiply; }
-/* THE TEXT BOX — one block of plain sentences. This is the card. */
-.k-ctext { flex-grow: 1; margin: 4px 4px 5px; padding: 3px 4px; min-height: 0;
+/* THE TEXT BOX — two blocks, because the card answers two questions: what it
+   always does, and what the COMBO pays. They must not look like one paragraph. */
+.k-ctext { flex-grow: 1; margin: 4px 4px 5px; padding: 0; min-height: 0; overflow: hidden;
   background: linear-gradient(180deg, rgba(246,241,228,0.72), rgba(228,220,201,0.72));
   border: 1px solid rgba(90,78,56,0.3); border-radius: 2px;
-  display: flex; flex-direction: column; gap: 3px; text-align: center; }
-.k-cprose { font-size: 8.5px; line-height: 1.28; color: #2b2620; }
-.k-cprose b { font-weight: 700; color: #101010; }
-/* the conditional clause — same box, its own line, labelled */
-.k-cline { font-size: 8px; line-height: 1.24; color: #6d6450;
-  border-top: 1px solid rgba(90,78,56,0.28); padding-top: 3px; margin-top: auto; }
-.k-cline em { font-style: normal; font-weight: 700; letter-spacing: 0.03em; color: #7d735d; }
-.k-cline b { font-weight: 700; color: #4a4438; }
-.k-cline.on { color: #2b2620; }
-.k-cline.on em { color: #8f6f2a; }
-.k-cline.on b { color: #101010; }
+  display: flex; flex-direction: column; text-align: center; }
+/* BASE — the biggest type on the face. This is what the card does. */
+.k-cprose { font-size: 9.5px; line-height: 1.3; color: #241f18; padding: 4px 4px 3px;
+  flex-grow: 1; display: flex; align-items: center; justify-content: center; }
+.k-cprose > span { display: block; }
+.k-cprose b { font-weight: 700; color: #0b0b0b; }
+/* COMBO — a banded strip with a named tag, so the payoff is never a footnote */
+.k-combo { margin-top: auto; padding: 2px 3px 3px;
+  background: rgba(120,106,78,0.16); border-top: 1px solid rgba(90,78,56,0.34);
+  display: flex; flex-direction: column; gap: 1px; }
+.k-combo-tag { display: flex; align-items: center; justify-content: center; gap: 2.5px;
+  font-size: 6.5px; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase;
+  color: #7d735d; }
+.k-combo-state { font-style: normal; font-size: 6px; letter-spacing: 0.1em;
+  padding: 0 2.5px; border-radius: 2px; border: 1px solid rgba(90,78,56,0.4); color: #857b64; }
+.k-combo-pay { font-size: 8.5px; line-height: 1.22; color: #4a4438; }
+.k-combo-pay b { font-weight: 700; color: #2b2620; }
+/* ARMED — the strip goes gold and the payoff reads as loud as the base line */
+.k-combo.on { background: linear-gradient(180deg, rgba(224,192,132,0.5), rgba(201,164,92,0.34));
+  border-top-color: #a98c4e; }
+.k-combo.on .k-combo-tag { color: #6b4f14; }
+.k-combo.on .k-combo-state { color: #3d2c06; border-color: #8f6f2a; background: rgba(255,235,180,0.7); }
+.k-combo.on .k-combo-pay { color: #201a10; }
+.k-combo.on .k-combo-pay b { color: #0b0b0b; }
 
 /* ── resonance ── */
 .k-res { position: absolute; right: 118px; bottom: 8px; width: 66px; height: 126px; border-radius: 5px;
@@ -450,7 +476,7 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 
 /* ── the icon vocabulary ── */
 .k-ico { width: 9px; height: 9px; vertical-align: -1px; margin-right: 2px; opacity: 0.88; }
-.k-cline .k-ico { width: 8.5px; height: 8.5px; }
+.k-combo-tag .k-ico { width: 7.5px; height: 7.5px; }
 .k-insp-now .k-ico { width: 12px; height: 12px; vertical-align: -1.5px; }
 
 /* ── the beat: a pulse on every downbeat, and the volley's sequence track ── */
@@ -529,8 +555,15 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 @keyframes k-prwrong { 0%,100% { transform: translate(-50%,-50%); }
   25% { transform: translate(calc(-50% - 5px),-50%); }
   75% { transform: translate(calc(-50% + 5px),-50%); } }
+/* BAIT wears a skull. A crossed circle has to be learned; a skull does not. */
 .k-pr-x { position: absolute; left: 0; top: 0; transform: translate(-50%,-50%);
-  font-size: 20px; color: #e0665a; text-shadow: 0 0 10px rgba(224,102,90,0.9); }
+  width: 26px; height: 26px; color: #e0665a;
+  filter: drop-shadow(0 0 8px rgba(224,102,90,0.9));
+  animation: k-skullbeat 1s ease-in-out infinite; }
+.k-pr-x svg { width: 100%; height: 100%; display: block; }
+@keyframes k-skullbeat { 50% { transform: translate(-50%,-50%) scale(1.1); } }
+.k-pring-bait.k-pr-live .k-pr-x { color: #ff7a6a;
+  filter: drop-shadow(0 0 14px rgba(255,122,106,1)); }
 .k-pr-burst { position: absolute; left: 0; top: 0; width: 26px; height: 26px;
   transform: translate(-50%,-50%); border-radius: 50%;
   background: radial-gradient(circle, rgba(255,225,74,0.5), rgba(255,225,74,0) 70%);
@@ -558,3 +591,83 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   box-shadow: 0 0 12px rgba(255,225,74,0.5); }
 .k-pring.k-pr-tick .k-pr-target { animation: k-prtick 0.16s ease; }
 @keyframes k-prtick { 40% { transform: translate(-50%,-50%) scale(1.22); } }
+
+
+/* ═══ THE CLASH — what a deflected blow looks like ═══
+   A turned blow is the best thing a player can do in this game. It used to be
+   one gold ring; it is now struck steel: a crescent thrown back along the line
+   the blow came in on, shards off the point of contact, and a white flash. */
+.k-deflect { position: absolute; width: 0; height: 0; pointer-events: none; z-index: 38;
+  transform: translate(-50%, -50%) rotate(var(--ang, 0deg)); }
+.k-df-crescent { position: absolute; left: 0; top: 0; width: 96px; height: 96px;
+  transform: translate(-50%, -50%) scale(0.4); border-radius: 50%;
+  border: 4px solid transparent; border-right-color: #fff6dc; border-top-color: rgba(255,232,170,0.85);
+  box-shadow: 0 0 26px rgba(255,225,150,0.85);
+  animation: k-dfsweep 460ms cubic-bezier(.15,.75,.3,1) forwards; }
+@keyframes k-dfsweep {
+  0%   { transform: translate(-50%,-50%) scale(0.35) rotate(-38deg); opacity: 0; }
+  22%  { opacity: 1; }
+  100% { transform: translate(-50%,-50%) scale(1.5) rotate(26deg); opacity: 0; } }
+.k-df-flash { position: absolute; left: 0; top: 0; width: 54px; height: 54px; border-radius: 50%;
+  transform: translate(-50%,-50%) scale(0.3);
+  background: radial-gradient(circle, #fffdf3 0%, rgba(255,236,180,0.75) 38%, rgba(255,225,120,0) 72%);
+  animation: k-dfflash 300ms ease-out forwards; }
+@keyframes k-dfflash { 0% { transform: translate(-50%,-50%) scale(0.25); opacity: 1; }
+  100% { transform: translate(-50%,-50%) scale(1.9); opacity: 0; } }
+.k-df-shard { position: absolute; left: 0; top: 0; width: 15px; height: 2.4px; border-radius: 2px;
+  background: linear-gradient(90deg, #fff6dc, rgba(255,214,120,0));
+  transform-origin: 0 50%;
+  transform: rotate(var(--a)) translateX(6px);
+  animation: k-dfshard 480ms cubic-bezier(.2,.7,.3,1) var(--t, 0ms) forwards; opacity: 0; }
+@keyframes k-dfshard {
+  0%   { transform: rotate(var(--a)) translateX(6px) scaleX(0.4); opacity: 0; }
+  18%  { opacity: 1; }
+  100% { transform: rotate(var(--a)) translateX(var(--d)) scaleX(1.5); opacity: 0; } }
+.k-deflect-max .k-df-crescent { border-right-color: #ffffff; width: 124px; height: 124px; }
+/* the hero who turned it flares white for a beat — they took nothing */
+.k-hero.k-deflected img { animation: k-dfhero 560ms ease-out; }
+@keyframes k-dfhero {
+  0%   { filter: drop-shadow(0 8px 12px rgba(0,0,0,0.72)) brightness(3.4) saturate(0); }
+  35%  { filter: drop-shadow(0 0 22px rgba(255,225,150,0.9)) brightness(1.5); }
+  100% { filter: drop-shadow(0 8px 12px rgba(0,0,0,0.72)) brightness(1); } }
+
+
+/* ═══ THE ROWS — v2.2's row slots, as ground you drop a hero onto ═══
+   They do not exist until a hero is in your hand, and then they are the only
+   question on the board. A blind drag threshold taught nobody anything. */
+#k-rows { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.k-row { position: absolute; border-radius: 50%;
+  border: 1.5px dashed rgba(201,164,92,0.5); background: rgba(201,164,92,0.06);
+  opacity: 0; transform: scale(0.96); transition: opacity 0.18s ease, transform 0.18s ease; }
+.k-row[data-row="back"]  { left: 130px; top: 242px; width: 300px; height: 30px; }
+.k-row[data-row="front"] { left: 186px; top: 282px; width: 340px; height: 32px; }
+.k-row-lbl { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  font-size: 8px; letter-spacing: 0.24em; color: rgba(224,192,132,0.75);
+  text-shadow: 0 1px 4px #000; }
+#k-stage.k-moving .k-row { opacity: 1; transform: scale(1); }
+/* while the rows are up they ARE the labels — the per-hero tags would say the
+   same words a second time, in a smaller voice, in the same place */
+#k-stage.k-moving .k-hero-row { opacity: 0; }
+.k-hero-row { transition: opacity 0.16s ease; }
+/* the hand steps back while the board is the question — the front row lives
+   under the fan, and a lane you cannot see is a lane you cannot aim at */
+#k-hand { transition: transform 0.2s ease, opacity 0.2s ease; }
+#k-stage.k-moving #k-hand { transform: translateX(-50%) translateY(104px); opacity: 0.3; }
+/* where they already stand: stated, not offered */
+.k-row.k-row-here { border-style: solid; border-color: rgba(160,150,128,0.45);
+  background: rgba(120,110,90,0.1); }
+.k-row.k-row-here .k-row-lbl { color: rgba(170,160,140,0.7); }
+/* where they would land: lit, and it breathes */
+.k-row.k-row-hot { border-color: #e0c084; background: rgba(224,192,132,0.2);
+  box-shadow: 0 0 22px rgba(224,192,132,0.35), inset 0 0 18px rgba(224,192,132,0.2);
+  animation: k-rowbeat 0.9s ease-in-out infinite; }
+.k-row.k-row-hot .k-row-lbl { color: #fff3d0; font-weight: 700; }
+@keyframes k-rowbeat { 50% { box-shadow: 0 0 30px rgba(224,192,132,0.55), inset 0 0 24px rgba(224,192,132,0.3); } }
+/* a move that cannot happen: the ground stays sealed and the chip says why */
+#k-stage.k-moving-no .k-row { border-color: rgba(140,130,112,0.4); background: rgba(60,55,46,0.16); }
+#k-movehint { position: absolute; transform: translate(-50%, -100%); z-index: 33;
+  padding: 2.5px 7px; border-radius: 3px; white-space: nowrap;
+  font-size: 8.5px; font-weight: 700; letter-spacing: 0.14em;
+  background: rgba(20,17,14,0.92); border: 1px solid #a98c4e; color: #ffeec4;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.7); }
+#k-movehint.k-movehint-no { border-color: #7a5a52; color: #e8a49a; }

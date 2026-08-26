@@ -553,13 +553,17 @@ const { boot } = require('./harness.cjs');
         prose: cs.querySelector('.k-cprose').textContent.replace(/\s+/g, ' ').trim(),
         bolded: cs.querySelectorAll('.k-cprose b').length,
         icons: cs.querySelectorAll('.k-cprose .k-ico').length,
-        condIcon: !!cs.querySelector('.k-cline .k-ico'),
+        condIcon: !!cs.querySelector('.k-combo-tag .k-ico'),
         ratio: +(cs.offsetWidth / cs.offsetHeight).toFixed(3),
-        cond: cs.querySelector('.k-cline').textContent.replace(/\s+/g, ' ').trim(),
+        tag: cs.querySelector('.k-combo-tag').textContent.replace(/\s+/g, ' ').trim(),
+        state: (cs.querySelector('.k-combo-state') || {}).textContent || '',
+        pay: cs.querySelector('.k-combo-pay').textContent.replace(/\s+/g, ' ').trim(),
         plainProse: cl.querySelector('.k-cprose').textContent.replace(/\s+/g, ' ').trim(),
-        noCondOnCore: !cl.querySelector('.k-cline'),
+        noCondOnCore: !cl.querySelector('.k-combo'),
         proseSize: px(cs.querySelector('.k-cprose'), 'fontSize'),
+        paySize: px(cs.querySelector('.k-combo-pay'), 'fontSize'),
         gemSize: px(cs.querySelector('.k-cgem'), 'fontSize'),
+        banded: getComputedStyle(cs.querySelector('.k-combo')).borderTopWidth,
         textBox: !!cs.querySelector('.k-ctext'),
       };
     });
@@ -567,21 +571,27 @@ const { boot } = require('./harness.cjs');
       anat.prose === '9 damage. 2 Break.' && anat.bolded === 2 && anat.icons === 2
       && anat.plainProse === '6 damage.' && anat.textBox && anat.noCondOnCore,
       JSON.stringify(anat));
-    check('CARD: the conditional clause is labelled and iconed, in the same text box',
-      anat.cond === 'Follow-Up: costs 1 AP.' && anat.condIcon
-      && anat.proseSize >= 8 && anat.gemSize >= 12,
-      JSON.stringify({ cond: anat.cond, icon: anat.condIcon, prose: anat.proseSize, gem: anat.gemSize }));
+    // The combo must not read as one more grey sentence: it is a named,
+    // banded block, and the base line is the biggest type on the face.
+    check('CARD: the combo is its own banded block — named, iconed, and never a footnote',
+      anat.tag === 'Follow-Up' && anat.pay === 'costs 1 AP.' && anat.condIcon
+      && anat.proseSize >= 9 && anat.proseSize > anat.paySize
+      && parseFloat(anat.banded) >= 1 && anat.gemSize >= 12,
+      JSON.stringify({ tag: anat.tag, pay: anat.pay, icon: anat.condIcon,
+        prose: anat.proseSize, pay_px: anat.paySize, band: anat.banded, gem: anat.gemSize }));
     check('CARD: MTG-Arena proportion — the face is 63:88, not a tall slab',
       Math.abs(anat.ratio - 63 / 88) < 0.02, 'w/h = ' + anat.ratio + ' (target ' + (63 / 88).toFixed(3) + ')');
     const live = await J(() => {
       window.K.playCard('serrate');   // Mira first — Follow-Up needs a DIFFERENT hero
       const cs = document.querySelector('.k-card[data-card="crosssever"]');
-      return { on: cs.querySelector('.k-cline').classList.contains('on'),
+      return { on: cs.querySelector('.k-combo').classList.contains('on'),
+               state: (cs.querySelector('.k-combo-state') || {}).textContent.trim(),
                gem: cs.querySelector('.k-cgem').textContent.replace(/\s+/g, ''),
                gemLit: cs.querySelector('.k-cgem').classList.contains('on') };
     });
-    check('CARD: a live condition lights its clause and restrikes the cost orb',
-      live.on && live.gem === '12' && live.gemLit, JSON.stringify(live));
+    check('CARD: a live combo lights its whole band, says ON, and restrikes the cost orb',
+      live.on && live.state === 'ON' && !anat.state && live.gem === '12' && live.gemLit,
+      JSON.stringify(Object.assign({ asleep: anat.state }, live)));
   }
   // ── StS numbers: nothing on screen should read in thousands ──
   await fresh(9);
@@ -629,6 +639,102 @@ const { boot } = require('./harness.cjs');
       lift.aiming && lift.lifted && lift.followed && lift.onStage && lift.snapped,
       JSON.stringify(lift));
   }
+  // ── the rows: v2.2's slots, as ground you can see and drop onto ──
+  await fresh(12);
+  {
+    const rows = await J(async () => {
+      const stage = document.getElementById('k-stage');
+      const h = document.querySelector('.k-hero[data-hero="ash"]');
+      const hr = h.getBoundingClientRect();
+      const back = document.querySelector('.k-row[data-row="back"]');
+      const front = document.querySelector('.k-row[data-row="front"]');
+      const vis = (n) => parseFloat(getComputedStyle(n).opacity);
+      const out = { hidden: vis(back) };
+      const at = (x, y, t) => h.dispatchEvent(new PointerEvent(t,
+        { bubbles: true, clientX: x, clientY: y, pointerId: 7 }));
+      const sr = stage.getBoundingClientRect(), k = sr.width / stage.offsetWidth || 1;
+      const centre = (n) => ({ x: sr.left + (n.offsetLeft + n.offsetWidth / 2) * k,
+                               y: sr.top + (n.offsetTop + n.offsetHeight / 2) * k });
+      at(hr.left + hr.width / 2, hr.top + hr.height / 2, 'pointerdown');
+      await new Promise(r => setTimeout(r, 260));      // past the rise transition
+      out.raised = vis(back) > 0.9 && vis(front) > 0.9;
+      out.here = front.classList.contains('k-row-here');   // Ash starts FRONT
+      const hint = document.getElementById('k-movehint');
+      out.hint = hint.classList.contains('k-hidden') ? null : hint.textContent.trim();
+      const b = centre(back);
+      at(b.x, b.y, 'pointermove');
+      await new Promise(r => setTimeout(r, 30));
+      out.lit = back.classList.contains('k-row-hot');
+      at(b.x, b.y, 'pointerup');
+      await new Promise(r => setTimeout(r, 60));
+      const st = window.K.state();
+      out.row = st.heroes.ash.row; out.ap = st.ap; out.moved = st.turnState.moved;
+      out.cleared = document.getElementById('k-movehint').classList.contains('k-hidden')
+        && !stage.classList.contains('k-moving');
+      return out;
+    });
+    check('ROWS: grabbing a hero raises both rows, names the one they stand in, prices the move',
+      rows.hidden < 0.1 && rows.raised && rows.here && /MOVE/.test(rows.hint || ''),
+      JSON.stringify({ hidden: rows.hidden, raised: rows.raised, here: rows.here, hint: rows.hint }));
+    check('ROWS: carrying a hero to the other row and letting go puts them there',
+      rows.lit && rows.row === 'back' && rows.ap === 2 && rows.moved === 1 && rows.cleared,
+      JSON.stringify({ lit: rows.lit, row: rows.row, ap: rows.ap, moved: rows.moved, cleared: rows.cleared }));
+  }
+  await settle();
+  await fresh(12);
+  {
+    const sealed = await J(async () => {
+      window.K.moveHero('mira');                    // the phase's one move, spent
+      const stage = document.getElementById('k-stage');
+      const h = document.querySelector('.k-hero[data-hero="ash"]');
+      const hr = h.getBoundingClientRect();
+      const back = document.querySelector('.k-row[data-row="back"]');
+      const sr = stage.getBoundingClientRect(), k = sr.width / stage.offsetWidth || 1;
+      const at = (x, y, t) => h.dispatchEvent(new PointerEvent(t,
+        { bubbles: true, clientX: x, clientY: y, pointerId: 8 }));
+      at(hr.left + hr.width / 2, hr.top + hr.height / 2, 'pointerdown');
+      await new Promise(r => setTimeout(r, 30));
+      const hint = document.getElementById('k-movehint');
+      const out = { why: hint.textContent.trim(), sealed: stage.classList.contains('k-moving-no'),
+                    reason: window.K.moveReason('ash') };
+      const bx = sr.left + (back.offsetLeft + back.offsetWidth / 2) * k;
+      const by = sr.top + (back.offsetTop + back.offsetHeight / 2) * k;
+      at(bx, by, 'pointermove');
+      await new Promise(r => setTimeout(r, 20));
+      out.lit = back.classList.contains('k-row-hot');
+      at(bx, by, 'pointerup');
+      await new Promise(r => setTimeout(r, 40));
+      out.row = window.K.state().heroes.ash.row;
+      return out;
+    });
+    check('ROWS: a move that cannot happen says why and refuses — never a silent nothing',
+      sealed.reason === 'already moved' && /ALREADY MOVED/.test(sealed.why)
+      && sealed.sealed && !sealed.lit && sealed.row === 'front', JSON.stringify(sealed));
+  }
+  await settle();
+  // ── the beam cannot outlive the card that is throwing it ──
+  await fresh(7);
+  {
+    const stale = await J(async () => {
+      const st = document.getElementById('k-stage');
+      const card = document.querySelector('.k-card');
+      const r = card.getBoundingClientRect();
+      const at = (x, y, t) => card.dispatchEvent(new PointerEvent(t,
+        { bubbles: true, clientX: x, clientY: y, pointerId: 5 }));
+      at(r.left + r.width / 2, r.top + 10, 'pointerdown');
+      at(r.left + r.width / 2 + 120, r.top - 60, 'pointermove');
+      at(r.left + r.width / 2 + 240, r.top - 90, 'pointermove');
+      const drawn = !!document.querySelector('#k-aim .k-aim-dash');
+      window.K.render();                       // anything that rebuilds the hand
+      await new Promise(res => setTimeout(res, 140));
+      const svg = document.getElementById('k-aim');
+      const d = svg && svg.querySelector('.k-aim-dash');
+      return { drawn, left: !!d, path: d ? d.getAttribute('d') : null };
+    });
+    check('AIM: the beam dies with the card — a re-render cannot strand it in the corner',
+      stale.drawn && !stale.left, JSON.stringify(stale));
+  }
+  await settle();
   // ── the parry: v2.2's closing ring over a dimmed board ──
   await fresh(7);
   {
@@ -779,12 +885,17 @@ const { boot } = require('./harness.cjs');
       window.K.forceIntent('benediction');          // its first note is a bait
       const r = window.K.endTurn();
       await new Promise(res => setTimeout(res, 640));
-      const kind = (document.querySelector('.k-pring') || {}).dataset;
+      const ring = document.querySelector('.k-pring');
+      const kind = ring && ring.dataset;
+      const mark = ring && ring.querySelector('.k-pr-x svg');
       // leave it strictly alone
       await new Promise(res => setTimeout(res, 900));
       const out = await r;
-      return { firstKind: kind && kind.kind, grades: out.grades.slice(0, 1) };
+      return { firstKind: kind && kind.kind, skull: !!mark,
+               grades: out.grades.slice(0, 1) };
     });
+    check('BAIT: the do-not-touch ring wears a skull, not a glyph to be learned',
+      bait.skull, JSON.stringify({ skull: bait.skull, kind: bait.firstKind }));
     check('BAIT: a crossed ring left untouched is the best read there is',
       bait.firstKind === 'bait' && bait.grades[0] === 'perfect', JSON.stringify(bait));
   }
@@ -806,6 +917,37 @@ const { boot } = require('./harness.cjs');
     });
     check('BURST: landing the whole flurry before the ring shuts reads clean',
       burst.firstKind === 'burst' && burst.first !== 'miss', JSON.stringify(burst));
+  }
+  await settle();
+  // ── the clash: a turned blow is the best thing in the game and hits like it ──
+  await fresh(7);
+  {
+    const clash = await J(async () => {
+      window.K.forceIntent('scythe');
+      const notes = window.K.currentIntent().hits.reduce((n, h) => n + h.notes.length, 0);
+      const done = window.K.endTurn({ grades: Array(notes).fill('perfect') });
+      const out = { crescent: 0, shards: 0, flash: 0, flared: false, shock: 0, pulse: false };
+      for (let i = 0; i < 90; i++) {
+        const d = document.querySelector('.k-deflect');
+        if (d) {
+          out.crescent = Math.max(out.crescent, d.querySelectorAll('.k-df-crescent').length);
+          out.shards = Math.max(out.shards, d.querySelectorAll('.k-df-shard').length);
+          out.flash = Math.max(out.flash, d.querySelectorAll('.k-df-flash').length);
+        }
+        out.shock = Math.max(out.shock, document.querySelectorAll('.k-shock-gold').length);
+        out.flared = out.flared || !!document.querySelector('.k-hero.k-deflected');
+        out.pulse = out.pulse || !!document.querySelector('.k-pulse-gold');
+        await new Promise(res => setTimeout(res, 14));
+      }
+      const r = await done;
+      out.negated = r.negated;
+      out.taken = r.taken;
+      return out;
+    });
+    check('CLASH: a deflected blow throws a crescent, shards and a flash — not one ring',
+      clash.negated > 0 && clash.taken === 0 && clash.crescent === 1 && clash.shards >= 6
+      && clash.flash === 1 && clash.flared && clash.shock >= 2 && clash.pulse,
+      JSON.stringify(clash));
   }
   await settle();
   // ── impact: a blow stops, kicks and shocks ──
@@ -946,12 +1088,28 @@ const { boot } = require('./harness.cjs');
       window.K.forceIntent('benediction');
       const held = window.K.state().hand.length;
       window.K.endTurn({ grades: ['miss', 'miss'] });
-      await new Promise(r => setTimeout(r, 40));
-      const mid = document.querySelectorAll('.k-fly').length;
+      // A card must LEAVE the hand as its ghost launches. If the original sits
+      // there until the last one has flown, hand + ghosts exceeds what was held
+      // and the sweep reads as the hand duplicating itself.
+      let over = 0, mid = 0, shrank = false, samples = 0;
+      for (let i = 0; i < 60; i++) {
+        if (window.K.state().phase === 'HAND_DISCARDING') {
+          const fly = document.querySelectorAll('.k-fly').length;
+          const inHand = document.querySelectorAll('#k-hand .k-card').length;
+          mid = Math.max(mid, fly);
+          over = Math.max(over, inHand + fly - held);
+          if (fly > 0 && inHand < held) shrank = true;
+          samples++;
+        }
+        await new Promise(r => setTimeout(r, 4));
+      }
       await new Promise(r => setTimeout(r, 900));
       const s = window.K.state();
-      return { held, mid, hand: s.hand.length, discard: s.discard.length };
+      return { held, mid, over, shrank, samples, hand: s.hand.length, discard: s.discard.length };
     });
+    check('SWEEP: the hand empties as the cards fly — it never duplicates itself',
+      sweep.samples > 0 && sweep.over <= 0 && sweep.shrank,
+      JSON.stringify({ over: sweep.over, shrank: sweep.shrank, samples: sweep.samples }));
     check('SWEEP: ending the turn throws the whole hand to the discard, one card at a time',
       sweep.mid >= 1 && sweep.discard >= sweep.held && sweep.hand === 5,
       JSON.stringify(sweep));
