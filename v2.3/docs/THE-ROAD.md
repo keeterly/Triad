@@ -145,19 +145,31 @@ Two fixes, both aimed at the diagnosis rather than at the symptom:
 
 ### After
 
+At 120 roads per tier — the shipping count, not the 24-road sighting shot that
+first flagged the elite:
+
 ```
-✓ NO PARRY        runs completed   0.0%   died at stop {1:18, 3:6}     purse 2
-✓ ~HALF PARRIES   runs completed  25.0%   died at stop {3:4, 5:14}     purse 9
-✓ EXCELLENT       runs completed 100.0%   died at stop {}              purse 17
+✓ NO PARRY        runs completed   0.0%   died at stop {1:92, 2:1, 3:27}   purse 2
+✓ ~HALF PARRIES   runs completed  18.3%   died at stop {3:27, 5:71}        purse 9
+✓ EXCELLENT       runs completed  95.0%   died at stop {5:6}               purse 17
 ✓ TRAILHEAD       0.0% wipe on the first stop at ~half parries (gate ≤8%)
 ✓ MONOTONE        every step up in parry skill is a longer road survived
 ```
 
-Half-parry attrition now reads `91 → 81 → 104 → 42 → 104 → boss`: the elite is
-a real dent, the campfire answers it, and the Regent is met whole. The parry
-remains the axis the whole run turns on — 0% / 25% / 100% across the three
-tiers is a steeper skill curve than the single encounter's 0% / 33% / 100%,
-because a road compounds it.
+Half-parry attrition now reads `88 → 80 → 97 → 37 → 99 → boss`: the elite is a
+real dent, the campfire answers it, and the Regent is met near-whole. Of the
+runs that end, 22% end at the elite and 59% at the Regent — the road's two
+hard moments are the two it is shaped around.
+
+The parry remains the axis the whole run turns on. **0% / 18% / 95%** across
+the three tiers is a far steeper skill curve than the single encounter's
+0% / 33% / 100%, because a road compounds it: six stops multiply a per-fight
+edge instead of averaging it. That is the strongest argument in the build for
+the parry being the thing worth mastering.
+
+*(The 24-road pass read 25.0%; 120 roads read 18.3%. Same rule as the deck's
+own tuning — never ship a number from a sample under 100, rank candidates
+cheaply and measure the winner at the full count.)*
 
 ---
 
