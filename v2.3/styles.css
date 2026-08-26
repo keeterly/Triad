@@ -107,27 +107,26 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-bond-row.k-flash { animation: k-resflash 0.6s ease; }
 #k-bleed { font-size: 10px; color: #b8574a; }
 
-/* THE INTENT — one line in the Regent's column. No banner across the sky. */
-.k-int-chip { display: flex; align-items: baseline; gap: 6px; padding: 2px 8px;
-  background: rgba(120,32,26,0.32); border: 1px solid rgba(200,80,64,0.45);
-  border-radius: 3px; white-space: nowrap; padding-right: 9px; }
-#k-int-name { font-size: 9.5px; letter-spacing: 0.09em; text-transform: uppercase;
-  color: #d7a79c; text-shadow: 0 1px 2px rgba(0,0,0,0.9); white-space: nowrap; }
-.k-int-num { font-size: 12px; color: #b0a894; white-space: nowrap; }
-.k-int-num b { font-size: 15px; font-weight: 700; color: #f0ddd6; }
-#k-int-tgt { font-size: 10px; letter-spacing: 0.1em; color: #b0a894; text-transform: uppercase; }
-#k-int-dirge:not(:empty) { font-size: 9.5px; color: #dda897; white-space: nowrap;
-  padding-left: 7px; border-left: 1px solid rgba(200,80,64,0.4); }
-.k-int-chip.k-int-broken { background: rgba(120,90,26,0.28); border-color: rgba(201,164,92,0.5); }
-.k-int-chip.k-int-broken #k-int-name { color: #e0c084; }
+/* THE TELEGRAPH — a row of icon chips floating over the Regent's head. */
+#k-intent { position: absolute; left: 765px; top: 92px; transform: translateX(-50%);
+  display: flex; gap: 6px; align-items: center; z-index: 11; pointer-events: none; }
+.k-ichip { display: flex; align-items: center; gap: 3px; padding: 3px 7px; border-radius: 13px;
+  background: rgba(12,10,14,0.82); border: 1px solid rgba(150,138,114,0.4);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.7); }
+.k-ichip .k-ico { width: 13px; height: 13px; margin: 0; opacity: 1; }
+.k-ichip b { font-size: 16px; font-weight: 700; color: #f2e9d6; line-height: 1;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
+.k-ichip i { font-style: normal; font-size: 9px; letter-spacing: 0.08em; color: #b0a894; }
+.k-ichip img { width: 17px; height: 17px; border-radius: 50%; object-fit: cover; object-position: top;
+  border: 1px solid rgba(201,164,92,0.7); margin-left: 2px; }
+/* each kind of turn has its own colour, so the shape reads before the number */
+.k-ichip-atk { border-color: rgba(200,80,64,0.6); background: rgba(70,20,16,0.8); color: #e8776a; }
+.k-ichip-guard { border-color: rgba(120,150,175,0.55); background: rgba(20,32,44,0.82); color: #9db8c4; }
+.k-ichip-charge { border-color: rgba(201,164,92,0.6); background: rgba(52,40,14,0.82); color: #e0c084; }
+.k-ichip-heal { border-color: rgba(120,180,110,0.55); background: rgba(20,40,20,0.82); color: #98d878; }
+.k-ichip-dirge { border-color: rgba(150,70,60,0.5); background: rgba(40,16,14,0.8); color: #c98b7c; }
+.k-ichip-broken { border-color: rgba(201,164,92,0.6); background: rgba(52,40,14,0.82); color: #e0c084; }
 
-/* ── AP IS AN ORB, NOT A PILE ────────────────────────────────────────────
-   It read as a third stack of cards next to the draw pile, which is exactly
-   the confusion: a resource and a zone must not share a silhouette. Slay the
-   Spire's split is the one to copy — the resource is a round, lit gem on the
-   left; the two ZONES are flat card stacks in the two bottom corners; the
-   turn ACTION sits on the right above its pile. Round = resource, rectangle =
-   a place cards live, parchment = a button. */
 #k-ap { position: absolute; left: 24px; bottom: 106px; width: 62px; height: 62px; z-index: 13; }
 .k-ap-chip { position: absolute; inset: 0; border-radius: 50%;
   background:

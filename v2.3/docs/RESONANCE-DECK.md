@@ -354,6 +354,28 @@ would crowd them. A gate now asserts the orb is round, that each side's
 resource/action sits above its own pile, and that nothing in the bottom bar
 overlaps anything else.
 
+### Build 13 — the telegraph is icons and amounts, over the head
+
+The intent line is gone. In its place, a row of icon chips floats in the sky
+above the Regent's head — the Spire's position, and not *on* the enemy:
+
+    [⚔ 21 ×3 (ash)]  [✦ 4 all]
+
+One chip per thing the action does. A blade for damage (with the hit count and
+the target's face), a shield for guard, a star for a charge, a cross for
+healing, the dirge's own mark for the unparryable chip. No sentence, no attack
+name, no counterplay hint — the shape says what kind of turn is coming and the
+number says how much. Each kind carries its own colour so the chip reads before
+the number does.
+
+The vocabulary is wired for **defend** and **charge** turns even though the
+Regent has none yet: an intent carrying `guard` or `charge` renders its chip
+automatically.
+
+To make room, **Bond moved to the party column** — it is the party's meter, not
+the Regent's, so it was in the wrong place anyway, and moving it freed the sky
+between the boss HUD and the figure's head.
+
 ### The Dirge — an addition the deck does not list
 
 The Regent's hymn settles on the whole party each enemy phase for unparryable

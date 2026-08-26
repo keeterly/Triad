@@ -72,7 +72,7 @@ const { boot } = require('./harness.cjs');
     check('OPENING COVERAGE: 5 cards, at least one per hero, across 8 seeds', ok, detail);
   }
   {
-    const src = await J(async () => (await (await fetch('game.js?v=12')).text()));
+    const src = await J(async () => (await (await fetch('game.js?v=13')).text()));
     const phaseWrites = (src.match(/C\.phase = /g) || []).length;
     check('ONE TRANSITION OWNER: setPhase is the only C.phase mutator', phaseWrites === 1, phaseWrites + ' assignments');
     check('NO FLOW METER, NO ACTION TRAIL: nothing renders a meter or a trail', await J(() =>
@@ -437,20 +437,22 @@ const { boot } = require('./harness.cjs');
   await fresh(7);
   {
     const ui = await J(() => {
-      // the intent is now ONE LINE inside the Regent's own column — no banner
       const ir = document.getElementById('k-intent').getBoundingClientRect();
       const br = document.getElementById('k-boss-art').getBoundingClientRect();
       const clearOf = (r) => ir.right < r.left || ir.left > r.right || ir.bottom < r.top || ir.top > r.bottom;
-      // it may share the Regent's (mostly transparent) art box the way the rest
-      // of the boss HUD always has — what matters is that it rides ABOVE the
-      // figure rather than across it, and never touches the party roster
+      // the telegraph floats in the sky ABOVE the Regent's head: horizontally
+      // over the figure, vertically clear of it and of the boss HUD
+      const hud = document.getElementById('k-boss-hud').getBoundingClientRect();
       const disjoint = ir.bottom < br.top + br.height * 0.45
         && clearOf(document.getElementById('k-party-hud').getBoundingClientRect());
-      const inBossCol = document.getElementById('k-boss-hud').contains(document.getElementById('k-intent'));
-      const oneLine = ir.height < 26;
-      const chip = document.getElementById('k-intent');
-      const intentFits = chip.scrollWidth <= chip.clientWidth + 1;
-      const noBanner = !document.getElementById('k-int-notes') && !document.getElementById('k-int-hint');
+      const overHead = ir.left > br.left - 40 && ir.right < br.right + 40
+        && ir.top >= hud.bottom - 1;
+      const oneLine = ir.height < 34;
+      const chips = document.querySelectorAll('#k-intent .k-ichip');
+      const iconed = [...chips].every(c => c.querySelector('svg.k-ico') && c.querySelector('b'));
+      const noWords = !/[A-Za-z]{4,}/.test(document.getElementById('k-intent').textContent);
+      const noBanner = !document.getElementById('k-int-notes') && !document.getElementById('k-int-hint')
+        && !document.getElementById('k-int-name');
       const rows = document.querySelectorAll('.k-pt-hero').length;
       const bars = document.querySelectorAll('.k-pt-hero .k-bar-fill').length;
       const cards = document.querySelectorAll('#k-hand .k-card');
@@ -465,22 +467,24 @@ const { boot } = require('./harness.cjs');
       });
       const clipped = over.filter(o => o > 0.5).length;
       const worstOver = Math.round(Math.max(...over));
-      const dirge = document.getElementById('k-int-dirge').textContent;
+
       return { disjoint, rows, bars, cards: cards.length,
         fanned, pips,
         noMove: !document.querySelector('.k-hero-move'),
         ap: document.getElementById('k-ap-num').textContent,
         cycle: document.getElementById('k-cycle-n').textContent,
-        bond: document.getElementById('k-bond-n').textContent, dirge: !!dirge, clipped, worstOver,
-        inBossCol, oneLine, noBanner, intentFits,
-        num: document.getElementById('k-int-val').textContent.trim(),
-        tgt: document.getElementById('k-int-tgt').textContent.trim() };
+        bond: document.getElementById('k-bond-n').textContent, clipped, worstOver,
+        overHead, oneLine, noBanner, iconed, noWords, chipN: chips.length,
+        dirge: !!document.querySelector('#k-intent .k-ichip-dirge'),
+        atk: (document.querySelector('#k-intent .k-ichip-atk b') || {}).textContent,
+        hasTargetFace: !!document.querySelector('#k-intent .k-ichip-atk img'),
+        hasDirge: !!document.querySelector('#k-intent .k-ichip-dirge') };
     });
-    check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; intent is one line beside the Regent, no banner; no card clipped',
+    check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; telegraph is icon chips above the Regent; no card clipped',
       ui.disjoint && ui.rows === 3 && ui.bars === 3 && ui.cards === 5 && ui.fanned
       && ui.pips === 12 && ui.noMove && ui.ap === '3' && ui.cycle === '1' && ui.bond === '0/2'
-      && ui.dirge && ui.clipped === 0 && ui.inBossCol && ui.oneLine && ui.noBanner && ui.intentFits
-      && ui.num === '21' && /ASH/.test(ui.tgt) && /×3/.test(ui.tgt),
+      && ui.clipped === 0 && ui.overHead && ui.oneLine && ui.noBanner
+      && ui.iconed && ui.noWords && ui.atk === '21' && ui.hasTargetFace && ui.hasDirge,
       JSON.stringify(ui));
     const hover = await J(async () => {
       const card = document.querySelector('#k-hand .k-card');
@@ -584,8 +588,8 @@ const { boot } = require('./harness.cjs');
     const scale = await J(() => ({
       ash: document.querySelector('.k-pt-hero[data-hero="ash"] .k-pt-hp b').textContent.trim(),
       boss: document.getElementById('k-bhp').textContent.trim(),
-      intent: document.getElementById('k-int-val').textContent.trim(),
-      commas: [...document.querySelectorAll('#k-hand .k-cprose, .k-pt-hp, #k-bhp, #k-int-val')]
+      intent: (document.querySelector('#k-intent .k-ichip-atk b') || {}).textContent,
+      commas: [...document.querySelectorAll('#k-hand .k-cprose, .k-pt-hp, #k-bhp, #k-intent b')]
         .filter(e => /\d,\d/.test(e.textContent)).length,
     }));
     check('SCALE: HP and damage read at Slay-the-Spire size — no four-digit numbers',
@@ -869,7 +873,7 @@ const { boot } = require('./harness.cjs');
       const prevented = !card.dispatchEvent(ev);
       // Chromium does not implement -webkit-touch-callout, so assert the
       // declaration ships in the stylesheet rather than reading it back
-      const css = await (await fetch('styles.css?v=12')).text();
+      const css = await (await fetch('styles.css?v=13')).text();
       const rule = css.slice(css.indexOf('.k-card {'), css.indexOf('.k-card {') + 260);
       return { calloutShipped: /-webkit-touch-callout:\s*none/.test(rule),
                highlightShipped: /-webkit-tap-highlight-color:\s*transparent/.test(rule),

@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 12;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 13;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1091,22 +1091,36 @@ function renderBossHud() {
   el('k-chill').textContent = C.boss.chill > 0 ? '❄ ' + fmtN(C.boss.chill) : '';
   el('k-bleed').textContent = C.boss.bleed > 0 ? '🩸 ' + fmtN(C.boss.bleed) : '';
 }
-// ONE LINE, in the Regent's own column. The big sky banner is gone: the only
-// thing the player must know before committing AP is how much is coming and at
-// whom — the rhythm reads itself when the rings arrive.
+// THE TELEGRAPH — icons and amounts, in the sky above the Regent's head.
+// One chip per thing the action will do: a blade for damage, a shield for
+// guard, a star for a charge, a cross for healing, and the dirge's own mark.
+// No sentence, no name, no counterplay hint: the shape says what kind of turn
+// is coming and the number says how much.
+const INTENT_ICON = { atk: 'atk', guard: 'guard', charge: 'finale', heal: 'heal', dirge: 'brk' };
 function renderIntent() {
+  const box = el('k-intent'); if (!box) return;
   const it = currentIntent();
-  const eff = intentTargetId();
-  el('k-int-name').textContent = it.name;
-  const hits = it.hits || [];
-  el('k-int-val').textContent = it.kind === 'heal'
-    ? ('+' + fmtN(it.phaseHeal) + ' · ' + fmtN(intentPreviewDmg()))
-    : fmtN(intentPreviewDmg());
-  el('k-int-tgt').textContent = C.boss.cancelNext ? ' broken'
-    : (eff ? ' → ' + HEROES23[eff].name : '') + (hits.length > 1 ? ' ×' + hits.length : '');
-  const dg = dirgeAmount();
-  el('k-int-dirge').textContent = dg > 0 ? '+' + fmtN(dg) + ' all' : '';
-  el('k-intent').classList.toggle('k-int-broken', !!C.boss.cancelNext);
+  const chips = [];
+  if (C.boss.cancelNext) {
+    chips.push('<span class="k-ichip k-ichip-broken">' + icon('broken') + '<b>—</b></span>');
+  } else {
+    const hits = it.hits || [];
+    if (hits.length) {
+      const eff = intentTargetId();
+      const face = eff ? '<img src="' + HEROES23[eff].art + '" alt="">' : '';
+      chips.push('<span class="k-ichip k-ichip-atk">' + icon('atk')
+        + '<b>' + fmtN(intentPreviewDmg()) + '</b>'
+        + (hits.length > 1 ? '<i>×' + hits.length + '</i>' : '') + face + '</span>');
+    }
+    // the vocabulary is ready for defend and charge turns even though the
+    // Regent has none yet — an intent carrying `guard` or `charge` shows one
+    if (it.guard) chips.push('<span class="k-ichip k-ichip-guard">' + icon('guard') + '<b>' + fmtN(it.guard) + '</b></span>');
+    if (it.charge) chips.push('<span class="k-ichip k-ichip-charge">' + icon('finale') + '<b>' + fmtN(it.charge) + '</b></span>');
+    if (it.kind === 'heal') chips.push('<span class="k-ichip k-ichip-heal">' + icon('heal') + '<b>' + fmtN(it.phaseHeal) + '</b></span>');
+    const dg = dirgeAmount();
+    if (dg > 0) chips.push('<span class="k-ichip k-ichip-dirge">' + icon('brk') + '<b>' + fmtN(dg) + '</b><i>all</i></span>');
+  }
+  box.innerHTML = chips.join('');
 }
 function renderHand() {
   const hand = el('k-hand'); if (!hand) return;
