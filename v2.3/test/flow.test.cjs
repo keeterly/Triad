@@ -64,7 +64,7 @@ const { boot } = require('./harness.cjs');
     check('OPENING COVERAGE: 5 cards, at least one per hero, across 8 seeds', ok, detail);
   }
   {
-    const src = await J(async () => (await (await fetch('game.js?v=8')).text()));
+    const src = await J(async () => (await (await fetch('game.js?v=9')).text()));
     const phaseWrites = (src.match(/C\.phase = /g) || []).length;
     check('ONE TRANSITION OWNER: setPhase is the only C.phase mutator', phaseWrites === 1, phaseWrites + ' assignments');
     check('NO FLOW METER, NO ACTION TRAIL: nothing renders a meter or a trail', await J(() =>
@@ -428,17 +428,26 @@ const { boot } = require('./harness.cjs');
   await fresh(7);
   {
     const ui = await J(() => {
+      // the intent is now ONE LINE inside the Regent's own column — no banner
       const ir = document.getElementById('k-intent').getBoundingClientRect();
       const br = document.getElementById('k-boss-art').getBoundingClientRect();
       const clearOf = (r) => ir.right < r.left || ir.left > r.right || ir.bottom < r.top || ir.top > r.bottom;
-      const disjoint = clearOf(br) && clearOf(document.getElementById('k-boss-hud').getBoundingClientRect())
+      // it may share the Regent's (mostly transparent) art box the way the rest
+      // of the boss HUD always has — what matters is that it rides ABOVE the
+      // figure rather than across it, and never touches the party roster
+      const disjoint = ir.bottom < br.top + br.height * 0.45
         && clearOf(document.getElementById('k-party-hud').getBoundingClientRect());
+      const inBossCol = document.getElementById('k-boss-hud').contains(document.getElementById('k-intent'));
+      const oneLine = ir.height < 26;
+      const chip = document.getElementById('k-intent');
+      const intentFits = chip.scrollWidth <= chip.clientWidth + 1;
+      const noBanner = !document.getElementById('k-int-notes') && !document.getElementById('k-int-hint');
       const rows = document.querySelectorAll('.k-pt-hero').length;
       const bars = document.querySelectorAll('.k-pt-hero .k-bar-fill').length;
       const cards = document.querySelectorAll('#k-hand .k-card');
       const fanned = [...cards].some(c => (c.style.getPropertyValue('--rot') || '0deg') !== '0deg');
       const pips = document.querySelectorAll('#k-break .k-pip').length;
-      const groups = document.querySelectorAll('#k-int-notes .k-hitgrp').length;
+
       // no card may hang off the stage — the fan grew when the faces were redesigned
       const st = document.getElementById('k-stage').getBoundingClientRect();
       const over = [...cards].map(c => {
@@ -453,12 +462,16 @@ const { boot } = require('./harness.cjs');
         noMove: !document.querySelector('.k-hero-move'),
         ap: document.getElementById('k-ap-num').textContent,
         cycle: document.getElementById('k-cycle-n').textContent,
-        bond: document.getElementById('k-bond-n').textContent, groups, dirge: !!dirge, clipped, worstOver };
+        bond: document.getElementById('k-bond-n').textContent, dirge: !!dirge, clipped, worstOver,
+        inBossCol, oneLine, noBanner, intentFits,
+        num: document.getElementById('k-int-val').textContent.trim(),
+        tgt: document.getElementById('k-int-tgt').textContent.trim() };
     });
-    check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; per-hit volley groups; dirge named; no card clipped',
+    check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; intent is one line beside the Regent, no banner; no card clipped',
       ui.disjoint && ui.rows === 3 && ui.bars === 3 && ui.cards === 5 && ui.fanned
       && ui.pips === 12 && ui.noMove && ui.ap === '3' && ui.cycle === '1' && ui.bond === '0/2'
-      && ui.groups >= 2 && ui.dirge && ui.clipped === 0,
+      && ui.dirge && ui.clipped === 0 && ui.inBossCol && ui.oneLine && ui.noBanner && ui.intentFits
+      && ui.num === '21' && /ASH/.test(ui.tgt) && /×3/.test(ui.tgt),
       JSON.stringify(ui));
     const hover = await J(async () => {
       const card = document.querySelector('#k-hand .k-card');
@@ -675,7 +688,7 @@ const { boot } = require('./harness.cjs');
       const prevented = !card.dispatchEvent(ev);
       // Chromium does not implement -webkit-touch-callout, so assert the
       // declaration ships in the stylesheet rather than reading it back
-      const css = await (await fetch('styles.css?v=8')).text();
+      const css = await (await fetch('styles.css?v=9')).text();
       const rule = css.slice(css.indexOf('.k-card {'), css.indexOf('.k-card {') + 260);
       return { calloutShipped: /-webkit-touch-callout:\s*none/.test(rule),
                highlightShipped: /-webkit-tap-highlight-color:\s*transparent/.test(rule),

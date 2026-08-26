@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=8" />
+  <link rel="stylesheet" href="styles.css?v=9" />
 </head>
 <body>
   <div id="k-scale">
@@ -86,6 +86,11 @@
           <span id="k-chill" class="k-chill"></span>
           <span id="k-bleed"></span>
         </div>
+        <div id="k-intent" class="k-int-chip">
+          <span id="k-int-name">—</span>
+          <span class="k-int-num"><b id="k-int-val">0</b><span id="k-int-tgt"></span></span>
+          <span id="k-int-dirge"></span>
+        </div>
         <div class="k-bond-row">
           <span class="k-bond-lbl">Bond</span>
           <img src="../art/kai.webp" alt="">
@@ -93,14 +98,6 @@
           <img src="../art/elin.webp" alt="">
           <span id="k-bond-n" class="k-bond-n">0/2</span>
         </div>
-      </div>
-
-      <!-- intent — top-center, in the open sky, never over the Regent -->
-      <div id="k-intent">
-        <div class="k-int-top"><span id="k-int-name">—</span><span><b id="k-int-val">0</b> <span id="k-int-tgt"></span></span></div>
-        <div id="k-int-notes"></div>
-        <div id="k-int-hint"></div>
-        <div id="k-int-dirge"></div>
       </div>
 
       <!-- AP — a parchment chip on a worn stack, lower-left -->
@@ -129,7 +126,7 @@
 
     </main>
   </div>
-  <script src="game.js?v=8"></script>
+  <script src="game.js?v=9"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

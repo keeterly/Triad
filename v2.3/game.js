@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 8;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 9;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -896,33 +896,22 @@ function renderBossHud() {
   el('k-chill').textContent = C.boss.chill > 0 ? '❄ ' + fmtN(C.boss.chill) : '';
   el('k-bleed').textContent = C.boss.bleed > 0 ? '🩸 ' + fmtN(C.boss.bleed) : '';
 }
+// ONE LINE, in the Regent's own column. The big sky banner is gone: the only
+// thing the player must know before committing AP is how much is coming and at
+// whom — the rhythm reads itself when the rings arrive.
 function renderIntent() {
   const it = currentIntent();
-  el('k-int-name').textContent = it.name;
   const eff = intentTargetId();
+  el('k-int-name').textContent = it.name;
+  const hits = it.hits || [];
   el('k-int-val').textContent = it.kind === 'heal'
     ? ('+' + fmtN(it.phaseHeal) + ' · ' + fmtN(intentPreviewDmg()))
     : fmtN(intentPreviewDmg());
-  const hits = it.hits || [];
-  el('k-int-tgt').textContent = hits.length > 1 ? '× ' + hits.length + ' hits' : (eff ? '→ ' + HEROES23[eff].name : '');
-  // one glyph group per hit, labelled with who answers it and for how much
-  let chill = C.boss.chill;
-  el('k-int-notes').innerHTML = hits.map(h => {
-    const d = hitDamage(h, chill); chill = 0;
-    const t = hitTargetId(h);
-    const glyphs = h.notes.map(n =>
-      n === 'tap' ? '<span class="k-nglyph">●</span>' : n === 'slide' ? '<span class="k-nglyph">➤</span>'
-      : '<span class="k-nglyph k-nglyph-hold">▬</span>').join('');
-    return '<span class="k-hitgrp"><b>' + (t ? HEROES23[t].name : '—') + '</b>'
-      + glyphs + '<i>' + fmtN(d) + '</i></span>';
-  }).join('') || '<span class="k-nglyph-none">no parry — Break it</span>';
-  el('k-int-hint').textContent =
-    C.boss.cancelNext ? 'BROKEN — this action dies unsung'
-    : it.id === 'scythe' ? 'Front row only — a hero in Back is nearly spared'
-    : it.id === 'benediction' ? 'It heals itself — Break it to stop the hymn'
-    : 'Read the whole string to TURN a hit · every note perfect ripostes';
-  const dg = el('k-int-dirge');
-  if (dg) dg.textContent = dirgeAmount() > 0 ? 'DIRGE ' + fmtN(dirgeAmount()) + ' to all · unparryable' : '';
+  el('k-int-tgt').textContent = C.boss.cancelNext ? ' broken'
+    : (eff ? ' → ' + HEROES23[eff].name : '') + (hits.length > 1 ? ' ×' + hits.length : '');
+  const dg = dirgeAmount();
+  el('k-int-dirge').textContent = dg > 0 ? '+' + fmtN(dg) + ' all' : '';
+  el('k-intent').classList.toggle('k-int-broken', !!C.boss.cancelNext);
 }
 function renderHand() {
   const hand = el('k-hand'); if (!hand) return;

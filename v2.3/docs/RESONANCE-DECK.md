@@ -271,6 +271,21 @@ breathe rather than spin.
 The grading, weighting and TURNED/FLAWLESS tiers are unchanged from Build 6 —
 this round changed how the parry *presents*, not how it *scores*.
 
+### Build 9 — the intent banner is gone
+
+The sky banner that carried the intent name, the per-hit volley groups, a
+counterplay hint and the dirge line is removed. What survives is ONE line in
+the Regent's own column, right under the Break pips:
+
+    RUINOUS HYMN   21 → ASH ×3  |  +4 all
+
+That is the whole decision: how much is coming, at whom, over how many hits,
+plus the unparryable chip. The rhythm reads itself when the rings arrive, and
+the counterplay hints were tutorial text the board did not need. Design
+contract §1 ("readable pressure — enemy intent is visible before commitment")
+still holds: the number a player needs to size Guard, healing and a row Move is
+still on screen before they spend a single AP.
+
 ### The Dirge — an addition the deck does not list
 
 The Regent's hymn settles on the whole party each enemy phase for unparryable
