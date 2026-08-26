@@ -1,0 +1,115 @@
+// KIZUNA v2.3 — RUN simulator.
+//
+// balance.sim.cjs answers "is one fight tuned?". That is the wrong question for
+// fodder: you should almost always beat the Husk, so its winrate tells you
+// nothing. The question a road asks is "what does the fight COST", because the
+// wound is carried to the next stop and the run is decided by attrition.
+//
+// So this plays the whole road — the same bot, the same page, the same rules —
+// carrying HP between stops and camping where the map says to camp, and reports
+// completion rate, where runs die, and how much health walks into the Regent.
+'use strict';
+const { boot } = require('./harness.cjs');
+const { BOT } = require('./bot.cjs');
+
+const BANDS = [
+  { name: 'NO PARRY',      p: 0.00, glo: 0,  ghi: 6 },
+  { name: '~HALF PARRIES', p: 0.50, glo: 8,  ghi: 45 },
+  { name: 'EXCELLENT',     p: 0.92, glo: 65, ghi: 100 },
+];
+const RUNS = Number(process.env.SIM_RUNS || 120);
+const MAX_TURNS = 30;
+const MAXHP = { ash: 42, elin: 36, mira: 34 };
+const total = (hp) => hp.ash + hp.elin + hp.mira;
+
+(async () => {
+  const H = await boot({ query: 'road=1' });
+  const { J, page } = H;
+  await J(() => { window.__SIM = true; });
+  // The mend is the game's number, not the sim's — a simulator carrying its own
+  // copy of a tuning constant measures a game nobody is playing.
+  const CAMP_FRAC = await J(() => window.R.CAMP_FRAC);
+
+  // One road, walked. The bot has no map sense, so it takes the choice a
+  // player would take by default — it prefers a campfire when it is hurt and
+  // the embers when it is not, which is the same heuristic the map is asking
+  // a human to apply.
+  async function walk(seed, p) {
+    const road = await J((s) => {
+      window.R.newRun(s);
+      return window.R.map().map(n => ({ id: n.id, col: n.col, kind: n.kind, foe: n.foe, to: n.to }));
+    }, seed);
+    let at = null, hp = { ...MAXHP }, embers = 0, fights = 0;
+    const trace = [];   // what the party had left walking away from each stop
+    for (let col = 0; col < 6; col++) {
+      const open = at ? road.find(n => n.id === at).to : road.filter(n => n.col === 0).map(n => n.id);
+      const opts = open.map(id => road.find(n => n.id === id));
+      const hurt = total(hp) / total(MAXHP);
+      const want = opts.find(n => n.kind === 'camp' && hurt < 0.72)
+        || opts.find(n => n.kind === 'story' && hurt >= 0.72)
+        || opts.find(n => n.kind !== 'camp') || opts[0];
+      at = want.id;
+      if (want.kind === 'camp') {
+        for (const k of Object.keys(MAXHP)) hp[k] = Math.min(MAXHP[k], Math.round(hp[k] + MAXHP[k] * CAMP_FRAC));
+        trace.push({ col, kind: 'camp', left: total(hp), turns: 0 });
+        continue;
+      }
+      if (want.kind === 'story') { embers += 1; trace.push({ col, kind: 'story', left: total(hp), turns: 0 }); continue; }
+      fights++;
+      const r = await page.evaluate(
+        ([src, sd, pp, mt, o]) => eval(src)(sd, pp, mt, o),
+        [BOT, seed * 31 + col * 7 + 1, p, MAX_TURNS, { foe: want.foe, partyHp: hp }]);
+      hp = r.hp;
+      trace.push({ col, kind: want.kind, foe: want.foe, left: total(hp), turns: r.turns });
+      if (!r.win) return { win: false, diedAt: col, kind: want.kind, foe: want.foe, hp, embers, fights, trace };
+      embers += ({ husk: 2, cultist: 2, wraith: 3, revenant: 5, mourner: 8 })[want.foe] || 2;
+      if (want.kind === 'boss') return { win: true, diedAt: null, hp, embers, fights, trace };
+    }
+    return { win: false, diedAt: 5, kind: 'ran-out', hp, embers, fights, trace };
+  }
+
+  console.log(`\n  KIZUNA v2.3 — the road, walked ${RUNS}× per tier\n`);
+  const rows = [];
+  for (const band of BANDS) {
+    const res = [];
+    for (let i = 0; i < RUNS; i++) res.push(await walk(4000 + i * 13, band.p));
+    const wins = res.filter(r => r.win);
+    const rate = wins.length / res.length * 100;
+    const deaths = {};
+    res.filter(r => !r.win).forEach(r => { deaths[r.diedAt] = (deaths[r.diedAt] || 0) + 1; });
+    // The one thing a road must never do: kill you at the trailhead.
+    const col0 = res.filter(r => r.diedAt === 0).length / res.length * 100;
+    const purse = res.map(r => r.embers).sort((a, b) => a - b);
+    const held = rate >= band.glo && rate <= band.ghi;
+    rows.push({ name: band.name, rate, col0, held,
+                purse: purse[Math.floor(purse.length / 2)] });
+    console.log(`  ${held ? '✓' : '✗'} ${band.name.padEnd(15)} runs completed ${rate.toFixed(1)}%  `
+      + `[gate ${band.glo}–${band.ghi}%]  died at stop ` + JSON.stringify(deaths)
+      + `  median purse ${purse[Math.floor(purse.length / 2)]}`);
+    // WHERE THE HEALTH GOES. A completion rate says a road is too hard; the
+    // attrition trace says which stop made it too hard, which is the only one
+    // of the two you can act on.
+    if (process.env.SIM_TRACE) {
+      for (let col = 0; col < 6; col++) {
+        const at = res.flatMap(r => (r.trace || []).filter(t => t.col === col));
+        if (!at.length) continue;
+        const left = at.map(t => t.left).sort((a, b) => a - b);
+        const trn = at.map(t => t.turns).sort((a, b) => a - b);
+        const kinds = {}; at.forEach(t => { kinds[t.foe || t.kind] = (kinds[t.foe || t.kind] || 0) + 1; });
+        console.log(`      stop ${col}  ${String(Object.keys(kinds).join('/')).padEnd(16)}`
+          + ` median hp left ${String(left[Math.floor(left.length / 2)]).padStart(3)}/112`
+          + `  rounds ${trn[Math.floor(trn.length / 2)]}  (n=${at.length})`);
+      }
+    }
+  }
+  const trailhead = rows.find(r => r.name === '~HALF PARRIES');
+  const fodderOk = trailhead.col0 <= 8;
+  console.log(`  ${fodderOk ? '✓' : '✗'} TRAILHEAD      a competent party does not wipe on the first stop `
+    + `(${trailhead.col0.toFixed(1)}% at ~half parries · gate ≤8%)`);
+  const monotone = rows[0].rate <= rows[1].rate && rows[1].rate <= rows[2].rate;
+  console.log(`  ${monotone ? '✓' : '✗'} MONOTONE       every step up in parry skill is a longer road survived`);
+  const allOk = rows.every(r => r.held) && fodderOk && monotone;
+  console.log(`\n=== ${rows.filter(r => r.held).length}/${rows.length} run gates held · ${RUNS} roads each ===`);
+  await H.browser.close();
+  process.exit(allOk ? 0 : 1);
+})().catch(e => { console.error('RUN SIM CRASH:', e); process.exit(2); });

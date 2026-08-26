@@ -981,3 +981,136 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   conic-gradient(rgba(255,225,74,0.34) calc(var(--burst, 0) * 360deg),
                  rgba(255,225,74,0) 0); }
 .k-pring-burst .k-pr-lbl { letter-spacing: 0.1em; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE ROAD — node travel that answers three questions without a word
+   ═══════════════════════════════════════════════════════════════════════════
+   WHERE AM I     a pinned marker with a standing ring
+   WHERE MAY I GO full opacity plus a gold pulse; everything else recedes
+   WHAT IS THERE  an icon whose SILHOUETTE differs before its colour does
+   Those three channels are independent on purpose: the map has to survive a
+   glance at arm's length on a phone, and colour alone does not survive that. */
+#k-map { position: absolute; inset: 0; width: 932px; height: 430px; overflow: hidden;
+  background: #0d0c10; color: #cfc8ba; }
+#k-map, #k-map * { -webkit-touch-callout: none !important; -webkit-user-select: none; user-select: none; }
+#k-map img { -webkit-user-drag: none; pointer-events: none; }
+#k-map-bg { position: absolute; inset: 0; }
+#k-map-bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  object-position: 50% 46%; filter: saturate(0.5) brightness(0.42) contrast(1.05); }
+.k-map-veil { position: absolute; inset: 0; background:
+  radial-gradient(120% 88% at 50% 46%, rgba(10,9,12,0.12) 0%, rgba(9,8,11,0.78) 74%, rgba(8,7,10,0.94) 100%),
+  linear-gradient(180deg, rgba(9,8,11,0.86) 0%, rgba(9,8,11,0.1) 22%, rgba(9,8,11,0) 42%),
+  linear-gradient(0deg, rgba(8,7,10,0.9) 0%, rgba(8,7,10,0.22) 26%, rgba(8,7,10,0) 46%); }
+
+/* ── the header: who you are, how far in, what you carry ── */
+#k-map-top { position: absolute; left: 0; right: 0; top: 0; height: 74px; z-index: 4;
+  display: flex; align-items: center; gap: 18px; padding: 0 22px; }
+.k-mt-title { display: flex; flex-direction: column; gap: 2px; min-width: 168px; }
+.k-mt-title b { font-size: 19px; letter-spacing: 0.26em; color: #e0c084; font-weight: 700; }
+.k-mt-title span { font-size: 10px; letter-spacing: 0.22em; color: #8d8474; }
+#k-map-party { display: flex; gap: 12px; flex: 1; }
+.k-mp { display: flex; align-items: center; gap: 7px; }
+.k-mp img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; object-position: 50% 18%;
+  border: 1px solid rgba(201,164,92,0.5); background: #1b1820; }
+.k-mp-hp { font-size: 12px; color: #cfc8ba; letter-spacing: 0.04em; }
+.k-mp-hp b { font-size: 15px; color: #efe6d4; }
+.k-mp-bar { width: 54px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+.k-mp-bar i { display: block; height: 100%; background: linear-gradient(90deg, #7fa06a, #a9c187); }
+.k-mp-low .k-mp-bar i { background: linear-gradient(90deg, #9e4a40, #c4695a); }
+.k-mp-low img { border-color: rgba(184,87,74,0.8); }
+#k-embers { display: flex; align-items: center; gap: 6px; color: #e0a85c; }
+#k-embers svg { width: 19px; height: 19px; }
+#k-embers b { font-size: 22px; color: #f0cf92; font-weight: 700; }
+#k-embers em { font-style: normal; font-size: 9px; letter-spacing: 0.2em; color: #8d8474; }
+
+/* ── the edges: exactly three weights, because a glance sorts three ── */
+#k-map-edges { position: absolute; inset: 0; width: 932px; height: 430px; z-index: 2; pointer-events: none; }
+.k-edge { fill: none; stroke-linecap: round; }
+.k-e-dim  { stroke: rgba(190,178,158,0.13); stroke-width: 2; stroke-dasharray: 5 9; }
+.k-e-walk { stroke: rgba(224,192,132,0.78); stroke-width: 3; }
+.k-e-live { stroke: rgba(224,192,132,0.5); stroke-width: 2.6; stroke-dasharray: 7 7;
+  animation: k-e-crawl 1.6s linear infinite; }
+@keyframes k-e-crawl { to { stroke-dashoffset: -28px; } }
+
+/* ── the stops ── */
+#k-map-nodes { position: absolute; inset: 0; z-index: 3; }
+.k-node { position: absolute; transform: translate(-50%, -50%); z-index: 3;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  background: none; border: 0; padding: 0; cursor: pointer; color: inherit;
+  font-family: inherit; transition: opacity 240ms ease, transform 240ms cubic-bezier(.2,.8,.3,1); }
+.k-n-disc { position: relative; width: 52px; height: 52px; border-radius: 50%;
+  display: grid; place-items: center; background: #16141b;
+  border: 1.6px solid var(--tone, #7d7466); box-shadow: 0 6px 16px rgba(0,0,0,0.6); }
+.k-n-disc svg { width: 26px; height: 26px; color: var(--tone, #b6ab97); }
+.k-n-word { font-size: 9px; letter-spacing: 0.18em; color: #9a9080; white-space: nowrap; }
+/* the four kinds, each its own tone — the SECOND channel, never the only one */
+.k-tone-steel  { --tone: #9fb0bd; }
+.k-tone-red    { --tone: #c4695a; }
+.k-tone-gold   { --tone: #e0a85c; }
+.k-tone-violet { --tone: #a58cc4; }
+.k-tone-crown  { --tone: #d4514a; }
+.k-n-boss .k-n-disc { width: 66px; height: 66px; border-width: 2.2px; }
+.k-n-boss .k-n-disc svg { width: 34px; height: 34px; }
+.k-n-boss .k-n-word { font-size: 10px; letter-spacing: 0.24em; color: #e0c084; }
+
+/* WHERE MAY I GO. Reachable stops are the only bright things on the board and
+   the only ones that move; everything else is flat and dim. */
+.k-n-far { opacity: 0.32; filter: saturate(0.35); }
+.k-n-done { opacity: 0.5; filter: saturate(0.25); }
+.k-n-done .k-n-disc { border-color: rgba(190,178,158,0.3); }
+.k-n-done .k-n-disc::after { content: '✓'; position: absolute; right: -3px; bottom: -3px;
+  width: 17px; height: 17px; border-radius: 50%; background: #1b1820;
+  border: 1px solid rgba(224,192,132,0.5); color: #e0c084; font-size: 10px;
+  display: grid; place-items: center; }
+.k-n-open .k-n-disc { border-color: var(--tone); background: #1d1a23; }
+.k-n-open .k-n-disc::before { content: ''; position: absolute; inset: -7px; border-radius: 50%;
+  border: 1.6px solid var(--tone); opacity: 0.6; animation: k-n-pulse 1.9s ease-out infinite; }
+@keyframes k-n-pulse { 0% { transform: scale(0.86); opacity: 0.75; } 70%,100% { transform: scale(1.22); opacity: 0; } }
+.k-n-open .k-n-word { color: #d9d0be; }
+.k-node:not(.k-n-open):not(.k-n-here) { pointer-events: none; }
+
+/* WHERE AM I. A standing ring plus a pinned word — position is the one thing
+   that must never be inferred from brightness, because brightness is already
+   saying something else. */
+.k-n-here { opacity: 1; }
+.k-n-here .k-n-disc { border-color: #efe6d4; box-shadow: 0 0 0 3px rgba(239,230,212,0.16), 0 8px 20px rgba(0,0,0,0.7); }
+.k-n-pin { position: absolute; top: -24px; white-space: nowrap; font-size: 8px;
+  letter-spacing: 0.22em; color: #0d0c10; background: #efe6d4; padding: 3px 7px; border-radius: 2px; }
+.k-n-pin::after { content: ''; position: absolute; left: 50%; bottom: -4px; margin-left: -4px;
+  border: 4px solid transparent; border-top-color: #efe6d4; }
+.k-n-pick { transform: translate(-50%, -50%) scale(1.12); }
+.k-n-pick .k-n-disc { background: #26212c; box-shadow: 0 0 0 3px rgba(224,192,132,0.28), 0 10px 24px rgba(0,0,0,0.7); }
+
+/* ── the card: the confirmation step, and the run's own outcome plate ── */
+.k-map-card { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 6;
+  width: 592px; min-height: 62px; display: flex; align-items: center; gap: 14px;
+  padding: 10px 12px 10px 14px; border-radius: 4px;
+  background: linear-gradient(180deg, rgba(28,25,33,0.96), rgba(18,16,22,0.97));
+  border: 1px solid rgba(201,164,92,0.28); box-shadow: 0 12px 34px rgba(0,0,0,0.6); }
+.k-mc-ico { width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center;
+  background: #16141b; border: 1.4px solid var(--tone, #9a9080); }
+.k-mc-ico svg { width: 22px; height: 22px; color: var(--tone, #b6ab97); }
+.k-mc-body { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.k-mc-body b { font-size: 16px; letter-spacing: 0.1em; color: #efe6d4; }
+.k-mc-body span { font-size: 12px; color: #9a9080; line-height: 1.28; }
+.k-mc-gain { flex: none; text-align: right; display: flex; flex-direction: column; }
+.k-mc-gain b { font-size: 19px; color: #e0a85c; }
+.k-mc-gain em { font-style: normal; font-size: 9px; letter-spacing: 0.14em; color: #8d8474; }
+.k-mc-go { flex: none; padding: 10px 20px; border-radius: 3px; cursor: pointer;
+  background: linear-gradient(180deg, #3a3040, #241f2c); color: #e8dcc2;
+  border: 1px solid rgba(224,192,132,0.55); font-family: inherit;
+  font-size: 13px; letter-spacing: 0.2em; font-weight: 700; }
+.k-mc-go:active { transform: translateY(1px); }
+.k-mc-idle { border-color: rgba(201,164,92,0.14); }
+.k-mc-idle .k-mc-body b { color: #c6bda9; }
+.k-mc-end { justify-content: center; text-align: center; }
+.k-mc-end .k-mc-body { align-items: center; }
+.k-mc-win .k-mc-body b { color: #e0c084; }
+.k-mc-loss .k-mc-body b { color: #c4695a; }
+/* THE RECEIPT. Coming back from a stop with the numbers silently different is
+   the worst thing a run layer can do — the reward for winning becomes
+   invisible, and a campfire becomes indistinguishable from a wasted turn. */
+.k-mc-flash { border-color: rgba(224,192,132,0.42); animation: k-mc-in 320ms cubic-bezier(.2,.9,.3,1); }
+.k-mc-flash .k-mc-body b { color: #e0c084; }
+@keyframes k-mc-in { from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+                     to { opacity: 1; transform: translateX(-50%) translateY(0); } }

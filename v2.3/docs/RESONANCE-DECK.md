@@ -1187,3 +1187,34 @@ check('LOAD: a keyword states its own rule — the name alone teaches nothing', 
 The second one is the important one: it asserts that the tag reads *After an
 Ally* **and** that the inspect rule contains the words *different hero*. A
 future keyword that is only a name will fail the suite.
+
+
+---
+
+## Build 26 — combat is no longer the whole game
+
+The road, the run, the bestiary and the seam between a map and a fight moved
+into their own record: **[`THE-ROAD.md`](THE-ROAD.md)**.
+
+What changed on *this* side of the seam, and only this:
+
+- `startCombat({ foe, partyHp, onEnd })` — a fight can now be handed an
+  opponent, a party's carried wounds, and somewhere to report back to. All
+  three are optional, and with none of them supplied the function does exactly
+  what it did at Build 25: the Mourning Regent, a whole party, and a terminal
+  overlay.
+- `C.intents` replaces the module-level `REGENT_INTENTS` lookup in
+  `pickIntent`, `currentIntent` and `intentTargetId`, so a foe can be handed a
+  subset of the intent vocabulary.
+- `hitDamage` multiplies by `C.foe.dmgMul`; `dirgeAmount` prefers `C.foe.dirge`;
+  `checkBossPhase` returns early for a one-phase foe.
+- `setPhase` fires `onEnd(combatSummary())` on VICTORY or DEFEAT — the whole
+  interface, in one line.
+- The parry now leaves a receipt in `C.telemetry.parry`, which is what lets the
+  run price a clean bar.
+
+**The Regent's own encounter is untouched** — 168 HP, dirge 4/4, two phases, all
+four intents — so every number the balance sim has ever printed still describes
+the fight it describes. The bot that prints them moved to `test/bot.cjs` and is
+now shared with the run simulator; the full three-tier balance run was re-run
+after the extraction to prove the move changed nothing.

@@ -61,7 +61,8 @@ async function boot(opts = {}) {
     if (/fonts\.(googleapis|gstatic)\.com/.test(src)) return;
     errs.push('console: ' + m.text());
   });
-  await page.goto(`http://127.0.0.1:${port}/v2.3/index.html?test=1`, { waitUntil: 'networkidle' });
+  const query = opts.query ? '&' + String(opts.query).replace(/^[?&]/, '') : '';
+  await page.goto(`http://127.0.0.1:${port}/v2.3/index.html?test=1${query}`, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.__ready === true, null, { timeout: 8000 });
 
   const results = [];

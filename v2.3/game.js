@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 25;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 26;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -201,6 +201,44 @@ const REGENT_INTENTS = [
     ] },
 ];
 
+// ═════════════════════════════════════════════════════════════════════════════
+// THE BESTIARY — the Regent is the last thing you meet, not the only thing.
+// ═════════════════════════════════════════════════════════════════════════════
+// A run needs opponents that differ in what they ASK, not just in how much HP
+// they own. Each foe draws from the same intent vocabulary but is handed a
+// different subset of it, so its handwriting is legible after one turn: the
+// Husk only ever tolls and sweeps, the Choir heals itself and rains, the
+// Wraith is all sweep and flurry. Damage rides on a single multiplier and the
+// dirge is per-foe, so the ladder from fodder to boss is one number to tune
+// rather than four tables to keep in sync.
+const FOES = {
+  husk:     { id: 'husk', name: 'The Hollow Husk', art: 'foe-husk', tier: 'fight',
+              hp: 62, brk: 8, dmgMul: 0.70, dirge: 2, phases: 1, embers: 2,
+              intents: ['hymn', 'scythe'] },
+  cultist:  { id: 'cultist', name: 'The Choir of One', art: 'foe-cultist', tier: 'fight',
+              hp: 76, brk: 9, dmgMul: 0.80, dirge: 2, phases: 1, embers: 2,
+              intents: ['hymn', 'benediction', 'rain'] },
+  wraith:   { id: 'wraith', name: 'The Grief-Wraith', art: 'foe-wraith', tier: 'fight',
+              hp: 84, brk: 10, dmgMul: 0.86, dirge: 3, phases: 1, embers: 3,
+              intents: ['scythe', 'rain', 'hymn'] },
+  // THE ELITE IS A GAMBLE, NOT A SECOND BOSS. At 116 HP / 0.96 / dirge 3 the
+  // run sim measured it costing a ~half-parry party 72 of their 112 health —
+  // more than the Regent herself — so the road was decided at stop 3 and the
+  // last two stops were a formality. It keeps its two phases and its full
+  // intent hand, which is what makes it feel like an elite; what it loses is
+  // the attrition that made it the end of the run.
+  revenant: { id: 'revenant', name: 'The Kneeling Revenant', art: 'foe-revenant', tier: 'elite',
+              hp: 98, brk: 11, dmgMul: 0.88, dirge: 2, phases: 2, embers: 5,
+              intents: ['hymn', 'scythe', 'rain', 'benediction'] },
+  mourner:  { id: 'mourner', name: 'The Mourning Regent', art: 'foe-mourner', tier: 'boss',
+              hp: null, brk: 12, dmgMul: 1, dirge: null, phases: 2, embers: 8,
+              intents: ['hymn', 'scythe', 'benediction', 'rain'] },
+};
+// `hp: null` and `dirge: null` mean "whatever TUNE says" — the boss stays the
+// one encounter the balance sim tunes directly, and the rest are scaled off it.
+function foeHp(f) { return f.hp != null ? f.hp : TUNE.bossHp; }
+function foeIntents(f) { return REGENT_INTENTS.filter(i => f.intents.indexOf(i.id) >= 0); }
+
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE PARRY — restored from v2.2, whole.
@@ -271,6 +309,29 @@ function setPhase(p) {
   // the lens hangs toward the party; on the Regent's it swings to feature her.
   if (p === 'PLAYER_READY') camPose(CAM_POSE_PLAYER);
   else if (p === 'ENEMY_TELEGRAPH') camPose(CAM_POSE_ENEMY);
+  // A fight that was started BY something reports back to it. Combat itself
+  // still knows nothing about runs, maps or embers — it only knows it is over.
+  if ((p === 'VICTORY' || p === 'DEFEAT') && C.onEnd) {
+    const cb = C.onEnd, snap = combatSummary(p);
+    C.onEnd = null;
+    setTimeout(() => cb(snap), 620);
+  }
+}
+// What a finished fight is worth, in the only terms the run layer cares about.
+function combatSummary(p) {
+  const par = C.telemetry.parry;
+  const notes = par.reduce((n, r) => n + r.notes, 0);
+  const kept = par.reduce((n, r) => n + r.kept, 0);
+  return {
+    outcome: p === 'VICTORY' ? 'victory' : 'defeat',
+    foe: C.foe ? C.foe.id : null,
+    turns: C.turn,
+    partyHp: { ash: C.heroes.ash.hp, elin: C.heroes.elin.hp, mira: C.heroes.mira.hp },
+    turned: par.filter(r => r.turned).length,
+    flawless: par.filter(r => r.flawless).length,
+    strings: par.length,
+    cleanliness: notes ? kept / notes : 0,
+  };
 }
 
 function freshTurnState() {
@@ -278,19 +339,26 @@ function freshTurnState() {
 }
 
 function startCombat(opts) {
-  if (opts && opts.seed != null) setSeed(opts.seed);
+  opts = opts || {};
+  if (opts.seed != null) setSeed(opts.seed);
   _camPoseCur = null;                     // a fresh fight re-composes the shot
+  const foe = opts.foe || FOES.mourner;
+  const carry = opts.partyHp || null;     // a run carries its wounds between fights
+  const hero = (id) => ({
+    row: HEROES23[id].row0,
+    hp: carry && carry[id] != null ? Math.max(0, Math.min(HEROES23[id].maxHp, carry[id])) : HEROES23[id].maxHp,
+    max: HEROES23[id].maxHp, guard: 0, downed: false,
+  });
   C = {
     phase: 'INTRO',
     turn: 1,
-    heroes: {
-      ash:  { row: HEROES23.ash.row0,  hp: HEROES23.ash.maxHp,  max: HEROES23.ash.maxHp,  guard: 0, downed: false },
-      elin: { row: HEROES23.elin.row0, hp: HEROES23.elin.maxHp, max: HEROES23.elin.maxHp, guard: 0, downed: false },
-      mira: { row: HEROES23.mira.row0, hp: HEROES23.mira.maxHp, max: HEROES23.mira.maxHp, guard: 0, downed: false },
-    },
+    foe,
+    intents: foeIntents(foe),
+    onEnd: opts.onEnd || null,
+    heroes: { ash: hero('ash'), elin: hero('elin'), mira: hero('mira') },
     boss: {
-      name: 'The Mourning Regent', hp: TUNE.bossHp, max: TUNE.bossHp, phase: 1,
-      breakMax: 12, brk: 12, broken: false, cancelNext: false,
+      name: foe.name, hp: foeHp(foe), max: foeHp(foe), phase: 1,
+      breakMax: foe.brk, brk: foe.brk, broken: false, cancelNext: false,
       bleed: 0, chill: 0, intentIx: 0, _healedRecently: false,
     },
     kizuna: 0, allOuts: 0,
@@ -304,10 +372,23 @@ function startCombat(opts) {
     telemetry: { plays: [], parry: [] },
     log: [],
   };
+  for (const id of Object.keys(C.heroes)) if (C.heroes[id].hp <= 0) C.heroes[id].downed = true;
+  dressEncounter(foe);
   drawOpening();
   setPhase('PLAYER_READY');
   renderAll();
   return C;
+}
+
+// The fight wears its opponent. One <img> swap and one name — everything else
+// about the encounter already lives in the state the HUD reads.
+function dressEncounter(foe) {
+  const art = document.querySelector('#k-boss-art img');
+  if (art) { art.src = '../art/' + foe.art + '.webp'; art.alt = foe.name; }
+  const nm = document.querySelector('#k-boss-hud .k-bname');
+  if (nm && nm.childNodes[0]) nm.childNodes[0].nodeValue = foe.name + ' ';
+  const st = el('k-stage');
+  if (st) st.dataset.tier = foe.tier;
 }
 
 // Opening hand: 5 cards with AT LEAST ONE per hero (deck §3). Draw five, then
@@ -341,7 +422,7 @@ function pickIntent() {
   const cur = C.boss.intentIx;
   const hurt = C.boss.hp / C.boss.max;
   const pool = [];
-  REGENT_INTENTS.forEach((it, i) => {
+  C.intents.forEach((it, i) => {
     if (i === cur) return;                       // never the same thing twice running
     let w = 10;
     // she only sings herself whole when there is something to mend, and never
@@ -354,15 +435,15 @@ function pickIntent() {
     pool.push({ i, w });
   });
   const total = pool.reduce((n, p) => n + p.w, 0);
-  if (total <= 0) return (cur + 1) % REGENT_INTENTS.length;
+  if (total <= 0) return (cur + 1) % C.intents.length;
   let r = rng() * total;
   for (const p of pool) { r -= p.w; if (r <= 0) {
-    C.boss._healedRecently = REGENT_INTENTS[p.i].kind === 'heal';
+    C.boss._healedRecently = C.intents[p.i].kind === 'heal';
     return p.i; } }
   return pool[pool.length - 1].i;
 }
 function currentIntent() {
-  const it = REGENT_INTENTS[C.boss.intentIx % REGENT_INTENTS.length];
+  const it = C.intents[C.boss.intentIx % C.intents.length];
   const p = C.boss.phase - 1;
   const sub = it.sub ? it.sub[p] : 1;
   return { ...it, phaseHeal: it.kind === 'heal' ? TUNE.heal[p] : 0, sub };
@@ -377,7 +458,7 @@ function hitTargetId(hit) {
 // One hit's damage RIGHT NOW: phase value, row shelter, then Chill. Chill is
 // spent by the first hit of the action, so only that hit previews the relief.
 function hitDamage(hit, chillLeft) {
-  const raw = Math.round(hit.dmg[C.boss.phase - 1] * TUNE.dmgScale);
+  const raw = Math.round(hit.dmg[C.boss.phase - 1] * TUNE.dmgScale * (C.foe ? C.foe.dmgMul : 1));
   const tgt = hitTargetId(hit);
   let d = raw;
   // A sweep loses its edge with distance: full weight at the front, most of it
@@ -387,11 +468,14 @@ function hitDamage(hit, chillLeft) {
   return Math.max(0, d - (chillLeft || 0));
 }
 // The dirge: unparryable chip on every living hero, each enemy phase.
-function dirgeAmount() { return TUNE.dirge[C.boss.phase - 1] || 0; }
+function dirgeAmount() {
+  if (C.foe && C.foe.dirge != null) return C.foe.dirge;
+  return TUNE.dirge[C.boss.phase - 1] || 0;
+}
 
 // The primary target — who the banner names, and who the camera watches.
 function intentTargetId() {
-  const it = REGENT_INTENTS[C.boss.intentIx % REGENT_INTENTS.length];
+  const it = C.intents[C.boss.intentIx % C.intents.length];
   if (!it.hits || !it.hits.length) return null;
   return hitTargetId(it.hits[0]);
 }
@@ -492,9 +576,10 @@ async function allOut() {
   return true;
 }
 function checkBossPhase() {
+  if (C.foe && C.foe.phases < 2) return;
   if (C.boss.phase === 1 && C.boss.hp <= C.boss.max / 2 && C.boss.hp > 0) {
     C.boss.phase = 2;
-    logLine('The Regent rises — the dirge sharpens.');
+    logLine(C.boss.name + ' rises — the dirge sharpens.');
   }
 }
 // The only door into Broken: any Break damage from any source lands here.
@@ -811,6 +896,8 @@ async function endTurn(opts) {
       }
       result.hits.push({ targetId: tgtId, parrierId, turned, negated, flawless: read.flawless,
                          mit: read.mit, kept: read.kept, notes: read.notes, taken: dmg });
+      C.telemetry.parry.push({ t: C.turn, turned, flawless: read.flawless,
+                               kept: read.kept, notes: read.notes });
       result.taken += dmg;
       await fxHitResolved(tgtId, dmg, turned, read.flawless);
       if (!livingHeroes().length) { setPhase('DEFEAT'); renderAll(); return report('defeat', result); }
@@ -2038,6 +2125,9 @@ function renderHeroes() {
 function renderOutcome() {
   const ov = el('k-overlay');
   if (!ov) return;
+  // Inside a run the outcome card is the RUN's to draw — it has to offer the
+  // road onward, which combat knows nothing about.
+  if (C.onEnd || (window.R && window.R.active && window.R.active())) { ov.className = 'k-ov k-hidden'; return; }
   if (C.phase === 'VICTORY') { ov.className = 'k-ov'; ov.innerHTML = '<div class="k-ov-title">THE REGENT FALLS</div><div class="k-ov-sub">turn ' + C.turn + '</div>'; }
   else if (C.phase === 'DEFEAT') { ov.className = 'k-ov'; ov.innerHTML = '<div class="k-ov-title k-ov-loss">THE PARTY FALLS</div><div class="k-ov-sub">turn ' + C.turn + '</div>'; }
   else ov.className = 'k-ov k-hidden';
@@ -2517,7 +2607,13 @@ function bindChrome() {
 window.addEventListener('DOMContentLoaded', () => {
   bindChrome();
   const seed = testMode() ? 7 : undefined;
-  startCombat({ seed });
+  // THE SUITE STILL BOOTS STRAIGHT INTO A FIGHT. Combat has 106 checks written
+  // against a page that opens on the board; putting a map in front of it would
+  // have rewritten all of them to say the same things one click later, which
+  // buys nothing. ?test=1&road=1 boots the run instead, for the road's own checks.
+  const road = /[?&]road=1/.test(location.search);
+  if (window.R && window.R.boot && (!testMode() || road)) window.R.boot({ seed, fresh: testMode() });
+  else startCombat({ seed });
   window.__ready = true;
 });
 window.K = {
@@ -2540,5 +2636,7 @@ window.K = {
     if (ix >= 0) { C.boss.intentIx = ix; renderAll(); }
   },
   parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
+  FOES, foeHp, combatSummary,
+  _setPhase: setPhase,          // test-only: end a fight without playing it out
   tune(t) { Object.assign(TUNE, t || {}); return TUNE; },
 };
