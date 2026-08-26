@@ -44,6 +44,54 @@
   }
   const pick = (a) => a[Math.floor(rr() * a.length) % a.length];
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // THE TREE — what embers buy, and why a memory is worth taking
+  // ═══════════════════════════════════════════════════════════════════════
+  // Ten nodes on three tiers. Nine of them sharpen a card the party already
+  // owns; the tenth develops the thing all three of them own together.
+  //
+  // THE TIER IS THE WHOLE POINT OF A MEMORY. Embers alone cannot reach tier 2,
+  // no matter how many you carry — only a memory opens it. That is what makes
+  // the column-4 fork (campfire or memory) a real question rather than a
+  // decorated campfire, and it is why the tier was wired into the road at
+  // Build 26 before there was anything for it to gate.
+  const TREE = [
+    // tier 1 — open from the first campfire
+    { id: 'ash.cleave',      hero: 'ash',  tier: 1, cost: 3, card: 'cleave' },
+    { id: 'elin.mend',       hero: 'elin', tier: 1, cost: 3, card: 'mend' },
+    { id: 'mira.twinfang',   hero: 'mira', tier: 1, cost: 3, card: 'twinfang' },
+    // tier 2 — one memory
+    { id: 'ash.crosssever',  hero: 'ash',  tier: 2, cost: 4, card: 'crosssever' },
+    { id: 'elin.sgrace',     hero: 'elin', tier: 2, cost: 4, card: 'sgrace' },
+    { id: 'mira.backstab',   hero: 'mira', tier: 2, cost: 4, card: 'backstab' },
+    // tier 3 — both memories
+    { id: 'ash.lastlight',   hero: 'ash',  tier: 3, cost: 5, card: 'lastlight' },
+    { id: 'elin.lcascade',   hero: 'elin', tier: 3, cost: 5, card: 'lcascade' },
+    { id: 'mira.execute',    hero: 'mira', tier: 3, cost: 5, card: 'execute' },
+    // the shared node: the team attack that develops over time
+    { id: 'all.crescendo',   hero: 'all',  tier: 3, cost: 6, allout: { dmg: 34, brk: 6 },
+      name: 'CRESCENDO', blurb: 'The all-out strikes for 34 and breaks for 6.' },
+  ];
+  const HERO_NAME = { ash: 'ASH', elin: 'ELIN', mira: 'MIRA', all: 'ALL THREE' };
+  const treeNode = (id) => TREE.find(n => n.id === id);
+  const held = (id) => RUN.nodes.indexOf(id) >= 0;
+  const cardUps = () => RUN.nodes.map(id => (treeNode(id) || {}).card).filter(Boolean);
+  const alloutOf = () => {
+    const n = RUN.nodes.map(treeNode).find(x => x && x.allout);
+    return n ? n.allout : null;
+  };
+  // What a node WILL DO, read off the two card faces rather than written twice.
+  // A tree that describes its own effects in prose is a tree that goes stale
+  // the first time a card is retuned.
+  function nodeFace(n) {
+    if (!n.card) return { name: n.name, from: '', to: n.blurb || '' };
+    const K = window.K;
+    const base = K.CARD_DEFS ? K.CARD_DEFS[n.card] : null;
+    const up = K.CARD_UPS ? K.CARD_UPS[n.card] : null;
+    return { name: (up && up.name) || n.card, from: base ? K.effectText(base.base) : '',
+             to: up ? K.effectText(up.base) : '' };
+  }
+
   // ── what a stop can be ────────────────────────────────────────────────────
   // Four kinds, and each one is a different SHAPE at a glance: blades cross,
   // a crown sits on a skull, a flame stands alone, an eye opens. Colour is the
@@ -144,7 +192,7 @@
     const s = (seed != null ? seed : (Date.now() >>> 0)) || 1;
     return {
       seed: s, map: buildMap(s), at: null, path: [], stop: 0,
-      embers: 0, nodes: [],                       // unlocked skill nodes (Build 27)
+      embers: 0, nodes: [],                       // the tree nodes this run has kindled
       flash: null,                                // the receipt from the last stop
       tier: 1,                                    // raised by MEMORY stops (Build 28)
       hp: null,                                   // null = everyone is whole
@@ -175,10 +223,12 @@
 
   // ── the screen ────────────────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
+  const SCREENS = { map: 'k-map', combat: 'k-stage', camp: 'k-camp' };
   function screen(which) {
-    const map = $('k-map'), stage = $('k-stage');
-    if (map) map.classList.toggle('k-hidden', which !== 'map');
-    if (stage) stage.classList.toggle('k-hidden', which === 'map');
+    for (const k of Object.keys(SCREENS)) {
+      const el2 = $(SCREENS[k]);
+      if (el2) el2.classList.toggle('k-hidden', k !== which);
+    }
   }
 
   // Icons carry the kind. Drawn rather than lettered, because the decision has
@@ -341,7 +391,8 @@
   function enterFight(n) {
     const foe = window.K.FOES[n.foe] || window.K.FOES.wraith;
     screen('combat');
-    window.K.startCombat({ foe, partyHp: RUN.hp, onEnd: onFightEnd });
+    window.K.startCombat({ foe, partyHp: RUN.hp, onEnd: onFightEnd,
+                           upgrades: cardUps(), allout: alloutOf() });
   }
 
   function onFightEnd(sum) {
@@ -369,24 +420,104 @@
     toMap();
   }
 
-  // Build 27 lands the campfire proper — mending and the skill tree. Until
-  // then the stop still has to DO something, and what it does is the half that
-  // does not need a tree: it mends.
+  // THE CAMPFIRE MENDS **AND** OPENS THE TREE — it is not rest-or-forge.
+  // Slay the Spire's rest site makes you choose because its attrition is tuned
+  // around sometimes not resting; this road's is not — run.sim.cjs tuned the
+  // whole six-stop arc on the assumption that a campfire mends, and the
+  // pre-boss fire exists specifically so the Regent is a fight rather than the
+  // last instalment of a subtraction. The decision here is not whether to
+  // heal. It is WHICH nodes, and — one column earlier — whether to take the
+  // campfire at all or take the memory that opens the ones you cannot reach.
+  const MAXHP = { ash: 42, elin: 36, mira: 34 };
   function enterCamp(n) {
-    const H = { ash: 42, elin: 36, mira: 34 };
-    RUN.hp = RUN.hp || { ...H };
-    for (const id of Object.keys(H)) {
-      RUN.hp[id] = Math.min(H[id], Math.round((RUN.hp[id] != null ? RUN.hp[id] : H[id]) + H[id] * CAMP_FRAC));
+    RUN.hp = RUN.hp || { ...MAXHP };
+    const before = { ...RUN.hp };
+    for (const id of Object.keys(MAXHP)) {
+      RUN.hp[id] = Math.min(MAXHP[id], Math.round((RUN.hp[id] != null ? RUN.hp[id] : MAXHP[id]) + MAXHP[id] * CAMP_FRAC));
     }
     RUN.camped = (RUN.camped || 0) + 1;
+    RUN.mended = Object.keys(MAXHP).reduce((n2, id) => n2 + (RUN.hp[id] - before[id]), 0);
+    save();
+    screen('camp');
+    renderCamp();
+  }
+
+  // ── the fire ──────────────────────────────────────────────────────────────
+  function renderCamp() {
+    const wrap = document.getElementById('k-camp-tree');
+    if (!wrap) return;
+    document.getElementById('k-camp-embers').textContent = RUN.embers;
+    document.getElementById('k-camp-mend').textContent = '+' + (RUN.mended || 0);
+    const tierEl = document.getElementById('k-camp-tier');
+    if (tierEl) tierEl.textContent = 'TIER ' + RUN.tier;
+
+    wrap.innerHTML = ['ash', 'elin', 'mira'].map(hero => {
+      const rows = TREE.filter(n => n.hero === hero).map(n => nodeHTML(n)).join('');
+      return '<div class="k-ct-col"><header>'
+        + '<img src="../art/' + ({ ash: 'kai', elin: 'elin', mira: 'mira' })[hero] + '.webp" alt="">'
+        + '<b>' + HERO_NAME[hero] + '</b></header>' + rows + '</div>';
+    }).join('');
+    const shared = document.getElementById('k-camp-shared');
+    if (shared) shared.innerHTML = TREE.filter(n => n.hero === 'all').map(n => nodeHTML(n, true)).join('');
+    wrap.parentNode.querySelectorAll('.k-tnode').forEach(b => {
+      b.addEventListener('click', (e) => { e.stopPropagation(); kindle(b.dataset.node); });
+    });
+    renderCampRoster();
+  }
+
+  function nodeHTML(n, wide) {
+    const f = nodeFace(n);
+    const own = held(n.id);
+    const sealed = RUN.tier < n.tier;
+    const poor = !own && !sealed && RUN.embers < n.cost;
+    const cls = ['k-tnode'];
+    if (own) cls.push('k-tn-own');
+    if (sealed) cls.push('k-tn-sealed');
+    if (poor) cls.push('k-tn-poor');
+    if (wide) cls.push('k-tn-wide');
+    return '<button type="button" class="' + cls.join(' ') + '" data-node="' + n.id + '"'
+      + (own || sealed || poor ? ' tabindex="-1"' : '') + '>'
+      + '<span class="k-tn-top"><b>' + f.name + '</b>'
+      + '<em class="k-tn-cost">' + (own ? 'KINDLED' : sealed ? 'TIER ' + n.tier : n.cost) + '</em></span>'
+      + '<span class="k-tn-what">' + (f.from ? '<i>' + f.from + '</i> → ' : '') + f.to + '</span>'
+      + (sealed ? '<span class="k-tn-seal">A MEMORY OPENS THIS</span>' : '')
+      + '</button>';
+  }
+
+  function renderCampRoster() {
+    const box = document.getElementById('k-camp-party'); if (!box) return;
+    const art = { ash: 'kai', elin: 'elin', mira: 'mira' };
+    box.innerHTML = Object.keys(MAXHP).map(id => {
+      const hp = RUN.hp && RUN.hp[id] != null ? RUN.hp[id] : MAXHP[id];
+      const pct = Math.max(0, Math.min(100, hp / MAXHP[id] * 100));
+      return '<div class="k-mp' + (pct <= 34 ? ' k-mp-low' : '') + '">'
+        + '<img src="../art/' + art[id] + '.webp" alt="">'
+        + '<span class="k-mp-hp"><b>' + hp + '</b>/' + MAXHP[id] + '</span>'
+        + '<span class="k-mp-bar"><i style="width:' + pct + '%"></i></span></div>';
+    }).join('');
+  }
+
+  function kindle(id) {
+    const n = treeNode(id);
+    if (!n || held(id) || RUN.tier < n.tier || RUN.embers < n.cost) return;
+    RUN.embers -= n.cost;
+    RUN.nodes.push(id);
+    save();
+    renderCamp();
+    const btn = document.querySelector('[data-node="' + id + '"]');
+    if (btn) { btn.classList.remove('k-tn-lit'); void btn.offsetWidth; btn.classList.add('k-tn-lit'); }
+  }
+
+  function leaveCamp() {
+    const bought = RUN.nodes.length;
     RUN.flash = { icon: 'camp', tone: 'gold', title: 'THE FIRE BURNS DOWN',
-      sub: 'Wounds close. Nobody says much.',
-      gain: '+' + Math.round(CAMP_FRAC * 100) + '%', gainSub: 'mended' };
+      sub: bought ? 'Sharper than you came. Nobody says much.' : 'Wounds close. Nobody says much.',
+      gain: '+' + (RUN.mended || 0), gainSub: 'health mended' };
     save();
     toMap();
   }
   // Build 28 lands the cutscene proper. The mechanical half — the tier the
-  // memory opens — is live now so the road already has the shape it will keep.
+  // memory opens, which is the ONLY way to reach the deeper nodes — is live.
   function enterStory(n) {
     RUN.tier = Math.min(5, RUN.tier + 1);
     RUN.embers += 1;
@@ -407,8 +538,14 @@
   }
 
   // ── boot ──────────────────────────────────────────────────────────────────
+  function bindCamp() {
+    const go = $('k-camp-leave');
+    if (go) go.addEventListener('click', (e) => { e.stopPropagation(); leaveCamp(); });
+  }
+
   function boot(opts) {
     opts = opts || {};
+    bindCamp();
     const saved = opts.fresh ? null : load();
     RUN = saved || freshRun(opts.seed);
     _pick = null; _busy = false;
@@ -427,6 +564,7 @@
     travel, tapNode, newRun, clear,
     screen,
     render: renderMap,
+    TREE, treeNode, kindle, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
     // test-only
     _set(patch) { Object.assign(RUN, patch || {}); save(); renderMap(); },
     _pick: () => _pick,

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=26" />
+  <link rel="stylesheet" href="styles.css?v=27" />
 </head>
 <body>
   <div id="k-scale">
@@ -178,9 +178,35 @@
       <div id="k-map-nodes"></div>
       <div id="k-map-card" class="k-map-card k-mc-idle"></div>
     </section>
+
+    <!-- ══ THE FIRE ══════════════════════════════════════════════════════════
+         Mends on arrival, then opens the tree. Not rest-OR-forge: the road's
+         attrition is tuned on the assumption a campfire mends, so the question
+         here is which nodes — and, one column earlier, whether to take the
+         fire at all or the memory that opens the ones you cannot reach. -->
+    <section id="k-camp" class="k-hidden" aria-label="The campfire">
+      <div id="k-camp-bg" aria-hidden="true">
+        <img src="../art/bg-descent.webp" alt="">
+        <div class="k-camp-veil"></div>
+      </div>
+      <header id="k-camp-top">
+        <div class="k-mt-title"><b>THE FIRE</b><span id="k-camp-tier">TIER 1</span></div>
+        <div id="k-camp-party"></div>
+        <div class="k-camp-stat k-camp-mended" title="Mended at this fire">
+          <b id="k-camp-mend">+0</b><em>MENDED</em>
+        </div>
+        <div id="k-camp-purse" title="Embers">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 c3 4 5 6 5 9 a5 5 0 0 1 -10 0 c0 -3 2 -5 5 -9 z" fill="currentColor"/></svg>
+          <b id="k-camp-embers">0</b><em>EMBERS</em>
+        </div>
+      </header>
+      <div id="k-camp-tree"></div>
+      <div id="k-camp-shared"></div>
+      <button type="button" id="k-camp-leave">BACK TO THE ROAD</button>
+    </section>
   </div>
-  <script src="run.js?v=26"></script>
-  <script src="game.js?v=26"></script>
+  <script src="run.js?v=27"></script>
+  <script src="game.js?v=27"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

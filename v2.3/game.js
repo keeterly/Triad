@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 26;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 27;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -125,6 +125,53 @@ const CARD_DEFS = {
   lightsteel:  { owner: 'bond', name: 'Light Through Steel', cost: 1, target: 'enemy',
                  base: [{ dmg: 10 }, { guardAll: 4 }], cond: null, exhaust: true },
 };
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE SHARPENED FACES — what a campfire can make of a card.
+// ═════════════════════════════════════════════════════════════════════════════
+// Every upgrade is a WHOLE card definition, authored by hand, not a delta
+// applied to the base. Slay the Spire does it this way for a reason: a delta
+// ("+3 damage") has to be re-derived every time you read it and quietly breaks
+// the moment a card has two damage atoms, whereas a written-out face is the
+// thing the player will actually see, and it can be read straight off this
+// table by anyone tuning the deck.
+//
+// The deck GETS BETTER WITHOUT GETTING BIGGER. That is deliberate: Build 25
+// spent itself reducing the reading load of fifteen cards, and answering a
+// progression system by handing the player eighteen would undo it.
+const CARD_UPS = {
+  // Ash — the plain hard hit gets harder, the chain hits harder, the finisher ends it
+  cleave:      { name: 'Cleave+',        cost: 1, target: 'enemy', base: [{ dmg: 10 }], cond: null },
+  crosssever:  { name: 'Cross Sever+',   cost: 2, target: 'enemy', base: [{ dmg: 11 }, { brk: 3 }],
+                 cond: { type: 'FOLLOW_UP', reward: 'cost', costTo: 1 } },
+  lastlight:   { name: 'Last Light+',    cost: 1, target: 'enemy', base: [{ dmg: 6 }],
+                 cond: { type: 'FINALE', reward: 'output', bonus: [{ dmg: 14 }, { brk: 3 }] } },
+  // Elin — the mend, the setup, the strike that shelters
+  mend:        { name: 'Mend+',          cost: 1, target: 'party', base: [{ heal: 9 }],
+                 cond: { type: 'FINALE', reward: 'output', bonus: [{ healAll: 7 }] } },
+  sgrace:      { name: 'Shared Grace+',  cost: 1, target: 'party', base: [{ guardAll: 5 }, { brk: 3 }], cond: null },
+  lcascade:    { name: 'Lumen Cascade+', cost: 1, target: 'enemy', base: [{ dmg: 6 }, { guardLowest: 7 }], cond: null },
+  // Mira — the double, the two-beat plan, the execution
+  twinfang:    { name: 'Twin Fang+',     cost: 1, target: 'enemy', base: [{ dmg: 6 }, { dmg: 6 }], cond: null },
+  backstab:    { name: 'Backstab+',      cost: 1, target: 'enemy', base: [{ moveSelf: 'front' }, { dmg: 7 }],
+                 cond: { type: 'BACK_ROW', reward: 'output', bonus: [{ dmg: 7 }] } },
+  execute:     { name: 'Execute+',       cost: 1, target: 'enemy', base: [{ dmg: 7 }],
+                 cond: { type: 'BROKEN_OR_LOW', reward: 'output', bonus: [{ dmg: 12 }] } },
+};
+// A card's face is whatever THIS run has made of it. Every read goes through
+// here — a single site that forgets is a card that lies about itself, which is
+// the one thing Build 23 established the deck may never do.
+function cardDef(id) {
+  return (C && C.cards && C.cards[id]) || CARD_DEFS[id];
+}
+function buildCards(upgrades) {
+  const out = {};
+  for (const id of Object.keys(CARD_DEFS)) {
+    const up = (upgrades && upgrades.indexOf(id) >= 0) ? CARD_UPS[id] : null;
+    out[id] = up ? { ...CARD_DEFS[id], ...up, upgraded: true } : CARD_DEFS[id];
+  }
+  return out;
+}
 const DECK_IDS = Object.keys(CARD_DEFS).filter(id => CARD_DEFS[id].owner !== 'bond');   // the 15
 const RES_ID = 'lightsteel';
 const RESONANCE_PAIR = ['ash', 'elin'];
@@ -165,6 +212,8 @@ const RESONANCE_PAIR = ['ash', 'elin'];
 // measure the winner at the full run count.
 const TUNE = { dmgScale: 1.0, dirge: [4, 4], heal: [7, 9], parryKeep: 0.3, bossHp: 168,
   alloutDmg: 26, alloutBrk: 4 };
+
+const ALLOUT_BASE = { dmg: TUNE.alloutDmg, brk: TUNE.alloutBrk };
 
 const REGENT_INTENTS = [
   // Each intent has its own HANDWRITING. The Hymn is a dirge you brace
@@ -341,6 +390,10 @@ function freshTurnState() {
 function startCombat(opts) {
   opts = opts || {};
   if (opts.seed != null) setSeed(opts.seed);
+  // THE ALL-OUT IS THE TEAM ATTACK THAT DEVELOPS. The run can raise it, and it
+  // has to be restored on every fresh fight or a spent run leaks into the next.
+  TUNE.alloutDmg = ALLOUT_BASE.dmg; TUNE.alloutBrk = ALLOUT_BASE.brk;
+  if (opts.allout) { TUNE.alloutDmg = opts.allout.dmg; TUNE.alloutBrk = opts.allout.brk; }
   _camPoseCur = null;                     // a fresh fight re-composes the shot
   const foe = opts.foe || FOES.mourner;
   const carry = opts.partyHp || null;     // a run carries its wounds between fights
@@ -353,6 +406,8 @@ function startCombat(opts) {
     phase: 'INTRO',
     turn: 1,
     foe,
+    cards: buildCards(opts.upgrades),
+    upgrades: (opts.upgrades || []).slice(),
     intents: foeIntents(foe),
     onEnd: opts.onEnd || null,
     heroes: { ash: hero('ash'), elin: hero('elin'), mira: hero('mira') },
@@ -399,12 +454,12 @@ function drawOpening() {
   C.boss.intentIx = pickIntent();
   for (let i = 0; i < 5; i++) drawOne();
   for (const heroId of Object.keys(HEROES23)) {
-    if (C.hand.some(id => CARD_DEFS[id].owner === heroId)) continue;
-    const inDeck = C.deck.findIndex(id => CARD_DEFS[id].owner === heroId);
+    if (C.hand.some(id => cardDef(id).owner === heroId)) continue;
+    const inDeck = C.deck.findIndex(id => cardDef(id).owner === heroId);
     if (inDeck < 0) continue;
     const counts = {};
-    C.hand.forEach(id => { const o = CARD_DEFS[id].owner; counts[o] = (counts[o] || 0) + 1; });
-    const surplus = C.hand.findIndex(id => counts[CARD_DEFS[id].owner] > 1);
+    C.hand.forEach(id => { const o = cardDef(id).owner; counts[o] = (counts[o] || 0) + 1; });
+    const surplus = C.hand.findIndex(id => counts[cardDef(id).owner] > 1);
     if (surplus < 0) continue;
     const give = C.hand[surplus];
     C.hand[surplus] = C.deck[inDeck];
@@ -516,7 +571,7 @@ function evalCondition(cond, ownerId) {
   }
 }
 function evaluateCard(cardId) {
-  const card = CARD_DEFS[cardId];
+  const card = cardDef(cardId);
   if (!card) return null;
   const condActive = card.cond ? evalCondition(card.cond.type, card.owner) : false;
   // A conditional card gets a cost reduction OR increased output — never
@@ -716,7 +771,7 @@ function cycleCard(cardId) {
   C.hand.splice(C.hand.indexOf(cardId), 1);
   C.discard.push(cardId);
   drawOne();
-  logLine('Cycled ' + CARD_DEFS[cardId].name + '.');
+  logLine('Cycled ' + cardDef(cardId).name + '.');
   renderAll();
   return true;
 }
@@ -2156,7 +2211,7 @@ function dropTargetAt(x, y, cardId) {
     if (inside({ left: r.left - 26, right: r.right + 26, top: r.top - 26, bottom: r.bottom + 26 }))
       return { zone: 'piles' };
   }
-  const want = cardId ? (CARD_DEFS[cardId].target === 'enemy' ? 'enemy' : 'party') : null;
+  const want = cardId ? (cardDef(cardId).target === 'enemy' ? 'enemy' : 'party') : null;
   const cands = [];
   if (!want || want === 'enemy') {
     const b = el('k-boss-art');
@@ -2184,9 +2239,9 @@ function dropTargetAt(x, y, cardId) {
 function dropCommit(id, drop) {
   if (!drop) return false;
   if (drop.zone === 'piles') return cycleCard(id);
-  const want = CARD_DEFS[id].target === 'enemy' ? 'enemy' : 'party';
+  const want = cardDef(id).target === 'enemy' ? 'enemy' : 'party';
   if (drop.zone !== want) return false;
-  return playCard(id, drop.hero && drop.hero !== CARD_DEFS[id].owner ? drop.hero : undefined);
+  return playCard(id, drop.hero && drop.hero !== cardDef(id).owner ? drop.hero : undefined);
 }
 // ═════════════════════════════════════════════════════════════════════════════
 // THE AIM BEAM — restored from v2.2. A glowing energy ribbon (soft halo, bright
@@ -2265,7 +2320,7 @@ function drawAim(fx, fy, ex, ey, valid, color, phase) {
 }
 // A card wanting the enemy is gold; one tending the party is green.
 function aimColor(cardId) {
-  return CARD_DEFS[cardId].target === 'enemy' ? '#e05b52' : '#98d878';
+  return cardDef(cardId).target === 'enemy' ? '#e05b52' : '#98d878';
 }
 // Stage-space centre of whatever a drop would land on.
 function aimAnchor(drop) {
@@ -2363,7 +2418,7 @@ function attachCardInput(btn) {
     const from = { x: (cr.left + cr.width / 2 - sr.left) / k, y: (cr.top - sr.top) / k };
     const id = btn.dataset.card;
     const drop = dropTargetAt(lastPt.x, lastPt.y, id);
-    const want = CARD_DEFS[id].target === 'enemy' ? 'enemy' : 'party';
+    const want = cardDef(id).target === 'enemy' ? 'enemy' : 'party';
     const ok = !!drop && (drop.zone === want || drop.zone === 'piles');
     const snap = ok ? aimAnchor(drop) : null;
     document.querySelectorAll('.k-aim-snap').forEach(f => f.classList.remove('k-aim-snap'));
@@ -2397,7 +2452,7 @@ function attachCardInput(btn) {
                y: (h0.top + h0.height / 2 - sr0.top) / k0,
                hw: h0.width / k0 / 2, hh: h0.height / k0 / 2 };
       // light every figure this card could legally land on
-      const want = CARD_DEFS[btn.dataset.card].target === 'enemy' ? 'enemy' : 'party';
+      const want = cardDef(btn.dataset.card).target === 'enemy' ? 'enemy' : 'party';
       if (want === 'enemy') el('k-boss-art').classList.add('k-aim-valid');
       else document.querySelectorAll('.k-hero').forEach(h => h.classList.add('k-aim-valid'));
       if (!raf) raf = requestAnimationFrame(spin);
@@ -2415,7 +2470,7 @@ function attachCardInput(btn) {
       btn.style.setProperty('--dragx', (cx2 - home.x) + 'px');
       btn.style.setProperty('--dragy', (cy2 - home.y) + 'px');
       const over = dropTargetAt(e.clientX, e.clientY, btn.dataset.card);
-      const want = CARD_DEFS[btn.dataset.card].target === 'enemy' ? 'enemy' : 'party';
+      const want = cardDef(btn.dataset.card).target === 'enemy' ? 'enemy' : 'party';
       btn.classList.toggle('k-drop-ok', !!over && (over.zone === want || over.zone === 'piles'));
       lastPt = { x: e.clientX, y: e.clientY };
       paintAim();
@@ -2448,7 +2503,7 @@ function attachCardInput(btn) {
     btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy'); });
 }
 function showTargetRing(cardId) {
-  const c = CARD_DEFS[cardId];
+  const c = cardDef(cardId);
   const ring = el('k-target-ring'); if (!ring) return;
   const at = c.target === 'enemy' ? el('k-boss-art') : el('k-party-hud');
   if (!at) return;
@@ -2636,7 +2691,7 @@ window.K = {
     if (ix >= 0) { C.boss.intentIx = ix; renderAll(); }
   },
   parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
-  FOES, foeHp, combatSummary,
+  FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText,
   _setPhase: setPhase,          // test-only: end a fight without playing it out
   tune(t) { Object.assign(TUNE, t || {}); return TUNE; },
 };

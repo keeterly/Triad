@@ -183,3 +183,101 @@ cheaply and measure the winner at the full count.)*
   a memory is strictly worse than a campfire while tiers gate nothing. That is
   the first thing Build 27 has to fix, and it is the reason the tier is already
   wired: the road has the shape it will keep, and only the payload is missing.
+
+---
+
+## Build 27 — the fire, and the tree it opens
+
+**The gauntlet item.** *"A campfire and cutscene system that develops and
+unlocks skill nodes."* This is the first half. The second — the scene itself —
+is Build 28.
+
+### The campfire mends *and* opens the tree
+
+Slay the Spire's rest site makes you choose: rest **or** smith. That is right
+for StS, whose attrition is tuned on the assumption you sometimes don't rest.
+It is wrong here, and the reason is in Build 26's own numbers: `run.sim.cjs`
+tuned the whole six-stop arc *around* a campfire that mends, and the pre-boss
+fire exists specifically so the Regent is a fight rather than the last
+instalment of a subtraction. Making the mend optional would have re-opened a
+question the road had already answered.
+
+So the fire always mends. The decision it poses is **which nodes** — and, one
+column earlier, **whether to take the fire at all** or take the memory that
+opens the nodes you cannot otherwise reach.
+
+### Ten nodes, three tiers, one lock
+
+| Tier | Ash | Elin | Mira | Shared | Cost |
+|---|---|---|---|---|---|
+| 1 | Cleave+ | Mend+ | Twin Fang+ | — | 3 |
+| 2 | Cross Sever+ | Shared Grace+ | Backstab+ | — | 4 |
+| 3 | Last Light+ | Lumen Cascade+ | Execute+ | **Crescendo** | 5 / 6 |
+
+**Embers alone cannot reach tier 2.** No purse, however large, opens it — only
+a memory does. That is the whole point of the memory stop, and it is why the
+tier was wired into the road at Build 26 before there was anything for it to
+gate: the column-4 fork (campfire or memory) is only a real question if the
+memory buys something a campfire cannot.
+
+`Crescendo` is the premise's "team attacks that develop over time" made
+mechanical: the KIZUNA all-out goes from 26 damage / 4 Break to 34 / 6. One
+node, shared by all three, and the most expensive thing on the board.
+
+### The deck gets better without getting bigger
+
+Every upgrade is a **whole card definition, authored by hand** — the same thing
+StS does, and for the same reason. A delta (`+3 damage`) has to be re-derived
+every time it is read and quietly breaks the moment a card has two damage
+atoms; a written-out face is the thing the player will actually see, and it can
+be read straight off the table by anyone tuning the deck.
+
+And the count stays at fifteen. Build 25 spent itself reducing the reading load
+of those fifteen cards; answering a progression system by handing the player
+eighteen would have undone it.
+
+**One accessor, no exceptions.** `cardDef(id)` replaced every read of
+`CARD_DEFS[...]` in the game — fourteen sites. A single site that forgets is a
+card that lies about itself, which is the one thing Build 23 established the
+deck may never do. The suite checks the hand renders `Cleave+`, not `Cleave`.
+
+### How a node says what it does
+
+It doesn't. It shows the two faces and lets you read the difference:
+
+```
+Cleave+                    3
+7 damage. → 10 damage.
+```
+
+Both halves are read off the card tables at render time, so a node can never
+describe an effect the card no longer has. A tree that writes its own effects
+in prose goes stale the first time a card is retuned.
+
+Three states, each saying *why*: **kindled** is settled and quiet, **sealed**
+says `A MEMORY OPENS THIS` (the only thing that does), and **too poor** greys
+the *price* rather than the face — so you can still read what you are saving
+for. That last one is the same rule the hand already follows.
+
+### What the tree is worth
+
+The run sim now spends it. A bot that hoards its embers measures a party nobody
+plays and reports the road as harder than it is — the same error the KIZUNA
+ladder note warns about. The buyer is deliberately unclever (greedy,
+cheapest-first), so the figure is a **floor** on what the tree is worth:
+
+| | no tree (Build 26) | with the tree |
+|---|---|---|
+| ~half parries, runs completed | 18.3% | **33.3%** |
+| ~half parries, HP left after the elite | 37/112 | **48/112** |
+| median nodes kindled | — | 3 |
+
+Roughly fifteen points of run completion, which is about right for three
+upgrades bought across six stops.
+
+### Coverage
+
+`test/camp.test.cjs` — **22/22, zero page errors.** Most of its checks end
+*inside combat*, because a tree that shows nodes but does not change the fight
+is decoration: the bought card must be the dealt card, the deck must still be
+fifteen, the all-out must rise and must not leak into the next run.

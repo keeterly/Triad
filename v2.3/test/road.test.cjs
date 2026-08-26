@@ -252,9 +252,17 @@ const { boot } = require('./harness.cjs');
       await J((id) => window.R.travel(id), campId);
       await sleep(420);
       const post = await R();
-      check('CAMP: a campfire mends, and hands you straight back to the road',
-        post.hp.ash > pre.ash && post.hp.elin > pre.elin && post.at === campId,
-        JSON.stringify({ pre, post: post.hp }));
+      const onFire = await J(() => ({
+        camp: !document.getElementById('k-camp').classList.contains('k-hidden'),
+        map: !document.getElementById('k-map').classList.contains('k-hidden'),
+        stage: !document.getElementById('k-stage').classList.contains('k-hidden'),
+      }));
+      check('CAMP: a campfire mends on arrival and opens the fire — it is a place, not an instant',
+        post.hp.ash > pre.ash && post.hp.elin > pre.elin && post.at === campId
+        && onFire.camp && !onFire.map && !onFire.stage,
+        JSON.stringify({ pre, post: post.hp, onFire }));
+      await J(() => window.R.leaveCamp());
+      await sleep(240);
     }
   }
 

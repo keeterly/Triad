@@ -29,6 +29,7 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
   // The mend is the game's number, not the sim's — a simulator carrying its own
   // copy of a tuning constant measures a game nobody is playing.
   const CAMP_FRAC = await J(() => window.R.CAMP_FRAC);
+  const TREE = await J(() => JSON.parse(JSON.stringify(window.R.TREE)));
 
   // One road, walked. The bot has no map sense, so it takes the choice a
   // player would take by default — it prefers a campfire when it is hurt and
@@ -39,7 +40,8 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
       window.R.newRun(s);
       return window.R.map().map(n => ({ id: n.id, col: n.col, kind: n.kind, foe: n.foe, to: n.to }));
     }, seed);
-    let at = null, hp = { ...MAXHP }, embers = 0, fights = 0;
+    let at = null, hp = { ...MAXHP }, embers = 0, fights = 0, tier = 1;
+    let nodes = [];     // what this run has kindled
     const trace = [];   // what the party had left walking away from each stop
     for (let col = 0; col < 6; col++) {
       const open = at ? road.find(n => n.id === at).to : road.filter(n => n.col === 0).map(n => n.id);
@@ -51,21 +53,36 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
       at = want.id;
       if (want.kind === 'camp') {
         for (const k of Object.keys(MAXHP)) hp[k] = Math.min(MAXHP[k], Math.round(hp[k] + MAXHP[k] * CAMP_FRAC));
+        // A SIM THAT NEVER SPENDS MEASURES A PARTY NOBODY PLAYS. Same error the
+        // ladder note warns about: a bot that hoards its embers reports the road
+        // as harder than it is, and every number tuned off it is tuned for a
+        // player who forgot the campfire existed. Greedy cheapest-first — a
+        // deliberately unclever buyer, so the figure is a FLOOR on what the
+        // tree is worth rather than a ceiling.
+        let buying = true;
+        while (buying) {
+          buying = false;
+          const open = TREE.filter(n => nodes.indexOf(n.id) < 0 && n.tier <= tier && n.cost <= embers)
+                           .sort((a2, b2) => a2.cost - b2.cost);
+          if (open.length) { embers -= open[0].cost; nodes.push(open[0].id); buying = true; }
+        }
         trace.push({ col, kind: 'camp', left: total(hp), turns: 0 });
         continue;
       }
-      if (want.kind === 'story') { embers += 1; trace.push({ col, kind: 'story', left: total(hp), turns: 0 }); continue; }
+      if (want.kind === 'story') { embers += 1; tier = Math.min(5, tier + 1); trace.push({ col, kind: 'story', left: total(hp), turns: 0 }); continue; }
       fights++;
       const r = await page.evaluate(
         ([src, sd, pp, mt, o]) => eval(src)(sd, pp, mt, o),
-        [BOT, seed * 31 + col * 7 + 1, p, MAX_TURNS, { foe: want.foe, partyHp: hp }]);
+        [BOT, seed * 31 + col * 7 + 1, p, MAX_TURNS, { foe: want.foe, partyHp: hp,
+          upgrades: nodes.map(id => (TREE.find(n => n.id === id) || {}).card).filter(Boolean),
+          allout: (TREE.find(n => nodes.indexOf(n.id) >= 0 && n.allout) || {}).allout || null }]);
       hp = r.hp;
       trace.push({ col, kind: want.kind, foe: want.foe, left: total(hp), turns: r.turns });
-      if (!r.win) return { win: false, diedAt: col, kind: want.kind, foe: want.foe, hp, embers, fights, trace };
+      if (!r.win) return { win: false, diedAt: col, kind: want.kind, foe: want.foe, hp, embers, fights, trace, nodes };
       embers += ({ husk: 2, cultist: 2, wraith: 3, revenant: 5, mourner: 8 })[want.foe] || 2;
-      if (want.kind === 'boss') return { win: true, diedAt: null, hp, embers, fights, trace };
+      if (want.kind === 'boss') return { win: true, diedAt: null, hp, embers, fights, trace, nodes };
     }
-    return { win: false, diedAt: 5, kind: 'ran-out', hp, embers, fights, trace };
+    return { win: false, diedAt: 5, kind: 'ran-out', hp, embers, fights, trace, nodes };
   }
 
   console.log(`\n  KIZUNA v2.3 — the road, walked ${RUNS}× per tier\n`);
@@ -85,7 +102,8 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
                 purse: purse[Math.floor(purse.length / 2)] });
     console.log(`  ${held ? '✓' : '✗'} ${band.name.padEnd(15)} runs completed ${rate.toFixed(1)}%  `
       + `[gate ${band.glo}–${band.ghi}%]  died at stop ` + JSON.stringify(deaths)
-      + `  median purse ${purse[Math.floor(purse.length / 2)]}`);
+      + `  median purse ${purse[Math.floor(purse.length / 2)]}`
+      + `  median kindled ${(() => { const k = res.map(r => (r.nodes || []).length).sort((a2, b2) => a2 - b2); return k[Math.floor(k.length / 2)]; })()}`);
     // WHERE THE HEALTH GOES. A completion rate says a road is too hard; the
     // attrition trace says which stop made it too hard, which is the only one
     // of the two you can act on.

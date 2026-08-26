@@ -1114,3 +1114,89 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-mc-flash .k-mc-body b { color: #e0c084; }
 @keyframes k-mc-in { from { opacity: 0; transform: translateX(-50%) translateY(10px); }
                      to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE FIRE — mends on arrival, then opens the tree
+   ═══════════════════════════════════════════════════════════════════════════
+   Three columns, one per hero, three tiers deep, plus the shared node the
+   three of them own together. A node says what it does by showing BOTH faces
+   — the card as it is, then the card as it becomes — because a tree that
+   describes its own effects in prose goes stale the first time a card is
+   retuned, and because the player is buying the difference, not the sentence. */
+#k-camp { position: absolute; inset: 0; width: 932px; height: 430px; overflow: hidden;
+  background: #0d0b0e; color: #cfc8ba; }
+#k-camp, #k-camp * { -webkit-touch-callout: none !important; -webkit-user-select: none; user-select: none; }
+#k-camp img { -webkit-user-drag: none; pointer-events: none; }
+#k-camp-bg { position: absolute; inset: 0; }
+#k-camp-bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  object-position: 50% 58%; filter: saturate(0.62) brightness(0.3) contrast(1.05); }
+.k-camp-veil { position: absolute; inset: 0; background:
+  radial-gradient(64% 52% at 50% 96%, rgba(224,140,60,0.20) 0%, rgba(10,9,12,0) 72%),
+  linear-gradient(180deg, rgba(9,8,11,0.9) 0%, rgba(9,8,11,0.34) 26%, rgba(9,8,11,0.5) 100%); }
+
+#k-camp-top { position: absolute; left: 0; right: 0; top: 0; height: 62px; z-index: 3;
+  display: flex; align-items: center; gap: 16px; padding: 0 22px; }
+#k-camp-party { display: flex; gap: 12px; flex: 1; }
+.k-camp-stat, #k-camp-purse { display: flex; align-items: center; gap: 5px; }
+.k-camp-stat b { font-size: 20px; color: #a9c187; font-weight: 700; }
+.k-camp-stat em, #k-camp-purse em { font-style: normal; font-size: 9px; letter-spacing: 0.18em; color: #8d8474; }
+#k-camp-purse { color: #e0a85c; }
+#k-camp-purse svg { width: 18px; height: 18px; }
+#k-camp-purse b { font-size: 22px; color: #f0cf92; font-weight: 700; }
+
+/* The tree FILLS its band rather than stacking from the top: three nodes of
+   natural height left a 90px hole above the shared node, and a hole in the
+   middle of a screen reads as something missing rather than as space. */
+#k-camp-tree { position: absolute; left: 18px; right: 18px; top: 58px; bottom: 82px; z-index: 3;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.k-ct-col { display: flex; flex-direction: column; gap: 7px; height: 100%; }
+.k-ct-col .k-tnode { flex: 1; justify-content: center; }
+.k-ct-col > header { display: flex; align-items: center; gap: 7px; padding: 0 2px 2px; }
+.k-ct-col > header img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover;
+  object-position: 50% 18%; border: 1px solid rgba(201,164,92,0.45); }
+.k-ct-col > header b { font-size: 11px; letter-spacing: 0.24em; color: #c9a45c; }
+
+/* a node: the name, the price, and the difference you are buying */
+.k-tnode { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left;
+  padding: 7px 9px; border-radius: 3px; cursor: pointer; font-family: inherit; color: inherit;
+  background: linear-gradient(180deg, rgba(32,28,38,0.94), rgba(20,17,25,0.96));
+  border: 1px solid rgba(201,164,92,0.34);
+  transition: transform 140ms ease, border-color 200ms ease, opacity 200ms ease; }
+.k-tnode:active { transform: translateY(1px); }
+.k-tn-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.k-tn-top b { font-size: 13px; color: #efe6d4; letter-spacing: 0.03em; }
+.k-tn-cost { font-style: normal; font-size: 13px; font-weight: 700; color: #e0a85c; flex: none; }
+.k-tn-what { font-size: 10.5px; color: #9a9080; line-height: 1.3; }
+.k-tn-what i { font-style: normal; color: #6f6858; text-decoration: line-through; }
+.k-tn-seal { font-size: 8px; letter-spacing: 0.16em; color: #a58cc4; }
+
+/* THREE STATES, AND EACH SAYS WHY. Owned is settled and quiet; sealed says a
+   memory opens it (which is the only thing that does); too-poor greys the
+   price rather than the whole card, so you can still read what you are saving
+   for — the MTG Arena rule the hand already follows. */
+.k-tn-own { border-color: rgba(169,193,135,0.5); opacity: 0.72; cursor: default; }
+.k-tn-own .k-tn-cost { color: #a9c187; font-size: 9px; letter-spacing: 0.16em; }
+.k-tn-sealed { border-color: rgba(165,140,196,0.34); opacity: 0.5; cursor: default; }
+.k-tn-sealed .k-tn-cost { color: #a58cc4; font-size: 9px; letter-spacing: 0.14em; }
+.k-tn-poor { cursor: default; border-color: rgba(201,164,92,0.14); }
+.k-tn-poor .k-tn-cost { color: #7a4d43; }
+.k-tn-poor .k-tn-top b, .k-tn-poor .k-tn-what { opacity: 0.55; }
+.k-tnode:not(.k-tn-own):not(.k-tn-sealed):not(.k-tn-poor) { border-color: rgba(224,168,92,0.7);
+  box-shadow: 0 0 0 1px rgba(224,168,92,0.14), 0 6px 18px rgba(0,0,0,0.5); }
+@keyframes k-tn-flare { 0% { box-shadow: 0 0 0 0 rgba(240,207,146,0.7); }
+                        100% { box-shadow: 0 0 0 14px rgba(240,207,146,0); } }
+.k-tn-lit { animation: k-tn-flare 520ms ease-out; }
+
+#k-camp-shared { position: absolute; left: 18px; right: 168px; bottom: 16px; z-index: 3; }
+.k-tn-wide { flex-direction: row; align-items: center; gap: 14px;
+  border-color: rgba(224,192,132,0.5); }
+.k-tn-wide .k-tn-top { flex: none; gap: 14px; }
+.k-tn-wide .k-tn-what { flex: 1; font-size: 11.5px; }
+.k-tn-wide .k-tn-top b { font-size: 14px; letter-spacing: 0.2em; color: #e0c084; }
+
+#k-camp-leave { position: absolute; right: 18px; bottom: 16px; z-index: 4;
+  padding: 12px 16px; border-radius: 3px; cursor: pointer;
+  background: linear-gradient(180deg, #3a3040, #241f2c); color: #e8dcc2;
+  border: 1px solid rgba(224,192,132,0.55); font-family: inherit;
+  font-size: 11px; letter-spacing: 0.16em; font-weight: 700; }
+#k-camp-leave:active { transform: translateY(1px); }

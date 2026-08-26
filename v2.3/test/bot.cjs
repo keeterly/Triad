@@ -11,7 +11,8 @@ module.exports.BOT = `
 (async (seed, pSuccess, maxTurns, opts) => {
   const K = window.K;
   const O = opts || {};
-  K.startCombat({ seed, foe: O.foe ? K.FOES[O.foe] : undefined, partyHp: O.partyHp || undefined });
+  K.startCombat({ seed, foe: O.foe ? K.FOES[O.foe] : undefined, partyHp: O.partyHp || undefined,
+                  upgrades: O.upgrades || undefined, allout: O.allout || undefined });
   let rnd = seed * 2654435761 % 2147483647;
   const rand = () => { rnd = (rnd * 48271) % 2147483647; return rnd / 2147483647; };
   const S = () => K.state();
