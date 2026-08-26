@@ -1348,9 +1348,12 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    touchscreen, where a tooltip that needs a mouse hover is not a hint, it is
    nothing — a player could finish a whole run never learning cards can be
    swapped. The caption appears with the dot and leaves when it is spent. */
-.k-cycle-hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: -13px;
+/* …and it is a <span>, not an <em>: as an <em> inside .k-pile it inherited the
+   pile's own label placement and printed straight through the word DECK. */
+.k-cycle-hint { position: absolute; left: 50%; transform: translateX(-50%); top: -27px;
   white-space: nowrap; font-style: normal; font-size: 7.5px; letter-spacing: 0.1em;
-  color: #9a9080; opacity: 0.9; transition: opacity 200ms ease; }
+  color: #c9a45c; opacity: 0.95; transition: opacity 200ms ease;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.95); pointer-events: none; }
 #k-deck-btn.k-cycle-spent .k-cycle-hint { opacity: 0; }
 
 /* A PULSE IS NOT A SENTENCE. While Quick Throw's discard is pending, the next
@@ -1392,3 +1395,23 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 
 /* the popup fan lifts as well as spreads, so two numbers cannot share a line */
 .k-pop { margin-top: var(--pop-dy, 0px); }
+
+/* ═══ BUILD 32 — the string track ════════════════════════════════════════
+   A whole string read great-or-better TURNS the blow; one good and the negate,
+   the Break and the Kizuna all evaporate. The sharpest rule in the game, and
+   it was invisible — nothing counted the notes and nothing said the payout had
+   already gone. One pip per note, over the hero being struck. */
+.k-strack { position: absolute; z-index: 33; transform: translate(-50%, -50%);
+  display: flex; gap: 5px; pointer-events: none;
+  padding: 4px 7px; border-radius: 10px; background: rgba(10,9,13,0.55);
+  transition: opacity 320ms ease, filter 320ms ease; }
+.k-strack i { width: 13px; height: 4px; border-radius: 2px;
+  background: rgba(214,201,164,0.22); transition: background 160ms ease, box-shadow 160ms ease; }
+.k-strack i.on { background: #d6c9a4; }
+.k-strack i.on.best { background: #f0cf92; box-shadow: 0 0 7px rgba(224,192,132,0.8); }
+.k-strack i.off { background: #8a4a40; }
+/* the moment one note drops, the whole row goes cold — the rule, shown */
+.k-strack-lost { filter: saturate(0.25) brightness(0.72); }
+.k-strack-lost i.on { background: rgba(214,201,164,0.4); box-shadow: none; }
+.k-strack-out { opacity: 0; }
+.k-strack-idle { opacity: 0; }

@@ -86,6 +86,66 @@ const { boot } = require('./harness.cjs');
       bait && bait.every(r => r.got === r.want), JSON.stringify(bait));
   }
 
+  // ═══ A01 · THE STRING TRACK ═══
+  {
+    // the swap caption was an <em> inside .k-pile, so it inherited the pile
+    // label's own absolute placement and printed straight through DECK
+    const clear = await J(() => {
+      const hint = document.querySelector('#k-deck-btn .k-cycle-hint');
+      const lbl = document.querySelector('#k-deck-btn em');
+      if (!hint || !lbl) return null;
+      const a2 = hint.getBoundingClientRect(), b2 = lbl.getBoundingClientRect();
+      const overlap = a2.bottom > b2.top && a2.top < b2.bottom && a2.right > b2.left && a2.left < b2.right;
+      return { overlap, hint: Math.round(a2.top), lbl: Math.round(b2.top), tag: hint.tagName };
+    });
+    check('SAYS: the swap caption does not print through the pile’s own label',
+      clear && !clear.overlap && clear.tag === 'SPAN', JSON.stringify(clear));
+  }
+  // ═══ A01 · THE STRING TRACK ═══
+  console.log('\n── the string track ──');
+  {
+    const t = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      window.K.forceIntent('hymn');
+      const p = window.K.endTurn();          // a live bar, not scripted grades
+      for (let i = 0; i < 80; i++) {
+        const tr = document.querySelectorAll('.k-strack');
+        if (tr.length) {
+          const first = [...tr].find(x => !x.classList.contains('k-strack-idle')) || tr[0];
+          const out = { tracks: tr.length,
+                        awake: [...tr].filter(x => !x.classList.contains('k-strack-idle')).length,
+                        pips: first.children.length,
+                        notes: (window.K.currentIntent().hits[0].notes || []).length,
+                        placed: first.style.left !== '' && first.style.top !== '' };
+          await p;                            // let the bar finish
+          return out;
+        }
+        await new Promise(r => setTimeout(r, 50));
+      }
+      await p;
+      return null;
+    });
+    check('TRACK: the string shows one pip per note of the hit, over the hero being struck',
+      t && t.tracks >= 1 && t.pips === t.notes && t.placed, JSON.stringify(t));
+    // A track belongs to its HIT, not to the bar: all hits are scheduled up
+    // front, so undamped this put three rows of pips on screen at once — two
+    // for blows that had not been thrown yet.
+    check('TRACK: only the hit being thrown shows its pips',
+      t && t.awake === 1, JSON.stringify({ tracks: t && t.tracks, awake: t && t.awake }));
+
+    // and the rule it teaches: one dropped note kills the whole string
+    const lost = await J(() => {
+      const R = window.K.readString;
+      return { allGreat: R(['great', 'great', 'great'], 3).turned,
+               oneGood: R(['great', 'good', 'great'], 3).turned,
+               allPerfect: R(['perfect', 'perfect'], 2).flawless,
+               onePerfectShort: R(['perfect', 'great'], 2).flawless };
+    });
+    check('TRACK: the rule the pips draw is the rule the engine plays — one drop loses the string',
+      lost.allGreat === true && lost.oneGood === false
+      && lost.allPerfect === true && lost.onePerfectShort === false, JSON.stringify(lost));
+  }
+
   // ═══ A0 · WHAT THE SCREEN ACTUALLY SAYS OUT LOUD ═══
   // A comprehension pass found five things a first-time player is never told.
   // Each fix is one line of text or one icon; each is worth a gate, because

@@ -1318,3 +1318,45 @@ Hymn turns 2 of its 3 hits — which is not a shortfall but the response limit
 working exactly as written: Ash is struck twice and may only fully negate once.
 Before this build the same hand could not turn that first hit at all without
 mistiming it on purpose.
+
+---
+
+## Build 32 — the string track
+
+The parry audit's fourth finding was the one Build 31 left open: *"a broken
+string gives no signal, and the verdict arrives late."*
+
+A whole string read GREAT-or-better TURNS the blow outright; one GOOD and the
+negate, the Break and the Kizuna all evaporate. It is the sharpest rule in the
+game — and it was completely invisible. Nothing on screen counted the notes,
+nothing said the payout had already gone, and you could play four more notes of
+a string that had been dead since the first.
+
+**One pip per note, over the hero being struck.** It fills gold as each note
+lands clean — brighter for a perfect — and the entire row goes cold the moment
+one drops. That is both the honest state of the string and the clearest
+possible teaching of the rule: you learn what TURNED costs by watching it
+leave.
+
+Two corrections during the build, both from looking at a screenshot rather than
+at the code:
+
+- **A track belongs to its hit, not to the bar.** All the hits are scheduled up
+  front, so the first version put three rows of pips on screen at once — two of
+  them for blows that had not been thrown yet. Each track now wakes with its
+  own first note, and leaves half a second after its last, instead of all three
+  stacking up until the bar ends.
+- **The Build 30 swap caption was printing straight through the word DECK.** It
+  was an `<em>` inside `.k-pile`, so it inherited the pile label's own absolute
+  placement. It is a `<span>` now, and a check measures the two rectangles
+  against each other rather than trusting the CSS.
+
+### Still open, and named honestly
+
+The audit's other half of that finding — that every verdict resolves *after the
+whole bar* rather than at each hit's own rest beat — is not fixed here.
+`runVolleyRhythm` awaits all its notes and the caller resolves damage
+afterwards, so interleaving resolution with the bar means restructuring the
+loop that the beat grid depends on. The string track removes most of the sting
+(you now know your string's state while you play it) but the *damage* still
+arrives in one batch at the end. It is the last known gap in the parry.

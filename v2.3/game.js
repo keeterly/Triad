@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 31;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 32;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1370,6 +1370,50 @@ function anchorFor(heroId) {
   return { x: (hr.left + hr.width / 2 - sr.left) / k,
            y: (hr.top + hr.height * 0.26 - sr.top) / k };
 }
+// ═════════════════════════════════════════════════════════════════════════════
+// THE STRING TRACK — the all-or-nothing rule, made visible while you play it.
+// ═════════════════════════════════════════════════════════════════════════════
+// A whole string read GREAT-or-better TURNS the blow; one GOOD and the negate,
+// the Break and the Kizuna all evaporate. That is the sharpest rule in the
+// game and it was completely invisible: nothing on screen counted the notes,
+// nothing said the payout had already gone, and every verdict arrived at once
+// after the last note of the whole bar. You could play four more notes of a
+// string that had been dead since the first.
+//
+// One pip per note, over the hero being struck. It fills gold as each note
+// lands clean, and the whole row goes cold the moment one drops — which is
+// both the honest state and the clearest possible teaching of the rule.
+function stringTrack(heroId, n) {
+  const stage = el('k-stage'); if (!stage) return null;
+  const box = document.createElement('div');
+  // A TRACK BELONGS TO ITS HIT, not to the bar. All the hits are scheduled up
+  // front, so creating the tracks visible put three rows of pips on screen at
+  // once — two of them for blows that had not been thrown yet. Each wakes when
+  // its own first note does.
+  box.className = 'k-strack k-strack-idle';
+  box.dataset.hero = heroId;
+  box.innerHTML = Array.from({ length: n }, () => '<i></i>').join('');
+  stage.appendChild(box);
+  const place = () => {
+    const a = anchorFor(heroId);
+    if (!a) return;
+    box.style.left = a.x + 'px';
+    box.style.top = (a.y - 46) + 'px';
+  };
+  place();
+  return {
+    el: box, place,
+    wake() { box.classList.remove('k-strack-idle'); },
+    mark(i, grade) {
+      const pip = box.children[i]; if (!pip) return;
+      const clean = grade === 'perfect' || grade === 'great';
+      pip.className = clean ? (grade === 'perfect' ? 'on best' : 'on') : 'off';
+      if (!clean) box.classList.add('k-strack-lost');
+    },
+    done() { box.classList.add('k-strack-out'); setTimeout(() => box.remove(), 420); },
+  };
+}
+
 async function runVolleyRhythm(hits, answerers, sub) {
   const step = BEAT_MS * (sub || 1);
   const kinds = hits.reduce((a, h) => a.concat(h.notes), []);
@@ -1383,7 +1427,9 @@ async function runVolleyRhythm(hits, answerers, sub) {
   // every frame costs three rect reads and buys a camera that can move during
   // a bar at all — which is what the escalating parry shot needs.
   let thread = null, threadHero = null;
+  const tracks = [];
   let anchorRaf = requestAnimationFrame(function reanchor() {
+    tracks.forEach(t => t.place());       // the track rides the lens too
     let soonest = null, soonestT = Infinity;
     document.querySelectorAll('.k-pring[data-hero]').forEach(r => {
       const a = anchorFor(r.dataset.hero);
@@ -1422,6 +1468,8 @@ async function runVolleyRhythm(hits, answerers, sub) {
     const pos = anchorFor(who);
     if (hi > 0) slot += REST_BEATS;         // a rest between hits, not a wall
     const inHit = hits[hi].notes.length;
+    const track = stringTrack(who, inHit);
+    if (track) tracks.push(track);
     // A HIT CAN HAVE A RHYTHM. `beats` places each note in the hit's own bar,
     // so a string can syncopate — a quick double on the half-beat, a hesitation
     // before the last blow — instead of every enemy playing a metronome.
@@ -1455,11 +1503,18 @@ async function runVolleyRhythm(hits, answerers, sub) {
         const wait = (land - step * lead) - performance.now();
         if (wait > 4) await beatWait(wait);
         if (!pos) return 'miss';
+        if (track && ni === 0) track.wake();
         document.querySelectorAll('.k-hero').forEach(h =>
           h.classList.toggle('k-parrying', h.dataset.hero === who));
         const dur = Math.max(180, Math.round(land - performance.now()));
         const g = await runParryNote(type, pos.x + ox, pos.y + oy, idx + 1, kinds.length, dur,
                                      who, ox, oy);
+        if (track) {
+          track.mark(ni, g);
+          // …and it leaves when ITS hit is finished, not when the bar is. Held
+          // to the end of the bar, three tracks stacked up on screen at once.
+          if (ni === inHit - 1) setTimeout(() => track.done(), 520);
+        }
         return g;
       })());
     }
@@ -1470,6 +1525,7 @@ async function runVolleyRhythm(hits, answerers, sub) {
     if (hits[hi].notes.some(n => parseNote(n).kind === 'burst')) slot += BURST_REST;
   }
   const grades = await Promise.all(jobs);
+  tracks.forEach(t => t.done());
   stage.removeEventListener('pointerdown', onPress, true);
   cancelAnimationFrame(anchorRaf);
   camHold(false);
