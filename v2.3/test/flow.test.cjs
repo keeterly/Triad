@@ -926,6 +926,41 @@ const { boot } = require('./harness.cjs');
       && sealed.sealed && !sealed.lit && sealed.row === 'front', JSON.stringify(sealed));
   }
   await settle();
+  // ── damage numbers are the loudest voice on the board ──
+  await fresh(7);
+  {
+    const nums = await J(async () => {
+      const clear = () => document.querySelectorAll('.k-pop').forEach(n => n.remove());
+      const px = () => { const p = document.querySelector('.k-pop-dmg');
+        return p ? parseFloat(getComputedStyle(p).fontSize) : null; };
+      window.K.forceHand(['serrate', 'cleave', 'frostbind', 'lcascade', 'lastlight']);
+      window.K.playCard('serrate');            // 3 — the chip tier
+      const small = px();
+      clear(); window.K.state().ap = 3;
+      window.K.playCard('cleave');             // 6 — a step up
+      const mid = px();
+      // a volley must not print its numbers on top of each other
+      window.K.playCard('frostbind');
+      const dx = new Set([...document.querySelectorAll('.k-pop')]
+        .map(n => n.style.getPropertyValue('--pop-dx'))).size;
+      const pops = document.querySelectorAll('.k-pop').length;
+      // and a FINALE has to LOOK like one: Elin, Mira, then the finisher
+      clear();
+      window.K.startCombat({ seed: 7 });
+      window.K.forceHand(['lcascade', 'serrate', 'lastlight', 'mend', 'cleave']);
+      window.K.playCard('lcascade'); window.K.playCard('serrate');
+      clear();
+      window.K.playCard('lastlight');          // 15
+      const big = px();
+      return { small, mid, big, dx, pops };
+    });
+    check('NUMBERS: damage is legible at a glance and scales with the blow',
+      nums.small >= 28 && nums.mid > nums.small && nums.big > nums.mid && nums.big >= 44,
+      JSON.stringify({ chip: nums.small, mid: nums.mid, finale: nums.big }));
+    check('NUMBERS: a volley fans its numbers apart instead of stacking them',
+      nums.pops >= 2 && nums.dx >= 2, JSON.stringify({ pops: nums.pops, distinctOffsets: nums.dx }));
+  }
+  await settle();
   // ── the diorama: real depth, and a board that is not a stack of decals ──
   await fresh(12);
   {
@@ -959,10 +994,14 @@ const { boot } = require('./harness.cjs');
       };
       // and the lens answers a blow
       window.K.forceHand(['lastlight', 'cleave', 'mend', 'serrate', 'frostbind']);
+      const cast = document.getElementById('k-cast');
+      const dz = () => parseFloat(cast.style.getPropertyValue('--cam-dz')) || 0;
+      const home = dz();
       window.K.playCard('cleave');
-      out.pushed = /k-cam-/.test(st.className);
-      await new Promise(r => setTimeout(r, 520));
-      out.released = !/k-cam-/.test(st.className);
+      out.pushed = dz() > home + 20;            // a real dolly, not a scale
+      out.rolled = Math.abs(parseFloat(cast.style.getPropertyValue('--cam-r')) || 0) > 0.2;
+      await new Promise(r => setTimeout(r, 900));
+      out.released = Math.abs(dz() - home) < 12;   // and it comes home
       return out;
     });
     const sat = (f) => { const m = /saturate\(([\d.]+)\)/.exec(f || ''); return m ? +m[1] : 1; };
@@ -974,9 +1013,9 @@ const { boot } = require('./harness.cjs');
         raw: dio.raw, who: dio.who }));
     check('DIORAMA: the board is not static — every figure breathes on its own clock, and the lens answers a blow',
       dio.breathing.length === 3 && dio.breathing.every(n => n === 'k-breathe')
-      && dio.clocks === 3 && dio.pushed && dio.released,
+      && dio.clocks === 3 && dio.pushed && dio.rolled && dio.released,
       JSON.stringify({ breathing: dio.breathing, clocks: dio.clocks,
-        pushed: dio.pushed, released: dio.released }));
+        pushed: dio.pushed, rolled: dio.rolled, released: dio.released }));
   }
   await settle();
   // ── the beam cannot outlive the card that is throwing it ──
@@ -1064,15 +1103,52 @@ const { boot } = require('./harness.cjs');
       return out;
     });
     // every gap must be a whole number of beats — a skipped beat is still on grid
-    const onGrid = beat.gaps.length && beat.gaps.every(g => Math.abs(g / 500 - Math.round(g / 500)) < 0.08);
+    // ONE GRID, HALF-BEATS ALLOWED. The strings syncopate now — a hesitation
+    // before the last blow, a jab on the off-beat — so the unit is the eighth
+    // note. Everything still lands on the same clock; nothing floats.
+    const onGrid = beat.gaps.length && beat.gaps.every(g => Math.abs(g / 250 - Math.round(g / 250)) < 0.08);
+    const syncopated = beat.gaps.some(g => Math.abs(g / 500 - Math.round(g / 500)) > 0.08);
     // …and it BREATHES: six notes end to end is a wall, six in phrases with a
     // rest between hits is a bar you can read your way through.
     const rests = beat.gaps.filter(g => g > 900).length;
-    check('BEAT: the whole volley runs on one 120 BPM metronome, rings closing on the beat',
-      beat.pulse && beat.beatMs === '500ms' && onGrid && beat.noTracker,
-      JSON.stringify({ pulse: beat.pulse, beat: beat.beatMs, gaps: beat.gaps, noTracker: beat.noTracker }));
+    check('BEAT: the whole volley runs on one 120 BPM clock, and the strings syncopate on it',
+      beat.pulse && beat.beatMs === '500ms' && onGrid && syncopated && beat.noTracker,
+      JSON.stringify({ pulse: beat.pulse, beat: beat.beatMs, gaps: beat.gaps,
+        onGrid, syncopated, noTracker: beat.noTracker }));
     check('BEAT: the volley breathes — a rest beat separates one hit from the next',
       rests >= 1, JSON.stringify({ gaps: beat.gaps, rests }));
+  }
+  await settle();
+  // ── the lens moves during a bar, and the rings ride it ──
+  await fresh(7);
+  {
+    const ride = await J(async () => {
+      window.K.forceIntent('hymn');
+      window.K.endTurn();
+      const cast = document.getElementById('k-cast');
+      const out = { moved: false, drift: 0, samples: 0 };
+      let base = null;
+      for (let i = 0; i < 260; i++) {
+        const r = document.querySelector('.k-pring[data-hero]');
+        if (r) {
+          const dz = parseFloat(cast.style.getPropertyValue('--cam-dz')) || 0;
+          if (base == null) base = dz;
+          if (Math.abs(dz - base) > 15) out.moved = true;
+          // the ring must stay ON its hero however far the lens travels
+          const h = document.querySelector('.k-hero[data-hero="' + r.dataset.hero + '"]');
+          const hr = h.getBoundingClientRect(), rr = r.getBoundingClientRect();
+          const hx = hr.left + hr.width / 2, hy = hr.top + hr.height * 0.26;
+          out.drift = Math.max(out.drift,
+            Math.hypot(rr.left + rr.width / 2 - hx - (+r.dataset.ox || 0), rr.top + rr.height / 2 - hy));
+          out.samples++;
+        }
+        await new Promise(res => setTimeout(res, 8));
+      }
+      return out;
+    });
+    check('LENS: the shot escalates through a parry string, and the rings ride it',
+      ride.samples > 10 && ride.moved && ride.drift < 26,
+      JSON.stringify({ samples: ride.samples, moved: ride.moved, worstDrift: Math.round(ride.drift) }));
   }
   await settle();
   // ── the dilation: pausing animations is not the effect ──
@@ -1099,6 +1175,37 @@ const { boot } = require('./harness.cjs');
     });
     check('DILATION: the world drains and a vignette rushes in — not just paused animation',
       !!dil && !dil.none && dil.sat <= 0.1 && dil.bright <= 0.4 && dil.vig, JSON.stringify(dil));
+  }
+  await settle();
+  // ── a mash gets its own air, and counts itself out loud ──
+  await fresh(7);
+  {
+    const mash = await J(async () => {
+      window.K.forceIntent('rain');                 // its first two hits are flurries
+      window.K.endTurn();
+      const st = document.getElementById('k-stage');
+      let ring = null;
+      for (let i = 0; i < 300 && !ring; i++) {
+        ring = st.querySelector('.k-pring-burst');
+        if (!ring) await new Promise(r => setTimeout(r, 10));
+      }
+      if (!ring) return { found: false };
+      const out = { found: true, label0: ring.querySelector('.k-pr-lbl').textContent.trim() };
+      const pt = (t) => st.dispatchEvent(new PointerEvent(t,
+        { bubbles: true, clientX: 400, clientY: 200, pointerId: 11 }));
+      pt('pointerdown'); pt('pointerup');
+      out.label1 = ring.querySelector('.k-pr-lbl').textContent.trim();
+      out.arc = ring.style.getPropertyValue('--burst');
+      // every press sparks, whether or not it grades anything
+      out.sparked = document.querySelectorAll('.k-press').length;
+      // and NOTHING else is closing while the flurry is being played
+      out.alone = st.querySelectorAll('.k-pring.k-pr-live').length <= 1;
+      return out;
+    });
+    check('MASH: the flurry counts itself, sparks every press, and plays alone',
+      mash.found && /0\/3/.test(mash.label0) && /1\/3/.test(mash.label1)
+      && parseFloat(mash.arc) > 0 && mash.sparked >= 1 && mash.alone,
+      JSON.stringify(mash));
   }
   await settle();
   // ── an early press is forgiven, not consumed ──
@@ -1422,6 +1529,24 @@ const { boot } = require('./harness.cjs');
     check('DRAW: a card is seen leaving the deck face down and arriving in the hand',
       draw.flew >= 1 && draw.faceDown >= 1 && draw.hidden && draw.settled && draw.hand === 5,
       JSON.stringify(draw));
+    const fan = await J(() => {
+      const cards = [...document.querySelectorAll('#k-hand .k-card')];
+      const v = (c, n) => parseFloat(c.style.getPropertyValue(n));
+      return {
+        // the hand has its own lens, and the cards lean away from it
+        lens: getComputedStyle(document.getElementById('k-hand')).perspective,
+        tilts: cards.map(c => v(c, '--tilt')),
+        // the OUTER cards lean hardest and the centre stands square
+        splayed: Math.abs(v(cards[0], '--tilt')) > 4
+          && Math.abs(v(cards[2], '--tilt')) < 1
+          && v(cards[0], '--tilt') * v(cards[4], '--tilt') < 0,
+        // and the fan re-flows rather than snapping when a card joins it
+        eased: /cubic-bezier/.test(getComputedStyle(cards[0]).transitionTimingFunction)
+          && parseFloat(getComputedStyle(cards[0]).transitionDuration) > 0.1,
+      };
+    });
+    check('HAND: the fan sits in its own perspective and leans away at the edges',
+      /px/.test(fan.lens) && fan.splayed && fan.eased, JSON.stringify(fan));
   }
   await settle();
   // ── the end-of-turn sweep, card by card ──

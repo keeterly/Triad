@@ -30,9 +30,18 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
    Regent all sit in the same projection, which is the whole of the 2.5D read. */
 #k-field { position: absolute; inset: 0; z-index: 3;
   perspective: 700px; perspective-origin: 50% 22%;
-  transform-style: preserve-3d; pointer-events: none;
-  transform: scale(var(--cam-z, 1)) translateY(var(--cam-y, 0px));
-  transition: transform 340ms cubic-bezier(.2,.8,.3,1); }
+  transform-style: preserve-3d; pointer-events: none; }
+/* THE LENS. A real camera, not a scale: the dolly (--cam-dz) travels THROUGH
+   the perspective, so a push-in widens and parallaxes the ranks instead of
+   flatly magnifying them, and the roll/yaw/pitch give the move a hand. Only
+   the field carries it — the painted plate behind stays put, which is what
+   turns a push into parallax. */
+#k-cast { position: absolute; inset: 0; transform-style: preserve-3d;
+  transform: translate(var(--cam-x, 0px), var(--cam-y, 0px))
+             rotate(var(--cam-r, 0deg))
+             translateZ(var(--cam-dz, 0px))
+             rotateX(var(--cam-pitch, 0deg)) rotateY(var(--cam-yaw, 0deg));
+  transition: transform var(--cam-ms, 420ms) var(--cam-ease, cubic-bezier(.2,.8,.3,1)); }
 .k-hero, #k-boss-art, #k-rows, .k-row { pointer-events: auto; }
 #k-rows { transform-style: preserve-3d; }
 /* THE LANES RUN LEFT TO RIGHT. Back is furthest from the Regent, front is
@@ -209,8 +218,12 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 
 
 /* ── the hand ── */
-#k-hand { position: absolute; left: 50%; bottom: 13px; transform: translateX(-50%);
-  display: flex; gap: 6px; align-items: flex-end; z-index: 14; }
+/* THE HAND IS A FAN, NOT A ROW. v2.2 put the hand in its own perspective and
+   let the cards tilt in it, which is why they felt loose in the fingers; this
+   was a flat strip that snapped to a new layout every time a card arrived. */
+#k-hand { position: absolute; left: 50%; bottom: 17px; transform: translateX(-50%);
+  display: flex; gap: 6px; align-items: flex-end; z-index: 14;
+  perspective: 760px; perspective-origin: 50% 130%; }
 #k-hand .k-card-active { margin-bottom: 0; }
 #k-hand.k-discarding .k-card { transform: translateY(140px) rotate(4deg); opacity: 0; transition: all 0.3s ease-in; }
 .k-card { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
@@ -222,14 +235,20 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
     radial-gradient(160% 140% at 50% 100%, rgba(84,74,56,0.4) 0%, rgba(84,74,56,0) 46%),
     linear-gradient(172deg, #d3ccba 0%, #c6bda8 55%, #b3a88e 100%);
   border: 1px solid #6f6753; box-shadow: 0 5px 12px rgba(0,0,0,0.65), inset 0 0 14px rgba(90,78,56,0.35);
-  transform: rotate(var(--rot, 0deg)) translateY(var(--dy, 0px));
-  transform-origin: 50% 135%; margin: 0 -6px; touch-action: none;
-  transition: transform 0.18s ease, box-shadow 0.18s ease; }
-.k-card:hover { transform: rotate(0deg) translateY(-12px); z-index: 6; }
+  /* the fan leans AWAY from the lens at the edges — the tilt is what makes a
+     hand read as held rather than laid out */
+  transform: rotate(var(--rot, 0deg)) translateY(var(--dy, 0px))
+             rotateY(var(--tilt, 0deg)) rotateX(var(--lean, 0deg));
+  transform-origin: 50% 140%; margin: 0 -6px; touch-action: none;
+  transition: transform 300ms cubic-bezier(.2,.85,.3,1), box-shadow 0.18s ease; }
+.k-card:hover { transform: rotate(0deg) translateY(-16px) scale(1.04); z-index: 6; }
 .k-card-sel { transform: rotate(0deg) translateY(-16px); z-index: 6;
   box-shadow: 0 8px 20px rgba(0,0,0,0.7), 0 0 0 2px #e0c084, 0 0 18px rgba(201,164,92,0.4); }
 .k-card.k-dragging { transform: translate(var(--dragx, 0px), var(--dragy, 0px)) rotate(0deg) scale(1.05);
   transition: none; z-index: 30; }
+/* a card still on its way into the hand does not animate its layout — it is
+   already flying, and a second interpolation reads as a stutter */
+.k-card.k-arriving { transition: none; }
 .k-card.k-drop-ok { box-shadow: 0 10px 22px rgba(0,0,0,0.7), 0 0 0 2px #e0c084, 0 0 20px rgba(201,164,92,0.5); }
 .k-card-dead { opacity: 0.35; filter: grayscale(0.8); pointer-events: none; }
 /* ARMED — a combo that is live right now takes a gold rim and breathes. The
@@ -398,13 +417,35 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-grade-miss { color: #b8574a; }
 @keyframes k-gradeup { to { transform: translateY(-16px); opacity: 0; } }
 
-/* ── popups ── */
-.k-pop { position: absolute; z-index: 40; font-size: 17px; font-weight: 700; color: #e6ddc8;
-  text-shadow: 0 1px 3px #000; animation: k-popup 1s ease forwards; pointer-events: none; margin-left: -10px; }
-.k-pop-dmg { color: #e8b0a0; }
-.k-pop-gold { color: #e0c084; }
-.k-pop-heal { color: #b8d0a8; }
-@keyframes k-popup { 20% { transform: translateY(-10px); opacity: 1; } to { transform: translateY(-26px); opacity: 0; } }
+/* ── DAMAGE NUMBERS — the loudest voice on the board ──
+   These were 17px on a 932-wide stage: the one thing a player most needs to
+   read, set smaller than the card text. They SLAM in now, they are sized by
+   the weight of the blow, and a volley fans its numbers apart. */
+.k-pop { position: absolute; z-index: 40; pointer-events: none;
+  transform: translateX(-50%);
+  font-size: 30px; font-weight: 700; line-height: 1; letter-spacing: -0.01em;
+  color: #f4ecd8;
+  text-shadow: 0 0 1px #150f0c, 0 2px 0 rgba(20,14,10,0.9), 0 3px 10px rgba(0,0,0,0.95),
+               0 0 24px rgba(0,0,0,0.7);
+  animation: k-popup 1.1s cubic-bezier(.16,.9,.3,1) forwards; }
+.k-pop-md { font-size: 38px; }
+.k-pop-lg { font-size: 48px; }
+.k-pop-xl { font-size: 60px; letter-spacing: -0.03em; }
+.k-pop-dmg { color: #ffd9c2; }
+.k-pop-hurt { color: #ff8a76 !important; }
+.k-pop-gold { color: #ffe6a8; }
+.k-pop-heal { color: #b6e39a; }
+.k-pop-bleed { color: #e88a7a; }
+/* SLAM: it arrives oversized and hard, settles, holds long enough to be read,
+   and only then leaves. Drifting gently upward from the first frame is what
+   made a 30-damage finisher read the same as a 3-damage chip. */
+@keyframes k-popup {
+  0%   { transform: translateX(-50%) translate(var(--pop-dx,0), 10px) scale(1.9); opacity: 0; }
+  12%  { transform: translateX(-50%) translate(var(--pop-dx,0), 0) scale(0.9); opacity: 1; }
+  22%  { transform: translateX(-50%) translate(var(--pop-dx,0), 0) scale(1.06); }
+  32%  { transform: translateX(-50%) translate(var(--pop-dx,0), 0) scale(1); }
+  70%  { transform: translateX(-50%) translate(var(--pop-dx,0), -8px) scale(1); opacity: 1; }
+  100% { transform: translateX(-50%) translate(var(--pop-dx,0), -40px) scale(0.94); opacity: 0; } }
 
 /* ── target ring / focus / outcome ── */
 #k-target-ring { position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; z-index: 22;
@@ -671,8 +712,6 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-hitflash-big { animation-duration: 0.2s; filter: brightness(1.7); }
 .k-hitflash-huge { animation-duration: 0.25s; filter: brightness(2.6); }
 @keyframes k-flashout { 0% { opacity: 1; } 100% { opacity: 0; } }
-.k-pop-big { font-size: 30px !important; }
-.k-pop-hurt { color: #ff8a76 !important; }
 
 /* ═══ the note vocabulary ═══ */
 .k-pr-arrow { position: absolute; left: 0; top: 0; transform: translate(-50%,-50%);
@@ -899,6 +938,30 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* ═══ THE CAMERA ANSWERS ═══
    #k-field is the only thing that moves, so the painted backdrop behind it
    stays put and the push-in reads as parallax rather than a zoom. */
-#k-stage.k-cam-hit  #k-field { --cam-z: 1.022; --cam-y: -3px; }
-#k-stage.k-cam-big  #k-field { --cam-z: 1.045; --cam-y: -7px; }
-#k-stage.k-cam-huge #k-field { --cam-z: 1.075; --cam-y: -12px; }
+@media (prefers-reduced-motion: reduce) {
+  #k-cast { transform: none !important; } }
+
+/* a card arriving from the deck flips face-up as it lands */
+.k-fly-flip { animation: k-flyflip 420ms cubic-bezier(.3,.8,.3,1) forwards; }
+@keyframes k-flyflip { 0% { filter: brightness(0.6); } 55% { filter: brightness(0.85); }
+  100% { filter: none; } }
+.k-card.k-landed { animation: k-cardland 300ms cubic-bezier(.2,.9,.3,1); }
+@keyframes k-cardland { 0% { filter: brightness(1.5); } 100% { filter: none; } }
+
+/* ═══ THE PRESS ANSWERS ═══
+   A press between notes, or a fourth tap in a flurry, used to do nothing at
+   all — so the hand could not tell "too early" from "not registered", which is
+   the worst thing a rhythm read can be. Every press sparks under the finger. */
+.k-press { position: absolute; width: 0; height: 0; z-index: 33; pointer-events: none;
+  transform: translate(-50%, -50%); }
+.k-press::before { content: ''; position: absolute; left: 0; top: 0; width: 34px; height: 34px;
+  margin: -17px 0 0 -17px; border-radius: 50%; border: 2px solid rgba(255,236,190,0.85);
+  animation: k-pressout 340ms cubic-bezier(.1,.7,.3,1) forwards; }
+@keyframes k-pressout {
+  0%   { transform: scale(0.35); opacity: 0.95; }
+  100% { transform: scale(1.7); opacity: 0; } }
+/* THE MASH COUNTS ITSELF — an arc fills as the strikes land */
+.k-pring-burst .k-pr-target { background:
+  conic-gradient(rgba(255,225,74,0.34) calc(var(--burst, 0) * 360deg),
+                 rgba(255,225,74,0) 0); }
+.k-pring-burst .k-pr-lbl { letter-spacing: 0.1em; }

@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 21;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 22;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -162,16 +162,21 @@ const REGENT_INTENTS = [
   // Each intent has its own HANDWRITING. The Hymn is a dirge you brace
   // through; the Advance is two sweeping arcs; the Benediction dares you to
   // interrupt it; the Rain is a flurry you have to out-mash.
+  // Each intent keeps its own RHYTHM as well as its own gestures. `beats` places
+  // a note inside the hit's bar, so a string can hesitate or double instead of
+  // marching — a metronome is a thing you solve once, not a thing you play.
   { id: 'hymn', name: 'Ruinous Hymn', kind: 'attack',
     hits: [
+      // a steady toll, then a caught breath, then the long note
       { dmg: [9, 12], target: 'ash',  notes: ['tap', 'tap'] },
-      { dmg: [9, 12], target: 'ash',  notes: ['feint', 'tap'] },
+      { dmg: [9, 12], target: 'ash',  notes: ['feint', 'tap'], beats: [0, 1.5] },
       { dmg: [9, 12], target: 'elin', notes: ['tap', 'hold'] },
     ] },
   { id: 'scythe', name: 'Scything Advance', kind: 'attack', frontOnly: true,
     hits: [
-      { dmg: [13, 17], target: 'mira', notes: ['slide:R', 'tap'], sweep: true },
-      { dmg: [13, 17], target: 'ash',  notes: ['slide:L', 'hold', 'tap'], sweep: true },
+      // sweep and jab, on the half-beat: one motion, not two decisions
+      { dmg: [13, 17], target: 'mira', notes: ['slide:R', 'tap'], beats: [0, 0.5], sweep: true },
+      { dmg: [13, 17], target: 'ash',  notes: ['slide:L', 'hold', 'tap'], beats: [0, 1, 2.5], sweep: true },
     ] },
   { id: 'benediction', name: 'Hollow Benediction', kind: 'heal',
     hits: [
@@ -181,7 +186,7 @@ const REGENT_INTENTS = [
     hits: [
       { dmg: [9, 13], target: 'ash',  notes: ['burst'] },
       { dmg: [9, 13], target: 'elin', notes: ['burst'] },
-      { dmg: [9, 13], target: 'mira', notes: ['tap', 'slide:D'] },
+      { dmg: [9, 13], target: 'mira', notes: ['tap', 'slide:D'], beats: [0, 0.5] },
     ] },
 ];
 
@@ -249,7 +254,12 @@ const PHASES = ['INTRO', 'PLAYER_READY', 'CARD_FOCUS', 'PLAYER_ACTION_RESOLVING'
 function setPhase(p) {
   if (!PHASES.includes(p)) throw new Error('unknown phase ' + p);
   if (!C || C.phase === 'VICTORY' || C.phase === 'DEFEAT') return;   // terminal states hold
+  const was = C.phase;
   C.phase = p;
+  // THE HOME POSITION IS A COMPOSITION, never identity. On the player's turn
+  // the lens hangs toward the party; on the Regent's it swings to feature her.
+  if (p === 'PLAYER_READY') camPose(CAM_POSE_PLAYER);
+  else if (p === 'ENEMY_TELEGRAPH') camPose(CAM_POSE_ENEMY);
 }
 
 function freshTurnState() {
@@ -258,6 +268,7 @@ function freshTurnState() {
 
 function startCombat(opts) {
   if (opts && opts.seed != null) setSeed(opts.seed);
+  _camPoseCur = null;                     // a fresh fight re-composes the shot
   C = {
     phase: 'INTRO',
     turn: 1,
@@ -397,7 +408,8 @@ function dealToBoss(n, why) {
   if (C.boss.broken) n = Math.round(n * 1.25);   // BROKEN: +25% damage taken
   C.boss.hp = Math.max(0, C.boss.hp - n);
   if (why !== 'allout') kizunaGain(n * KIZUNA_PER_DAMAGE);   // the all-out cannot feed itself
-  fxDamageBoss(n, why);
+  if (_dmgBatch) { _dmgBatch.n += n; if (why) _dmgBatch.why = why; fxStrikeBoss(n, why); }
+  else fxDamageBoss(n, why);
   checkBossPhase();
   if (C.boss.hp <= 0) setPhase('VICTORY');
 }
@@ -457,7 +469,24 @@ function guardHero(heroId, n) {
   if (h && !h.downed) h.guard += n;
 }
 // ownerId: who played the card. allyId: chosen ally for 'ally'-target cards.
+// ONE CARD, ONE NUMBER. A card whose effects carry two damage atoms — a base
+// strike plus a combo bonus — used to print them as two separate popups, so a
+// 15-damage FINALE read on screen as a 5 and a 10: two chips instead of the
+// blow it actually was. The HP and the impact still land per atom (Twin Fang
+// really does strike twice); only the NUMBER is summed and shown once.
+let _dmgBatch = null;
 function resolveEffects(effects, ownerId, allyId) {
+  const outer = _dmgBatch === null;
+  if (outer) _dmgBatch = { n: 0, why: 'hit' };
+  try { resolveEffectsInner(effects, ownerId, allyId); }
+  finally {
+    if (outer) {
+      const b = _dmgBatch; _dmgBatch = null;
+      if (b.n > 0) popDamage(b.n, b.why);
+    }
+  }
+}
+function resolveEffectsInner(effects, ownerId, allyId) {
   for (const fx of effects) {
     if (fx.dmg)        dealToBoss(fx.dmg, 'hit');
     if (fx.brk)        breakDamage(fx.brk);
@@ -906,12 +935,14 @@ const NOTE_LEAD = { slide: 1.7, bait: 1.7, burst: 1.6, feint: 1.3 };
 // A breath between the hits of a volley. Six notes back-to-back is a wall; the
 // same six in phrases of two with a rest between them is a bar.
 const REST_BEATS = 1;
+// …and a burst gets a whole extra one after it.
+const BURST_REST = 1;
 // Sideways room between the notes of one hit, so a string reads as a run of
 // positions rather than one point being shouted at repeatedly.
 const NOTE_SPREAD = 58;
 
 // One note: a ring closing on (ax, ay), exactly on its beat.
-function runParryNote(spec, ax, ay, idx, total, dur) {
+function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
   return new Promise(resolve => {
     const stage = el('k-stage');
     if (!stage) return resolve('miss');
@@ -919,6 +950,10 @@ function runParryNote(spec, ax, ay, idx, total, dur) {
     const ring = document.createElement('div');
     ring.className = 'k-pring k-pring-' + kind + (dir ? ' k-pring-dir' : '');
     ring.style.left = ax + 'px'; ring.style.top = ay + 'px';
+    // whose head this is closing on, and how far off their centre it sits, so
+    // a moving lens can never leave the ring behind
+    if (whoId) { ring.dataset.hero = whoId;
+                 ring.dataset.ox = ox || 0; ring.dataset.oy = oy || 0; }
     const glyph = kind === 'bait' ? '<span class="k-pr-x">' + SKULL_SVG + '</span>'
       : dir ? '<span class="k-pr-arrow">' + DIR_ARROW[dir] + '</span>'
       : kind === 'burst' ? '<span class="k-pr-burst"></span>' : '';
@@ -936,6 +971,7 @@ function runParryNote(spec, ax, ay, idx, total, dur) {
     const t0 = performance.now();
     ring.dataset.impact = String(t0 + dur);      // the bots aim at the beat
     ring.dataset.kind = kind;
+    ring.dataset.n = idx - 1; ring.dataset.total = total;
     if (dir) ring.dataset.dir = dir;
     let done = false, downAt = null, taps = 0, wrongAt = null;
 
@@ -946,7 +982,8 @@ function runParryNote(spec, ax, ay, idx, total, dur) {
       parrySlowmo(true);
     }, Math.max(0, dur - PARRY_GOOD_MS));
     // a burst must read as "start now", so it opens the moment it spawns
-    if (kind === 'burst') { ring.classList.add('k-pr-open'); lbl.textContent = 'MASH'; }
+    if (kind === 'burst') { ring.classList.add('k-pr-open');
+      lbl.textContent = 'MASH 0/' + BURST_TAPS; ring.style.setProperty('--burst', '0'); }
 
     const finish = function (q) {
       if (done) return;
@@ -970,6 +1007,10 @@ function runParryNote(spec, ax, ay, idx, total, dur) {
       if (kind === 'bait') { finish('miss'); return; }        // touched the bait
       if (kind === 'burst') {
         taps++;
+        // COUNT IT OUT LOUD. "MASH" with no tally gave the hand no idea whether
+        // a tap had landed, so a flurry was played blind.
+        lbl.textContent = 'MASH ' + Math.min(taps, BURST_TAPS) + '/' + BURST_TAPS;
+        ring.style.setProperty('--burst', (Math.min(taps, BURST_TAPS) / BURST_TAPS).toFixed(2));
         ring.classList.remove('k-pr-tick'); void ring.offsetWidth; ring.classList.add('k-pr-tick');
         if (taps >= BURST_TAPS) tryGrade();
         return;
@@ -1015,6 +1056,17 @@ function parryFlash(grade) {
   s.appendChild(f);
   setTimeout(() => f.remove(), 260);
 }
+// a spark under the finger, wherever it lands
+function pressRipple(clientX, clientY) {
+  const stage = el('k-stage'); if (!stage) return;
+  const sr = stage.getBoundingClientRect(), k = sr.width / stage.offsetWidth || 1;
+  const r = document.createElement('div');
+  r.className = 'k-press';
+  r.style.left = ((clientX - sr.left) / k) + 'px';
+  r.style.top = ((clientY - sr.top) / k) + 'px';
+  stage.appendChild(r);
+  setTimeout(() => r.remove(), 340);
+}
 function earlyNudge(ring, ax, ay) {
   ring.classList.remove('k-pr-early'); void ring.offsetWidth; ring.classList.add('k-pr-early');
   const tag = document.createElement('div');
@@ -1044,6 +1096,25 @@ async function runVolleyRhythm(hits, answerers, sub) {
   const stage = el('k-stage');
   if (!stage || !kinds.length) return kinds.map(() => 'miss');
   parryFocus(true);
+  camHold(true);
+  // THE RINGS RIDE THE LENS. They live on the stage, outside the field, so a
+  // camera move would slide them off the heroes they belong to. Re-anchoring
+  // every frame costs three rect reads and buys a camera that can move during
+  // a bar at all — which is what the escalating parry shot needs.
+  let anchorRaf = requestAnimationFrame(function reanchor() {
+    document.querySelectorAll('.k-pring[data-hero]').forEach(r => {
+      const a = anchorFor(r.dataset.hero);
+      if (!a) return;
+      r.style.left = (a.x + (+r.dataset.ox || 0)) + 'px';
+      r.style.top = (a.y + (+r.dataset.oy || 0)) + 'px';
+    });
+    anchorRaf = requestAnimationFrame(reanchor);
+  });
+  // EVERY PRESS REGISTERS. A press that lands between notes, or a fourth tap in
+  // a flurry, used to do nothing at all — the hand could not tell "too early"
+  // from "not registered", which is the worst thing a rhythm read can be.
+  const onPress = (e) => pressRipple(e.clientX, e.clientY);
+  stage.addEventListener('pointerdown', onPress, true);
   beatOpen(kinds.length);
   await beatWait(BEAT_LEADIN * BEAT_MS * 0.5);
 
@@ -1054,9 +1125,13 @@ async function runVolleyRhythm(hits, answerers, sub) {
     const pos = anchorFor(who);
     if (hi > 0) slot += REST_BEATS;         // a rest between hits, not a wall
     const inHit = hits[hi].notes.length;
+    // A HIT CAN HAVE A RHYTHM. `beats` places each note in the hit's own bar,
+    // so a string can syncopate — a quick double on the half-beat, a hesitation
+    // before the last blow — instead of every enemy playing a metronome.
+    const beats = hits[hi].beats || hits[hi].notes.map((_, i) => i);
     for (let ni = 0; ni < inHit; ni++) {
       const type = hits[hi].notes[ni];
-      const idx = gi++, beat = slot++;
+      const idx = gi++, beat = slot + (beats[ni] == null ? ni : beats[ni]);
       const lead = NOTE_LEAD[parseNote(type).kind] || 1;
       // A hit's notes READ LEFT TO RIGHT across its hero. Longer runways mean
       // two rings share the air, and stacked on one point their labels and
@@ -1071,14 +1146,23 @@ async function runVolleyRhythm(hits, answerers, sub) {
         document.querySelectorAll('.k-hero').forEach(h =>
           h.classList.toggle('k-parrying', h.dataset.hero === who));
         const dur = Math.max(180, Math.round(land - performance.now()));
-        const g = await runParryNote(type, pos.x + ox, pos.y + oy, idx + 1, kinds.length, dur);
+        const g = await runParryNote(type, pos.x + ox, pos.y + oy, idx + 1, kinds.length, dur,
+                                     who, ox, oy);
         return g;
       })());
     }
+    slot += Math.max.apply(null, beats.map(b => b == null ? 0 : b)) + 1;
+    // A MASH NEEDS ITS OWN AIR. Three taps inside one ring while the next note
+    // is already closing is not a hard read, it is two hands' worth of work —
+    // and the taps meant for the flurry rained on whatever came next.
+    if (hits[hi].notes.some(n => parseNote(n).kind === 'burst')) slot += BURST_REST;
   }
   const thread = parryThread(el('k-boss-art'), anchorFor(answerers[0]) ? anchorFor(answerers[0]).x : 466,
                              anchorFor(answerers[0]) ? anchorFor(answerers[0]).y : 200);
   const grades = await Promise.all(jobs);
+  stage.removeEventListener('pointerdown', onPress, true);
+  cancelAnimationFrame(anchorRaf);
+  camHold(false);
   if (thread) thread.remove();
   beatClose();
   parryFocus(false);
@@ -1147,19 +1231,101 @@ function shockRing(x, y, power, tone) {
   S.st.appendChild(r);
   setTimeout(() => r.remove(), 520);
 }
-// THE LENS LEANS IN. A shake moves the frame; a push moves the WORLD, and the
-// painted plate behind the field stays put, so the two separate into parallax.
-// Kept to the beats that resolve outside a live parry bar — the notes are
-// placed on the stage, not in the field, and would drift off their heroes.
-function camPush(tier) {
-  const s = document.getElementById('k-stage'); if (!s) return;
-  const cls = tier >= 3 ? 'k-cam-huge' : tier >= 2 ? 'k-cam-big' : 'k-cam-hit';
-  s.classList.remove('k-cam-hit', 'k-cam-big', 'k-cam-huge');
-  void s.offsetWidth;
-  s.classList.add(cls);
-  clearTimeout(s._camT);
-  s._camT = setTimeout(() => s.classList.remove(cls), tier >= 3 ? 420 : 300);
+// ═════════════════════════════════════════════════════════════════════════
+// THE LENS — v2.2's camera, rebuilt. A shake moves the FRAME; this moves the
+// WORLD. The dolly travels through the field's perspective, so a push-in
+// widens and parallaxes the ranks instead of flatly magnifying them, and the
+// painted plate outside the field never moves at all.
+//
+// The home position is a COMPOSITION, never identity: on the player's turn the
+// lens hangs toward the party, on the enemy's it swings to feature the Regent.
+// Every punch settles back into whichever pose is active, so the fight reads as
+// photographed rather than surveilled.
+// ═════════════════════════════════════════════════════════════════════════
+const CAM_SNAP = 'cubic-bezier(.16,.9,.28,1)';
+const CAM_SETTLE = 'cubic-bezier(.3,.7,.25,1)';
+const CAM_MAX_PAN = 34, CAM_MAX_DZ = 130, CAM_MAX_ROLL = 2.4;
+const CAM_POSE_PLAYER = { x: 14, y: 1, dz: 26, r: -0.4, yaw: 3.4, pitch: 0.7 };
+const CAM_POSE_ENEMY  = { x: -16, y: 3, dz: 30, r: 0.45, yaw: -3.8, pitch: 1.2 };
+let _camBase = CAM_POSE_PLAYER, _camOutT = null, _camHeld = 0;
+function camReduced() {
+  try { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  catch (_) { return false; }
 }
+function cam(spec) {
+  const c = document.getElementById('k-cast'); if (!c || camReduced()) return;
+  const s = spec || {};
+  if (_camHeld && !s.force) return;
+  const clamp = (v, lim) => Math.max(-lim, Math.min(lim, v || 0));
+  c.style.setProperty('--cam-x', clamp(s.x, CAM_MAX_PAN) + 'px');
+  c.style.setProperty('--cam-y', clamp(s.y, CAM_MAX_PAN * 0.5) + 'px');
+  c.style.setProperty('--cam-dz', clamp(s.dz, CAM_MAX_DZ) + 'px');
+  c.style.setProperty('--cam-r', clamp(s.r, CAM_MAX_ROLL) + 'deg');
+  c.style.setProperty('--cam-yaw', clamp(s.yaw, 7) + 'deg');
+  c.style.setProperty('--cam-pitch', clamp(s.pitch, 5) + 'deg');
+  c.style.setProperty('--cam-ms', (s.ms == null ? 420 : s.ms) + 'ms');
+  c.style.setProperty('--cam-ease', s.ease || CAM_SNAP);
+}
+// ONLY WHEN THE SIDE CHANGES. Every card resolution ends by returning to
+// PLAYER_READY, and re-posing on each of those cancelled the punch the blow
+// had just thrown — the lens twitched and snapped home before it had moved.
+let _camPoseCur = null;
+function camPose(pose, ms) {
+  if (_camPoseCur === pose) return;
+  _camPoseCur = pose;
+  _camBase = pose || CAM_POSE_PLAYER;
+  camReset(ms);
+}
+function camReset(ms) {
+  clearTimeout(_camOutT); _camOutT = null;
+  cam(Object.assign({}, _camBase, { ms: ms == null ? 560 : ms, ease: CAM_SETTLE, force: true }));
+}
+// where a subject sits relative to the stage centre, in stage px
+function camOffsetTo(node) {
+  const stage = el('k-stage'); if (!stage || !node) return null;
+  const sr = stage.getBoundingClientRect(), k = sr.width / stage.offsetWidth || 1;
+  const r = node.getBoundingClientRect();
+  return { dx: (r.left + r.width / 2 - sr.left) / k - 466,
+           dy: (r.top + r.height * 0.45 - sr.top) / k - 215 };
+}
+const CAM_PUNCH = [null,
+  { dz: 40, r: 0.5, yaw: 1.8, pitch: 0.5, inMs: 110, hold: 90,  out: 380, pull: 0.05 },
+  { dz: 74, r: 1.0, yaw: 3.0, pitch: 1.0, inMs: 100, hold: 150, out: 440, pull: 0.09 },
+  { dz: 118, r: 1.7, yaw: 4.4, pitch: 1.6, inMs: 95,  hold: 230, out: 520, pull: 0.13 }];
+let _punchAt = 0, _punchPow = -1;
+// A PUNCH HOLDS BEFORE IT LEAVES. A shot that starts going home the instant it
+// arrives reads as a twitch; the hold is what makes it feel authored.
+function camPush(tier, node) {
+  const p = Math.max(0, Math.min(3, tier | 0));
+  if (p < 1 || camReduced() || _camHeld) return;
+  // a volley calls this once per hit; collapse a burst into its strongest shove
+  const now = performance.now();
+  if (now - _punchAt < 150 && p <= _punchPow) return;
+  _punchAt = now; _punchPow = p;
+  const s = CAM_PUNCH[p];
+  const o = node ? camOffsetTo(node) : null;
+  const dir = o && o.dx < 0 ? -1 : 1;
+  cam({ x: (_camBase.x || 0) - (o ? o.dx * s.pull : 0),
+        y: (_camBase.y || 0) - (o ? o.dy * s.pull * 0.5 : 0),
+        dz: (_camBase.dz || 0) + s.dz, r: dir * s.r,
+        yaw: dir * s.yaw, pitch: s.pitch, ms: s.inMs, ease: CAM_SNAP });
+  clearTimeout(_camOutT);
+  _camOutT = setTimeout(() => camReset(s.out), s.inMs + s.hold);
+}
+// THE PARRY CAMERA — the shot tightens and dutches further with every note in
+// the string, a clean read SNAPS and a missed one lurches the wrong way. Safe
+// mid-bar because the rings re-anchor to their heroes every frame.
+function camParry(i, total, grade) {
+  if (camReduced()) return;
+  const t = total > 1 ? Math.min(1, i / (total - 1)) : 1;
+  const dir = (i % 2) ? -1 : 1;
+  const perfect = grade === 'perfect', miss = grade === 'miss';
+  const dz = 46 + t * 58 + (perfect ? 20 : 0);
+  cam({ dz, r: dir * (0.5 + t * 1.0) + (perfect ? dir * 0.5 : 0) - (miss ? dir * 1.1 : 0),
+        yaw: dir * (0.4 + t * 0.9), pitch: 0.6 + t * 0.9,
+        ms: perfect ? 140 : miss ? 230 : 180, ease: CAM_SNAP, force: true });
+}
+function camHold(on) { _camHeld = on ? 1 : 0; if (!on) camReset(520); }
 function screenKick(power) {
   const s = document.getElementById('k-stage'); if (!s) return;
   const cls = power > 1.5 ? 'k-kick-xl' : power > 0.8 ? 'k-kick-lg' : 'k-kick';
@@ -1183,11 +1349,17 @@ function fxImpact(node, power, tone, dir) {
   if (c) shockRing(c.x, c.y, power, tone);
   screenKick(power);
   hitFlash(tier, tone);
-  camPush(tier);
+  camPush(tier, node);
   if (tier >= 2) screenPulse(tone);
   struck(node, dir, tier);
   hitstop(tier >= 3 ? 165 : tier >= 2 ? 105 : 75);
 }
+// A DAMAGE NUMBER IS A JRPG'S LOUDEST VOICE. These were 17px on a 932-wide
+// stage — the one thing the player most needs to read, set smaller than the
+// card text. They are tiered by weight now, they SLAM in rather than drifting
+// up, and successive numbers stagger so a volley does not print over itself.
+const POP_TIER = (n) => n >= 20 ? 'k-pop-xl' : n >= 12 ? 'k-pop-lg' : n >= 6 ? 'k-pop-md' : '';
+let _popSeq = 0;
 function popupOver(el, text, cls) {
   const stage = document.getElementById('k-stage'); if (!stage || !el) return;
   const sr = stage.getBoundingClientRect(), r = el.getBoundingClientRect();
@@ -1195,18 +1367,26 @@ function popupOver(el, text, cls) {
   const p = document.createElement('div');
   p.className = 'k-pop ' + (cls || '');
   p.textContent = text;
+  // fan successive numbers apart so a three-hit volley reads as three numbers
+  const i = _popSeq++ % 3;
+  p.style.setProperty('--pop-dx', (i === 0 ? 0 : i === 1 ? -26 : 26) + 'px');
   p.style.left = ((r.left + r.width / 2 - sr.left) / scale) + 'px';
-  p.style.top = ((r.top + r.height * 0.3 - sr.top) / scale) + 'px';
+  p.style.top = ((r.top + r.height * 0.26 - sr.top) / scale) + 'px';
   stage.appendChild(p);
-  setTimeout(() => p.remove(), 1000);
+  setTimeout(() => p.remove(), 1100);
 }
-function fxDamageBoss(n, why) {
+// the blow itself — reels the Regent and shakes the frame, no number
+function fxStrikeBoss(n, why) {
   const b = document.getElementById('k-boss-art');
-  popupOver(b, '−' + fmtN(n), (why === 'bleed' ? 'k-pop-bleed' : 'k-pop-dmg')
-    + (n >= 12 ? ' k-pop-big' : ''));
   if (b) { b.classList.remove('k-recoil'); void b.offsetWidth; b.classList.add('k-recoil'); }
   fxImpact(b, Math.min(2.4, n / 6), why === 'bleed' ? 'bleed' : 'hit', 'r');
 }
+// the number, once, for whatever the whole card added up to
+function popDamage(n, why) {
+  popupOver(document.getElementById('k-boss-art'), fmtN(n),
+    (why === 'bleed' ? 'k-pop-bleed' : 'k-pop-dmg') + ' ' + POP_TIER(n));
+}
+function fxDamageBoss(n, why) { fxStrikeBoss(n, why); popDamage(n, why); }
 function fxBreak() { const el = document.getElementById('k-break'); if (el) { el.classList.remove('k-flash'); void el.offsetWidth; el.classList.add('k-flash'); } }
 function fxPlayCard(cardId, ev) {
   const heroId = ev.card.owner === 'bond' ? 'ash' : ev.card.owner;
@@ -1278,7 +1458,7 @@ function fxDeflect(node, flawless) {
   burst.innerHTML = '<span class="k-df-crescent"></span><span class="k-df-flash"></span>' + shards;
   S.st.appendChild(burst);
   setTimeout(() => burst.remove(), 720);
-  camPush(flawless ? 3 : 2);
+  camPush(flawless ? 3 : 2, node);
   shockRing(c.x, c.y, flawless ? 2.1 : 1.5, 'gold');
   setTimeout(() => shockRing(c.x, c.y, flawless ? 1.3 : 0.9, 'gold'), 90);
   screenPulse('gold');
@@ -1324,6 +1504,7 @@ function fxNoteGrade(ring, ax, ay, grade, kind) {
   // EVERY landed press flashes the frame, tinted by how well it was read —
   // v2.2's parry-flash. Without it a note resolves as a word appearing.
   parryFlash(grade);
+  if (ring) camParry(+(ring.dataset.n || 0), +(ring.dataset.total || 1), grade);
   if (grade === 'perfect') { shockRing(ax, ay, kind === 'burst' ? 1.5 : 1.1, 'gold'); hitstop(110); }
   else if (grade === 'great') { shockRing(ax, ay, 0.7, 'gold'); hitstop(75); }
   else if (grade === 'miss' && kind === 'bait') { screenPulse('hurt'); screenKick(1.1); }
@@ -1350,7 +1531,7 @@ function flyCard(from, toEl, opts) {
   const to = boxOf(toEl, S); if (!to) return Promise.resolve();
   const o = opts || {};
   const g = document.createElement('div');
-  g.className = 'k-fly' + (o.faceDown ? ' k-fly-back' : '');
+  g.className = 'k-fly' + (o.faceDown ? ' k-fly-back' : '') + (o.flip ? ' k-fly-flip' : '');
   g.style.cssText = 'left:' + from.x + 'px;top:' + from.y + 'px;width:' + from.w
     + 'px;height:' + from.h + 'px;opacity:' + (o.fadeIn ? 0 : 1);
   if (o.html) g.innerHTML = o.html;
@@ -1451,29 +1632,35 @@ async function fxSweepHand() {
   }
   await sleep(testMode() ? 6 : 260);
 }
+// THE DRAW BUILDS THE HAND. Every arriving card used to force a full re-layout
+// with no transition, so the four cards already held SNAPPED to new angles five
+// times in a row — which is what made the top of the turn look broken. The fan
+// now glides to its new shape while the newcomer flies in over it, and the card
+// lands face-up with a flip rather than appearing.
 async function fxDrawOne() {
   const S = stageBox();
   const deck = document.getElementById('k-deck-btn');
   const before = S && deck ? boxOf(deck, S) : null;
   renderHand();
-  // the newest card is the last in the hand; fly a back from the deck onto it
   if (before) {
     const id = C.hand[C.hand.length - 1];
     const node = document.querySelector('.k-card[data-card="' + id + '"]');
     const to = boxOf(node, S);
     if (to) {
-      if (node) node.style.opacity = '0';
-      flyCard(before, node, { faceDown: true, fadeOut: false, grow: true,
-                              spin: -10, arc: 38, ms: 380 })
-        .then(() => { if (node) node.style.opacity = ''; });
+      if (node) { node.classList.add('k-arriving'); node.style.opacity = '0'; }
+      flyCard(before, node, { faceDown: true, fadeOut: false, grow: true, flip: true,
+                              spin: -14, arc: 46, ms: 420 })
+        .then(() => { if (node) { node.style.opacity = ''; node.classList.remove('k-arriving');
+                                  node.classList.add('k-landed');
+                                  setTimeout(() => node.classList.remove('k-landed'), 300); } });
       pileThump('deck');
     }
   }
-  await sleep(testMode() ? 8 : 190);
+  await sleep(testMode() ? 8 : 230);
 }
 async function fxDirge(n) {
   for (const id of livingHeroes()) {
-    popupOver(document.querySelector('.k-hero[data-hero="' + id + '"]'), '−' + fmtN(n), 'k-pop-dirge');
+    popupOver(document.querySelector('.k-hero[data-hero="' + id + '"]'), fmtN(n), 'k-pop-dirge k-pop-md');
   }
   const s = document.getElementById('k-stage');
   if (s) { s.classList.remove('k-dirge'); void s.offsetWidth; s.classList.add('k-dirge');
@@ -1485,8 +1672,9 @@ async function fxBossHeal() { popupOver(document.getElementById('k-boss-art'), '
 async function fxHitResolved(tgtId, taken, negated, flawless) {
   const at = tgtId && document.querySelector('.k-hero[data-hero="' + tgtId + '"]');
   if (taken > 0) {
-    popupOver(at || document.getElementById('k-party-hud'), '−' + fmtN(taken),
-      'k-pop-dmg k-pop-hurt' + (taken >= 9 ? ' k-pop-big' : ''));
+    popupOver(at || document.getElementById('k-party-hud'), fmtN(taken),
+      'k-pop-dmg k-pop-hurt ' + POP_TIER(taken + 4));   // a hero has less HP; the same
+                                                        // number hurts them more
     fxImpact(at, Math.min(2.4, taken / 5), 'hurt', 'l');
   } else if (negated) {
     fxDeflect(at, !!flawless);
@@ -1542,7 +1730,7 @@ function fxKizunaReady() {
 async function fxAllOut(living) {
   const stage = el('k-stage'); if (!stage) return;
   stage.classList.add('k-allout');
-  camPush(3);
+  camPush(3, document.getElementById('k-boss-art'));
   const tag = document.createElement('div');
   tag.className = 'k-combo-call k-combo-call-big k-allout-call';
   tag.textContent = 'All-Out';
@@ -1612,8 +1800,12 @@ function renderHand() {
     const afford = C.ap >= ev.currentCost;
     const dead = c.owner === 'bond' ? (C.heroes.ash.downed || C.heroes.elin.downed) : C.heroes[c.owner].downed;
     const ownerArt = c.owner === 'bond' ? HEROES23.ash.art : HEROES23[c.owner].art;
-    // the FAN: a gentle arc, rotation from a low pivot plus a parabolic dip
-    const rot = ((i - mid) * 2.2).toFixed(1), dy = ((i - mid) * (i - mid) * 1.1).toFixed(1);
+    // THE FAN. A gentle arc — rotation from a low pivot plus a parabolic dip —
+    // and a 3D lean so the edges of the hand turn away from the lens. A flat
+    // row of upright cards is a spreadsheet; the tilt is what makes it a hand.
+    const d = i - mid;
+    const rot = (d * 3.0).toFixed(1), dy = (d * d * 1.6).toFixed(1);
+    const tilt = (-d * 5.5).toFixed(1), lean = (2 + Math.abs(d) * 1.6).toFixed(1);
     // SLAY-THE-SPIRE ANATOMY, because this is read on a phone: a cost orb, a
     // name, the art, and then ONE text box of plain sentences with the numbers
     // bolded. The conditional clause sits in the same box on its own line,
@@ -1623,7 +1815,8 @@ function renderHand() {
     return '<button class="k-card' + (ev.condActive && !dead ? ' k-card-active' : '') + (afford ? '' : ' k-card-poor')
       + (dead ? ' k-card-dead' : '') + (c.owner === 'bond' ? ' k-card-res' : '')
       + (_sel === id ? ' k-card-sel' : '') + '" data-card="' + id + '"'
-      + ' style="--rot:' + rot + 'deg;--dy:' + dy + 'px">'
+      + ' style="--rot:' + rot + 'deg;--dy:' + dy + 'px;--tilt:' + tilt
+      + 'deg;--lean:' + lean + 'deg">'
       + cardFaceHTML(c, ev, gem, ownerArt)
       + '</button>';
   }).join('');

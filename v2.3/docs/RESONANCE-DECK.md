@@ -910,3 +910,80 @@ field, and a camera move mid-bar would slide them off their heroes.
 
 The party's ground line also moved up to y=268: the top of the hand fan is at
 275, so at the old 292 the front rank stood knee-deep in its own cards.
+
+---
+
+## Build 22 — the numbers, the lens, the fan, and room to mash
+
+### Damage numbers
+
+They were **17px on a 932-wide stage** — the one thing a player most needs to
+read, set smaller than the card text. They are tiered by weight now
+(30 / 38 / 48 / 60px), they SLAM in oversized and settle rather than drifting
+up from the first frame, and successive numbers fan apart so a three-hit volley
+reads as three numbers instead of one smear.
+
+**A real bug fell out of writing the test for it.** A card whose effects carry
+two damage atoms — a base strike plus a combo bonus — printed them as two
+separate popups, so a 15-damage FINALE read on screen as *a 5 and a 10*: two
+chips instead of the blow it actually was. Damage is batched across one card
+resolution now and shown once. The HP and the impact still land per atom (Twin
+Fang really does strike twice); only the number is summed.
+
+### The lens
+
+`camPush` was a scale and a nudge. This is v2.2's camera:
+
+- **A true dolly.** `--cam-dz` travels *through* the field's perspective, so a
+  push-in widens and parallaxes the ranks instead of flatly magnifying them —
+  and only `#k-cast` carries it, so the painted plate behind never moves and the
+  push separates into parallax.
+- **A composed home.** The camera's rest position is a pose, never identity: on
+  the player's turn the lens hangs toward the party, on the Regent's it swings
+  to feature her.
+- **A punch that holds.** A shot that starts going home the instant it arrives
+  reads as a twitch; the hold is what makes it feel authored.
+- **A parry shot that escalates.** The dolly tightens and the dutch whips side
+  to side through a string; a clean read snaps and a missed one lurches.
+
+Two things had to be solved to let the camera move at all:
+
+- **The re-pose was cancelling the punch.** Every card resolution ends by
+  returning to `PLAYER_READY`, and re-posing on each of those killed the shove
+  the blow had just thrown. The pose only changes when the *side* does.
+- **The rings had to ride the lens.** Parry notes live on the stage, outside the
+  field, so a camera move would slide them off the heroes they belong to. They
+  re-anchor to their hero every frame — three rect reads, and it buys a camera
+  that can move during a bar at all. Gated: *worst drift under 26px across a
+  whole string.*
+
+### The hand
+
+v2.2's hand sits in its own `perspective` and the cards tilt in it, which is
+why they feel loose in the fingers. This was a flat strip. The fan now has its
+own lens, the cards lean away from it at the edges (±11°), and the layout
+**eases** between shapes instead of snapping — which is most of what made the
+top-of-turn draw look broken: every arriving card forced a full re-layout with
+no transition, so the four cards already held jumped to new angles five times in
+a row. The newcomer now flies in over a fan that glides, and lands with a flip.
+
+### The parry
+
+- **A mash gets its own air.** Three taps inside one ring while the next note is
+  already closing is not a hard read, it is two hands' worth of work — and the
+  taps meant for the flurry rained on whatever came next. A burst now takes a
+  whole extra rest beat after it.
+- **Every press answers.** A press between notes, or a fourth tap in a flurry,
+  used to do nothing at all, so the hand could not tell *too early* from *not
+  registered* — the worst thing a rhythm read can be. Every press sparks under
+  the finger, and the flurry counts itself out loud (`MASH 2/3`) with an arc
+  that fills as the strikes land.
+- **The strings syncopate.** A hit can carry `beats` now, placing each note
+  inside its own bar: the Hymn catches its breath before the last toll, the
+  Advance sweeps and jabs on the half-beat, the Rain's tail is a quick double.
+  The clock is unchanged — the grid is just eighth notes instead of quarters,
+  and the suite asserts both that nothing floats off it *and* that something
+  actually lands between the beats.
+
+Playtested after: a practised hand cleans 94-100% per kind and the mash is now
+its *easiest* note at 100%; a sloppy one runs 70-90%, so the gradient survived.
