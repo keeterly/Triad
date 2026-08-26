@@ -217,6 +217,51 @@ const { boot } = require('./harness.cjs');
       JSON.stringify(chain));
   }
 
+  // ── the Regent is not a rotation ──
+  {
+    const vary = await J(async () => {
+      const runs = [];
+      for (let seed = 0; seed < 6; seed++) {
+        window.K.startCombat({ seed: 300 + seed });
+        const seq = [];
+        for (let t = 0; t < 7; t++) {
+          seq.push(window.K.currentIntent().id);
+          const r = await window.K.endTurn({ grades: Array(8).fill('miss') });
+          if (!r || r.outcome !== 'continue') break;
+        }
+        runs.push(seq.join(','));
+      }
+      // count repeats WITHIN a fight — flattening across runs counts the seam
+      // between one fight's last intent and the next fight's first
+      let repeats = 0;
+      for (const r of runs) { const q = r.split(',');
+        for (let i = 1; i < q.length; i++) if (q[i] && q[i] === q[i - 1]) repeats++; }
+      return { runs, distinct: new Set(runs).size, repeats,
+               openers: new Set(runs.map(r => r.split(',')[0])).size,
+               kinds: new Set(runs.join(',').split(',')).size };
+    });
+    // the same seed must still replay exactly; different seeds must not
+    const replay = await J(async () => {
+      const go = async () => {
+        window.K.startCombat({ seed: 777 });
+        const seq = [];
+        for (let t = 0; t < 6; t++) {
+          seq.push(window.K.currentIntent().id);
+          const r = await window.K.endTurn({ grades: Array(8).fill('miss') });
+          if (!r || r.outcome !== 'continue') break;
+        }
+        return seq.join(',');
+      };
+      return { a: await go(), b: await go() };
+    });
+    check('THE REGENT IS NOT A ROTATION: seeds fight differently, openings vary, and she never repeats back to back',
+      vary.distinct >= 4 && vary.repeats === 0 && vary.kinds >= 3 && vary.openers >= 2,
+      JSON.stringify({ distinctFights: vary.distinct, backToBackRepeats: vary.repeats,
+        distinctOpenings: vary.openers, intentsSeen: vary.kinds, sample: vary.runs.slice(0, 2) }));
+    check('THE REGENT IS DETERMINISTIC: the same seed replays the same fight',
+      replay.a === replay.b && replay.a.length > 0, JSON.stringify(replay));
+  }
+  await settle();
   // ── the KIZUNA ladder: what the three of them build together ──
   await fresh(19);
   {
@@ -389,8 +434,9 @@ const { boot } = require('./harness.cjs');
     const s = await S();
     check('BREAK → BROKEN: meter to zero staggers the Regent and arms the cancel',
       b.brk === 0 && b.broken && b.cancel && conds.execute, JSON.stringify(b));
-    check('BROKEN: +25% damage taken during the player phase (6 → 8)',
-      hp0 - hp1 === 8, 'took ' + (hp0 - hp1));
+    // Cleave is 5 + 4 from the front row = 9, and BROKEN takes a quarter more
+    check('BROKEN: +25% damage taken during the player phase (9 → 11)',
+      hp0 - hp1 === 11, 'took ' + (hp0 - hp1));
     check('BREAK CANCELLATION: the next enemy action dies; the meter refills to 12',
       r.canceled === true && s.boss.brk === 12 && !s.boss.broken && !s.boss.cancelNext,
       JSON.stringify({ canceled: r.canceled, brk: s.boss.brk }));
@@ -708,13 +754,17 @@ const { boot } = require('./harness.cjs');
   await fresh(11);
   {
     const anat = await J(() => {
-      window.K.forceHand(['crosssever', 'cleave', 'mend', 'serrate', 'twinfang']);
+      window.K.forceHand(['crosssever', 'guardcut', 'mend', 'serrate', 'twinfang']);
       const q = (id) => document.querySelector('.k-card[data-card="' + id + '"]');
-      const cs = q('crosssever'), cl = q('cleave');
+      // guardcut is the card with NO combo band — Cleave earned one in Build 23
+      const cs = q('crosssever'), cl = q('guardcut');
       const px = (el, p) => el ? parseFloat(getComputedStyle(el)[p]) : 0;
       return {
         gem: cs.querySelector('.k-cgem').textContent.trim(),
-        prose: cs.querySelector('.k-cprose').textContent.replace(/\s+/g, ' ').trim(),
+        // innerText, not textContent: the clauses are on separate lines now and
+        // textContent glues them into "9 damage.2 Break."
+        prose: cs.querySelector('.k-cprose').innerText.replace(/\s+/g, ' ').trim(),
+        proseLines: cs.querySelectorAll('.k-cprose br').length + 1,
         bolded: cs.querySelectorAll('.k-cprose b').length,
         icons: cs.querySelectorAll('.k-cprose .k-ico').length,
         condIcon: !!cs.querySelector('.k-combo-tag .k-ico'),
@@ -722,7 +772,7 @@ const { boot } = require('./harness.cjs');
         tag: cs.querySelector('.k-combo-tag').textContent.replace(/\s+/g, ' ').trim(),
         state: (cs.querySelector('.k-combo-state') || {}).textContent || '',
         pay: cs.querySelector('.k-combo-pay').textContent.replace(/\s+/g, ' ').trim(),
-        plainProse: cl.querySelector('.k-cprose').textContent.replace(/\s+/g, ' ').trim(),
+        plainProse: cl.querySelector('.k-cprose').innerText.replace(/\s+/g, ' ').trim(),
         noCondOnCore: !cl.querySelector('.k-combo'),
         proseSize: px(cs.querySelector('.k-cprose'), 'fontSize'),
         paySize: px(cs.querySelector('.k-combo-pay'), 'fontSize'),
@@ -731,9 +781,10 @@ const { boot } = require('./harness.cjs');
         textBox: !!cs.querySelector('.k-ctext'),
       };
     });
-    check('CARD: the rules are plain sentences, iconed and with the numbers bolded',
-      anat.prose === '9 damage. 2 Break.' && anat.bolded === 2 && anat.icons === 2
-      && anat.plainProse === '6 damage.' && anat.textBox && anat.noCondOnCore,
+    check('CARD: the rules are one clause per line, iconed, with the numbers bolded',
+      anat.prose === '9 damage. 2 Break.' && anat.proseLines === 2
+      && anat.bolded === 2 && anat.icons === 2
+      && anat.plainProse === '4 damage. 4 Guard.' && anat.textBox && anat.noCondOnCore,
       JSON.stringify(anat));
     // The combo must not read as one more grey sentence: it is a named,
     // banded block, and the base line is the biggest type on the face.
@@ -804,7 +855,7 @@ const { boot } = require('./harness.cjs');
         .filter(e => /\d,\d/.test(e.textContent)).length,
     }));
     check('SCALE: HP and damage read at Slay-the-Spire size — no four-digit numbers',
-      scale.ash === '42' && scale.boss === '160' && scale.commas === 0
+      scale.ash === '42' && scale.boss === '168' && scale.commas === 0
       && Number(scale.intent) < 100, JSON.stringify(scale));
   }
   // ── lifting a card: it follows the finger, the way v2.2 played ──
@@ -1126,14 +1177,19 @@ const { boot } = require('./harness.cjs');
       window.K.forceIntent('hymn');
       window.K.endTurn();
       const cast = document.getElementById('k-cast');
-      const out = { moved: false, drift: 0, samples: 0 };
+      const out = { swung: 0, drift: 0, samples: 0, composed: false };
       let base = null;
       for (let i = 0; i < 260; i++) {
         const r = document.querySelector('.k-pring[data-hero]');
         if (r) {
           const dz = parseFloat(cast.style.getPropertyValue('--cam-dz')) || 0;
           if (base == null) base = dz;
-          if (Math.abs(dz - base) > 15) out.moved = true;
+          out.composed = out.composed || dz > 40;      // it DID lean in, once
+          // …and then held: no dutching side to side between reads, which is
+          // exactly when the player needs the world to stand still
+          out.swung = Math.max(out.swung,
+            Math.abs(parseFloat(cast.style.getPropertyValue('--cam-yaw')) || 0),
+            Math.abs(parseFloat(cast.style.getPropertyValue('--cam-r')) || 0));
           // the ring must stay ON its hero however far the lens travels
           const h = document.querySelector('.k-hero[data-hero="' + r.dataset.hero + '"]');
           const hr = h.getBoundingClientRect(), rr = r.getBoundingClientRect();
@@ -1146,9 +1202,10 @@ const { boot } = require('./harness.cjs');
       }
       return out;
     });
-    check('LENS: the shot escalates through a parry string, and the rings ride it',
-      ride.samples > 10 && ride.moved && ride.drift < 26,
-      JSON.stringify({ samples: ride.samples, moved: ride.moved, worstDrift: Math.round(ride.drift) }));
+    check('LENS: the parry is ONE held shot — it leans in once and never pivots between notes',
+      ride.samples > 10 && ride.composed && ride.swung < 0.2 && ride.drift < 26,
+      JSON.stringify({ samples: ride.samples, leanedIn: ride.composed,
+        worstPivot: ride.swung, worstDrift: Math.round(ride.drift) }));
   }
   await settle();
   // ── the dilation: pausing animations is not the effect ──

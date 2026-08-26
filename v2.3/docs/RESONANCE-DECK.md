@@ -987,3 +987,82 @@ a row. The newcomer now flies in over a fan that glides, and lands with a flip.
 
 Playtested after: a practised hand cleans 94-100% per kind and the mash is now
 its *easiest* note at 100%; a sloppy one runs 70-90%, so the gradient survived.
+
+---
+
+## Build 23 — legibility, a held parry shot, and a deck audit against Slay the Spire 2
+
+### The cards
+
+At real size the numbers did not pop — every word on the card was the same
+weight, so the eye had to *read* the line rather than scan it. Three changes:
+
+- **The number IS the card.** Set half again as large as the words around it
+  (`b { font-size: 1.5em }`), so "**9** damage" scans in one look and the noun
+  becomes the footnote it always was. Icons went to 11px to match.
+- **One clause per line.** Run together, a two-effect card wrapped wherever the
+  box happened to end and orphaned a word — `9 damage. ✦ 2 / Break.` Each clause
+  on its own line never orphans, and reads as the list of things the card does,
+  which is what it is.
+- **A more opaque text box** (0.72 → 0.94) and a slightly larger face
+  (102×142 → 108×150). At 0.72 the painted card ground showed through the
+  letters and cost the text most of its contrast.
+
+### The parry shot holds still
+
+The escalating parry camera was dutching side to side on every note — whipping
+the frame left, right, left *between reads*, which is exactly when a player
+needs the world to hold still. The lens composes **once** at the top of the bar,
+leans in, and does not move again until the bar ends. The per-note feedback
+belongs to the flash, the shock ring and the stop, all of which already exist.
+
+### The audit
+
+Measured with `combo.probe.cjs` over 50 fights (563 turns, 1452 plays):
+
+```
+  legal plays at turn start   4.70        turns with one legal play    1%
+  real contenders             2.45        turns with nothing playable  1%
+  cards played per turn       2.58        AP left on the table         0.12 / 3
+  conditional cards           58% of plays, 90% of them ARMED
+  every card in the deck      >= 0.5 plays / fight
+```
+
+**Where v2.3 already matches or beats Slay the Spire.** A turn poses a real
+question — roughly two and a half genuine contenders out of five legal plays,
+almost never forced and almost never dead. The combo layer is denser than a
+Spire baseline deck: 58% of everything played is conditional and nine in ten of
+those land armed, because the cards interlock by design rather than by draft
+luck. And the parry gives the defensive half of a turn a skill ceiling the Spire
+does not have at all.
+
+**Two real gaps, and what was done about them.**
+
+1. **The Regent was a rotation.** She played hymn → scythe → benediction → rain
+   in that order, every fight, including the opening — so the encounter was
+   memorised after one playthrough and every turn after the first was a lookup
+   rather than a read. Spire enemies pick by weighted rules with anti-repeat
+   constraints, which is why the same monster stays interesting. She now picks
+   the same way: never the same intent twice running, the heal gated behind
+   actually being hurt and never twice in quick succession, the sweep weighted
+   later in the fight and the flurry into phase two — all off the fight's own
+   seeded RNG, so **a seed still replays exactly**. Both halves are gated.
+
+2. **A fixed deck cannot afford a dead card.** The Spire can ship a deliberately
+   weak Strike because you *remove* it; a 15-card deck with no draft and no
+   removal cannot, so a weak card is just a bad draw with no recourse. Cleave
+   was the last one at 0.55 plays a fight. It now reads *5 damage, **From the
+   Front:** +4* — which pays Ash for standing where the sweeps land hardest, and
+   turns the row system into a risk the attack deck cares about. Nothing in the
+   deck now sits under 0.5 plays a fight — and since that buff is worth about
+   six points of winrate on its own, the Regent goes 160 → 168 HP and the
+   half-parry tier lands back at 34% in nine rounds.
+
+**The gap that remains, stated plainly.** Slay the Spire's fun is not only in a
+turn — it is in the *run*: acquiring a card after every fight, removing at
+shops, upgrading at fires, and choosing which risk to walk into next. v2.3 has a
+fixed deck and one encounter, so it has none of that. Within a single fight this
+combat is competitive; as a roguelike it is not one yet. That work is the
+campfire and node-travel items, not a tuning pass, and it is the honest answer to
+"is this as fun as StS2" — the minute-to-minute is there, the hour-to-hour is
+not built.

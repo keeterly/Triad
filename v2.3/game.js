@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 22;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 23;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -65,7 +65,12 @@ const HEROES23 = {
 // grant reward:'cost' (costTo) OR reward:'output' (bonus atoms) — never both.
 const CARD_DEFS = {
   // ── Ash — Vanguard ──
-  cleave:      { owner: 'ash', name: 'Cleave',        cost: 1, target: 'enemy', base: [{ dmg: 6 }], cond: null },
+  // NOTHING MAY BE A DEAD DRAW. Slay the Spire can afford a deliberately weak
+  // Strike because you REMOVE it; a fixed 15-card deck cannot, so the vanilla
+  // attack gets a reason to exist — and it pays for the risk of leaving Ash
+  // where the sweeps land hardest.
+  cleave:      { owner: 'ash', name: 'Cleave',        cost: 1, target: 'enemy', base: [{ dmg: 5 }],
+                 cond: { type: 'FRONT_ROW', reward: 'output', bonus: [{ dmg: 4 }] } },
   guardcut:    { owner: 'ash', name: 'Guarding Cut',  cost: 1, target: 'enemy', base: [{ dmg: 4 }, { guardSelf: 4 }], cond: null },
   // A chain that can extend itself is what makes a combo deck play. Counterstance
   // was 0.15 plays a fight: Guard competes with a parry that negates outright,
@@ -148,14 +153,16 @@ const RESONANCE_PAIR = ['ash', 'elin'];
 // combo layer started firing, and 150 put that back at 35%. Build 20's KIZUNA
 // all-out is worth about six more points of winrate on its own — a bot that
 // never spends the ladder measures a party that never takes its best turn — so
-// 160 restores 35% in nine rounds, inside the deck's own 25-40% band, with
-// dmgScale still at 1.0 so the authored hit numbers stay the real numbers.
+// 160 restored 35%. Build 23 gave Cleave a live condition — a fixed deck cannot
+// afford a dead card — which is worth another six points on its own, so 168
+// lands at 34% in nine rounds, inside the deck's own 25-40% band, with dmgScale
+// still at 1.0 so the authored hit numbers stay the real numbers.
 //
 // A note for whoever sweeps this next: seed-block variance is large. The same
 // 140 HP config reads 39% over the first 100 seeds and 51.8% over 220. Do not
 // trust a sweep at n<200 for a shipping number — rank candidates cheaply, then
 // measure the winner at the full run count.
-const TUNE = { dmgScale: 1.0, dirge: [4, 4], heal: [7, 9], parryKeep: 0.3, bossHp: 160,
+const TUNE = { dmgScale: 1.0, dirge: [4, 4], heal: [7, 9], parryKeep: 0.3, bossHp: 168,
   alloutDmg: 26, alloutBrk: 4 };
 
 const REGENT_INTENTS = [
@@ -280,7 +287,7 @@ function startCombat(opts) {
     boss: {
       name: 'The Mourning Regent', hp: TUNE.bossHp, max: TUNE.bossHp, phase: 1,
       breakMax: 12, brk: 12, broken: false, cancelNext: false,
-      bleed: 0, chill: 0, intentIx: 0,
+      bleed: 0, chill: 0, intentIx: 0, _healedRecently: false,
     },
     kizuna: 0, allOuts: 0,
     deck: shuffle(DECK_IDS), hand: [], discard: [], exhausted: [],
@@ -303,6 +310,8 @@ function startCombat(opts) {
 // repair coverage deterministically — swap a surplus card for the first card
 // of each missing hero still in the deck.
 function drawOpening() {
+  // …and she does not always open the same way either
+  C.boss.intentIx = pickIntent();
   for (let i = 0; i < 5; i++) drawOne();
   for (const heroId of Object.keys(HEROES23)) {
     if (C.hand.some(id => CARD_DEFS[id].owner === heroId)) continue;
@@ -318,6 +327,36 @@ function drawOpening() {
   }
 }
 
+// THE REGENT IS NOT A ROTATION. She played hymn, scythe, benediction, rain,
+// hymn, scythe… in that order, every fight — so the encounter was memorised
+// after one playthrough and every turn after the first was a lookup rather
+// than a read. Slay the Spire's enemies pick by weighted rules with anti-repeat
+// constraints, which is why the same monster stays interesting; this does the
+// same, off the fight's own seeded RNG so a seed still replays exactly.
+function pickIntent() {
+  const cur = C.boss.intentIx;
+  const hurt = C.boss.hp / C.boss.max;
+  const pool = [];
+  REGENT_INTENTS.forEach((it, i) => {
+    if (i === cur) return;                       // never the same thing twice running
+    let w = 10;
+    // she only sings herself whole when there is something to mend, and never
+    // twice in quick succession — a heal on a full boss is a wasted turn for
+    // both sides
+    if (it.kind === 'heal') w = hurt > 0.75 ? 0 : (C.boss._healedRecently ? 2 : 14);
+    // the sweeping advance and the flurry lean later, when the party is spread
+    if (it.id === 'scythe') w = hurt < 0.6 ? 16 : 9;
+    if (it.id === 'rain') w = C.boss.phase === 2 ? 16 : 9;
+    pool.push({ i, w });
+  });
+  const total = pool.reduce((n, p) => n + p.w, 0);
+  if (total <= 0) return (cur + 1) % REGENT_INTENTS.length;
+  let r = rng() * total;
+  for (const p of pool) { r -= p.w; if (r <= 0) {
+    C.boss._healedRecently = REGENT_INTENTS[p.i].kind === 'heal';
+    return p.i; } }
+  return pool[pool.length - 1].i;
+}
 function currentIntent() {
   const it = REGENT_INTENTS[C.boss.intentIx % REGENT_INTENTS.length];
   const p = C.boss.phase - 1;
@@ -385,6 +424,7 @@ function evalCondition(cond, ownerId) {
     // the time. Tying a card to the row a hero stands in makes the rows worth
     // using and gives the player a condition they can CAUSE.
     case 'BACK_ROW':      return !!C.heroes[ownerId] && C.heroes[ownerId].row === 'back';
+    case 'FRONT_ROW':     return !!C.heroes[ownerId] && C.heroes[ownerId].row === 'front';
     default: return false;
   }
 }
@@ -799,7 +839,7 @@ async function endTurn(opts) {
   setPhase('HAND_DRAWING');
   while (C.hand.length < 5) { if (!drawOne()) break; await fxDrawOne(); }
 
-  C.boss.intentIx++;
+  C.boss.intentIx = pickIntent();
   C.turn++;
   C.ap = C.apMax;
   C.turnState = freshTurnState();
@@ -1096,6 +1136,7 @@ async function runVolleyRhythm(hits, answerers, sub) {
   const stage = el('k-stage');
   if (!stage || !kinds.length) return kinds.map(() => 'miss');
   parryFocus(true);
+  camParryOpen();      // one composition, held for the whole bar
   camHold(true);
   // THE RINGS RIDE THE LENS. They live on the stage, outside the field, so a
   // camera move would slide them off the heroes they belong to. Re-anchoring
@@ -1312,18 +1353,15 @@ function camPush(tier, node) {
   clearTimeout(_camOutT);
   _camOutT = setTimeout(() => camReset(s.out), s.inMs + s.hold);
 }
-// THE PARRY CAMERA — the shot tightens and dutches further with every note in
-// the string, a clean read SNAPS and a missed one lurches the wrong way. Safe
-// mid-bar because the rings re-anchor to their heroes every frame.
-function camParry(i, total, grade) {
+// THE PARRY SHOT IS ONE SHOT. It was dutching side to side on every note —
+// whipping the frame left, right, left between reads, which is exactly when a
+// player needs the world to hold still. The lens composes ONCE at the top of
+// the bar, leans in a touch, and does not move again until the bar is over.
+// The per-note feedback belongs to the flash, the shock and the stop.
+const CAM_POSE_PARRY = { x: 6, y: 2, dz: 62, r: 0, yaw: 0, pitch: 1.2 };
+function camParryOpen() {
   if (camReduced()) return;
-  const t = total > 1 ? Math.min(1, i / (total - 1)) : 1;
-  const dir = (i % 2) ? -1 : 1;
-  const perfect = grade === 'perfect', miss = grade === 'miss';
-  const dz = 46 + t * 58 + (perfect ? 20 : 0);
-  cam({ dz, r: dir * (0.5 + t * 1.0) + (perfect ? dir * 0.5 : 0) - (miss ? dir * 1.1 : 0),
-        yaw: dir * (0.4 + t * 0.9), pitch: 0.6 + t * 0.9,
-        ms: perfect ? 140 : miss ? 230 : 180, ease: CAM_SNAP, force: true });
+  cam(Object.assign({}, CAM_POSE_PARRY, { ms: 380, ease: CAM_SETTLE, force: true }));
 }
 function camHold(on) { _camHeld = on ? 1 : 0; if (!on) camReset(520); }
 function screenKick(power) {
@@ -1504,7 +1542,6 @@ function fxNoteGrade(ring, ax, ay, grade, kind) {
   // EVERY landed press flashes the frame, tinted by how well it was read —
   // v2.2's parry-flash. Without it a note resolves as a word appearing.
   parryFlash(grade);
-  if (ring) camParry(+(ring.dataset.n || 0), +(ring.dataset.total || 1), grade);
   if (grade === 'perfect') { shockRing(ax, ay, kind === 'burst' ? 1.5 : 1.1, 'gold'); hitstop(110); }
   else if (grade === 'great') { shockRing(ax, ay, 0.7, 'gold'); hitstop(75); }
   else if (grade === 'miss' && kind === 'bait') { screenPulse('hurt'); screenKick(1.1); }
@@ -1829,7 +1866,7 @@ function renderHand() {
 const COND_LABEL = {
   FOLLOW_UP: 'Follow-Up', FINALE: 'Finale',
   BROKEN: 'If Broken', BROKEN_OR_LOW: 'Broken or ≤30% HP',
-  BACK_ROW: 'From the Back',
+  BACK_ROW: 'From the Back', FRONT_ROW: 'From the Front',
 };
 // A small, consistent icon vocabulary — the same mark means the same thing on
 // a card, in the inspect panel and in the Regent's intent line.
@@ -1854,7 +1891,7 @@ function icon(name, cls) {
     + '/></svg>';
 }
 const COND_ICON = { FOLLOW_UP: 'follow', FINALE: 'finale', BROKEN: 'broken',
-  BROKEN_OR_LOW: 'broken', BACK_ROW: 'move' };
+  BROKEN_OR_LOW: 'broken', BACK_ROW: 'move', FRONT_ROW: 'move' };
 
 function cardFaceHTML(c, ev, gem, ownerArt) {
   // THE CARD ANSWERS TWO QUESTIONS, so it is drawn as two blocks. The top is
@@ -1908,7 +1945,11 @@ function prose(effects, plain) {
     if (fx.drawDiscard) out.push(I('draw') + 'Draw <b>1</b>, discard <b>1</b>.');
     if (fx.draw) out.push(I('draw') + 'Draw <b>' + fx.draw + '</b>.');
   }
-  return out.join(' ');
+  // ONE CLAUSE PER LINE. Run together, a two-effect card wraps wherever the
+  // box happens to end and orphans a word — "9 damage. ✦ 2 / Break." Each
+  // clause on its own line never orphans and scans as a list of things the
+  // card does, which is what it is.
+  return out.join(plain ? ' ' : '<br>');
 }
 // What the condition PAYS, as a clause that finishes the label's sentence.
 function condReward(card) {
@@ -1919,13 +1960,14 @@ function condReward(card) {
   if (hits.length) parts.push(icon('atk') + '<b>+' + fmtN(hits.reduce((n, f) => n + f.dmg, 0)) + '</b> damage.');
   const rest = prose(card.cond.bonus.filter(f => !f.dmg));
   if (rest) parts.push(rest);
-  return parts.join(' ');
+  return parts.join('<br>');
 }
 function condText(card) {
   if (!card.cond) return '';
-  return (COND_LABEL[card.cond.type] || card.cond.type) + ': ' + condReward(card).replace(/<[^>]*>/g, '');
+  return (COND_LABEL[card.cond.type] || card.cond.type) + ': ' + stripTags(condReward(card));
 }
 function effectText(effects) { return prose(effects, true).replace(/<[^>]*>/g, ''); }
+function stripTags(html) { return String(html).replace(/<br>/g, ' ').replace(/<[^>]*>/g, ''); }
 function renderApDial() {
   el('k-ap-num').textContent = C.ap;
   el('k-ap').classList.toggle('k-ap-spent', C.ap === 0);   // a spent orb goes cold
