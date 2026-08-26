@@ -64,7 +64,7 @@ const { boot } = require('./harness.cjs');
     check('OPENING COVERAGE: 5 cards, at least one per hero, across 8 seeds', ok, detail);
   }
   {
-    const src = await J(async () => (await (await fetch('game.js?v=6')).text()));
+    const src = await J(async () => (await (await fetch('game.js?v=7')).text()));
     const phaseWrites = (src.match(/C\.phase = /g) || []).length;
     check('ONE TRANSITION OWNER: setPhase is the only C.phase mutator', phaseWrites === 1, phaseWrites + ' assignments');
     check('NO FLOW METER, NO ACTION TRAIL: nothing renders a meter or a trail', await J(() =>
@@ -441,18 +441,19 @@ const { boot } = require('./harness.cjs');
       const groups = document.querySelectorAll('#k-int-notes .k-hitgrp').length;
       // no card may hang off the stage — the fan grew when the faces were redesigned
       const st = document.getElementById('k-stage').getBoundingClientRect();
-      const clipped = [...cards].filter(c => {
+      const over = [...cards].map(c => {
         const b = c.getBoundingClientRect();
-        return b.bottom > st.bottom + 0.5 || b.top < st.top - 0.5
-            || b.left < st.left - 0.5 || b.right > st.right + 0.5;
-      }).length;
+        return Math.max(b.bottom - st.bottom, st.top - b.top, st.left - b.left, b.right - st.right);
+      });
+      const clipped = over.filter(o => o > 0.5).length;
+      const worstOver = Math.round(Math.max(...over));
       const dirge = document.getElementById('k-int-dirge').textContent;
       return { disjoint, rows, bars, cards: cards.length,
         fanned, pips,
         noMove: !document.querySelector('.k-hero-move'),
         ap: document.getElementById('k-ap-num').textContent,
         cycle: document.getElementById('k-cycle-n').textContent,
-        bond: document.getElementById('k-bond-n').textContent, groups, dirge: !!dirge, clipped };
+        bond: document.getElementById('k-bond-n').textContent, groups, dirge: !!dirge, clipped, worstOver };
     });
     check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; per-hit volley groups; dirge named; no card clipped',
       ui.disjoint && ui.rows === 3 && ui.bars === 3 && ui.cards === 5 && ui.fanned
@@ -510,7 +511,7 @@ const { boot } = require('./harness.cjs');
       beam.cardStaysLow && beam.cardClearOfTarget,
       JSON.stringify({ low: beam.cardStaysLow, clear: beam.cardClearOfTarget }));
   }
-  // ── card anatomy: base and condition must never read as the same thing ──
+  // ── card anatomy: Slay-the-Spire readability on a phone ──
   await fresh(11);
   {
     const anat = await J(() => {
@@ -519,36 +520,122 @@ const { boot } = require('./harness.cjs');
       const cs = q('crosssever'), cl = q('cleave');
       const px = (el, p) => el ? parseFloat(getComputedStyle(el)[p]) : 0;
       return {
-        gem: cs.querySelector('.k-cgem') && cs.querySelector('.k-cgem').textContent.trim(),
-        base: cs.querySelector('.k-cbase .k-cbig').textContent.replace(/\s+/g, ' ').trim(),
-        riders: cs.querySelector('.k-criders').textContent.trim(),
-        condLabel: cs.querySelector('.k-ccond em').textContent.trim(),
-        condReward: cs.querySelector('.k-ccond span').textContent.trim(),
-        // the base number must be visibly larger than the condition copy
-        baseSize: px(cs.querySelector('.k-cbig'), 'fontSize'),
-        condSize: px(cs.querySelector('.k-ccond span'), 'fontSize'),
-        // a Core card says so rather than leaving an empty band
-        core: cl.querySelector('.k-ccond-core em').textContent.trim(),
-        noCostLine: !cs.querySelector('.k-ccost'),
+        gem: cs.querySelector('.k-cgem').textContent.trim(),
+        prose: cs.querySelector('.k-cprose').textContent.replace(/\s+/g, ' ').trim(),
+        bolded: cs.querySelectorAll('.k-cprose b').length,
+        cond: cs.querySelector('.k-cline').textContent.replace(/\s+/g, ' ').trim(),
+        plainProse: cl.querySelector('.k-cprose').textContent.replace(/\s+/g, ' ').trim(),
+        noCondOnCore: !cl.querySelector('.k-cline'),
+        proseSize: px(cs.querySelector('.k-cprose'), 'fontSize'),
+        gemSize: px(cs.querySelector('.k-cgem'), 'fontSize'),
+        textBox: !!cs.querySelector('.k-ctext'),
       };
     });
-    check('CARD: cost is a gem, the BASE effect is the big number, riders sit under it',
-      anat.gem === '2' && anat.base === '1,350dmg' && anat.riders === '2 Break' && anat.noCostLine,
+    check('CARD: the rules are plain sentences with the numbers bolded',
+      anat.prose === 'Deal 9 damage. 2 Break.' && anat.bolded === 2
+      && anat.plainProse === 'Deal 6 damage.' && anat.textBox && anat.noCondOnCore,
       JSON.stringify(anat));
-    check('CARD: the condition is a labelled band, typographically below the base',
-      anat.condLabel === 'Follow-Up' && anat.condReward === 'costs 1 AP'
-      && anat.baseSize > anat.condSize + 3 && anat.core === 'Core',
-      JSON.stringify({ label: anat.condLabel, reward: anat.condReward, base: anat.baseSize, cond: anat.condSize }));
-    // and when the condition goes live, the band lights and the gem follows
+    check('CARD: the conditional clause is labelled, in the same text box',
+      anat.cond === 'Follow-Up: costs 1 AP.' && anat.proseSize >= 9.5 && anat.gemSize >= 14,
+      JSON.stringify({ cond: anat.cond, prose: anat.proseSize, gem: anat.gemSize }));
     const live = await J(() => {
       window.K.playCard('serrate');   // Mira first — Follow-Up needs a DIFFERENT hero
       const cs = document.querySelector('.k-card[data-card="crosssever"]');
-      return { on: cs.querySelector('.k-ccond').classList.contains('on'),
+      return { on: cs.querySelector('.k-cline').classList.contains('on'),
                gem: cs.querySelector('.k-cgem').textContent.replace(/\s+/g, ''),
                gemLit: cs.querySelector('.k-cgem').classList.contains('on') };
     });
-    check('CARD: a live condition lights its band and restrikes the cost gem',
+    check('CARD: a live condition lights its clause and restrikes the cost orb',
       live.on && live.gem === '12' && live.gemLit, JSON.stringify(live));
+  }
+  // ── StS numbers: nothing on screen should read in thousands ──
+  await fresh(9);
+  {
+    const scale = await J(() => ({
+      ash: document.querySelector('.k-pt-hero[data-hero="ash"] .k-pt-hp b').textContent.trim(),
+      boss: document.getElementById('k-bhp').textContent.trim(),
+      intent: document.getElementById('k-int-val').textContent.trim(),
+      commas: [...document.querySelectorAll('#k-hand .k-cprose, .k-pt-hp, #k-bhp, #k-int-val')]
+        .filter(e => /\d,\d/.test(e.textContent)).length,
+    }));
+    check('SCALE: HP and damage read at Slay-the-Spire size — no four-digit numbers',
+      scale.ash === '42' && scale.boss === '120' && scale.commas === 0
+      && Number(scale.intent) < 100, JSON.stringify(scale));
+  }
+  // ── lifting a card: it parks and commits, it does not fight the finger ──
+  await fresh(7);
+  {
+    const lift = await J(async () => {
+      const card = [...document.querySelectorAll('#k-hand .k-card')]
+        .find(c => window.K.evaluateCard(c.dataset.card).card.target === 'enemy');
+      const st = document.getElementById('k-stage').getBoundingClientRect();
+      const r0 = card.getBoundingClientRect();
+      const at = (x, y, t) => card.dispatchEvent(new PointerEvent(t, { bubbles: true, clientX: x, clientY: y, pointerId: 1 }));
+      at(r0.left + r0.width / 2, r0.top + 10, 'pointerdown');
+      at(r0.left + r0.width / 2, r0.top - 60, 'pointermove');
+      await new Promise(res => setTimeout(res, 220));
+      const parked = card.getBoundingClientRect();
+      const aiming = card.classList.contains('k-aiming');
+      // keep sliding: the card must STAY put while the beam tracks the finger
+      const boss = document.getElementById('k-boss-art').getBoundingClientRect();
+      at(boss.left + boss.width / 2, boss.top + boss.height / 2, 'pointermove');
+      await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+      const after = card.getBoundingClientRect();
+      const out = {
+        aiming, lifted: parked.top < r0.top - 20,
+        steady: Math.abs(after.left - parked.left) < 1 && Math.abs(after.top - parked.top) < 1,
+        onStage: parked.top > st.top && parked.bottom < st.bottom,
+        beamTracks: document.getElementById('k-boss-art').classList.contains('k-aim-snap'),
+      };
+      at(boss.left + boss.width / 2, boss.top + boss.height / 2, 'pointerup');
+      return out;
+    });
+    check('LIFT: a lifted card parks clear of the hand and stops fighting the finger',
+      lift.aiming && lift.lifted && lift.steady && lift.onStage && lift.beamTracks,
+      JSON.stringify(lift));
+  }
+  // ── hold to inspect, release to dismiss (MTG Arena) ──
+  await fresh(7);
+  {
+    const insp = await J(async () => {
+      const card = document.querySelector('#k-hand .k-card');
+      const id = card.dataset.card;
+      const r = card.getBoundingClientRect();
+      const at = (t) => card.dispatchEvent(new PointerEvent(t, { bubbles: true, clientX: r.left + 20, clientY: r.top + 20, pointerId: 1 }));
+      const before = window.K.state().hand.length;
+      at('pointerdown');
+      await new Promise(res => setTimeout(res, 560));
+      const f = document.getElementById('k-focus');
+      const open = !f.classList.contains('k-hidden');
+      const big = !!f.querySelector('.k-insp-card .k-cprose');
+      const dimmed = document.getElementById('k-stage').classList.contains('k-inspecting');
+      const noCommit = !f.querySelector('#k-focus-commit');
+      at('pointerup');
+      return { open, big, dimmed, noCommit,
+               closed: document.getElementById('k-focus').classList.contains('k-hidden'),
+               unplayed: window.K.state().hand.length === before && window.K.state().hand.includes(id) };
+    });
+    check('INSPECT: holding blows the card up over a dimmed board, MTG-Arena style',
+      insp.open && insp.big && insp.dimmed && insp.noCommit, JSON.stringify(insp));
+    check('INSPECT: releasing dismisses it and never plays the card',
+      insp.closed && insp.unplayed, JSON.stringify({ closed: insp.closed, unplayed: insp.unplayed }));
+    // the iOS long-press callout must be suppressed on cards
+    const ios = await J(async () => {
+      const card = document.querySelector('#k-hand .k-card');
+      const cs = getComputedStyle(card);
+      const ev = new Event('contextmenu', { bubbles: true, cancelable: true });
+      const prevented = !card.dispatchEvent(ev);
+      // Chromium does not implement -webkit-touch-callout, so assert the
+      // declaration ships in the stylesheet rather than reading it back
+      const css = await (await fetch('styles.css?v=7')).text();
+      const rule = css.slice(css.indexOf('.k-card {'), css.indexOf('.k-card {') + 260);
+      return { calloutShipped: /-webkit-touch-callout:\s*none/.test(rule),
+               highlightShipped: /-webkit-tap-highlight-color:\s*transparent/.test(rule),
+               select: cs.userSelect || cs.webkitUserSelect, touch: cs.touchAction, prevented };
+    });
+    check('INSPECT: a long press cannot raise the iOS callout or select text',
+      ios.calloutShipped && ios.highlightShipped && ios.select === 'none'
+      && ios.touch === 'none' && ios.prevented, JSON.stringify(ios));
   }
 
   const summary = report();

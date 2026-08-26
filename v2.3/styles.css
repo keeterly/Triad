@@ -141,11 +141,13 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 @keyframes k-login { from { opacity: 0; transform: translateY(4px); } }
 
 /* ── the hand ── */
-#k-hand { position: absolute; left: 50%; bottom: 22px; transform: translateX(-56%);
+#k-hand { position: absolute; left: 50%; bottom: 13px; transform: translateX(-50%);
   display: flex; gap: 6px; align-items: flex-end; z-index: 14; }
 #k-hand .k-card-active { margin-bottom: 0; }
 #k-hand.k-discarding .k-card { transform: translateY(140px) rotate(4deg); opacity: 0; transition: all 0.3s ease-in; }
-.k-card { position: relative; width: 108px; height: 144px; border-radius: 3px; cursor: pointer;
+.k-card { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+  touch-action: none; -webkit-tap-highlight-color: transparent;
+  position: relative; width: 122px; height: 162px; border-radius: 3px; cursor: pointer;
   font-family: inherit; padding: 0; display: flex; flex-direction: column; text-align: center;
   background:
     radial-gradient(140% 120% at 50% 30%, rgba(240,235,222,0.25) 0%, rgba(240,235,222,0) 55%),
@@ -167,43 +169,40 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-card-active { border: 1.5px solid #c9a45c;
   box-shadow: 0 4px 14px rgba(0,0,0,0.6), 0 0 14px rgba(201,164,92,0.35); }
 .k-card-poor { opacity: 0.55; filter: grayscale(0.4); }
-.k-owner { position: absolute; right: 4px; top: 4px; width: 15px; height: 15px; border-radius: 50%;
+.k-owner { position: absolute; right: 5px; top: 5px; width: 17px; height: 17px; border-radius: 50%;
   border: 1px solid #8f866f; object-fit: cover; object-position: top; opacity: 0.9; z-index: 2; }
-/* COST — a struck gem in the corner, never a line of text competing with the effect */
+/* COST — a Spire-style orb, the first thing the eye lands on */
 .k-cgem { position: absolute; left: 4px; top: 3px; z-index: 2;
-  min-width: 19px; height: 19px; padding: 0 3px; border-radius: 50%;
+  min-width: 23px; height: 23px; padding: 0 3px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; gap: 2px;
-  background: radial-gradient(circle at 38% 32%, #4a4234, #241f18);
-  border: 1px solid #8f7439; color: #f0e4c4; font-size: 12px; font-weight: 700;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.7), inset 0 0 5px rgba(0,0,0,0.5); }
-.k-cgem.on { border-color: #e0c084; color: #ffe9b8; box-shadow: 0 0 9px rgba(224,192,132,0.6); }
-.k-cgem s { font-size: 8px; font-weight: 400; color: #9a9080; }
-.k-cname { font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
-  color: #2b2620; padding: 5px 21px 3px; line-height: 1.15; min-height: 24px;
+  background: radial-gradient(circle at 38% 30%, #554b39, #221d16);
+  border: 1.5px solid #a98c4e; color: #ffeec4; font-size: 15px; font-weight: 700;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.8), inset 0 0 6px rgba(0,0,0,0.55); }
+.k-cgem.on { border-color: #f0d488; color: #fff3d0; box-shadow: 0 0 11px rgba(240,212,136,0.7); }
+.k-cgem s { font-size: 9px; font-weight: 400; color: #9a9080; }
+.k-cname { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: #241f18; padding: 5px 25px 4px; line-height: 1.12; min-height: 25px;
   display: flex; align-items: center; justify-content: center; text-align: center; }
-.k-cart { flex-grow: 1; margin: 0 6px; overflow: hidden; position: relative; min-height: 0;
+.k-cart { height: 62px; flex-shrink: 0; margin: 0 6px; overflow: hidden; position: relative;
   background: linear-gradient(180deg, #cdc5b1, #b0a68c); box-shadow: inset 0 0 10px rgba(90,78,56,0.35);
   display: flex; justify-content: center; }
-.k-cart img { height: 128%; width: auto; margin-top: -3%;
+.k-cart img { height: 150%; width: auto; margin-top: -6%;
   filter: grayscale(0.95) contrast(1.18) brightness(0.85); mix-blend-mode: multiply; }
-/* BASE — what the card ALWAYS does. The big number lives here and nowhere else. */
-.k-cbase { padding: 3px 5px 3px; text-align: center; }
-.k-cbig { display: block; font-size: 14px; font-weight: 700; color: #241f18; line-height: 1.05;
-  letter-spacing: 0.01em; }
-.k-cbig i { font-style: normal; font-size: 7.5px; font-weight: 600; letter-spacing: 0.14em;
-  text-transform: uppercase; color: #6d6450; margin-left: 3px; }
-.k-criders { display: block; font-size: 7.5px; line-height: 1.25; color: #5c5445; margin-top: 1px; }
-/* CONDITION — its own band, its own type. Dim while it sleeps, gold when it is live. */
-.k-ccond { display: block; padding: 3px 5px 4px; border-top: 1px solid rgba(90,78,56,0.35);
-  background: rgba(120,106,80,0.14); text-align: center; }
-.k-ccond em { display: block; font-style: normal; font-size: 7px; font-weight: 700;
-  letter-spacing: 0.16em; text-transform: uppercase; color: #7d735d; }
-.k-ccond span { display: block; font-size: 8px; line-height: 1.25; color: #4a4438; }
-.k-ccond.on { background: linear-gradient(180deg, rgba(34,28,20,0.94), rgba(22,17,11,0.94));
-  border-top: 1px solid #c9a45c; }
-.k-ccond.on em { color: #e0c084; }
-.k-ccond.on span { color: #efe6cf; }
-.k-ccond-core em { color: #9a9080; letter-spacing: 0.22em; }
+/* THE TEXT BOX — one block of plain sentences. This is the card. */
+.k-ctext { flex-grow: 1; margin: 5px 5px 6px; padding: 4px 5px; min-height: 0;
+  background: linear-gradient(180deg, rgba(246,241,228,0.72), rgba(228,220,201,0.72));
+  border: 1px solid rgba(90,78,56,0.3); border-radius: 2px;
+  display: flex; flex-direction: column; gap: 3px; text-align: center; }
+.k-cprose { font-size: 10px; line-height: 1.26; color: #2b2620; }
+.k-cprose b { font-weight: 700; color: #101010; }
+/* the conditional clause — same box, its own line, labelled */
+.k-cline { font-size: 9.5px; line-height: 1.24; color: #6d6450;
+  border-top: 1px solid rgba(90,78,56,0.28); padding-top: 3px; margin-top: auto; }
+.k-cline em { font-style: normal; font-weight: 700; letter-spacing: 0.03em; color: #7d735d; }
+.k-cline b { font-weight: 700; color: #4a4438; }
+.k-cline.on { color: #2b2620; }
+.k-cline.on em { color: #8f6f2a; }
+.k-cline.on b { color: #101010; }
 
 /* ── resonance ── */
 .k-res { position: absolute; right: 118px; bottom: 8px; width: 66px; height: 126px; border-radius: 5px;
@@ -266,25 +265,7 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 #k-target-ring { position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; z-index: 22;
   border: 1.5px dashed #c9a45c; border-radius: 50%; cursor: pointer; animation: k-ringspin 6s linear infinite; }
 @keyframes k-ringspin { to { transform: rotate(360deg); } }
-#k-focus { position: absolute; right: 120px; top: 34px; width: 190px; z-index: 24;
-  background: rgba(16,14,17,0.94); border: 1px solid rgba(201,164,92,0.45); border-radius: 6px;
-  padding: 12px 14px; display: flex; flex-direction: column; gap: 7px;
-  box-shadow: 0 10px 26px rgba(0,0,0,0.6); }
-.k-focus-hero { font-size: 12px; font-weight: 700; letter-spacing: 0.14em; color: #e3dac4; }
-.k-focus-hero span { display: block; font-size: 8px; color: #9a9080; letter-spacing: 0.14em; text-transform: uppercase; }
-.k-focus-name { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #e0c084;
-  display: flex; justify-content: space-between; }
-.k-focus-cost { color: #e0c084; }
-.k-focus-cost s { color: #7c6f52; font-size: 9px; }
-.k-focus-base { font-size: 11px; color: #cfc8ba; }
-.k-focus-mod { font-size: 10px; color: #9a9080; border: 1px solid rgba(150,138,114,0.3); border-radius: 4px; padding: 5px 7px; }
-.k-focus-mod.on { color: #e0c084; border-color: rgba(201,164,92,0.5);
-  background: linear-gradient(180deg, rgba(201,164,92,0.2), rgba(201,164,92,0.08)); }
-.k-focus-now { font-size: 11px; color: #e6ddc8; }
-.k-focus-commit { height: 44px; background: linear-gradient(168deg, #d8d1c2, #c2b9a3); border: 1px solid #c9a45c;
-  border-radius: 5px; font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; color: #332e26; cursor: pointer; }
-.k-focus-close { position: absolute; right: 6px; top: 6px; width: 24px; height: 24px; background: none; border: none;
-  color: #9a9080; font-size: 12px; cursor: pointer; }
+/* (the old side-panel focus card is gone — hold-to-inspect replaced it) */
 .k-ov { position: absolute; inset: 0; z-index: 50; background: rgba(8,7,10,0.72);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
 .k-ov-title { font-size: 34px; font-weight: 700; letter-spacing: 0.3em; color: #e0c084; }
@@ -343,3 +324,35 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 #k-boss-art.k-aim-snap img, .k-hero.k-aim-snap img { filter: drop-shadow(0 0 16px rgba(240,212,136,0.65)) brightness(1.1); }
 /* while aiming, the held card gets out of its own way */
 .k-card.k-dragging { opacity: 0.94; }
+
+/* ── a lifted card parks and commits; the beam does the aiming (Slay the Spire) ── */
+.k-card.k-aiming { transition: transform 150ms cubic-bezier(.2,.9,.3,1);
+  transform: translate(var(--dragx, 0px), var(--dragy, 0px)) rotate(0deg) scale(1.06);
+  z-index: 30; box-shadow: 0 14px 30px rgba(0,0,0,0.75), 0 0 0 1.5px rgba(224,192,132,0.55); }
+.k-card.k-aiming.k-drop-ok { box-shadow: 0 14px 30px rgba(0,0,0,0.75), 0 0 0 2px #e0c084, 0 0 24px rgba(201,164,92,0.55); }
+
+/* ── MTG-Arena inspect: hold to look, release to put it back ── */
+#k-stage.k-inspecting > *:not(#k-focus) { filter: brightness(0.42) saturate(0.7); transition: filter 140ms ease; }
+#k-focus { position: absolute; inset: 0; z-index: 60; display: flex; align-items: center;
+  justify-content: center; gap: 34px; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, rgba(8,7,10,0.55), rgba(8,7,10,0.82)); }
+#k-focus.k-hidden { display: none; }
+/* the wrapper reserves the SCALED footprint so flex centring works on it */
+.k-insp-wrap { width: 226px; height: 300px; display: flex; align-items: center; justify-content: center; flex: none; }
+.k-insp-card { width: 122px; height: 162px; flex: none;
+  transform: scale(1.85); transform-origin: center; animation: k-insp 160ms ease; }
+.k-insp-card { position: relative; display: flex; flex-direction: column; border-radius: 3px;
+  background:
+    radial-gradient(140% 120% at 50% 30%, rgba(240,235,222,0.25) 0%, rgba(240,235,222,0) 55%),
+    linear-gradient(172deg, #d3ccba 0%, #c6bda8 55%, #b3a88e 100%);
+  border: 1px solid #6f6753; box-shadow: 0 18px 40px rgba(0,0,0,0.8); text-align: center; }
+@keyframes k-insp { from { opacity: 0; transform: scale(1.5); } }
+.k-insp-side { width: 208px; display: flex; flex-direction: column; gap: 9px; }
+.k-insp-who { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #c9a45c; }
+.k-insp-now { font-size: 13px; line-height: 1.35; color: #e8dfc8; }
+.k-insp-now em { display: block; font-style: normal; font-size: 8.5px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: #8e8574; margin-bottom: 3px; }
+.k-insp-now b { color: #fff3d0; }
+.k-insp-cond { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #7d735d; }
+.k-insp-cond.on { color: #e0c084; }
+.k-insp-hint { font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase; color: #6d6450; margin-top: 4px; }

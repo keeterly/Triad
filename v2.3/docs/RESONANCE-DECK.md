@@ -225,6 +225,26 @@ The spread widened, which is what restoring the v2.2 parry buys: never
 parrying is death, a mediocre parrier wins about two fights in five, and
 mastery wins. Round length still lands inside the deck's 7–9 target.
 
+### Build 7 — mobile readability and touch feel
+
+- **Numbers are the engine's own.** `DISPLAY_SCALE` is 1: Ash has 42 HP, the
+  Regent 120, a Cleave hits for 6. The ×150 JRPG scale was tried and read as
+  noise — four-digit damage on a 122px card leaves no room for the words that
+  say what the card DOES.
+- **Card faces are Slay-the-Spire anatomy**: cost orb, name, art, then ONE text
+  box of plain sentences with the numbers bolded ("Deal 9 damage. 2 Break."),
+  and the conditional clause on its own labelled line in the same box
+  ("Follow-Up: costs 1 AP.") — dim while it sleeps, gold when live.
+- **Lifting a card parks it.** A lifted card commits to one spot and stops
+  chasing the finger; the beam and reticle do the targeting. Chasing the finger
+  made the card cover its own beam, and clamping it part-way made it feel stuck
+  against an invisible wall.
+- **Hold to inspect, MTG-Arena style.** A long press blows the card up over a
+  dimmed board with its resolved effect spelled out; releasing puts it back. It
+  never commits the card — playing is dragging — so inspecting cannot cost a
+  turn. On iOS the callout, the tap highlight and text selection are all
+  suppressed on cards.
+
 ### The Dirge — an addition the deck does not list
 
 The Regent's hymn settles on the whole party each enemy phase for unparryable

@@ -27,12 +27,13 @@
 
 'use strict';
 
-const V23_BUILD = 6;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 7;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
-// PRESENTATION SCALE: the engine runs the deck's normalized values; the
-// SCREEN multiplies every HP and damage number by one uniform factor so the
-// game reads like the concept's big JRPG numbers. Set to 1 to read raw.
-const DISPLAY_SCALE = 150;
+// PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
+// Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
+// JRPG numbers were tried and read as noise on a phone: four-digit damage on a
+// 108px card leaves no room for the words that say what the card DOES.
+const DISPLAY_SCALE = 1;
 const fmtN = (n) => (n * DISPLAY_SCALE).toLocaleString('en-US');
 
 // ── deterministic RNG (mulberry32) — the whole fight is replayable from a seed
@@ -885,94 +886,75 @@ function renderHand() {
     const dead = c.owner === 'bond' ? (C.heroes.ash.downed || C.heroes.elin.downed) : C.heroes[c.owner].downed;
     const ownerArt = c.owner === 'bond' ? HEROES23.ash.art : HEROES23[c.owner].art;
     // the FAN: a gentle arc, rotation from a low pivot plus a parabolic dip
-    const rot = ((i - mid) * 3.4).toFixed(1), dy = ((i - mid) * (i - mid) * 2).toFixed(1);
-    // THE CARD READS TOP TO BOTTOM: what it costs, who swings it, what it is,
-    // what it ALWAYS does (BASE), and — in its own banded strip — what it does
-    // EXTRA when its condition is live. The two are never the same typography.
+    const rot = ((i - mid) * 2.2).toFixed(1), dy = ((i - mid) * (i - mid) * 1.1).toFixed(1);
+    // SLAY-THE-SPIRE ANATOMY, because this is read on a phone: a cost orb, a
+    // name, the art, and then ONE text box of plain sentences with the numbers
+    // bolded. The conditional clause sits in the same box on its own line,
+    // labelled — dim while it sleeps, gold when it is live.
     const gem = ev.condActive && ev.currentCost !== c.cost
       ? ev.currentCost + '<s>' + c.cost + '</s>' : String(ev.currentCost);
-    const riders = fxRiders(c.base);
     return '<button class="k-card' + (ev.condActive && !dead ? ' k-card-active' : '') + (afford ? '' : ' k-card-poor')
       + (dead ? ' k-card-dead' : '') + (c.owner === 'bond' ? ' k-card-res' : '')
       + (_sel === id ? ' k-card-sel' : '') + '" data-card="' + id + '"'
       + ' style="--rot:' + rot + 'deg;--dy:' + dy + 'px">'
-      + '<span class="k-cgem' + (ev.condActive && ev.currentCost !== c.cost ? ' on' : '') + '">' + gem + '</span>'
-      + '<img class="k-owner" src="' + ownerArt + '" alt="">'
-      + '<span class="k-cname">' + c.name + (c.exhaust ? ' ◈' : '') + '</span>'
-      + '<span class="k-cart"><img src="' + ownerArt + '" alt=""></span>'
-      + '<span class="k-cbase"><span class="k-cbig">' + fxHeadline(c.base) + '</span>'
-      + (riders ? '<span class="k-criders">' + riders + '</span>' : '') + '</span>'
-      + (c.cond
-          ? '<span class="k-ccond' + (ev.condActive ? ' on' : '') + '">'
-            + '<em>' + (COND_LABEL[c.cond.type] || c.cond.type) + '</em>'
-            + '<span>' + condReward(c) + '</span></span>'
-          : c.exhaust
-            ? '<span class="k-ccond k-ccond-res on"><em>Ash + Elin</em><span>Exhausts</span></span>'
-            : '<span class="k-ccond k-ccond-core"><em>Core</em></span>')
+      + cardFaceHTML(c, ev, gem, ownerArt)
       + '</button>';
   }).join('');
   hand.querySelectorAll('.k-card:not(.k-card-dead)').forEach(b => attachCardInput(b));
 }
 const COND_LABEL = {
   FOLLOW_UP: 'Follow-Up', FINALE: 'Finale',
-  BROKEN: 'If Broken', BROKEN_OR_LOW: 'Broken · ≤30%',
+  BROKEN: 'If Broken', BROKEN_OR_LOW: 'Broken or ≤30% HP',
 };
-// The ONE number the card is about, big enough to read while it is fanned.
-function fxHeadline(effects) {
-  const hits = effects.filter(f => f.dmg);
-  if (hits.length === 1) return fmtN(hits[0].dmg) + '<i>dmg</i>';
-  if (hits.length > 1) return hits.length + '×' + fmtN(hits[0].dmg) + '<i>dmg</i>';
-  const g = effects.find(f => f.guardSelf || f.guardAll || f.guardAlly || f.guardLowest);
-  if (g) return '+' + fmtN(g.guardSelf || g.guardAll || g.guardAlly || g.guardLowest) + '<i>guard</i>';
-  const h = effects.find(f => f.heal);
-  if (h) return '+' + fmtN(h.heal) + '<i>heal</i>';
-  return '';
+function cardFaceHTML(c, ev, gem, ownerArt) {
+  const cond = c.cond
+    ? '<span class="k-cline' + (ev.condActive ? ' on' : '') + '">'
+      + '<em>' + (COND_LABEL[c.cond.type] || c.cond.type) + ':</em> ' + condReward(c) + '</span>'
+    : c.exhaust ? '<span class="k-cline on"><em>Exhaust.</em></span>' : '';
+  return '<span class="k-cgem' + (ev.condActive && ev.currentCost !== c.cost ? ' on' : '') + '">' + gem + '</span>'
+    + '<img class="k-owner" src="' + ownerArt + '" alt="">'
+    + '<span class="k-cname">' + c.name + '</span>'
+    + '<span class="k-cart"><img src="' + ownerArt + '" alt=""></span>'
+    + '<span class="k-ctext"><span class="k-cprose">' + prose(c.base) + '</span>' + cond + '</span>';
 }
-// Everything the headline did not say, as short chips.
-function fxRiders(effects) {
-  const seenHeadline = { dmg: effects.some(f => f.dmg) };
+// Plain sentences, numbers bolded — the way a card is read at a glance.
+function prose(effects) {
   const out = [];
+  const hits = effects.filter(f => f.dmg);
+  if (hits.length === 1) out.push('Deal <b>' + fmtN(hits[0].dmg) + '</b> damage.');
+  else if (hits.length > 1) out.push('Deal <b>' + fmtN(hits[0].dmg) + '</b> damage <b>' + hits.length + '</b> times.');
   for (const fx of effects) {
-    if (fx.brk) out.push(fx.brk + ' Break');
-    if (fx.guardSelf && seenHeadline.dmg) out.push('+' + fmtN(fx.guardSelf) + ' Guard');
-    if (fx.guardAll && seenHeadline.dmg) out.push('all +' + fmtN(fx.guardAll) + ' Guard');
-    if (fx.guardAlly) out.push('ally +' + fmtN(fx.guardAlly) + ' Guard');
-    if (fx.guardLowest) out.push('lowest +' + fmtN(fx.guardLowest) + ' Guard');
-    if (fx.heal && seenHeadline.dmg) out.push('heal ' + fmtN(fx.heal));
-    if (fx.bleed) out.push('Bleed ' + fmtN(fx.bleed));
-    if (fx.chill) out.push('Chill ' + fmtN(fx.chill));
-    if (fx.counterstance) out.push('next parry +2 Break');
-    if (fx.intercede) out.push('take their window');
-    if (fx.moveSelf) out.push('switch row');
-    if (fx.drawDiscard) out.push('draw 1, discard 1');
+    if (fx.brk) out.push('<b>' + fx.brk + '</b> Break.');
+    if (fx.guardSelf) out.push('Gain <b>' + fmtN(fx.guardSelf) + '</b> Guard.');
+    if (fx.guardAll) out.push('All heroes gain <b>' + fmtN(fx.guardAll) + '</b> Guard.');
+    if (fx.guardAlly) out.push('An ally gains <b>' + fmtN(fx.guardAlly) + '</b> Guard.');
+    if (fx.guardLowest) out.push('Lowest ally gains <b>' + fmtN(fx.guardLowest) + '</b> Guard.');
+    if (fx.heal) out.push('Heal <b>' + fmtN(fx.heal) + '</b> HP.');
+    if (fx.bleed) out.push('Apply <b>' + fmtN(fx.bleed) + '</b> Bleed.');
+    if (fx.chill) out.push('Apply <b>' + fmtN(fx.chill) + '</b> Chill.');
+    if (fx.counterstance) out.push('Next parry deals <b>+2</b> Break.');
+    if (fx.intercede) out.push('Take their parry window.');
+    if (fx.moveSelf) out.push('Switch row.');
+    if (fx.drawDiscard) out.push('Draw <b>1</b>, discard <b>1</b>.');
   }
-  return out.join(' · ');
+  return out.join(' ');
 }
-// What the condition PAYS — never the condition's name, which is its own label.
+// What the condition PAYS, as a clause that finishes the label's sentence.
 function condReward(card) {
   if (!card.cond) return '';
-  if (card.cond.reward === 'cost') return 'costs ' + card.cond.costTo + ' AP';
-  // an output reward is ALWAYS on top of the base, so it reads with a plus
+  if (card.cond.reward === 'cost') return 'costs <b>' + card.cond.costTo + '</b> AP.';
   const hits = card.cond.bonus.filter(f => f.dmg);
   const parts = [];
-  if (hits.length) parts.push('+' + fmtN(hits.reduce((n, f) => n + f.dmg, 0)) + ' dmg');
-  const rest = fxRiders(card.cond.bonus.filter(f => !f.dmg));
+  if (hits.length) parts.push('<b>+' + fmtN(hits.reduce((n, f) => n + f.dmg, 0)) + '</b> damage.');
+  const rest = prose(card.cond.bonus.filter(f => !f.dmg));
   if (rest) parts.push(rest);
-  return parts.join(' · ');
+  return parts.join(' ');
 }
 function condText(card) {
   if (!card.cond) return '';
-  return (COND_LABEL[card.cond.type] || card.cond.type) + ' · ' + condReward(card);
+  return (COND_LABEL[card.cond.type] || card.cond.type) + ': ' + condReward(card).replace(/<\/?b>/g, '');
 }
-function effectText(effects) {
-  const hits = effects.filter(fx => fx.dmg);
-  const parts = [];
-  if (hits.length === 1) parts.push(fmtN(hits[0].dmg) + ' damage');
-  else if (hits.length > 1) parts.push(hits.length + '× ' + fmtN(hits[0].dmg) + ' damage');
-  const rest = fxRiders(effects.filter(fx => !fx.dmg));
-  if (rest) parts.push(rest);
-  return parts.join(' · ');
-}
+function effectText(effects) { return prose(effects).replace(/<\/?b>/g, ''); }
 function renderApDial() {
   el('k-ap-num').textContent = C.ap;
 }
@@ -1027,8 +1009,11 @@ function dropCommit(id, drop) {
 // core, travelling dotted thread) cast from the card you are holding, ending in
 // a rotating JRPG reticle on the thing you are about to hit.
 // ═════════════════════════════════════════════════════════════════════════════
-// How far the held card may travel from the hand while aiming.
-const DRAG_CLAMP_X = 150, DRAG_CLAMP_UP = 54, DRAG_CLAMP_DOWN = 16;
+// Where a lifted card parks while you aim. Slay the Spire's model: the card
+// does NOT chase the finger — it commits to one spot and the beam does the
+// targeting. Chasing the finger made the card cover its own beam; clamping it
+// part-way made it feel stuck against an invisible wall.
+const CARD_PARK = { x: 424, y: 268 };
 const AIMNS = 'http://www.w3.org/2000/svg';
 let _aim = null;
 function aimLayer() {
@@ -1122,7 +1107,7 @@ function attachCardInput(btn) {
   // pointermove measured its delta from (0,0), decided it was a drag, and
   // flung the card 375px off the hand before the button ever went down.
   let holdT = null, held = false, dragging = false, armed = false, sx = 0, sy = 0;
-  let raf = 0, phase = 0, lastPt = null;
+  let raf = 0, phase = 0, lastPt = null, park = null;
   // the beam is redrawn on its own frame loop so the dotted thread keeps
   // travelling and the reticle keeps turning even when the finger is still
   const spin = () => {
@@ -1148,16 +1133,27 @@ function attachCardInput(btn) {
     const to = snap || { x: (lastPt.x - sr.left) / k, y: (lastPt.y - sr.top) / k };
     drawAim(from.x, from.y, to.x, to.y, ok, aimColor(id), phase);
   };
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());
   btn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();                          // no iOS callout, no selection
     held = false; dragging = false; armed = true; sx = e.clientX; sy = e.clientY;
-    holdT = setTimeout(() => { if (!C.pendingDiscard) { held = true; openFocus(btn.dataset.card); } }, 480);
+    holdT = setTimeout(() => { if (!C.pendingDiscard) { held = true; openInspect(btn.dataset.card); } }, 420);
     try { btn.setPointerCapture(e.pointerId); } catch (_) {}
   });
   btn.addEventListener('pointermove', (e) => {
     if (!armed || held) return;
     const dx = e.clientX - sx, dy = e.clientY - sy;
     if (!dragging && Math.hypot(dx, dy) > 14) {
-      clearTimeout(holdT); dragging = true; btn.classList.add('k-dragging');
+      clearTimeout(holdT); dragging = true;
+      // park it: measure where the card sits in the fan, then move it once
+      const stg = el('k-stage'), sre = stg.getBoundingClientRect();
+      const kk = sre.width / stg.offsetWidth || 1;
+      const home = btn.getBoundingClientRect();
+      park = { x: CARD_PARK.x - (home.left + home.width / 2 - sre.left) / kk,
+               y: CARD_PARK.y - (home.top + home.height / 2 - sre.top) / kk };
+      btn.style.setProperty('--dragx', park.x + 'px');
+      btn.style.setProperty('--dragy', park.y + 'px');
+      btn.classList.add('k-aiming');
       // light every figure this card could legally land on
       const want = CARD_DEFS[btn.dataset.card].target === 'enemy' ? 'enemy' : 'party';
       if (want === 'enemy') el('k-boss-art').classList.add('k-aim-valid');
@@ -1165,14 +1161,7 @@ function attachCardInput(btn) {
       if (!raf) raf = requestAnimationFrame(spin);
     }
     if (dragging) {
-      const k = stageScale();
-      // THE CARD IS HELD, NOT THROWN (v2.2). It stays in a lower-central band so
-      // the beam always reads as cast FROM the card you are holding — let it
-      // follow the finger onto the target and it covers its own aim.
-      const cx = Math.max(-DRAG_CLAMP_X, Math.min(DRAG_CLAMP_X, dx / k));
-      const cy = Math.max(-DRAG_CLAMP_UP, Math.min(DRAG_CLAMP_DOWN, dy / k));
-      btn.style.setProperty('--dragx', cx + 'px');
-      btn.style.setProperty('--dragy', cy + 'px');
+      // the card stays parked — only the beam and the reticle track the finger
       const over = dropTargetAt(e.clientX, e.clientY);
       const want = CARD_DEFS[btn.dataset.card].target === 'enemy' ? 'enemy' : 'party';
       btn.classList.toggle('k-drop-ok', !!over && (over.zone === want || over.zone === 'piles'));
@@ -1184,13 +1173,13 @@ function attachCardInput(btn) {
     clearTimeout(holdT);
     if (!armed) return;
     armed = false;
-    if (held) return;
+    if (held) { closeInspect(); return; }        // inspect ends when you let go
     const id = btn.dataset.card;
     if (C.pendingDiscard) { pickDiscard(id); return; }   // Quick Throw's second half
     if (dragging) {
       dragging = false; if (raf) { cancelAnimationFrame(raf); raf = 0; }
       aimClear();
-      btn.classList.remove('k-dragging', 'k-drop-ok');
+      btn.classList.remove('k-dragging', 'k-aiming', 'k-drop-ok');
       btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy');
       const over = dropTargetAt(e.clientX, e.clientY);
       if (!dropCommit(id, over)) renderHand();
@@ -1203,7 +1192,7 @@ function attachCardInput(btn) {
   btn.addEventListener('pointercancel', () => { clearTimeout(holdT); armed = false; dragging = false;
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
     aimClear();
-    btn.classList.remove('k-dragging', 'k-drop-ok');
+    btn.classList.remove('k-dragging', 'k-aiming', 'k-drop-ok');
     btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy'); });
 }
 function showTargetRing(cardId) {
@@ -1224,36 +1213,36 @@ function commitCard(cardId) {
   el('k-target-ring').classList.add('k-hidden');
   playCard(cardId);
 }
-function openFocus(cardId) {
+// MTG ARENA INSPECT — hold a card and it blows up, centred and legible, over a
+// dimmed board. Release to put it back. It never commits the card: playing is
+// dragging, so inspecting can never cost you a turn by accident.
+function openInspect(cardId) {
   _focus = cardId;
   const ev = evaluateCard(cardId);
   const c = ev.card;
-  const hero = c.owner === 'bond' ? { name: 'ASH + ELIN', cls: 'Resonance' } : HEROES23[c.owner];
-  const rowTxt = c.owner === 'bond' ? 'Bond Art' : HEROES23[c.owner].cls + ' · ' + C.heroes[c.owner].row + ' row';
+  const ownerArt = c.owner === 'bond' ? HEROES23.ash.art : HEROES23[c.owner].art;
+  const who = c.owner === 'bond' ? 'ASH + ELIN · Bond Art'
+    : HEROES23[c.owner].name + ' · ' + HEROES23[c.owner].cls + ' · ' + C.heroes[c.owner].row + ' row';
+  const gem = ev.condActive && ev.currentCost !== c.cost
+    ? ev.currentCost + '<s>' + c.cost + '</s>' : String(ev.currentCost);
   const f = el('k-focus');
-  f.innerHTML =
-    '<div class="k-focus-hero">' + hero.name + ' <span>' + rowTxt + '</span></div>'
-    + '<div class="k-focus-name">' + c.name + (c.exhaust ? ' ◈' : '') + '<span class="k-focus-cost">' + ev.currentCost
-      + (ev.condActive && ev.currentCost !== c.cost ? ' <s>' + c.cost + '</s>' : '') + ' AP</span></div>'
-    + '<div class="k-focus-base">Base · ' + effectText(c.base) + '</div>'
-    + (c.cond ? '<div class="k-focus-mod' + (ev.condActive ? ' on' : '') + '">' + condText(c)
-      + ' — ' + (ev.condActive ? 'ACTIVE' : 'not yet') + '</div>'
-      : '<div class="k-focus-mod">' + (c.exhaust ? 'EXHAUSTS' : 'CORE') + '</div>')
-    + '<div class="k-focus-now">Resolves now · ' + effectText(ev.resolvedEffects) + '</div>'
-    + '<button class="k-focus-commit" id="k-focus-commit">COMMIT</button>'
-    + '<button class="k-focus-close" id="k-focus-close">✕</button>';
+  f.innerHTML = '<div class="k-insp-wrap"><div class="k-insp-card">'
+    + cardFaceHTML(c, ev, gem, ownerArt) + '</div></div>'
+    + '<div class="k-insp-side">'
+    + '<div class="k-insp-who">' + who + '</div>'
+    + '<div class="k-insp-now"><em>Resolves now</em>' + prose(ev.resolvedEffects) + '</div>'
+    + (c.cond ? '<div class="k-insp-cond' + (ev.condActive ? ' on' : '') + '">'
+        + (COND_LABEL[c.cond.type] || c.cond.type) + ' — ' + (ev.condActive ? 'ACTIVE' : 'not yet') + '</div>' : '')
+    + '<div class="k-insp-hint">release to close · drag the card to play it</div>'
+    + '</div>';
   f.classList.remove('k-hidden');
-  const dimFor = c.owner === 'bond' ? 'ash' : c.owner;
-  document.querySelectorAll('.k-hero').forEach(h => h.classList.toggle('k-dim', h.dataset.hero !== dimFor));
-  const fwd = document.querySelector('.k-hero[data-hero="' + dimFor + '"]');
-  if (fwd) fwd.classList.add('k-fwd');
-  el('k-focus-commit').onclick = () => { closeFocus(); playCard(cardId); };
-  el('k-focus-close').onclick = closeFocus;
+  el('k-stage').classList.add('k-inspecting');
 }
-function closeFocus() {
+function closeInspect() {
   _focus = null;
   el('k-focus').classList.add('k-hidden');
-  document.querySelectorAll('.k-hero').forEach(h => { h.classList.remove('k-dim', 'k-fwd'); });
+  el('k-stage').classList.remove('k-inspecting');
+  document.querySelectorAll('.k-hero').forEach(h => h.classList.remove('k-dim', 'k-fwd'));
 }
 
 function bindChrome() {
@@ -1285,6 +1274,7 @@ function bindChrome() {
     h.addEventListener('pointercancel', up);
   });
   el('k-stage').addEventListener('pointerdown', (e) => {
+    if (_focus) closeInspect();
     if (_sel && !e.target.closest('.k-card') && !e.target.closest('#k-target-ring')) {
       _sel = null; el('k-target-ring').classList.add('k-hidden'); renderHand();
     }
