@@ -1440,8 +1440,12 @@ checks their drag before I moved it.)*
   expensive node in the tree, upgrades something that fires about twice a run.
   Fixing it means either carry-over between stops or a lower bar against weak
   foes, and both move numbers the balance sim owns. Worth a build of its own.
-- **Damage still resolves in one batch at the end of a bar** rather than at
-  each hit's rest beat. Unchanged since Build 32 named it.
+- **Damage resolves in one batch at the end of a bar** rather than at each
+  hit's rest beat. Raised twice as a gap; **settled as a decision** — the batch
+  stays. The string track (Build 32) gives the player their state *while they
+  play the bar*, which was the half of the complaint that mattered; the batch
+  itself buys a single clean resolution beat instead of damage arriving in the
+  middle of the next note's window. Not a gap any more. A choice.
 - **No card acquisition.** After two runs the ceiling is the fifteen cards
   being identical every time. This remains the single biggest gap between this
   and StS2, and it is the thing to build next.
