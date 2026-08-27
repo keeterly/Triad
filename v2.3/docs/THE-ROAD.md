@@ -625,3 +625,109 @@ that were not. It is still inside the 8–45% gate, but it is now near the top o
 it rather than the middle. If a future change pushes that band out, the carry
 fraction is the first dial to turn — `KIZUNA_CARRY`, one constant, and
 `SIM_KZCARRY` measures any value of it against zero.
+
+---
+
+## Build 35 — the bonds
+
+Card acquisition, built as a social system rather than a shop. Three decisions
+set the shape, and all three came from the brief:
+
+> **The deck does not grow.** New cards expand possibility, but a card has to be
+> swapped out. **Each character contributes 5 card slots.**
+> **Unlocks persist.**
+
+### What was already there
+
+`playCard` was computing a **`pairKey` for every Follow-Up** —
+`[prev.ownerId, owner].sort().join('|')` — and then throwing two thirds of it
+away, because one line gated it to `RESONANCE_PAIR`. And `owner: 'bond'` was
+already a card class the renderer, the play-gate and the inspect panel all
+understood.
+
+So the social layer is that gate being opened. It is not a system bolted onto
+the combat; it is the combat's own combo mechanic, read.
+
+### A bond is earned by what two of them do for each other
+
+| | |
+|---|---|
+| **+2** | one acting straight after the other — the stitch the deck already ran on |
+| **+3** | Elin stepping into a blow meant for someone else |
+
+Nothing accrues from merely being near each other. Levels at **12** and **30**
+points, and they reset with the run, because they are earned in the fighting.
+
+**Combat itself is unchanged.** The in-fight Resonance is still the authored
+Ash + Elin climax alone; the bond points only leave the fight in its summary.
+That is deliberate — it means every balance number this project has measured
+still describes the fight it describes.
+
+### The fire hears them, and the fork is the card
+
+A pair that crossed a level gets their scene at the next campfire, **before**
+the tree. It is a two-hander: only the pair is in the shot, which is the whole
+reason the conversation is happening.
+
+Every scene ends in a fork of two replies, and **each reply is a different
+card** — a choice that only changed a line of dialogue would be a choice in
+name only, so the card the reply wins is printed on the reply.
+
+Six scenes: three pairs, two levels. Twelve cards.
+
+### They are not upgrades
+
+A bond card is a **sidegrade with a different shape**, costed against what it
+replaces rather than above it. A card that is simply better makes every run
+converge on the same deck, and the point of a fork is that both roads stay
+worth walking.
+
+```
+"Cover me, then. Properly."   → Shield the Blade   5 damage. 5 Guard to an ally.
+"Don't wait for me."          → Twin Shadow        5 damage ×2.
+```
+
+The cost is not power anyway. It is the slot.
+
+### Five slots a hero, always
+
+The deck used to be a constant. It is a **roster** now — three lists of five —
+and `rosterValid` refuses anything else. A pair card goes into one of its two
+heroes' five, and **whatever was there leaves**. Which of the two pays is the
+player's decision, made on a screen showing both their hands side by side with
+the card that is leaving struck through in red.
+
+The slice gate asserts 5/5/5 and fifteen unique cards **continuously**, at
+every step of a whole run, not at the end.
+
+A pair card also needs **both voices**: one of its owners on the ground and it
+cannot be played at all. That is the standing cost of a card two people own.
+
+### What survives a death
+
+A separate `kizuna23.profile` holds **which scenes you have heard and which
+cards you have won**. Bond levels reset with the run; the profile does not.
+That is the progression that outlives a death — and on a second run the fork
+you did not take is still there, offering the half you have not heard.
+
+### Found by building it
+
+- The **slice gate caught the integration**: by stop 4 a party has usually
+  earned enough bond that the fire opens a scene instead of the tree. That is
+  correct behaviour, and the gate now walks the whole path — scene, fork,
+  trade, tree — which is the one place the social layer, the deck and the road
+  all touch at once.
+- The **bot did not know about pair-owned cards** and looked up
+  `heroes['ash|mira']`, which is undefined. Both simulators would have crashed
+  the same way; it uses `ownerHeroes()` now.
+- The trade screen's offered card **spilled off the right edge**, because
+  `swapCardHTML` returns three sibling spans and `#k-swap-new > span` matched
+  all three — so the cost, the body and the owner line each got the whole
+  card's styling.
+- The **cache-buster had drifted to `?v=32`** and sat there for three builds:
+  two earlier `sed` passes matched nothing and failed silently. Now 35.
+
+### Coverage
+
+`test/bond.test.cjs` — **20/20**. Plus flow 126, road 34, camp 32, slice 22
+(the slice grew two checks, one per bond trade it now walks). Zero page errors.

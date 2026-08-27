@@ -39,6 +39,15 @@ const MAX_TURNS = 30;
         if (r.hp[id] < 0) out.push(id + ' below zero: ' + r.hp[id]);
       }
       if (new Set(r.nodes).size !== r.nodes.length) out.push('a node kindled twice');
+      // FIVE SLOTS A HERO, at every step of a whole run — the rule the bond
+      // system turns on, checked continuously rather than at the end.
+      if (r.roster) {
+        for (const h of ['ash', 'elin', 'mira']) {
+          if ((r.roster[h] || []).length !== 5) out.push(h + ' holds ' + (r.roster[h] || []).length + ' slots, not 5');
+        }
+        const ids = window.K.rosterIds(r.roster);
+        if (new Set(ids).size !== ids.length) out.push('the roster holds a duplicate');
+      }
       if (new Set(r.path).size !== r.path.length) out.push('a stop visited twice');
       // The deck may get better; it may never get bigger.
       if (window.K.state()) {
@@ -95,7 +104,36 @@ const MAX_TURNS = 30;
     await J((id) => window.R.travel(id), pickId);
     await sleep(400);
 
-    const v = await visible();
+    let v = await visible();
+    // A CAMPFIRE MAY OPEN A BOND SCENE FIRST. Two of them crossing a level on
+    // the road get heard before the tree, and the fork they end on is a card
+    // that has to be traded into somebody's five. The gate walks that whole
+    // path — it is the one place the social layer, the deck and the road all
+    // touch at once.
+    let bonds = 0;
+    if (kind === 'camp' && v[0] === 'k-scene') {
+      while (v[0] === 'k-scene' && bonds < 4) {
+        bonds++;
+        const traded = await J(() => {
+          window.R.sceneSkip();
+          window.R.takeBond(0);
+          const card = window.R.pendingCard();
+          const first = document.querySelector('#k-swap-cols .k-swapcard');
+          const dropped = first ? first.dataset.id : null;
+          if (first) first.click();
+          const go = document.getElementById('k-swap-go');
+          if (go && !go.disabled) go.click();
+          const r = window.R.state();
+          return { card, dropped, sizes: ['ash', 'elin', 'mira'].map(h => r.roster[h].length),
+                   uniq: new Set(window.K.rosterIds(r.roster)).size };
+        });
+        log.push(`stop ${col}: bond — took ${traded.card}, gave up ${traded.dropped}`);
+        check(`SLICE: the bond at stop ${col} trades one for one — still five slots a hero`,
+          traded.sizes.every(n => n === 5) && traded.uniq === 15, JSON.stringify(traded));
+        await sleep(300);
+        v = await visible();
+      }
+    }
     const want = kind === 'camp' ? 'k-camp' : kind === 'story' ? 'k-scene' : 'k-stage';
     check(`SLICE: stop ${col} is a ${kind.toUpperCase()} and it opens the ${want.replace('k-', '')}`,
       v.length === 1 && v[0] === want, v.join(',') + ' (wanted ' + want + ')');

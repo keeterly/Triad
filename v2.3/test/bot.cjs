@@ -74,7 +74,7 @@ module.exports.BOT = `
   const savesFor = (id, who) => {
     const ev = K.evaluateCard(id); if (!ev) return 0;
     const st = S(); let v = 0;
-    const owner = ev.card.owner === 'bond' ? 'ash' : ev.card.owner;
+    const owner = K.primaryHero(ev.card);
     const low = living().sort((a, b) => st.heroes[a].hp - st.heroes[b].hp)[0];
     for (const fx of ev.resolvedEffects) {
       if (fx.guardSelf && owner === who) v += fx.guardSelf;
@@ -120,8 +120,8 @@ module.exports.BOT = `
       for (const id of S().hand) {
         const ev = K.evaluateCard(id);
         if (!ev || S().ap < ev.currentCost) continue;
-        const o = ev.card.owner === 'bond' ? 'ash' : ev.card.owner;
-        if (ev.card.owner === 'bond' ? (S().heroes.ash.downed || S().heroes.elin.downed) : S().heroes[o].downed) continue;
+        // a pair card needs BOTH its owners standing
+        if (K.ownerHeroes(ev.card).some(h => S().heroes[h].downed)) continue;
         const v = (savesFor(id, d.who) + dmgOf(id) * 0.25) / ev.currentCost;
         if (v > bestV) { bestV = v; best = id; }
       }
@@ -141,8 +141,7 @@ module.exports.BOT = `
       for (const id of cur.hand) {
         const ev = K.evaluateCard(id);
         if (!ev || cur.ap < ev.currentCost) continue;
-        const o = ev.card.owner === 'bond' ? 'ash' : ev.card.owner;
-        if (ev.card.owner === 'bond' ? (cur.heroes.ash.downed || cur.heroes.elin.downed) : cur.heroes[o].downed) continue;
+        if (K.ownerHeroes(ev.card).some(h => cur.heroes[h].downed)) continue;
         let v = 0;
         for (const fx of ev.resolvedEffects) {
           if (fx.dmg) v += fx.dmg;
@@ -153,7 +152,7 @@ module.exports.BOT = `
           if (fx.drawDiscard) v += 1.5;
         }
         v /= ev.currentCost;
-        if (last && ev.card.owner !== last.ownerId) v += 1.0;
+        if (last && K.ownerHeroes(ev.card).indexOf(last.ownerId) < 0) v += 1.0;
         if (v > bestV) { bestV = v; best = id; }
       }
       if (!best) break;

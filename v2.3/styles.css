@@ -1466,3 +1466,85 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-mkz-full .k-mkz-bar i { background: linear-gradient(90deg, #f0cf92, #fff2cf);
   box-shadow: 0 0 8px rgba(240,207,146,0.8); }
 .k-mkz-full #k-map-kz-n { color: #f0cf92; }
+
+/* ═══ BUILD 35 — the bonds ═══════════════════════════════════════════════ */
+
+/* A BOND SCENE IS A TWO-HANDER. Only the pair is in the shot — the third is
+   somewhere else, which is the whole reason the conversation is happening. */
+#k-scene-cast.k-sc-two { gap: 96px; }
+#k-scene-cast.k-sc-two .k-sc-fig { height: 208px; }
+
+/* THE FORK. Two replies, and each one is a different card — a choice that only
+   changed a line of dialogue would be a choice in name only, so the card the
+   reply wins is printed on the reply. */
+#k-scene-fork { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%);
+  z-index: 7; width: 780px; display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap;
+  justify-content: center; }
+.k-fork-ask { width: 100%; text-align: center; font-size: 11px; letter-spacing: 0.26em;
+  color: #a58cc4; margin-bottom: 2px; }
+.k-fork { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 6px;
+  padding: 11px 14px; border-radius: 4px; cursor: pointer; text-align: left; font-family: inherit;
+  background: linear-gradient(180deg, rgba(30,25,40,0.96), rgba(18,15,25,0.97));
+  border: 1px solid rgba(165,140,196,0.45); color: inherit;
+  transition: transform 140ms ease, border-color 200ms ease, box-shadow 200ms ease; }
+.k-fork:hover, .k-fork:focus-visible { border-color: rgba(224,192,132,0.8);
+  box-shadow: 0 0 0 1px rgba(224,192,132,0.2), 0 8px 22px rgba(0,0,0,0.6); }
+.k-fork:active { transform: translateY(1px); }
+.k-fork-line { font-size: 15px; color: #efe6d4; line-height: 1.25; }
+.k-fork-card { display: flex; flex-direction: column; gap: 1px; padding-top: 6px;
+  border-top: 1px solid rgba(201,164,92,0.22); }
+.k-fork-card b { font-size: 12px; letter-spacing: 0.08em; color: #e0c084; }
+.k-fork-card em { font-style: normal; font-size: 10.5px; color: #9a9080; line-height: 1.3; }
+#k-scene.k-sc-fork #k-scene-plate { display: none; }
+#k-scene.k-sc-fork #k-scene-skip { display: none; }
+
+/* THE TRADE — five slots a hero, and the two columns are the two heroes who
+   own the card being offered. */
+#k-swap { position: absolute; inset: 0; width: 932px; height: 430px; overflow: hidden;
+  background: #0c0a10; color: #cfc8ba; }
+#k-swap, #k-swap * { -webkit-touch-callout: none !important; -webkit-user-select: none; user-select: none; }
+#k-swap-bg { position: absolute; inset: 0; }
+.k-swap-veil { position: absolute; inset: 0; background:
+  radial-gradient(70% 60% at 50% 0%, rgba(90,66,124,0.28) 0%, rgba(10,9,13,0) 70%),
+  linear-gradient(180deg, #171320 0%, #0c0a10 100%); }
+#k-swap-top { position: absolute; left: 20px; right: 20px; top: 10px; height: 46px; z-index: 3;
+  display: flex; align-items: center; gap: 18px; }
+#k-swap-new { flex: 1; display: flex; justify-content: flex-end; }
+#k-swap-line { position: absolute; left: 20px; right: 20px; top: 62px; z-index: 3; margin: 0;
+  font-size: 12px; font-style: italic; color: #9a9080; }
+#k-swap-cols { position: absolute; left: 20px; right: 20px; top: 92px; bottom: 60px; z-index: 3;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.k-sw-col { display: flex; flex-direction: column; gap: 5px; }
+.k-sw-col > header { display: flex; align-items: center; gap: 7px; padding-bottom: 2px; }
+.k-sw-col > header img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover;
+  object-position: 50% 18%; border: 1px solid rgba(201,164,92,0.45);
+  filter: brightness(1.5) contrast(1.12); background: #241f2c; }
+.k-sw-col > header b { font-size: 10px; letter-spacing: 0.24em; color: #c9a45c; }
+.k-sw-col > header em { font-style: normal; font-size: 9px; color: #8d8474; margin-left: auto; }
+.k-swapcard, .k-sw-newcard { display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 5px 9px; border-radius: 3px; font-family: inherit; color: inherit; text-align: left;
+  background: rgba(28,24,36,0.9); border: 1px solid rgba(201,164,92,0.2); cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease; }
+.k-swapcard { flex: 1; }
+.k-swapcard:hover { border-color: rgba(224,192,132,0.5); }
+.k-sw-on { background: rgba(120,40,34,0.5); border-color: rgba(224,120,100,0.85) !important; }
+.k-sw-on .k-sw-body b { text-decoration: line-through; color: #e0a090; }
+.k-sw-cost { flex: none; width: 17px; height: 17px; border-radius: 50%; display: grid;
+  place-items: center; font-size: 10px; font-weight: 700; color: #1a1620; background: #d8c9a6; }
+.k-sw-body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.k-sw-body b { font-size: 11.5px; color: #efe6d4; }
+.k-sw-body em { font-style: normal; font-size: 9.5px; color: #9a9080; line-height: 1.25; }
+.k-sw-who { flex: none; font-size: 7.5px; letter-spacing: 0.12em; color: #7d7466; }
+.k-sw-newcard { width: 336px; cursor: default; border-color: rgba(224,192,132,0.7);
+  background: linear-gradient(180deg, rgba(60,48,30,0.9), rgba(34,28,18,0.94)); }
+#k-swap-new .k-sw-body b { color: #f0cf92; }
+/* the header title held two long words on a narrow column and wrapped into
+   the line beneath it */
+#k-swap-top .k-mt-title { min-width: 210px; }
+#k-swap-top .k-mt-title b { font-size: 15px; letter-spacing: 0.18em; white-space: nowrap; }
+#k-swap-top .k-mt-title span { white-space: nowrap; }
+#k-swap-go { position: absolute; left: 50%; transform: translateX(-50%); bottom: 14px; z-index: 4;
+  padding: 11px 24px; border-radius: 3px; cursor: pointer; font-family: inherit;
+  background: linear-gradient(180deg, #3a3040, #241f2c); color: #e8dcc2;
+  border: 1px solid rgba(224,192,132,0.55); font-size: 11px; letter-spacing: 0.16em; font-weight: 700; }
+#k-swap-go:disabled { opacity: 0.4; cursor: default; border-color: rgba(154,144,128,0.3); }

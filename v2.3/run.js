@@ -111,6 +111,117 @@
   // conversation with a first half and a second half; picking them at random
   // would trade a small amount of variety for the only continuity the slice
   // has. `who: null` is the road talking rather than a person.
+  // ═══════════════════════════════════════════════════════════════════════
+  // THE BONDS — a social level that is earned by how you fight, not bought
+  // ═══════════════════════════════════════════════════════════════════════
+  // Three pairs. Points come only from things the two of them DID for each
+  // other: acting straight after one another, and stepping into a blow meant
+  // for the other. Both were already events the engine emitted; the social
+  // layer reads them rather than inventing a new currency.
+  //
+  // Levels reset with the run — they are earned in the fighting. What PERSISTS
+  // is the profile: which scenes you have heard and which cards you have won.
+  // That is the progression that outlives a death.
+  const PAIRS = ['ash|elin', 'ash|mira', 'elin|mira'];
+  const BOND_STEPS = [12, 30];               // points to reach level 1, then 2
+  const PAIR_NAME = { 'ash|elin': 'ASH + ELIN', 'ash|mira': 'ASH + MIRA', 'elin|mira': 'ELIN + MIRA' };
+  const bondLevel = (pts) => BOND_STEPS.reduce((lv, need) => (pts >= need ? lv + 1 : lv), 0);
+
+  // ── the profile: what survives a run ─────────────────────────────────────
+  const PROFILE_KEY = 'kizuna23.profile';
+  let PROFILE = null;
+  function loadProfile() {
+    try {
+      const raw = localStorage.getItem(PROFILE_KEY);
+      const p = raw ? JSON.parse(raw) : null;
+      if (p && Array.isArray(p.heard) && Array.isArray(p.won)) return p;
+    } catch (_) {}
+    return { heard: [], won: [] };
+  }
+  function saveProfile() { try { localStorage.setItem(PROFILE_KEY, JSON.stringify(PROFILE)); } catch (_) {} }
+  function heard(id) { return PROFILE.heard.indexOf(id) >= 0; }
+  function won(id) { return PROFILE.won.indexOf(id) >= 0; }
+
+  // ── the bond scenes ──────────────────────────────────────────────────────
+  // Six: three pairs, two levels each. Every one ends in a fork, and the fork
+  // IS the card — the same two people at the same point in their story, taken
+  // two different ways. A choice that only changed a line of dialogue would be
+  // a choice in name only.
+  const BONDS = {
+    'ash|elin': [
+      { id: 'ae1', title: 'THE PRACTICE', beats: [
+        { who: null,   line: 'They have fallen into it again without discussing it.' },
+        { who: 'elin', line: 'You still step left when you are tired.' },
+        { who: 'ash',  line: 'You still cover it.' },
+        { who: 'elin', line: 'I always will. That is not the same as it being fine.' },
+      ], ask: 'What does he say to that?', picks: [
+        { line: '"Then keep covering it."', card: 'shieldsong',
+          after: 'She does not argue. She never has.' },
+        { line: '"Then let me stop needing it."', card: 'lastvigil',
+          after: 'He shifts his guard a half-step. It costs him something.' },
+      ] },
+      { id: 'ae2', title: 'WHAT IT ENDED AS', beats: [
+        { who: 'ash',  line: 'You have not asked what I remember about the last time.' },
+        { who: 'elin', line: 'No.' },
+        { who: 'ash',  line: 'Why not.' },
+        { who: 'elin', line: 'Because I was there, and because you would tell me the kind version.' },
+      ], ask: 'What does he give her instead?', picks: [
+        { line: 'The kind version anyway.', card: 'gravebloom',
+          after: 'She lets him have it. Something in her unclenches.' },
+        { line: 'All of it.', card: 'ashenoath',
+          after: 'It takes a while. Neither of them sleeps much after.' },
+      ] },
+    ],
+    'ash|mira': [
+      { id: 'am1', title: 'IN FRONT', beats: [
+        { who: 'mira', line: 'You keep putting yourself between me and things.' },
+        { who: 'ash',  line: 'That is the job.' },
+        { who: 'mira', line: 'It is a job you gave yourself.' },
+      ], ask: 'What do they settle on?', picks: [
+        { line: '"Cover me, then. Properly."', card: 'shieldblade',
+          after: 'She stops working around him and starts working behind him.' },
+        { line: '"Don\u2019t wait for me."', card: 'twinshadow',
+          after: 'He stops turning to check. It is harder than standing still.' },
+      ] },
+      { id: 'am2', title: 'THE QUICK ONE', beats: [
+        { who: null,   line: 'She is bleeding and has not mentioned it.' },
+        { who: 'ash',  line: 'How long.' },
+        { who: 'mira', line: 'Two stops. It is fine. I get out before it matters.' },
+        { who: 'ash',  line: 'And when you do not.' },
+      ], ask: 'What does she change?', picks: [
+        { line: 'She starts leaving earlier.', card: 'cutthecord',
+          after: 'Out of reach before the answer comes. It is not cowardice.' },
+        { line: 'She starts hitting harder.', card: 'bothblades',
+          after: 'Heavy first, then quick. Nothing left standing to answer.' },
+      ] },
+    ],
+    'elin|mira': [
+      { id: 'em1', title: 'THE SHAPE OF IT', beats: [
+        { who: 'mira', line: 'You hear it differently than we do.' },
+        { who: 'elin', line: 'I hear what it is asking for.' },
+        { who: 'mira', line: 'And what is that.' },
+        { who: 'elin', line: 'To be allowed to stop.' },
+      ], ask: 'What does Mira do with that?', picks: [
+        { line: 'Learns to slow it down.', card: 'coldmercy',
+          after: 'A knife can be patient. She had not considered it.' },
+        { line: 'Learns to ask her first.', card: 'quietword',
+          after: 'They start speaking mid-fight. It is not tidy, and it works.' },
+      ] },
+      { id: 'em2', title: 'NOT A KINDNESS', beats: [
+        { who: 'elin', line: 'You could have let me take that one.' },
+        { who: 'mira', line: 'You would not have got up.' },
+        { who: 'elin', line: 'That was mine to decide.' },
+        { who: 'mira', line: '\u2026yes.' },
+      ], ask: 'How does it settle?', picks: [
+        { line: 'They share the weight.', card: 'thornandlamp',
+          after: 'A little of everything, for everyone. Nobody carries it alone.' },
+        { line: 'Elin names it out loud.', card: 'namethefear',
+          after: 'Said plainly, it has less room to move.' },
+      ] },
+    ],
+  };
+  const bondScene = (pair, lv) => (BONDS[pair] || [])[lv - 1] || null;
+
   const SCENES = [
     { id: 'lullaby', title: 'WHAT THE SONG IS FOR', beats: [
       { who: null,   line: 'The road bends. The singing does not.' },
@@ -256,6 +367,9 @@
       seed: s, map: buildMap(s), at: null, path: [], stop: 0,
       embers: 0, nodes: [],                       // the tree nodes this run has kindled
       kizuna: 0,                                  // what the three of them carry
+      bonds: { 'ash|elin': 0, 'ash|mira': 0, 'elin|mira': 0 },
+      levels: { 'ash|elin': 0, 'ash|mira': 0, 'elin|mira': 0 },
+      roster: null,                               // set on boot from the base 15
       flash: null,                                // the receipt from the last stop
       pending: null,                              // a stop entered but not finished
       camped: 0, campDone: null,                  // the fire only mends once per visit
@@ -289,7 +403,7 @@
 
   // ── the screen ────────────────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
-  const SCREENS = { map: 'k-map', combat: 'k-stage', camp: 'k-camp', scene: 'k-scene' };
+  const SCREENS = { map: 'k-map', combat: 'k-stage', camp: 'k-camp', scene: 'k-scene', swap: 'k-swap' };
   function screen(which) {
     for (const k of Object.keys(SCREENS)) {
       const el2 = $(SCREENS[k]);
@@ -513,7 +627,7 @@
     const foe = window.K.FOES[n.foe] || window.K.FOES.wraith;
     screen('combat');
     window.K.startCombat({ foe, partyHp: RUN.hp, onEnd: onFightEnd, kizuna: RUN.kizuna || 0,
-                           upgrades: cardUps(), allout: alloutOf() });
+                           roster: RUN.roster, upgrades: cardUps(), allout: alloutOf() });
   }
 
   function onFightEnd(sum) {
@@ -521,6 +635,8 @@
     RUN.last = sum;
     RUN.hp = sum.partyHp;
     RUN.kizuna = Math.round((sum.kizuna || 0) * KIZUNA_CARRY);
+    // the fight's bonds bank into the run
+    for (const k of PAIRS) RUN.bonds[k] = (RUN.bonds[k] || 0) + ((sum.pairBond || {})[k] || 0);
     if (sum.outcome === 'defeat') { RUN.over = 'loss'; save(); return toMap(); }
     // EMBERS ARE PAID FOR THE FIGHT AND FOR THE PARRY, separately. The base is
     // the foe's worth; the bonus is what the parry earned, so the best thing in
@@ -573,8 +689,45 @@
       RUN.campDone = n.id;
     }
     save();
-    screen('camp');
-    renderCamp();
+    // THE FIRE HEARS THEM FIRST. A pair that crossed a level on the road gets
+    // their scene before the tree — the fire is where people talk, and the
+    // card that comes out of it is the reason to be at one.
+    if (!openBondScene()) { screen('camp'); renderCamp(); }
+  }
+
+  // ── the bond scenes ──────────────────────────────────────────────────────
+  function pendingBonds() {
+    return PAIRS.filter(k => {
+      const lv = bondLevel(RUN.bonds[k] || 0);
+      return lv > (RUN.levels[k] || 0) && !!bondScene(k, (RUN.levels[k] || 0) + 1);
+    });
+  }
+  function openBondScene() {
+    const pair = pendingBonds()[0];
+    if (!pair) return false;
+    const lv = (RUN.levels[pair] || 0) + 1;
+    _scene = { ...bondScene(pair, lv), kind: 'bond', pair, lv };
+    _beat = 0;
+    screen('scene');
+    renderScene();
+    return true;
+  }
+  // A fork taken: the card is won, and now it has to fit. Five slots a hero,
+  // always — so one of the two must give something up, and which one is the
+  // player's to decide.
+  function takeBond(ix) {
+    if (!_scene || _scene.kind !== 'bond') return;
+    const pick = _scene.picks[ix]; if (!pick) return;
+    RUN.levels[_scene.pair] = _scene.lv;
+    if (!heard(_scene.id)) { PROFILE.heard.push(_scene.id); }
+    if (!won(pick.card)) { PROFILE.won.push(pick.card); }
+    saveProfile();
+    _pendingCard = pick.card;
+    _pendingAfter = pick.after;
+    _scene = null; _beat = 0;
+    save();
+    screen('swap');
+    renderSwap();
   }
 
   // ── the fire ──────────────────────────────────────────────────────────────
@@ -661,6 +814,7 @@
   }
   // ── a memory ──────────────────────────────────────────────────────────────
   let _beat = 0, _scene = null;
+  let _pendingCard = null, _pendingAfter = '', _swapPick = null;
   function enterStory(n) {
     _scene = SCENES[Math.min(RUN.seen ? RUN.seen.length : 0, SCENES.length - 1)];
     _beat = 0;
@@ -678,6 +832,33 @@
     $('k-scene-title').textContent = _scene.title;
     const done = _beat >= _scene.beats.length;
     $('k-scene').classList.toggle('k-sc-done', done);
+    const forking = done && _scene.kind === 'bond';
+    $('k-scene').classList.toggle('k-sc-fork', forking);
+    const forkBox = $('k-scene-fork');
+    if (forkBox) {
+      forkBox.classList.toggle('k-hidden', !forking);
+      if (forking) {
+        forkBox.innerHTML = '<span class="k-fork-ask">' + (_scene.ask || '') + '</span>'
+          + _scene.picks.map((p, i) => {
+            const c = window.K.CARD_DEFS[p.card];
+            return '<button type="button" class="k-fork" data-ix="' + i + '">'
+              + '<span class="k-fork-line">' + p.line + '</span>'
+              + '<span class="k-fork-card"><b>' + c.name + '</b>'
+              + '<em>' + window.K.effectText(c.base) + '</em></span></button>';
+          }).join('');
+        forkBox.querySelectorAll('.k-fork').forEach(b =>
+          b.addEventListener('click', (e) => { e.stopPropagation(); takeBond(+b.dataset.ix); }));
+      }
+    }
+    if (forking) {
+      who.textContent = PAIR_NAME[_scene.pair] || '';
+      who.classList.remove('k-hidden');
+      box.className = 'k-sc-line k-sc-narr';
+      box.textContent = '';
+      $('k-scene-next').textContent = '';
+      castRow();
+      return;
+    }
 
     if (done) {
       // THE SCENE PAYS OUT ON SCREEN. A cutscene that changes the run silently
@@ -694,27 +875,38 @@
       box.textContent = b.line;
       $('k-scene-next').textContent = _beat === _scene.beats.length - 1 ? 'END' : 'NEXT';
     }
-    // The speaker is lit and stands forward; the other two stay in the scene
-    // rather than vanishing from it, because a three-hander reads as a
-    // three-hander only while all three are on screen.
-    const speaker = done ? null : (_scene.beats[_beat].who || null);
-    cast.innerHTML = ['elin', 'ash', 'mira'].map(id => {
-      const c = CAST[id];
-      return '<div class="k-sc-fig' + (speaker === id ? ' k-sc-on' : (speaker ? ' k-sc-off' : ''))
-        + '" data-hero="' + id + '"><img src="../art/' + c.art + '.webp" alt="' + c.n + '"></div>';
-    }).join('');
+    castRow();
     const dots = $('k-scene-dots');
     if (dots) dots.innerHTML = _scene.beats
       .map((_, i) => '<i class="' + (i < _beat ? 'on' : i === _beat ? 'now' : '') + '"></i>').join('');
   }
 
+  // A BOND SCENE IS A TWO-HANDER. Only the pair is in the shot; the third is
+  // somewhere else, which is the whole reason the conversation is happening.
+  function castRow() {
+    const cast = $('k-scene-cast'); if (!cast || !_scene) return;
+    const done = _beat >= _scene.beats.length;
+    const speaker = done ? null : (_scene.beats[_beat].who || null);
+    const inShot = _scene.kind === 'bond' ? _scene.pair.split('|') : ['elin', 'ash', 'mira'];
+    const order = ['elin', 'ash', 'mira'].filter(h => inShot.indexOf(h) >= 0);
+    cast.innerHTML = order.map(id => {
+      const c = CAST[id];
+      return '<div class="k-sc-fig' + (speaker === id ? ' k-sc-on' : (speaker ? ' k-sc-off' : ''))
+        + '" data-hero="' + id + '"><img src="../art/' + c.art + '.webp" alt="' + c.n + '"></div>';
+    }).join('');
+    cast.classList.toggle('k-sc-two', order.length === 2);
+  }
+
   function sceneNext() {
     if (!_scene || RUN.over) return;
+    // a bond scene ends on its fork and waits there — the choice is the exit
+    if (_scene.kind === 'bond' && _beat >= _scene.beats.length) return;
     if (_beat < _scene.beats.length) { _beat++; renderScene(); return; }
     finishScene();
   }
   function sceneSkip() {
     if (!_scene || RUN.over) return;
+    if (_scene.kind === 'bond') { _beat = _scene.beats.length; renderScene(); return; }
     _beat = _scene.beats.length;      // straight to the payout, never past it:
     renderScene();                     // skipping the scene must not skip the reward
   }
@@ -732,10 +924,63 @@
     toMap();
   }
 
+  // ── the swap ─────────────────────────────────────────────────────────────
+  function renderSwap() {
+    const K = window.K;
+    const card = K.CARD_DEFS[_pendingCard]; if (!card) return toMap();
+    const pair = K.pairOf(_pendingCard) || ['ash'];
+    $('k-swap-line').textContent = _pendingAfter || '';
+    // WRAPPED. swapCardHTML returns three sibling spans, and dropping them
+    // straight into a flex container made `#k-swap-new > span` match all three
+    // — so the cost, the body and the owners each got the card's own styling
+    // and the whole thing spilled off the right edge of the screen.
+    $('k-swap-new').innerHTML = '<span class="k-sw-newcard">' + swapCardHTML(_pendingCard, true) + '</span>';
+    $('k-swap-ask').textContent = 'FIVE SLOTS EACH — WHAT LEAVES?';
+    $('k-swap-cols').innerHTML = pair.map(h => {
+      const art = ({ ash: 'kai', elin: 'elin', mira: 'mira' })[h];
+      const rows = (RUN.roster[h] || []).map(id =>
+        '<button type="button" class="k-swapcard' + (_swapPick && _swapPick.id === id && _swapPick.hero === h ? ' k-sw-on' : '')
+        + '" data-hero="' + h + '" data-id="' + id + '">' + swapCardHTML(id, false) + '</button>').join('');
+      return '<div class="k-sw-col"><header><img src="../art/' + art + '.webp" alt="">'
+        + '<b>' + h.toUpperCase() + '</b><em>' + (RUN.roster[h] || []).length + '/5</em></header>' + rows + '</div>';
+    }).join('');
+    $('k-swap-cols').querySelectorAll('.k-swapcard').forEach(b =>
+      b.addEventListener('click', (e) => { e.stopPropagation();
+        _swapPick = { hero: b.dataset.hero, id: b.dataset.id }; renderSwap(); }));
+    const go = $('k-swap-go');
+    go.disabled = !_swapPick;
+    go.textContent = _swapPick
+      ? 'TRADE ' + K.CARD_DEFS[_swapPick.id].name.toUpperCase() + ' FOR ' + card.name.toUpperCase()
+      : 'CHOOSE A CARD TO GIVE UP';
+  }
+  function swapCardHTML(id, big) {
+    const K = window.K, c = K.CARD_DEFS[id];
+    const who = (K.ownerHeroes(c) || []).map(h => h.toUpperCase()).join(' + ');
+    return '<span class="k-sw-cost">' + c.cost + '</span>'
+      + '<span class="k-sw-body"><b>' + c.name + '</b>'
+      + '<em>' + K.effectText(c.base) + '</em></span>'
+      + '<span class="k-sw-who">' + who + '</span>';
+  }
+  function confirmSwap() {
+    if (!_swapPick || !_pendingCard) return;
+    const list = RUN.roster[_swapPick.hero];
+    const ix = list.indexOf(_swapPick.id);
+    if (ix < 0) return;
+    list[ix] = _pendingCard;
+    RUN.flash = { icon: 'camp', tone: 'gold', title: window.K.CARD_DEFS[_pendingCard].name.toUpperCase() + ' — LEARNED',
+      sub: _swapPick.hero.toUpperCase() + ' gives up ' + window.K.CARD_DEFS[_swapPick.id].name + ' to carry it.',
+      gain: '5/5/5', gainSub: 'the deck never grows' };
+    _pendingCard = null; _swapPick = null; _pendingAfter = '';
+    save();
+    // another pair may also be waiting at this same fire
+    if (!openBondScene()) { screen('camp'); renderCamp(); }
+  }
+
   function toMap() { screen('map'); renderMap(); }
 
   function newRun(seed) {
     RUN = freshRun(seed);
+    RUN.roster = window.K.baseRoster();
     _pick = null; _busy = false;
     save();
     toMap();
@@ -754,13 +999,17 @@
     });
     const skip = $('k-scene-skip');
     if (skip) skip.addEventListener('click', (e) => { e.stopPropagation(); sceneSkip(); });
+    const sw = $('k-swap-go');
+    if (sw) sw.addEventListener('click', (e) => { e.stopPropagation(); confirmSwap(); });
   }
 
   function boot(opts) {
     opts = opts || {};
+    PROFILE = opts.freshProfile ? { heard: [], won: [] } : loadProfile();
     bindCamp();
     const saved = opts.fresh ? null : load();
     RUN = saved || freshRun(opts.seed);
+    if (!RUN.roster) RUN.roster = window.K.baseRoster();
     _pick = null; _busy = false;
     if (!saved) save();
     // A STOP LEFT PENDING IS RE-ENTERED, not skipped. Combat is not
@@ -787,6 +1036,10 @@
     screen,
     render: renderMap,
     TREE, treeNode, kindle, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
+    pendingBonds, openBondScene, takeBond, confirmSwap, renderSwap,
+    swapPick: () => _swapPick, pendingCard: () => _pendingCard,
+    PAIRS, BOND_STEPS, BONDS, bondLevel, bondScene, PAIR_NAME,
+    profile: () => PROFILE, resetProfile() { PROFILE = { heard: [], won: [] }; saveProfile(); },
     SCENES, sceneNext, sceneSkip, scene: () => _scene, beat: () => _beat,
     // test-only
     _set(patch) { Object.assign(RUN, patch || {}); save(); renderMap(); },

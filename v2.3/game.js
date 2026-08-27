@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 34;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 35;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -172,7 +172,106 @@ function buildCards(upgrades) {
   }
   return out;
 }
-const DECK_IDS = Object.keys(CARD_DEFS).filter(id => CARD_DEFS[id].owner !== 'bond');   // the 15
+// ═════════════════════════════════════════════════════════════════════════════
+// THE BOND CARDS — what two of them learn to do together.
+// ═════════════════════════════════════════════════════════════════════════════
+// Owned by a PAIR, not a hero. Won by a choice inside a campfire scene, and
+// each choice is a different card: the same two people at the same point in
+// their story, taken two different ways.
+//
+// THEY ARE NOT UPGRADES. A bond card is a SIDEGRADE with a different shape,
+// costed against what it replaces rather than above it — because a card that
+// is simply better makes every run converge on the same deck, and the whole
+// point of a fork is that both roads stay worth walking. The cost is not power
+// anyway: it is the slot, and the slot belongs to one of the two heroes.
+const BOND_CARDS = {
+  // ── ASH + ELIN — the two who have done this before ──
+  shieldsong:  { owner: 'ash|elin', name: 'Shieldsong', cost: 1, target: 'party',
+                 base: [{ guardAll: 4 }, { heal: 4 }], cond: null,
+                 line: 'Guard the whole line, and mend the worst of it.' },
+  lastvigil:   { owner: 'ash|elin', name: 'Last Vigil', cost: 1, target: 'enemy',
+                 base: [{ dmg: 6 }, { guardSelf: 6 }], cond: null,
+                 line: 'A blow struck from behind a raised shield.' },
+  gravebloom:  { owner: 'ash|elin', name: 'Gravebloom', cost: 1, target: 'enemy',
+                 base: [{ dmg: 5 }, { healAll: 4 }], cond: null,
+                 line: 'What it takes from her, it gives to them.' },
+  ashenoath:   { owner: 'ash|elin', name: 'Ashen Oath', cost: 2, target: 'enemy',
+                 base: [{ dmg: 13 }, { brk: 3 }], cond: null,
+                 line: 'Everything, at once, and nothing held back.' },
+  // ── ASH + MIRA — the vanguard and the shade ──
+  shieldblade: { owner: 'ash|mira', name: 'Shield the Blade', cost: 1, target: 'enemy',
+                 base: [{ dmg: 5 }, { guardAlly: 5 }], cond: null,
+                 line: 'He stands in front. She works behind him.' },
+  twinshadow:  { owner: 'ash|mira', name: 'Twin Shadow', cost: 1, target: 'enemy',
+                 base: [{ dmg: 5 }, { dmg: 5 }], cond: null,
+                 line: 'Neither of them guards. Neither of them needs to.' },
+  cutthecord:  { owner: 'ash|mira', name: 'Cut the Cord', cost: 1, target: 'enemy',
+                 base: [{ dmg: 4 }, { bleed: 4 }, { moveSelf: 'back' }], cond: null,
+                 line: 'Open it, and step out of reach.' },
+  bothblades:  { owner: 'ash|mira', name: 'Both Blades', cost: 2, target: 'enemy',
+                 base: [{ dmg: 9 }, { dmg: 5 }], cond: null,
+                 line: 'The heavy one, then the quick one.' },
+  // ── ELIN + MIRA — the oracle and the knife ──
+  coldmercy:   { owner: 'elin|mira', name: 'Cold Mercy', cost: 1, target: 'enemy',
+                 base: [{ dmg: 4 }, { chill: 5 }], cond: null,
+                 line: 'Slow the song before it reaches anyone.' },
+  quietword:   { owner: 'elin|mira', name: 'A Quiet Word', cost: 1, target: 'party',
+                 base: [{ guardLowest: 6 }, { draw: 1 }], cond: null,
+                 line: 'Cover the one who needs it, and find the next answer.' },
+  thornandlamp:{ owner: 'elin|mira', name: 'Thorn and Lamp', cost: 1, target: 'enemy',
+                 base: [{ dmg: 3 }, { bleed: 3 }, { guardAll: 3 }], cond: null,
+                 line: 'A little of everything, for everyone.' },
+  namethefear: { owner: 'elin|mira', name: 'Name the Fear', cost: 1, target: 'enemy',
+                 base: [{ dmg: 4 }, { brk: 3 }], cond: null,
+                 line: 'Say what it is out loud, and it staggers.' },
+};
+Object.assign(CARD_DEFS, BOND_CARDS);
+const BOND_IDS = Object.keys(BOND_CARDS);
+const isBondCard = (id) => BOND_IDS.indexOf(id) >= 0;
+// A pair card belongs to BOTH its heroes, and to neither exclusively — which
+// is why taking one costs a slot from one of the two, chosen by the player.
+// Every card belongs to one hero or to two. These four are the only places the
+// rest of the game needs to care which.
+function ownerHeroes(card) {
+  if (!card) return [];
+  if (card.owner === 'bond') return RESONANCE_PAIR.slice();     // the authored climax
+  if (card.owner.indexOf('|') > 0) return card.owner.split('|');
+  return [card.owner];
+}
+function primaryHero(card) { return ownerHeroes(card)[0]; }
+function isPairCard(card) { return ownerHeroes(card).length > 1; }
+function ownerDown(card) { return ownerHeroes(card).some(h => C.heroes[h] && C.heroes[h].downed); }
+function pairOf(id) {
+  const c = CARD_DEFS[id];
+  return c && c.owner && c.owner.indexOf('|') > 0 ? c.owner.split('|') : null;
+}
+
+const DECK_IDS = Object.keys(CARD_DEFS)
+  .filter(id => CARD_DEFS[id].owner !== 'bond' && !isBondCard(id));   // the 15
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE ROSTER — five slots per hero, always.
+// ═════════════════════════════════════════════════════════════════════════════
+// The deck used to be a constant. It is a roster now: three lists of five, and
+// a run's deck is whatever those lists hold. The 5/5/5 shape was an accident
+// of the authored deck; it is a RULE now, and it is the thing that makes a
+// bond card cost something — the pair card goes into one of its two heroes'
+// five, and whatever was in that slot leaves.
+const SLOTS_PER_HERO = 5;
+function baseRoster() {
+  const r = { ash: [], elin: [], mira: [] };
+  for (const id of DECK_IDS) r[CARD_DEFS[id].owner].push(id);
+  return r;
+}
+function rosterIds(roster) {
+  const r = roster || baseRoster();
+  return ['ash', 'elin', 'mira'].reduce((a, h) => a.concat(r[h] || []), []);
+}
+function rosterValid(roster) {
+  if (!roster) return false;
+  return ['ash', 'elin', 'mira'].every(h => Array.isArray(roster[h]) && roster[h].length === SLOTS_PER_HERO)
+    && new Set(rosterIds(roster)).size === SLOTS_PER_HERO * 3;
+}
 const RES_ID = 'lightsteel';
 const RESONANCE_PAIR = ['ash', 'elin'];
 
@@ -376,6 +475,7 @@ function combatSummary(p) {
     foe: C.foe ? C.foe.id : null,
     turns: C.turn,
     kizuna: C.kizuna,
+    pairBond: { ...C.pairBond },
     partyHp: { ash: C.heroes.ash.hp, elin: C.heroes.elin.hp, mira: C.heroes.mira.hp },
     turned: par.filter(r => r.turned).length,
     flawless: par.filter(r => r.flawless).length,
@@ -425,7 +525,11 @@ function startCombat(opts) {
     // the premise's "team attacks that develop over time" — an upgrade to a
     // button you press twice.
     kizuna: Math.max(0, Math.min(KIZUNA_MAX, opts.kizuna || 0)), allOuts: 0,
-    deck: shuffle(DECK_IDS), hand: [], discard: [], exhausted: [],
+    // WHAT THE THREE OF THEM BUILT IN THIS FIGHT, per pair. Fed by the things
+    // they actually did for each other — a follow-up, a blow taken for someone.
+    pairBond: { 'ash|elin': 0, 'ash|mira': 0, 'elin|mira': 0 },
+    roster: opts.roster && rosterValid(opts.roster) ? JSON.parse(JSON.stringify(opts.roster)) : baseRoster(),
+    deck: [], hand: [], discard: [], exhausted: [],
     ap: AP_PER_TURN, apMax: AP_PER_TURN,
     turnState: freshTurnState(),
     bond: { stitches: 0, generated: false },   // the authored Ash+Elin pair
@@ -435,6 +539,7 @@ function startCombat(opts) {
     telemetry: { plays: [], parry: [] },
     log: [],
   };
+  C.deck = shuffle(rosterIds(C.roster));
   for (const id of Object.keys(C.heroes)) if (C.heroes[id].hp <= 0) C.heroes[id].downed = true;
   dressEncounter(foe);
   drawOpening();
@@ -723,7 +828,15 @@ function resolveEffectsInner(effects, ownerId, allyId) {
     if (fx.bleed)      C.boss.bleed += fx.bleed;
     if (fx.chill)      C.boss.chill += fx.chill;
     if (fx.counterstance) C.counterstance = true;
-    if (fx.intercede && allyId) C.intercession = allyId;
+    if (fx.intercede && allyId) {
+      C.intercession = allyId;
+      // STEPPING INTO A BLOW MEANT FOR SOMEONE ELSE. The largest single thing
+      // one of them can do for another, and the bond is paid for it.
+      if (allyId !== ownerId) {
+        const k = [ownerId, allyId].sort().join('|');
+        C.pairBond[k] = (C.pairBond[k] || 0) + BOND_PER_SHIELD;
+      }
+    }
     if (fx.moveSelf)   placeHero(ownerId, fx.moveSelf);
     if (fx.drawDiscard){ if (drawOne()) C.pendingDiscard = true; }
     if (fx.draw)       { for (let i = 0; i < fx.draw; i++) drawOne(); }
@@ -741,10 +854,9 @@ function playCard(cardId, allyId) {
   if (!C.hand.includes(cardId)) return false;
   const ev = evaluateCard(cardId);                    // cost updates BEFORE affordability
   const owner = ev.card.owner;
-  if (owner === 'bond') {
-    // both voices, or neither
-    if (C.heroes.ash.downed || C.heroes.elin.downed) return false;
-  } else if (C.heroes[owner].downed) return false;    // the fallen play nothing
+  // A PAIR CARD NEEDS BOTH VOICES. One of them on the ground and it cannot be
+  // played at all — which is the cost of a card two people own.
+  if (ownerDown(ev.card)) return false;               // the fallen play nothing
   if (C.ap < ev.currentCost) return false;
   if (ev.card.target === 'ally' && !allyId) allyId = defaultAlly(owner);
   setPhase('PLAYER_ACTION_RESOLVING');
@@ -762,6 +874,14 @@ function playCard(cardId, allyId) {
   const prev = C.turnState.actionsPlayed[C.turnState.actionsPlayed.length - 1];
   if (prev && prev.ownerId !== owner && owner !== 'bond' && prev.ownerId !== 'bond') {
     const pairKey = [prev.ownerId, owner].sort().join('|');
+    // EVERY PAIR EARNS, not only the authored one. This key was already being
+    // computed for all three pairs and then thrown away for two of them — the
+    // social layer is this gate being opened, not a new system. Combat itself
+    // is unchanged: the in-fight Resonance is still the ash|elin climax alone.
+    // These points only leave the fight in the summary.
+    if (!C.turnState.stitchedPairs.includes(pairKey)) {
+      C.pairBond[pairKey] = (C.pairBond[pairKey] || 0) + BOND_PER_STITCH;
+    }
     if (pairKey === RESONANCE_PAIR.slice().sort().join('|')
         && !C.turnState.stitchedPairs.includes(pairKey)
         && !C.bond.generated) {
@@ -822,6 +942,10 @@ const AP_PER_TURN = 3;
 // develop as they fight together, and there was nothing on the board measuring
 // that. It fills from the two things the party does well — landing blows and
 // turning blows aside — and cashes out as one strike from all three of them.
+// WHAT A BOND IS PAID FOR. Both are things the pair DID for each other, not
+// things that merely happened near them.
+const BOND_PER_STITCH = 2;      // one hero acting straight after the other
+const BOND_PER_SHIELD = 3;      // Elin stepping into a blow meant for someone else
 const KIZUNA_MAX = 100;
 const KIZUNA_PER_DAMAGE = 1 / 3;      // a 15-damage FINALE is worth 5
 const KIZUNA_TURNED = 8;              // a whole string read clean
@@ -1792,7 +1916,7 @@ function popDamage(n, why) {
 function fxDamageBoss(n, why) { fxStrikeBoss(n, why); popDamage(n, why); }
 function fxBreak() { const el = document.getElementById('k-break'); if (el) { el.classList.remove('k-flash'); void el.offsetWidth; el.classList.add('k-flash'); } }
 function fxPlayCard(cardId, ev) {
-  const heroId = ev.card.owner === 'bond' ? 'ash' : ev.card.owner;
+  const heroId = primaryHero(ev.card);
   const h = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
   if (h) { h.classList.remove('k-acts'); void h.offsetWidth; h.classList.add('k-acts'); }
   if (ev.condActive && ev.card.cond) fxComboCall(ev.card.cond.type, h);
@@ -2266,8 +2390,8 @@ function renderHand() {
     const ev = evaluateCard(id);
     const c = ev.card;
     const afford = C.ap >= ev.currentCost;
-    const dead = c.owner === 'bond' ? (C.heroes.ash.downed || C.heroes.elin.downed) : C.heroes[c.owner].downed;
-    const ownerArt = c.owner === 'bond' ? HEROES23.ash.art : HEROES23[c.owner].art;
+    const dead = ownerDown(c);
+    const ownerArt = HEROES23[primaryHero(c)].art;
     // THE FAN. A gentle arc — rotation from a low pivot plus a parabolic dip —
     // and a 3D lean so the edges of the hand turn away from the lens. A flat
     // row of upright cards is a spreadsheet; the tilt is what makes it a hand.
@@ -2281,7 +2405,7 @@ function renderHand() {
     const gem = ev.condActive && ev.currentCost !== c.cost
       ? ev.currentCost + '<s>' + c.cost + '</s>' : String(ev.currentCost);
     return '<button class="k-card' + (ev.condActive && !dead ? ' k-card-active' : '') + (afford ? '' : ' k-card-poor')
-      + (dead ? ' k-card-dead' : '') + (c.owner === 'bond' ? ' k-card-res' : '')
+      + (dead ? ' k-card-dead' : '') + (isPairCard(c) ? ' k-card-res' : '')
       + (_sel === id ? ' k-card-sel' : '') + '" data-card="' + id + '"'
       + ' style="--rot:' + rot + 'deg;--dy:' + dy + 'px;--tilt:' + tilt
       + 'deg;--lean:' + lean + 'deg">'
@@ -2867,8 +2991,8 @@ function openInspect(cardId) {
   _focus = cardId;
   const ev = evaluateCard(cardId);
   const c = ev.card;
-  const ownerArt = c.owner === 'bond' ? HEROES23.ash.art : HEROES23[c.owner].art;
-  const who = c.owner === 'bond' ? 'ASH + ELIN · Bond Art'
+  const ownerArt = HEROES23[primaryHero(c)].art;
+  const who = isPairCard(c) ? ownerHeroes(c).map(h => HEROES23[h].name).join(' + ') + ' · Bond'
     : HEROES23[c.owner].name + ' · ' + HEROES23[c.owner].cls + ' · ' + C.heroes[c.owner].row + ' row';
   const gem = ev.condActive && ev.currentCost !== c.cost
     ? ev.currentCost + '<s>' + c.cost + '</s>' : String(ev.currentCost);
@@ -2907,7 +3031,7 @@ function openPile(which) {
     + '<div class="k-pile-grid">'
     + (ids.length ? ids.map(id => {
         const ev = evaluateCard(id), c = ev.card;
-        const art = c.owner === 'bond' ? HEROES23.ash.art : HEROES23[c.owner].art;
+        const art = HEROES23[primaryHero(c)].art;
         return '<div class="k-card k-card-static">' + cardFaceHTML(c, ev, String(c.cost), art) + '</div>';
       }).join('') : '<div class="k-pile-empty">empty</div>')
     + '</div><div class="k-pile-hint">tap anywhere to close</div></div>';
@@ -3049,6 +3173,8 @@ window.K = {
   parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
   intentByTarget,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText,
+  BOND_CARDS, BOND_IDS, baseRoster, rosterIds, rosterValid, SLOTS_PER_HERO,
+  ownerHeroes, primaryHero, isPairCard, pairOf,
   _setPhase: setPhase,          // test-only: end a fight without playing it out
   // test-only: the words a note wears on arrival vs at the gradeable instant,
   // read from the function the note itself calls rather than restated here
