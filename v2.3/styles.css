@@ -180,7 +180,15 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-ichip .k-ico { width: 13px; height: 13px; margin: 0; opacity: 1; }
 .k-ichip b { font-size: 16px; font-weight: 700; color: #f2e9d6; line-height: 1;
   text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
-.k-ichip i { font-style: normal; font-size: 9px; letter-spacing: 0.08em; color: #b0a894; }
+.k-ichip i { font-style: normal; font-size: 9px; letter-spacing: 0.08em; color: #b0a894;
+  white-space: nowrap; }
+/* ONE LINE, however many targets. The telegraph carries a chip per hero now,
+   so it has to stay compact: the dirge's "all · no parry" was wrapping and
+   making the whole row two lines tall. */
+#k-intent { flex-wrap: nowrap; white-space: nowrap; gap: 4px; }
+.k-ichip { padding: 3px 6px; gap: 2px; }
+.k-ichip img { width: 14px; height: 14px; margin-left: 3px; }
+.k-ichip b { font-size: 15px; }
 .k-ichip img { width: 17px; height: 17px; border-radius: 50%; object-fit: cover; object-position: top;
   border: 1px solid rgba(201,164,92,0.7); margin-left: 2px; }
 /* each kind of turn has its own colour, so the shape reads before the number */
@@ -1415,3 +1423,31 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-strack-lost i.on { background: rgba(214,201,164,0.4); box-shadow: none; }
 .k-strack-out { opacity: 0; }
 .k-strack-idle { opacity: 0; }
+
+/* ═══ BUILD 33 — the fresh-eyes playthrough ══════════════════════════════ */
+
+/* A DEAD HERO IS NOT STANDING THERE BREATHING. `k-downed` only ever reached
+   the 24px HUD row, so a third of the party could be dead while the board
+   showed three figures idling. */
+#k-cast .k-hero.k-downed { filter: grayscale(0.9) brightness(0.42) !important; opacity: 0.5 !important; }
+.k-hero.k-downed .k-fig { animation: none; transform: translateY(6px) rotate(-3deg); }
+.k-hero.k-downed .k-hero-row { opacity: 0.4; }
+
+/* THE SWAP CAPTION WAS PRINTING THROUGH THE AP PIPS, every fight. Two builds
+   in a row this caption has landed on something; it now sits above the pile
+   with the pile, clear of the AP cluster entirely. */
+#k-ap-pips { z-index: 3; }
+.k-cycle-hint { top: -27px; left: 50%; z-index: 2; }
+#k-deck-btn { overflow: visible; }
+
+/* END TURN ASKS ONCE when there is AP left to lose. */
+#k-endturn.k-et-armed { background: linear-gradient(180deg, #6a3a30, #40211c);
+  border-color: rgba(224,140,120,0.75); color: #f6e2d6; font-size: 10px;
+  letter-spacing: 0.12em; animation: k-et-pulse 0.9s ease infinite; }
+@keyframes k-et-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(224,140,120,0.5); }
+                        50% { box-shadow: 0 0 0 5px rgba(224,140,120,0); } }
+
+/* the Resonance card's title and its exhaust line were both cropping */
+.k-card-res .k-cname { font-size: 8.5px; letter-spacing: 0; }
+.k-combo-exh .k-combo-pay { font-size: 8px; line-height: 1.2; }
+.k-combo { overflow: visible; }

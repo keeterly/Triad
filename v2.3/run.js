@@ -513,12 +513,18 @@
     const clean = sum.cleanliness >= 0.92 ? 2 : sum.cleanliness >= 0.7 ? 1 : 0;
     RUN.embers += base + clean;
     RUN.lastGain = { base, clean };
+    // SHOW THE NUMBER THE BONUS IS PAID ON. The 70% / 92% thresholds were
+    // invisible, so a fight won with a FLAWLESS riposte and three turned
+    // strings could still pay +0 and read as arbitrary — the best thing in the
+    // game rewarding you for reasons it would not name.
+    const pct = Math.round(sum.cleanliness * 100);
     RUN.flash = {
       icon: foe && foe.tier === 'elite' ? 'elite' : 'fight', tone: 'gold',
       title: (foe ? foe.name : 'IT FALLS') + ' — DOWN',
-      sub: clean === 2 ? 'The whole song turned aside. The road pays for that.'
-         : clean === 1 ? 'Most of it turned aside.'
-         : 'You took the blows and kept walking.',
+      sub: pct + '% of the notes turned aside — '
+         + (clean === 2 ? 'the road pays double for that.'
+          : clean === 1 ? '70% pays one ember, 92% pays two.'
+          : 'clean 70% of a fight and the road pays extra.'),
       gain: '+' + (base + clean), gainSub: 'embers' + (clean ? ' · ' + base + '+' + clean + ' parry' : ''),
     };
     if (foe && foe.tier === 'boss') RUN.over = 'win';

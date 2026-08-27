@@ -1360,3 +1360,110 @@ afterwards, so interleaving resolution with the bar means restructuring the
 loop that the beat grid depends on. The string track removes most of the sting
 (you now know your string's state while you play it) but the *damage* still
 arrives in one batch at the end. It is the last known gap in the parry.
+
+
+---
+
+## Build 33 — what a real playthrough found
+
+Two complete runs, different routes, played end to end with every affordance
+exercised and every edge deliberately kicked. **Zero page errors, no state the
+player could not get out of, and every number audited reconciled** — chill,
+sweep falloff, the response limit's 75%, Broken's +25%, bleed ordering, camp
+mend caps, every ember payout. The findings were all in what the game *says*.
+Except one, which was mine and was live.
+
+### The telegraph had two grammars for one shape
+
+The attack chip read `⚔ 21 ×3 [Ash's face]` — the volley **total**, the hit
+count, and the **first** hit's target. Ashen Rain reads that way while dealing
+7 to each of three heroes. The Ruinous Hymn reads `24 ×3 [Ash]` while Ash takes
+16 and **Elin takes 8** — and Elin's player is given no sign they are targeted
+at all.
+
+Worse, the player's own cards use the opposite convention for the identical
+shape: Twin Fang's face says **"4 damage ×2"**, meaning four *per hit*. Two
+readings of one visual grammar, on one screen. A player trained on either
+mis-sizes every Guard, every Mend and every step backwards.
+
+**One chip per hero struck, and the number on it is what that hero takes.**
+`8 ×2` means eight apiece — the same grammar the cards already use. Four checks
+hold it: a chip per target, each target's own face, per-hit numbers beside
+`×n`, and the per-target numbers still summing to the volley.
+
+An older check asserted that the single attack chip equalled the whole volley
+preview. That contract is gone, and the replacement is better: the chips must
+**add up** to it.
+
+### The hand could play itself
+
+Tapping a card selects it; tapping it again commits. But a played card leaves,
+the fan closes ranks, and the **next card slides under a finger that has not
+moved**. Tapping one fixed spot four times played two cards — two thirds of the
+turn — without the player ever choosing a card or a target. On a phone that is
+not an edge case, it is Tuesday. The hand now ignores the finger for 340ms
+after a play, so a tap that arrives while the fan is still settling can only
+select.
+
+### A bug of my own, live since Build 31
+
+Build 31 added a guard so that starting a drag retires any standing selection —
+and wrote it against a free variable. `id` is declared inside the paint loop
+and inside the pointerup handler, **not on the pointermove listener**. So every
+drag that began while a card was selected threw `id is not defined` and
+abandoned the gesture: no beam, no reticle, the card left sitting in the fan.
+
+Two builds of green suites never saw it, because no check had ever selected one
+card and then dragged a different one. The runaway-tap test above finally did,
+as a side effect, and three unrelated AIM checks started failing.
+
+*(That test now runs last, on purpose. An input test that fakes a finger
+belongs where it cannot poison what comes after it — it cost three downstream
+checks their drag before I moved it.)*
+
+### And the rest
+
+| | was | now |
+|---|---|---|
+| A downed hero | still standing on the board, full opacity, idle-breathing — `k-downed` only ever reached the 24px HUD row | grey, slumped, and dimmed on the field |
+| Execute's tag | **WHEN BROKEN**, while it also armed at ≤30% health — a card lying about itself | **Broken or Low** |
+| END TURN with AP left | fired instantly and rolled straight into a volley; one mis-tap threw away a whole turn | asks once, and says how much is left |
+| FINALE + Resonance | both struck the same point in the same frame — `A RE SO N A E C E` at the moment the game most wants to be read | the second waits for the first to leave |
+| The ember bonus | a 70%/92% cliff with the number invisible, so a FLAWLESS win could pay +0 and read as arbitrary | the receipt prints the percentage and names both thresholds |
+| The swap caption | printing through the AP pips, every fight | clear of them |
+| Resonance card | title cropped to "IGHT THROUGH STEE" | fits |
+
+### Named, not fixed
+
+- **KIZUNA rarely fills in a fodder fight** — the all-out effectively exists
+  only against the elite and the Regent, which means Crescendo, the most
+  expensive node in the tree, upgrades something that fires about twice a run.
+  Fixing it means either carry-over between stops or a lower bar against weak
+  foes, and both move numbers the balance sim owns. Worth a build of its own.
+- **Damage still resolves in one batch at the end of a bar** rather than at
+  each hit's rest beat. Unchanged since Build 32 named it.
+- **No card acquisition.** After two runs the ceiling is the fifteen cards
+  being identical every time. This remains the single biggest gap between this
+  and StS2, and it is the thing to build next.
+
+
+---
+
+## Errata — three records the code had outgrown
+
+A playthrough audit read these sections against the code and found them stale.
+Recorded here rather than edited in place, because a design record that quietly
+rewrites its own history is worth less than one that shows where it turned.
+
+1. **Build 23 describes Cleave as "5 damage, From the Front: +4"** and uses that
+   condition to justify raising the Regent from 160 to 168 HP. Build 25 retired
+   the FRONT_ROW keyword entirely and made Cleave a flat `7 damage`; the 168 was
+   re-measured after the change and held. The reasoning in Build 23 is history,
+   not the current deck.
+2. **Build 17 describes Shared Grace's 2 Break as a Follow-Up reward.** Build 25
+   made it unconditional, because the clause landed 94% of the time and was
+   therefore a reading tax rather than a decision.
+3. **`combatSummary()` is documented as taking no argument.** It takes the phase
+   (`combatSummary('VICTORY')`); called bare it always reports `'defeat'`. The
+   run layer is unaffected — it only ever reaches the function through
+   `setPhase`'s `onEnd` — but the contract as written in THE-ROAD.md was false.

@@ -86,7 +86,7 @@ const { boot } = require('./harness.cjs');
       bait && bait.every(r => r.got === r.want), JSON.stringify(bait));
   }
 
-  // ═══ A01 · THE STRING TRACK ═══
+  // ═══ A0b · THE CAPTION SITS CLEAR OF THE PILE'S OWN LABEL ═══
   {
     // the swap caption was an <em> inside .k-pile, so it inherited the pile
     // label's own absolute placement and printed straight through DECK
@@ -101,7 +101,83 @@ const { boot } = require('./harness.cjs');
     check('SAYS: the swap caption does not print through the pile’s own label',
       clear && !clear.overlap && clear.tag === 'SPAN', JSON.stringify(clear));
   }
-  // ═══ A01 · THE STRING TRACK ═══
+  // ═══ A02 · THE TELEGRAPH SAYS WHO, AND HOW MUCH EACH ═══
+  console.log('\n── the telegraph ──');
+  {
+    const tel = await J(() => {
+      window.K.startCombat({ seed: 7 });
+      window.K.forceIntent('hymn');
+      const rows = window.K.intentByTarget();
+      const chips = [...document.querySelectorAll('#k-intent .k-ichip-atk')].map(c => ({
+        n: (c.querySelector('b') || {}).textContent,
+        mul: (c.querySelector('i') || {}).textContent || '',
+        face: (c.querySelector('img') || {}).getAttribute('alt'),
+      }));
+      const it = window.K.currentIntent();
+      const total = window.K.intentPreviewDmg();
+      return { rows, chips, hits: it.hits.length, total };
+    });
+    // The Hymn strikes Ash twice and Elin once. The old chip read the VOLLEY
+    // TOTAL with the FIRST target's face — so Elin's player was given no sign
+    // they were targeted at all, and an StS-trained player read the total as
+    // landing on Ash.
+    check('TELEGRAPH: one chip per hero struck, not one chip for the volley',
+      tel.chips.length === tel.rows.length && tel.rows.length >= 2,
+      JSON.stringify({ chips: tel.chips.length, targets: tel.rows.length }));
+    check('TELEGRAPH: every hero the blow reaches has their own face on it',
+      tel.rows.every(r => tel.chips.some(c => c.face && c.face.toUpperCase() === r.who.toUpperCase())),
+      JSON.stringify({ rows: tel.rows.map(r => r.who), faces: tel.chips.map(c => c.face) }));
+    // "8 ×2" must mean eight apiece — the same grammar the player's own cards
+    // use ("4 damage ×2"). Two readings of one convention on one screen is
+    // what this fix exists to end.
+    check('TELEGRAPH: a number beside ×n is PER HIT, the same as it is on a card',
+      tel.chips.every((c, i) => {
+        const r = tel.rows.find(x => x.who.toUpperCase() === (c.face || '').toUpperCase());
+        if (!r) return false;
+        if (!c.mul) return +c.n === r.total;
+        return +c.n === r.hits[0] && c.mul === '×' + r.hits.length;
+      }), JSON.stringify({ chips: tel.chips, rows: tel.rows }));
+    check('TELEGRAPH: the per-target numbers still add up to the volley',
+      tel.rows.reduce((n, r) => n + r.total, 0) === tel.total,
+      JSON.stringify({ sum: tel.rows.reduce((n, r) => n + r.total, 0), total: tel.total }));
+  }
+
+  // ═══ A04 · A DEAD HERO LOOKS DEAD ═══
+  {
+    const dead = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      const c = window.K.state();
+      c.heroes.mira.hp = 0; c.heroes.mira.downed = true;
+      window.K.render();
+      const fig = document.querySelector('.k-hero[data-hero="mira"]');
+      const row = document.querySelector('.k-pt-hero[data-hero="mira"]');
+      // opacity and filter are transitioned, so a read taken in the same frame
+      // as the class returns the value it is animating FROM, not TO
+      await new Promise(r => setTimeout(r, 420));
+      return { field: fig.classList.contains('k-downed'),
+               hud: !!(row && row.className.indexOf('down') >= 0),
+               dimmed: parseFloat(getComputedStyle(fig).opacity) < 0.8,
+               grey: /grayscale/.test(getComputedStyle(fig).filter) };
+    });
+    check('FIELD: a downed hero is down on the BOARD, not only in the roster',
+      dead.field && dead.dimmed && dead.grey, JSON.stringify(dead));
+  }
+
+  // ═══ A05 · ENDING A TURN WITH AP IN HAND ASKS ONCE ═══
+  {
+    const et = await J(() => {
+      window.K.startCombat({ seed: 7 });
+      const btn = document.getElementById('k-endturn');
+      const turn0 = window.K.state().turn, ap = window.K.state().ap;
+      btn.onclick();                            // first press: should only arm
+      const armed = btn.classList.contains('k-et-armed');
+      const same = window.K.state().turn === turn0;
+      return { ap, armed, same, text: btn.textContent };
+    });
+    check('END TURN: with AP unspent the first press asks, and says how much is left',
+      et.ap > 0 && et.armed && et.same && /AP LEFT/.test(et.text), JSON.stringify(et));
+  }
+
   console.log('\n── the string track ──');
   {
     const t = await J(async () => {
@@ -916,6 +992,10 @@ const { boot } = require('./harness.cjs');
         preview: window.K.intentPreviewDmg(),
         dirge: !!document.querySelector('#k-intent .k-ichip-dirge'),
         atk: (document.querySelector('#k-intent .k-ichip-atk b') || {}).textContent,
+        // one chip per hero struck: the numbers must ADD UP to the volley, and
+        // no single chip is expected to equal it any more
+        perTargetSums: window.K.intentByTarget().reduce((n, r) => n + r.total, 0)
+          === window.K.intentPreviewDmg(),
         hasTargetFace: !!document.querySelector('#k-intent .k-ichip-atk img'),
         hasDirge: !!document.querySelector('#k-intent .k-ichip-dirge') };
     });
@@ -924,7 +1004,7 @@ const { boot } = require('./harness.cjs');
       && ui.pips === 12 && ui.noMove && ui.ap === '3' && ui.apPips === 3 && ui.apLit === 3
       && ui.gone && ui.breakClear && ui.kzClear
       && ui.clipped === 0 && ui.overHead && ui.oneLine && ui.noBanner
-      && ui.iconed && ui.noWords && ui.atk === String(ui.preview) && ui.hasTargetFace && ui.hasDirge,
+      && ui.iconed && ui.noWords && ui.perTargetSums && ui.hasTargetFace && ui.hasDirge,
       JSON.stringify(ui));
     const hover = await J(async () => {
       const card = document.querySelector('#k-hand .k-card');
@@ -967,7 +1047,11 @@ const { boot } = require('./harness.cjs');
       out.trailsBelowLeft = (held.top + held.height / 2) > pyy
         && (held.left + held.width / 2) < pxx;
       at(boss.left + boss.width / 2, boss.top + boss.height / 2, 'pointerup');
-      out.cleared = !document.getElementById('k-aim').querySelector('.k-aim-dash');
+      // "cleared" means no beam is drawn. An absent layer satisfies that as
+      // fully as an empty one, and assuming the element survives made this a
+      // crash rather than a failure.
+      const aim = document.getElementById('k-aim');
+      out.cleared = !aim || !aim.querySelector('.k-aim-dash');
       return out;
     });
     check('AIM: picking a card casts the v2.2 beam — crimson dotted arc, bracket reticle',
@@ -1977,6 +2061,43 @@ const { boot } = require('./harness.cjs');
       && ios.calloutShipped && ios.highlightShipped && ios.noDrag && ios.touch === 'none',
       JSON.stringify(ios));
   }
+
+  // ═══ Z · THE HAND DOES NOT PLAY ITSELF ═══
+  // Parked LAST on purpose: it dispatches real pointer events at the fan, and
+  // run early it left the page mid-gesture in a way that cost three later
+  // checks their drag. An input test that fakes a finger belongs where it
+  // cannot poison anything downstream of it.
+  {
+    const runaway = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      window.K.forceHand(['cleave', 'guardcut', 'lcascade', 'serrate', 'frostbind']);
+      const hand = document.getElementById('k-hand');
+      const first = hand.querySelector('.k-card');
+      const r = first.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const ap0 = window.K.state().ap;
+      // one finger, one fixed spot, four taps — an idle thumb
+      for (let i = 0; i < 4; i++) {
+        const el2 = document.elementFromPoint(x, y);
+        const card = el2 && el2.closest ? el2.closest('.k-card') : null;
+        if (card) {
+          card.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, bubbles: true, pointerId: 9 }));
+          card.dispatchEvent(new PointerEvent('pointerup', { clientX: x, clientY: y, bubbles: true, pointerId: 9 }));
+        }
+        await new Promise(res => setTimeout(res, 40));
+      }
+      return { spent: ap0 - window.K.state().ap, ap0 };
+    });
+    // Tapping one spot four times used to play two cards — two thirds of the
+    // turn — without the player ever choosing a card or a target, because the
+    // fan closes ranks and the next card slides under a finger that has not
+    // moved.
+    check('HAND: an idle finger on one spot cannot spend the turn by itself',
+      runaway.spent <= 1, JSON.stringify(runaway));
+    // this block drives real pointer events; hand the page back clean
+    await J(() => { window.K.startCombat({ seed: 7 }); });
+  }
+
 
   const summary = report();
   await H.browser.close();

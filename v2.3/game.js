@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 32;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 33;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -542,6 +542,33 @@ function intentPreviewDmg() {
   let chill = C.boss.chill, total = 0;
   for (const h of it.hits) { total += hitDamage(h, chill); chill = 0; }
   return total;
+}
+// WHO IS ABOUT TO BE HIT, AND FOR HOW MUCH EACH. Not a total.
+//
+// The chip used to read `⚔ 21 ×3 [Ash's face]`: the volley TOTAL, the hit
+// count, and the FIRST hit's target. Ashen Rain reads that way while actually
+// dealing 7 to each of the three; the Ruinous Hymn reads `24 ×3 [Ash]` while
+// Ash takes 16 and Elin takes 8 — and Elin's player is given no sign they are
+// targeted at all.
+//
+// Worse, the player's own cards use the opposite grammar for the same shapes:
+// Twin Fang's face says "4 damage ×2", meaning four PER HIT. Two meanings for
+// one visual convention, on one screen. A player trained on either reading
+// mis-sizes every Guard, every Mend and every step backwards.
+function intentByTarget() {
+  const it = currentIntent();
+  if (!it.hits || !it.hits.length) return [];
+  let chill = C.boss.chill;
+  const rows = [];
+  for (const h of it.hits) {
+    const d = hitDamage(h, chill); chill = 0;
+    const who = hitTargetId(h);
+    if (!who) continue;
+    const row = rows.find(r => r.who === who);
+    if (row) { row.total += d; row.hits.push(d); }
+    else rows.push({ who, total: d, hits: [d] });
+  }
+  return rows;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1765,9 +1792,22 @@ function fxPlayCard(cardId, ev) {
 // A combo that only shows up as a bigger number is a combo nobody notices they
 // built. It gets its own name, struck over the hero who closed it, and a
 // FINALE gets the whole board — this is the payoff the deck is named for.
+// TWO ANNOUNCEMENTS MUST NOT SHARE A BEAT. A FINALE that also generates the
+// Resonance printed "ALL THREE" and "RESONANCE" on the same centre point at
+// the same instant, and the result was unreadable mush at exactly the moment
+// the game most wants to be read.
+function callSpace() {
+  // Only ever waits on a call that is ON SCREEN RIGHT NOW. A timestamp-based
+  // spacer also delayed calls that had nothing to collide with — an unrelated
+  // announcement half a second earlier pushed the next one out, which is a
+  // worse bug than the overlap it was fixing.
+  return document.querySelector('.k-combo-call') ? 320 : 0;
+}
 function fxComboCall(type, node) {
   const S = stageBox(); const c = centreOf(node);
   if (!S) return;
+  const wait = callSpace();
+  if (wait > 0) { setTimeout(() => fxComboCall(type, node), wait); return; }
   const big = type === 'FINALE';
   const tag = document.createElement('div');
   tag.className = 'k-combo-call' + (big ? ' k-combo-call-big' : '');
@@ -1790,6 +1830,10 @@ function fxResonanceBorn() {
   const h = document.querySelector('.k-hero[data-hero="ash"]');
   const S = stageBox(); const c = centreOf(h);
   if (!S) return;
+  // A FINALE that also births the Resonance used to strike both words on the
+  // same point in the same frame. This one waits its turn.
+  const wait = callSpace();
+  if (wait > 0) { setTimeout(fxResonanceBorn, wait); return; }
   const tag = document.createElement('div');
   tag.className = 'k-combo-call k-combo-call-big';
   tag.textContent = 'Resonance';
@@ -2064,6 +2108,28 @@ function testMode() { return /[?&]test=1/.test(location.search); }
 // UI — the reference skin made live. One render root, small renderers per zone.
 // ═════════════════════════════════════════════════════════════════════════════
 let _sel = null;         // selected card id (tap-to-select → tap target commits)
+// THE HAND IGNORES THE FINGER FOR A MOMENT AFTER A PLAY. Tapping a card
+// selects it and tapping it again commits — but a played card leaves, the fan
+// closes ranks, and the NEXT card slides under a finger that has not moved.
+// Tapping one fixed spot four times played two cards and spent two thirds of
+// the turn without the player ever choosing a card or a target. On a phone
+// that is not an edge case, it is Tuesday.
+// THE CONFIRM BELONGS TO ONE TURN. Keyed to the turn number rather than a
+// dataset flag, because a flag on the button survived startCombat — so a fresh
+// fight opened with END TURN still reading "3 AP LEFT — END?" and the next
+// press only disarmed it instead of ending the turn.
+let _etArmedTurn = -1;
+function disarmEndTurn() {
+  const btn = el('k-endturn'); if (!btn) return;
+  clearTimeout(btn._t);
+  _etArmedTurn = -1;
+  btn.classList.remove('k-et-armed');
+  btn.textContent = 'END TURN';
+}
+let _handLockUntil = 0;
+const HAND_LOCK_MS = 340;
+function lockHand() { _handLockUntil = (typeof performance !== 'undefined' ? performance.now() : Date.now()) + HAND_LOCK_MS; }
+function handLocked() { return (typeof performance !== 'undefined' ? performance.now() : Date.now()) < _handLockUntil; }
 let _focus = null;       // focus-mode card id (press-and-hold)
 
 function el(id) { return document.getElementById(id); }
@@ -2149,13 +2215,17 @@ function renderIntent() {
   if (C.boss.cancelNext) {
     chips.push('<span class="k-ichip k-ichip-broken">' + icon('broken') + '<b>—</b></span>');
   } else {
-    const hits = it.hits || [];
-    if (hits.length) {
-      const eff = intentTargetId();
-      const face = eff ? '<img src="' + HEROES23[eff].art + '" alt="">' : '';
+    // ONE CHIP PER TARGET, and the number on it is what THAT hero takes.
+    // A hero struck twice reads "8 ×2" meaning eight apiece — the same grammar
+    // the player's own cards use.
+    for (const row of intentByTarget()) {
+      const per = row.hits[0];
+      const even = row.hits.every(d => d === per);
       chips.push('<span class="k-ichip k-ichip-atk">' + icon('atk')
-        + '<b>' + fmtN(intentPreviewDmg()) + '</b>'
-        + (hits.length > 1 ? '<i>×' + hits.length + '</i>' : '') + face + '</span>');
+        + '<b>' + fmtN(even ? per : row.total) + '</b>'
+        + (row.hits.length > 1 && even ? '<i>×' + row.hits.length + '</i>' : '')
+        + '<img src="' + HEROES23[row.who].art + '" alt="' + HEROES23[row.who].name + '">'
+        + '</span>');
     }
     // the vocabulary is ready for defend and charge turns even though the
     // Regent has none yet — an intent carrying `guard` or `charge` shows one
@@ -2223,7 +2293,11 @@ function renderHand() {
 // panel spells it out in full.
 const COND_LABEL = {
   FOLLOW_UP: 'After an Ally', FINALE: 'All Three',
-  BROKEN: 'When Broken', BROKEN_OR_LOW: 'When Broken',
+  BROKEN: 'When Broken',
+  // …and this one is NOT the same keyword. It armed against an un-Broken foe
+  // at 8/98 health while its own tag said WHEN BROKEN — a card lying about
+  // itself, which is the one thing this deck may never do.
+  BROKEN_OR_LOW: 'Broken or Low',
   BACK_ROW: 'From the Back',
 };
 const COND_RULE = {
@@ -2369,6 +2443,7 @@ function condText(card) {
 function effectText(effects) { return prose(effects, true).replace(/<[^>]*>/g, ''); }
 function stripTags(html) { return String(html).replace(/<br>/g, ' ').replace(/<[^>]*>/g, ''); }
 function renderApDial() {
+  if (C && _etArmedTurn !== C.turn) disarmEndTurn();
   el('k-ap-num').textContent = C.ap;
   el('k-ap').classList.toggle('k-ap-spent', C.ap === 0);   // a spent orb goes cold
   // …and the pips say what it is OUT OF, so nobody has to remember the budget
@@ -2391,6 +2466,10 @@ function renderPiles() {
 function renderHeroes() {
   document.querySelectorAll('.k-hero').forEach(h => {
     const id = h.dataset.hero;
+    // A DEAD HERO WAS STILL STANDING. `k-downed` only ever reached the 24px
+    // HUD row, so a third of the party could be dead while the board showed
+    // three figures breathing.
+    h.classList.toggle('k-downed', !!C.heroes[id].downed);
     for (const r of ROWS) h.classList.toggle('k-row-' + r, C.heroes[id].row === r);
     // the word only — the row plate also carries a permanent step cue saying
     // this figure can be picked up and put somewhere, and writing textContent
@@ -2662,7 +2741,13 @@ function attachCardInput(btn) {
       // A DRAG RETIRES ANY STANDING SELECTION. Otherwise the previously
       // tapped card stays raised with its gold ring on the target while the
       // dragged card paints a red one over the top of it.
-      if (_sel && _sel !== id) clearSelection();
+      // …and `id` is NOT in scope here — it is declared inside the paint loop
+      // and inside the pointerup handler, not on the listener. Build 31 wrote
+      // this guard against a free variable, so every drag that began while a
+      // card was selected threw "id is not defined" and abandoned the gesture:
+      // no beam, no aim, the card left sitting in the fan. It surfaced only
+      // once a test finally selected a card and then dragged a different one.
+      if (_sel && _sel !== btn.dataset.card) clearSelection(true);
       // Measure the card's rest position UNDER the aiming transform — the fan's
       // rotate/translate moves its visual centre, so measuring before the swap
       // would anchor the drag to the wrong point and the card would sit off the
@@ -2715,9 +2800,12 @@ function attachCardInput(btn) {
       btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy');
       const over = dropTargetAt(e.clientX, e.clientY, id);
       if (!dropCommit(id, over)) renderHand();
-      else { clearSelection(); }
+      else { lockHand(); clearSelection(); }
       return;
     }
+    // A tap that arrives while the hand is still settling from the last play
+    // is a tap aimed at a card that has since moved. It selects, never commits.
+    if (handLocked()) { _sel = id; renderHand(); showTargetRing(id); return; }
     if (_sel === id) { commitCard(id); }
     else { _sel = id; renderHand(); showTargetRing(id); }
   });
@@ -2732,12 +2820,18 @@ function attachCardInput(btn) {
 // a drag while a different card was still selected left BOTH on screen — two
 // cards looking active, and the Regent wearing two rings that overlapped. The
 // drag wins, because the drag is the thing the hand is doing right now.
-function clearSelection() {
+// `quiet` drops the selection WITHOUT rebuilding the fan. That matters
+// exactly once, and it cost three checks to find: retiring a standing
+// selection at the START of a drag re-rendered the hand, which replaced every
+// card element — including the one the finger was holding. The dragged card
+// was detached mid-gesture, so no beam was ever drawn and the card never
+// moved. A drag is the one moment the hand must not be rebuilt underneath.
+function clearSelection(quiet) {
   if (!_sel) return;
   _sel = null;
   const ring = el('k-target-ring');
   if (ring) ring.classList.add('k-hidden');
-  renderHand();
+  if (!quiet) renderHand();
 }
 function showTargetRing(cardId) {
   const c = cardDef(cardId);
@@ -2753,6 +2847,7 @@ function showTargetRing(cardId) {
   ring.onclick = () => commitCard(cardId);
 }
 function commitCard(cardId) {
+  lockHand();
   _sel = null;
   el('k-target-ring').classList.add('k-hidden');
   playCard(cardId);
@@ -2814,7 +2909,23 @@ function openPile(which) {
 }
 
 function bindChrome() {
-  el('k-endturn').onclick = () => { _sel = null; el('k-target-ring').classList.add('k-hidden'); endTurn(); };
+  // ENDING A TURN WITH AP IN HAND ASKS ONCE. The button sits beside the
+  // discard pile and the volley begins the instant it is pressed, so a single
+  // mis-tap throws away a whole turn AND rolls straight into a bar you are not
+  // braced for. The confirm only appears when there is something to lose.
+  el('k-endturn').onclick = () => {
+    const btn = el('k-endturn');
+    if (C && C.ap > 0 && C.phase === 'PLAYER_READY' && _etArmedTurn !== C.turn) {
+      _etArmedTurn = C.turn;
+      btn.classList.add('k-et-armed');
+      btn.textContent = C.ap + ' AP LEFT — END?';
+      clearTimeout(btn._t);
+      btn._t = setTimeout(disarmEndTurn, 2600);
+      return;
+    }
+    disarmEndTurn();
+    _sel = null; el('k-target-ring').classList.add('k-hidden'); endTurn();
+  };
   const pileBtn = (id, which) => {
     const n = el(id); if (!n) return;
     n.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); openPile(which); });
@@ -2928,6 +3039,7 @@ window.K = {
     if (ix >= 0) { C.boss.intentIx = ix; renderAll(); }
   },
   parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
+  intentByTarget,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText,
   _setPhase: setPhase,          // test-only: end a fight without playing it out
   // test-only: the words a note wears on arrival vs at the gradeable instant,
