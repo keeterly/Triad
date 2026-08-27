@@ -101,6 +101,114 @@ const { boot } = require('./harness.cjs');
     check('SAYS: the swap caption does not print through the pile’s own label',
       clear && !clear.overlap && clear.tag === 'SPAN', JSON.stringify(clear));
   }
+  // ═══ A07 · A BLOW LOOKS LIKE WHAT THREW IT ═══
+  console.log('\n── the verb of the blow ──');
+  {
+    // The kind is DERIVED from the same effects the card face reads, so the
+    // animation can never disagree with the card. A card that stops dealing
+    // damage stops swinging, with nobody remembering to change anything.
+    const kinds = await J(() => {
+      const K = window.K, out = {};
+      for (const id of ['cleave', 'crosssever', 'twinfang', 'backstab', 'serrate',
+                        'frostbind', 'lcascade', 'sgrace', 'mend', 'cstance', 'intercession']) {
+        const c = K.CARD_DEFS[id];
+        out[id] = K.actionKind(c, c.base) + '/' + K.castTone(c.base);
+      }
+      return out;
+    });
+    check('VERB: steel swings, the Oracle casts, and a mend is neither',
+      /^slash/.test(kinds.cleave) && /^slash/.test(kinds.twinfang) && /^slash/.test(kinds.backstab)
+      && /^cast/.test(kinds.frostbind) && /^cast/.test(kinds.lcascade) && /^cast/.test(kinds.sgrace)
+      && /^heal/.test(kinds.mend) && /^ward/.test(kinds.cstance),
+      JSON.stringify(kinds));
+    check('VERB: a cast is coloured by what it is made of — frost is cold, a ward is steel',
+      /ice$/.test(kinds.frostbind) && /ward$/.test(kinds.sgrace) && /life$/.test(kinds.mend),
+      JSON.stringify({ frost: kinds.frostbind, grace: kinds.sgrace, mend: kinds.mend }));
+
+    // A STEEL CARD CUTS. Two hits are two cuts at two angles — one thing
+    // flickering twice is what this replaces.
+    const cut = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      window.K.forceHand(['twinfang', 'mend', 'frostbind', 'serrate', 'qthrow']);
+      window.K.playCard('twinfang');
+      await new Promise(r => setTimeout(r, 40));
+      const sl = [...document.querySelectorAll('.k-slash')];
+      return { n: sl.length,
+               angles: sl.map(e => e.style.getPropertyValue('--ang')),
+               // an invalid timing function silently drops the whole shorthand,
+               // and the cut would simply never play
+               dur: sl[0] ? getComputedStyle(sl[0]).animationDuration : null,
+               name: sl[0] ? getComputedStyle(sl[0]).animationName : null,
+               ease: sl[0] ? getComputedStyle(sl[0]).animationTimingFunction : null };
+    });
+    check('SLASH: two hits are two cuts, at two different angles',
+      cut.n === 2 && cut.angles[0] !== cut.angles[1], JSON.stringify(cut.angles));
+    check('SLASH: the cut actually animates — a bad easing drops the whole shorthand',
+      cut.name === 'k-slash' && parseFloat(cut.dur) > 0 && /cubic-bezier/.test(cut.ease || ''),
+      JSON.stringify({ name: cut.name, dur: cut.dur, ease: cut.ease }));
+
+    // A SPELL IS ANNOUNCED. The ring is on screen BEFORE the damage lands.
+    const spell = await J(async () => {
+      // A cut lives 340ms and the check above fired one 40ms ago, so without
+      // clearing them this measures the previous card's steel, not this one's
+      // absence of it.
+      document.querySelectorAll('.k-slash').forEach(e => e.remove());
+      window.K.startCombat({ seed: 7 });
+      window.K.forceHand(['frostbind', 'mend', 'cleave', 'serrate', 'qthrow']);
+      const hpBefore = window.K.state().boss.hp;
+      window.K.playCard('frostbind');
+      await new Promise(r => setTimeout(r, 40));
+      const rune = document.querySelector('.k-rune');
+      const mote = document.querySelector('.k-mote');
+      const burst = document.querySelector('.k-burst');
+      // An element can be in the DOM with its rule DROPPED — a stray brace
+      // earlier in the sheet cost .k-rune its entire body for a whole build,
+      // and a !!querySelector check called that a pass. --rune is no witness
+      // either: it comes from .k-tone-*, a different rule that survives. Ask
+      // each effect for the geometry only its OWN rule can give it.
+      const box = (e) => { if (!e) return null; const cs = getComputedStyle(e);
+        return { pos: cs.position, w: e.offsetWidth, h: e.offsetHeight,
+                 anim: cs.animationName, z: cs.zIndex }; };
+      return { rune: box(rune), mote: box(mote), burst: box(burst),
+               tone: rune ? getComputedStyle(rune).getPropertyValue('--rune').trim() : null,
+               motes: document.querySelectorAll('.k-mote').length,
+               bursts: document.querySelectorAll('.k-burst').length,
+               noSlash: document.querySelectorAll('.k-slash').length,
+               casting: !!document.querySelector('.k-hero.k-casting'),
+               hit: window.K.state().boss.hp < hpBefore };
+    });
+    check('CAST: a spell blooms a ring on its caster, throws motes, and breaks over the target',
+      spell.rune && spell.motes >= 3 && spell.bursts >= 1 && spell.casting && spell.hit,
+      JSON.stringify({ motes: spell.motes, bursts: spell.bursts,
+                       casting: spell.casting, hit: spell.hit }));
+    // The check the last build did not have, and needed.
+    check('CAST: the ring, the motes and the burst are actually STYLED — not just present',
+      ['rune', 'mote', 'burst'].every(k => { const b = spell[k];
+        return b && b.pos === 'absolute' && b.w > 0 && b.h > 0
+               && b.anim && b.anim !== 'none'; }),
+      JSON.stringify({ rune: spell.rune, mote: spell.mote, burst: spell.burst }));
+    check('CAST: a spell does not swing a sword',
+      spell.noSlash === 0, spell.noSlash + ' slashes on a cast');
+
+    // HEALING WAS INVISIBLE — a number in the roster changed and nothing moved.
+    const mend = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      const c = window.K.state();
+      c.heroes.ash.hp = 20;
+      window.K.forceHand(['mend', 'cleave', 'serrate', 'qthrow', 'frostbind']);
+      window.K.playCard('mend');
+      await new Promise(r => setTimeout(r, 40));
+      const pop = document.querySelector('.k-pop-heal');
+      return { motes: document.querySelectorAll('.k-life').length,
+               bloom: !!document.querySelector('.k-hero.k-mended'),
+               pop: pop ? pop.textContent : null,
+               healed: window.K.state().heroes.ash.hp > 20 };
+    });
+    check('MEND: healing is seen — motes rise, the mended hero blooms, and the number is green',
+      mend.motes >= 4 && mend.bloom && /^\+\d+$/.test(mend.pop || '') && mend.healed,
+      JSON.stringify(mend));
+  }
+
   // ═══ A06 · THE BOND ARRIVES WITH THE PARTY ═══
   {
     const kz = await J(() => {

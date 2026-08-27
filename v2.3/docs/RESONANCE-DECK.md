@@ -1453,6 +1453,66 @@ checks their drag before I moved it.)*
 
 ---
 
+## Build 36 — the board says WHAT hit, not just that something did
+
+Every card landed with the same bundle: a shake, a flash, a ring. A sword, a
+spell and a bandage were indistinguishable at the moment they mattered, so a
+fight full of different verbs read as one repeated thump. The deck had four
+kinds of action and the screen had one.
+
+**One classifier, read off the effects.** `actionKind(card, effects)` sorts a
+card into `heal | cast | slash | ward` from what it *does*, not from a field
+somebody has to remember to set: any heal is a mend, the Oracle's work and
+anything that chills is a cast, damage is steel, guard is a ward. `castTone`
+then colours the cast by what it is made of — `ice | life | ward | light`. The
+result is stashed in `_act` for the duration of one `resolveEffects` and
+cleared in a `finally`, so no effect can read a stale verb.
+
+- **The slash** is a tapered wedge drawn across the thing it cut, sweeping in
+  along its own length and wiping out the same way. Two hits are two cuts at
+  two different angles (`SLASH_ANGLE` cycles), and Ash's are longer and slower
+  than the others'. Three drafts before this one were a 3–7px streak that
+  rendered perfectly, animated perfectly, sat at exactly the right coordinates
+  — and could not be seen, because a hairline scaled to 1.5px tall at the
+  moment of capture is a hairline. The fourth over-corrected to 372px of
+  near-solid tan across the whole Regent and read as a prop somebody had left
+  on the screen. It is 152px of mostly-transparent gradient with a hot core
+  now, over a blurred dark shoulder so it has something to be pale against.
+- **The cast** is announced. The ring blooms under the caster *before* anything
+  lands — the whole difference between a spell and a punch is that you can see
+  it coming — then motes travel to the target, and the spell breaks over it.
+- **The mend** used to be invisible: a number in the roster changed and nothing
+  on the board moved. The one card whose entire job is to undo damage had less
+  feedback than a card that missed. Green motes rise off the mended hero, the
+  figure blooms, and the number pops green.
+
+### Two things this build got wrong, and what they cost
+
+**The burst was bright only while it was tiny.** The first tuning scaled a 30px
+ring by 4.6×, with its bright keyframe at 22%. That put the crisp, saturated
+moment at roughly 36px — invisible against a 300px boss — and by the time the
+ring was large enough to notice it had already faded to nothing. It passed
+every check and looked, in a still, like a faint smudge. It starts at 62px and
+holds its brightness through the readable size now, with a hard white core that
+dies before the shockwave finishes opening.
+
+**A stray `}` cost `.k-rune` its entire body for a build, and the suite called
+it a pass.** A splice landed a spare brace after `@keyframes k-slash`; the
+parser recovered by discarding the next rule whole. The ring was in the DOM at
+the right coordinates with `--rune` correctly set — because `--rune` comes from
+`.k-tone-ice`, a *different* rule, which survived — and computed as
+`display: inline; position: static; width: auto; animation: none`. Nothing was
+drawn. The check read `!!document.querySelector('.k-rune')` and was green.
+
+The lesson is the one this project keeps re-learning in new costume: **presence
+is not evidence.** An element can be in the DOM with its rule dropped. The
+check now asks the ring, the motes and the burst for the geometry only their
+own rules can give them — `position`, a non-zero box, a named animation — and
+it was verified by putting the brace back and watching the old check stay green
+while the new one failed.
+
+---
+
 ## Errata — three records the code had outgrown
 
 A playthrough audit read these sections against the code and found them stale.

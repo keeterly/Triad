@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 35;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 36;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -822,9 +822,13 @@ function resolveEffectsInner(effects, ownerId, allyId) {
                          if (low) guardHero(low, fx.guardLowest); }
     if (fx.heal)       { const m = livingHeroes().sort((a, b) =>
         (C.heroes[b].max - C.heroes[b].hp) - (C.heroes[a].max - C.heroes[a].hp))[0];
-      if (m) C.heroes[m].hp = Math.min(C.heroes[m].max, C.heroes[m].hp + fx.heal); }
+      if (m) { const was = C.heroes[m].hp;
+        C.heroes[m].hp = Math.min(C.heroes[m].max, C.heroes[m].hp + fx.heal);
+        fxHeal(m, C.heroes[m].hp - was); } }
     if (fx.healAll)    livingHeroes().forEach(id => {
-      C.heroes[id].hp = Math.min(C.heroes[id].max, C.heroes[id].hp + fx.healAll); });
+      const was = C.heroes[id].hp;
+      C.heroes[id].hp = Math.min(C.heroes[id].max, C.heroes[id].hp + fx.healAll);
+      fxHeal(id, C.heroes[id].hp - was); });
     if (fx.bleed)      C.boss.bleed += fx.bleed;
     if (fx.chill)      C.boss.chill += fx.chill;
     if (fx.counterstance) C.counterstance = true;
@@ -897,7 +901,19 @@ function playCard(cardId, allyId) {
     }
   }
 
-  resolveEffects(ev.resolvedEffects, owner, allyId);
+  // THE ACTION IS DECLARED BEFORE IT RESOLVES, so a spell's ring is on screen
+  // before its damage lands — which is the whole difference between a spell
+  // and a punch. fxPlayCard runs after resolution and cannot do this.
+  _act = { kind: actionKind(ev.card, ev.resolvedEffects), tone: castTone(ev.resolvedEffects),
+           heavy: primaryHero(ev.card) === 'ash' };
+  _slashN = 0;
+  const actor = document.querySelector('.k-hero[data-hero="' + primaryHero(ev.card) + '"]');
+  if (actor) { actor.classList.remove('k-acts'); void actor.offsetWidth; actor.classList.add('k-acts'); }
+  if (_act.kind === 'cast' || _act.kind === 'heal') {
+    fxCast(primaryHero(ev.card), _act.tone,
+           ev.card.target === 'enemy' ? document.getElementById('k-boss-art') : null);
+  }
+  try { resolveEffects(ev.resolvedEffects, owner, allyId); } finally { _act = null; }
   C.turnState.actionsPlayed.push({ cardId, ownerId: owner, condActive: ev.condActive });
   C.telemetry.plays.push({ t: C.turn, cardId, cost: ev.currentCost, cond: ev.condActive });
   fxPlayCard(cardId, ev);
@@ -1903,10 +1919,27 @@ function popupOver(el, text, cls) {
   setTimeout(() => p.remove(), 1100);
 }
 // the blow itself — reels the Regent and shakes the frame, no number
+let _slashN = 0;
 function fxStrikeBoss(n, why) {
   const b = document.getElementById('k-boss-art');
   if (b) { b.classList.remove('k-recoil'); void b.offsetWidth; b.classList.add('k-recoil'); }
+  // A BLOW LOOKS LIKE WHAT THREW IT. Steel cuts; a spell breaks over the
+  // target; a bleed tick is neither and keeps the plain impact it always had.
+  if (_act && why === 'hit') {
+    if (_act.kind === 'slash') fxSlash(b, _slashN++, _act.heavy);
+    else if (_act.kind === 'cast') fxBurst(b, _act.tone);
+  }
   fxImpact(b, Math.min(2.4, n / 6), why === 'bleed' ? 'bleed' : 'hit', 'r');
+}
+// A spell does not cut — it breaks over the thing it hits.
+function fxBurst(node, tone) {
+  const S = stageBox(); if (!S || !node) return;
+  const c = centreOf(node); if (!c) return;
+  const b = document.createElement('i');
+  b.className = 'k-burst k-tone-' + (tone || 'light');
+  b.style.left = c.x + 'px'; b.style.top = (c.y + 46) + 'px';
+  S.st.appendChild(b);
+  setTimeout(() => b.remove(), 520);
 }
 // the number, once, for whatever the whole card added up to
 function popDamage(n, why) {
@@ -1915,6 +1948,119 @@ function popDamage(n, why) {
 }
 function fxDamageBoss(n, why) { fxStrikeBoss(n, why); popDamage(n, why); }
 function fxBreak() { const el = document.getElementById('k-break'); if (el) { el.classList.remove('k-flash'); void el.offsetWidth; el.classList.add('k-flash'); } }
+// ═════════════════════════════════════════════════════════════════════════════
+// WHAT KIND OF THING JUST HAPPENED.
+// ═════════════════════════════════════════════════════════════════════════════
+// Every card used to land with the same bundle — a shake, a flash, a ring —
+// whether it was a sword, a spell or a bandage. The board could tell you THAT
+// something hit and never WHAT hit, so a fight full of different verbs read as
+// one repeated thump.
+//
+// The kind is DERIVED from the same effects the card face reads, by the same
+// rule as `cardGlyphs`, so the animation can never disagree with the card. A
+// card that stops dealing damage stops swinging, without anyone remembering to
+// change the animation.
+const ORACLE = 'elin';                      // the caster; her verbs are spoken, not swung
+function actionKind(card, effects) {
+  const has = (k) => effects.some(fx => fx[k]);
+  const heroes = ownerHeroes(card);
+  const caster = heroes.indexOf(ORACLE) >= 0;
+  if (has('heal') || has('healAll')) return 'heal';
+  if (has('chill') || caster) return 'cast';
+  if (has('dmg')) return 'slash';
+  if (has('guardSelf') || has('guardAll') || has('guardAlly') || has('guardLowest')) return 'ward';
+  return 'slash';
+}
+// What a cast is made of decides its colour: frost is cold, mending is green,
+// a ward is steel, and light is gold.
+function castTone(effects) {
+  const has = (k) => effects.some(fx => fx[k]);
+  if (has('chill')) return 'ice';
+  if (has('heal') || has('healAll')) return 'life';
+  if (has('guardAll') || has('guardSelf') || has('guardAlly') || has('guardLowest')) return 'ward';
+  return 'light';
+}
+
+// The action currently resolving, so the blow that lands knows what threw it.
+// Same shape as `_dmgBatch`, and set and cleared in the same place.
+let _act = null;
+
+// ── the slash ────────────────────────────────────────────────────────────────
+// A cut, drawn across the thing that was cut: a bright edge that sweeps in and
+// wipes out, angled differently per hit so two strikes read as two strikes and
+// not as one thing flickering twice.
+const SLASH_ANGLE = [-27, 21, -13, 34];
+function fxSlash(node, i, heavy) {
+  const S = stageBox(); if (!S || !node) return;
+  const c = centreOf(node); if (!c) return;
+  const el2 = document.createElement('i');
+  el2.className = 'k-slash' + (heavy ? ' k-slash-heavy' : '');
+  el2.style.setProperty('--ang', (SLASH_ANGLE[i % SLASH_ANGLE.length]) + 'deg');
+  // …biased DOWN the art box, because the figure inside it stands on the
+  // bottom edge and the box's own centre is mostly empty sky above her head
+  el2.style.left = (c.x + (i % 2 ? 16 : -14)) + 'px';
+  el2.style.top = (c.y + 46 + (i % 2 ? -22 : 16)) + 'px';
+  S.st.appendChild(el2);
+  setTimeout(() => el2.remove(), heavy ? 460 : 340);
+}
+
+// ── the cast ─────────────────────────────────────────────────────────────────
+// A spell is ANNOUNCED. The ring blooms under the caster before anything lands,
+// which is the whole difference between a spell and a punch — you can see it
+// coming, and so, in the fiction, could the thing it is aimed at.
+function fxCast(heroId, tone, toNode) {
+  const S = stageBox(); if (!S) return;
+  const h = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
+  const c = centreOf(h); if (!c) return;
+  const ring = document.createElement('i');
+  ring.className = 'k-rune k-tone-' + tone;
+  ring.style.left = c.x + 'px';
+  ring.style.top = (c.y + 34) + 'px';
+  S.st.appendChild(ring);
+  setTimeout(() => ring.remove(), 620);
+  if (h) { h.classList.remove('k-casting'); void h.offsetWidth; h.classList.add('k-casting');
+           setTimeout(() => h.classList.remove('k-casting'), 620); }
+  // and the spell travels, so the target is visibly the target
+  const t = toNode ? centreOf(toNode) : null;
+  if (!t) return;
+  for (let i = 0; i < 5; i++) {
+    const m = document.createElement('i');
+    m.className = 'k-mote k-tone-' + tone;
+    m.style.left = c.x + 'px';
+    m.style.top = (c.y + 10) + 'px';
+    m.style.setProperty('--dx', (t.x - c.x + (i - 2) * 12) + 'px');
+    m.style.setProperty('--dy', (t.y - c.y + (i % 2 ? -14 : 10)) + 'px');
+    m.style.animationDelay = (i * 42) + 'ms';
+    S.st.appendChild(m);
+    setTimeout(() => m.remove(), 700 + i * 42);
+  }
+}
+
+// ── the mend ─────────────────────────────────────────────────────────────────
+// Healing used to be invisible: a number in the roster changed and nothing on
+// the board moved. The one card in the deck whose whole job is to undo damage
+// had less feedback than a card that missed.
+function fxHeal(heroId, n) {
+  const S = stageBox(); if (!S || !n) return;
+  const h = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
+  if (!h) return;
+  const c = centreOf(h);
+  h.classList.remove('k-mended'); void h.offsetWidth; h.classList.add('k-mended');
+  setTimeout(() => h.classList.remove('k-mended'), 720);
+  if (c) {
+    for (let i = 0; i < 6; i++) {
+      const m = document.createElement('i');
+      m.className = 'k-life';
+      m.style.left = (c.x + (i - 2.5) * 13) + 'px';
+      m.style.top = (c.y + 26) + 'px';
+      m.style.animationDelay = (i * 55) + 'ms';
+      S.st.appendChild(m);
+      setTimeout(() => m.remove(), 900 + i * 55);
+    }
+  }
+  popupOver(h, '+' + fmtN(n), 'k-pop-heal k-pop-md');
+}
+
 function fxPlayCard(cardId, ev) {
   const heroId = primaryHero(ev.card);
   const h = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
@@ -3171,6 +3317,7 @@ window.K = {
     if (ix >= 0) { C.boss.intentIx = ix; renderAll(); }
   },
   parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
+  actionKind, castTone,
   intentByTarget,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText,
   BOND_CARDS, BOND_IDS, baseRoster, rosterIds, rosterValid, SLOTS_PER_HERO,
