@@ -608,3 +608,20 @@ The sim's bot spends the ladder the moment it fills, so these are a **floor**.
 A player who banks it for the Regent gets more out of the carry than this
 measures — and that banking decision is itself new, and is the kind of question
 a road is supposed to ask.
+
+### At the full count
+
+```
+balance.sim   3/3 gates, 220 runs/tier   0.0% / 34.1% / 100%   (unchanged —
+              a single fight still opens at zero, which is correct)
+run.sim       3/3 gates, 120 roads/tier  0.0% / 39.2% / 90.8%
+              all-outs per run           0.00 / 0.78 / 2.09
+```
+
+**The middle tier moved 28.3% → 39.2%**, which is the largest single jump any
+change has produced in this project and is worth being plain about: the carry
+does not merely make the all-out *appear*, it makes mid-road fights winnable
+that were not. It is still inside the 8–45% gate, but it is now near the top of
+it rather than the middle. If a future change pushes that band out, the carry
+fraction is the first dial to turn — `KIZUNA_CARRY`, one constant, and
+`SIM_KZCARRY` measures any value of it against zero.
