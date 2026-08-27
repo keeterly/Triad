@@ -13,7 +13,7 @@ module.exports.BOT = `
   const O = opts || {};
   K.startCombat({ seed, foe: O.foe ? K.FOES[O.foe] : undefined, partyHp: O.partyHp || undefined,
                   upgrades: O.upgrades || undefined, allout: O.allout || undefined,
-                  kizuna: O.kizuna || 0 });
+                  kizuna: O.kizuna || 0, roster: O.roster || undefined });
   let rnd = seed * 2654435761 % 2147483647;
   const rand = () => { rnd = (rnd * 48271) % 2147483647; return rnd / 2147483647; };
   const S = () => K.state();
@@ -25,6 +25,9 @@ module.exports.BOT = `
   // fired — the number that says whether the ladder is part of a fight at all
   const KZ = () => S().kizuna;
   const AO = () => S().allOuts;
+  // and what the pairs built in this fight — without this the run simulator
+  // could see the social layer exist and never see it accrue
+  const PB = () => ({ ...S().pairBond });
 
   // What this action is about to do to each hero, given how reliably THIS
   // player parries. A real player knows their own hands.
@@ -90,8 +93,8 @@ module.exports.BOT = `
 
   for (let turn = 0; turn < maxTurns; turn++) {
     let st = S();
-    if (st.phase === 'VICTORY') return { win: true, turns: st.turn, hp: HP(), kizuna: KZ(), allouts: AO() };
-    if (st.phase === 'DEFEAT') return { win: false, turns: st.turn, died: true, hp: HP(), kizuna: KZ(), allouts: AO() };
+    if (st.phase === 'VICTORY') return { win: true, turns: st.turn, hp: HP(), kizuna: KZ(), allouts: AO(), pairBond: PB() };
+    if (st.phase === 'DEFEAT') return { win: false, turns: st.turn, died: true, hp: HP(), kizuna: KZ(), allouts: AO(), pairBond: PB() };
     const it = K.currentIntent();
 
     // Positional counterplay: the Scything Advance spares the Back row.
@@ -106,7 +109,7 @@ module.exports.BOT = `
     // that never uses its best turn, and reports the fight as harder than it is.
     if (S().kizuna >= 100) {
       await K.allOut();
-      if (S().phase === 'VICTORY') return { win: true, turns: S().turn, hp: HP(), kizuna: KZ(), allouts: AO() };
+      if (S().phase === 'VICTORY') return { win: true, turns: S().turn, hp: HP(), kizuna: KZ(), allouts: AO(), pairBond: PB() };
     }
 
     // TRIAGE FIRST — buy exactly enough survival, then swing with the rest.
@@ -128,7 +131,7 @@ module.exports.BOT = `
       if (!best || bestV < 1.2) break;
       if (!K.playCard(best)) break;
       if (S().pendingDiscard) K.pickDiscard(S().hand[0]);
-      if (S().phase === 'VICTORY') return { win: true, turns: S().turn, hp: HP(), kizuna: KZ(), allouts: AO() };
+      if (S().phase === 'VICTORY') return { win: true, turns: S().turn, hp: HP(), kizuna: KZ(), allouts: AO(), pairBond: PB() };
     }
 
     // THEN OFFENSE — value per AP, nudged toward alternating heroes so the
@@ -163,7 +166,7 @@ module.exports.BOT = `
         for (const id of h) { const d = dmgOf(id); if (d < wv) { wv = d; worst = id; } }
         K.pickDiscard(worst);
       }
-      if (S().phase === 'VICTORY') return { win: true, turns: S().turn, hp: HP(), kizuna: KZ(), allouts: AO() };
+      if (S().phase === 'VICTORY') return { win: true, turns: S().turn, hp: HP(), kizuna: KZ(), allouts: AO(), pairBond: PB() };
     }
 
     // Free cycle: dump whatever is least useful right now.
@@ -188,9 +191,9 @@ module.exports.BOT = `
       }
     }
     const r = await K.endTurn({ grades });
-    if (r && r.outcome === 'victory') return { win: true, turns: S().turn, hp: HP(), kizuna: KZ(), allouts: AO() };
-    if (r && r.outcome === 'defeat') return { win: false, turns: S().turn, died: true, hp: HP(), kizuna: KZ(), allouts: AO() };
+    if (r && r.outcome === 'victory') return { win: true, turns: S().turn, hp: HP(), kizuna: KZ(), allouts: AO(), pairBond: PB() };
+    if (r && r.outcome === 'defeat') return { win: false, turns: S().turn, died: true, hp: HP(), kizuna: KZ(), allouts: AO(), pairBond: PB() };
   }
-  return { win: false, turns: maxTurns, timeout: true, hp: HP(), kizuna: KZ(), allouts: AO() };
+  return { win: false, turns: maxTurns, timeout: true, hp: HP(), kizuna: KZ(), allouts: AO(), pairBond: PB() };
 })
 `;

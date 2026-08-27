@@ -35,6 +35,14 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
   const KZ_CARRY = process.env.SIM_KZCARRY != null
     ? Number(process.env.SIM_KZCARRY)
     : await J(() => window.R.KIZUNA_CARRY);
+  const BOND = await J(() => ({ steps: window.R.BOND_STEPS, pairs: window.R.PAIRS,
+    scenes: Object.keys(window.R.BONDS).reduce((a, k) => {
+      a[k] = window.R.BONDS[k].map(sc => sc.picks.map(p => p.card)); return a;
+    }, {}) }));
+  const BASE_ROSTER = await J(() => window.K.baseRoster());
+  // SIM_NOBONDS measures the road without the social layer, so the layer can be
+  // compared against its own absence rather than against a remembered number.
+  const NOBONDS = process.env.SIM_NOBONDS != null;
 
   // One road, walked. The bot has no map sense, so it takes the choice a
   // player would take by default — it prefers a campfire when it is hurt and
@@ -46,6 +54,10 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
       return window.R.map().map(n => ({ id: n.id, col: n.col, kind: n.kind, foe: n.foe, to: n.to }));
     }, seed);
     let at = null, hp = { ...MAXHP }, embers = 0, fights = 0, tier = 1, kizuna = 0;
+    let roster = JSON.parse(JSON.stringify(BASE_ROSTER));
+    const bonds = { 'ash|elin': 0, 'ash|mira': 0, 'elin|mira': 0 };
+    const levels = { 'ash|elin': 0, 'ash|mira': 0, 'elin|mira': 0 };
+    let traded = 0;
     let nodes = [];     // what this run has kindled
     const trace = [];   // what the party had left walking away from each stop
     for (let col = 0; col < 6; col++) {
@@ -64,6 +76,43 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
         // player who forgot the campfire existed. Greedy cheapest-first — a
         // deliberately unclever buyer, so the figure is a FLOOR on what the
         // tree is worth rather than a ceiling.
+        // THE FIRE HEARS THEM FIRST, exactly as it does in the game: a pair
+        // that crossed a level gets their scene, and the fork is a card that
+        // has to be traded into one of the two heroes' five. The bot takes the
+        // first fork and gives up the weakest card either owner holds — a
+        // deliberately unclever trader, so what this measures is a FLOOR on
+        // what the social layer is worth.
+        if (!NOBONDS) {
+          let guardB = 0;
+          while (guardB++ < 6) {
+            const pair = BOND.pairs.find(k => {
+              const lv = BOND.steps.reduce((n, need) => (bonds[k] >= need ? n + 1 : n), 0);
+              return lv > levels[k] && (BOND.scenes[k] || [])[levels[k]];
+            });
+            if (!pair) break;
+            const card = BOND.scenes[pair][levels[pair]][0];
+            levels[pair]++;
+            const drop = await page.evaluate(([rst, owners, gained]) => {
+              const worth = (id) => {
+                const c = window.K.CARD_DEFS[id];
+                return c.base.reduce((n, fx) => n + (fx.dmg || 0) + (fx.heal || 0) + (fx.healAll || 0)
+                  + (fx.guardSelf || 0) + (fx.guardAll || 0) + (fx.guardAlly || 0) + (fx.guardLowest || 0)
+                  + (fx.brk || 0) * 3 + (fx.bleed || 0) * 2, 0) / Math.max(1, c.cost);
+              };
+              let worst = null, wv = Infinity, wh = null;
+              for (const h of owners) for (const id of rst[h]) {
+                if (id === gained) continue;
+                const v = worth(id);
+                if (v < wv) { wv = v; worst = id; wh = h; }
+              }
+              return { hero: wh, id: worst };
+            }, [roster, pair.split('|'), card]);
+            if (!drop.id) break;
+            const list = roster[drop.hero];
+            list[list.indexOf(drop.id)] = card;
+            traded++;
+          }
+        }
         let buying = true;
         while (buying) {
           buying = false;
@@ -78,18 +127,19 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
       fights++;
       const r = await page.evaluate(
         ([src, sd, pp, mt, o]) => eval(src)(sd, pp, mt, o),
-        [BOT, seed * 31 + col * 7 + 1, p, MAX_TURNS, { foe: want.foe, partyHp: hp, kizuna,
+        [BOT, seed * 31 + col * 7 + 1, p, MAX_TURNS, { foe: want.foe, partyHp: hp, kizuna, roster,
           upgrades: nodes.map(id => (TREE.find(n => n.id === id) || {}).card).filter(Boolean),
           allout: (TREE.find(n => nodes.indexOf(n.id) >= 0 && n.allout) || {}).allout || null }]);
       hp = r.hp;
       kizuna = Math.round((r.kizuna || 0) * KZ_CARRY);
+      for (const k of BOND.pairs) bonds[k] += ((r.pairBond || {})[k] || 0);
       trace.push({ col, kind: want.kind, foe: want.foe, left: total(hp), turns: r.turns,
                    allouts: r.allouts || 0 });
-      if (!r.win) return { win: false, diedAt: col, kind: want.kind, foe: want.foe, hp, embers, fights, trace, nodes };
+      if (!r.win) return { win: false, diedAt: col, kind: want.kind, foe: want.foe, hp, embers, fights, trace, nodes, traded, roster };
       embers += ({ husk: 2, cultist: 2, wraith: 3, revenant: 5, mourner: 8 })[want.foe] || 2;
-      if (want.kind === 'boss') return { win: true, diedAt: null, hp, embers, fights, trace, nodes };
+      if (want.kind === 'boss') return { win: true, diedAt: null, hp, embers, fights, trace, nodes, traded, roster };
     }
-    return { win: false, diedAt: 5, kind: 'ran-out', hp, embers, fights, trace, nodes };
+    return { win: false, diedAt: 5, kind: 'ran-out', hp, embers, fights, trace, nodes, traded, roster };
   }
 
   console.log(`\n  KIZUNA v2.3 — the road, walked ${RUNS}× per tier\n`);
@@ -105,13 +155,17 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
     const col0 = res.filter(r => r.diedAt === 0).length / res.length * 100;
     const purse = res.map(r => r.embers).sort((a, b) => a - b);
     const held = rate >= band.glo && rate <= band.ghi;
-    rows.push({ name: band.name, rate, col0, held,
+    const shapeBad = res.filter(r => !r.roster
+      || ['ash', 'elin', 'mira'].some(h => (r.roster[h] || []).length !== 5)
+      || new Set(['ash', 'elin', 'mira'].reduce((a, h) => a.concat(r.roster[h]), [])).size !== 15).length;
+    rows.push({ name: band.name, rate, col0, held, shapeBad,
                 purse: purse[Math.floor(purse.length / 2)] });
     console.log(`  ${held ? '✓' : '✗'} ${band.name.padEnd(15)} runs completed ${rate.toFixed(1)}%  `
       + `[gate ${band.glo}–${band.ghi}%]  died at stop ` + JSON.stringify(deaths)
       + `  median purse ${purse[Math.floor(purse.length / 2)]}`
       + `  median kindled ${(() => { const k = res.map(r => (r.nodes || []).length).sort((a2, b2) => a2 - b2); return k[Math.floor(k.length / 2)]; })()}`
-      + `  all-outs/run ${(res.reduce((n, r) => n + (r.trace || []).reduce((m, t) => m + (t.allouts || 0), 0), 0) / res.length).toFixed(2)}`);
+      + `  all-outs/run ${(res.reduce((n, r) => n + (r.trace || []).reduce((m, t) => m + (t.allouts || 0), 0), 0) / res.length).toFixed(2)}`
+      + `  bond cards ${(res.reduce((n, r) => n + (r.traded || 0), 0) / res.length).toFixed(2)}`);
     // WHERE THE HEALTH GOES. A completion rate says a road is too hard; the
     // attrition trace says which stop made it too hard, which is the only one
     // of the two you can act on.
@@ -128,13 +182,22 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
       }
     }
   }
+  // FIVE SLOTS A HERO, at the end of every road the sim walked — the rule the
+  // whole social layer turns on, checked against the simulator's own trades
+  // rather than only against the UI's.
+  const rosters = [];
+  for (const band of BANDS) void band;
+  const allRosters = [];
   const trailhead = rows.find(r => r.name === '~HALF PARRIES');
   const fodderOk = trailhead.col0 <= 8;
   console.log(`  ${fodderOk ? '✓' : '✗'} TRAILHEAD      a competent party does not wipe on the first stop `
     + `(${trailhead.col0.toFixed(1)}% at ~half parries · gate ≤8%)`);
   const monotone = rows[0].rate <= rows[1].rate && rows[1].rate <= rows[2].rate;
   console.log(`  ${monotone ? '✓' : '✗'} MONOTONE       every step up in parry skill is a longer road survived`);
-  const allOk = rows.every(r => r.held) && fodderOk && monotone;
+  const shapeOk = rows.every(r => r.shapeBad === 0);
+  console.log(`  ${shapeOk ? '✓' : '✗'} FIVE SLOTS     every road ends on 5/5/5 and fifteen unique cards `
+    + `(${rows.reduce((n, r) => n + r.shapeBad, 0)} broken of ${RUNS * 3})`);
+  const allOk = rows.every(r => r.held) && fodderOk && monotone && shapeOk;
   console.log(`\n=== ${rows.filter(r => r.held).length}/${rows.length} run gates held · ${RUNS} roads each ===`);
   await H.browser.close();
   process.exit(allOk ? 0 : 1);
