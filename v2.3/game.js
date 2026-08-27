@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 39;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 40;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -2833,9 +2833,18 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
   const tone = c.target === 'enemy' ? 'k-cart-warm' : 'k-cart-cool';
   return '<span class="k-cgem' + (ev.condActive && ev.currentCost !== c.cost ? ' on' : '') + '">' + gem + '</span>'
     + '<img class="k-owner" src="' + ownerArt + '" alt="">'
+    // THE PLATE CARRIES BOTH NOW. Build 29 took the portrait out because it was
+    // being asked to identify the card and could not — five cards of one hero
+    // were five copies of one picture, and against dark art the zone was a
+    // black smear. The GLYPH identifies the card; the portrait, bled behind a
+    // scrim, is atmosphere and says only whose hand this is.
     + '<span class="k-cart ' + tone + (glyphs.length > 1 ? ' k-cart-two' : '') + '">'
+    + '<img class="k-cbg" src="' + ownerArt + '" alt="" aria-hidden="true">'
     + glyphs.map(g => icon(g, 'k-cverb')).join('') + '</span>'
-    + '<span class="k-cname">' + c.name + '</span>'
+    // A LONG NAME GETS ITS OWN SIZE rather than an ellipsis. "Light Through
+    // Steel" needs 106px of a 94px line at the deck's title size, and a card
+    // whose name is cut off is a card the player cannot look up.
+    + '<span class="k-cname' + (c.name.length > 14 ? ' k-cname-long' : '') + '">' + c.name + '</span>'
     // THE MARK IS ON THE FACE. A sigil that changed how a card played and did
     // not appear on it would be a rule the player had to remember per card.
     + (ev.sigil && SIGILS[ev.sigil]

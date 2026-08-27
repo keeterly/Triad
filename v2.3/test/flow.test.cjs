@@ -1639,6 +1639,46 @@ const { boot } = require('./harness.cjs');
       JSON.stringify(anat));
     // The combo must not read as one more grey sentence: it is a named,
     // banded block, and the base line is the biggest type on the face.
+    // THE ART IS BEHIND THE WORDS, AND THE WORDS ARE LIGHT ON DARK. The card
+    // is a dark plate with a portrait bled through it now, which buys the look
+    // and costs a risk the parchment card did not have: if the art layer ever
+    // rises over the text, or the scrim under the rules stops being dark, the
+    // face is still "there" and completely unreadable — and nothing else in
+    // the suite would notice.
+    const legible = await J(() => {
+      window.K.startCombat({ seed: 7 });
+      window.K.forceHand(['crosssever', 'mend', 'serrate', 'cleave', 'frostbind']);
+      const c = document.querySelector('.k-card[data-card="crosssever"]');
+      const lum = (col) => {
+        const m = (col || '').match(/[\d.]+/g); if (!m) return null;
+        const [r, g, b] = m.map(Number);
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      };
+      const zi = (el) => { const v = getComputedStyle(el).zIndex; return v === 'auto' ? 0 : +v; };
+      const art = c.querySelector('.k-cart'), bg = c.querySelector('.k-cbg');
+      const text = c.querySelector('.k-ctext'), name = c.querySelector('.k-cname');
+      return {
+        hasArt: !!bg, artZ: zi(art), textZ: zi(text), nameZ: zi(name),
+        scrim: getComputedStyle(art, '::after').backgroundImage.indexOf('gradient') >= 0,
+        plate: lum(getComputedStyle(c).backgroundColor) ,
+        plateImg: getComputedStyle(c).backgroundImage.indexOf('gradient') >= 0,
+        nameLum: lum(getComputedStyle(name).color),
+        proseLum: lum(getComputedStyle(c.querySelector('.k-cprose')).color),
+        numLum: lum(getComputedStyle(c.querySelector('.k-cprose b')).color),
+        payLum: lum(getComputedStyle(c.querySelector('.k-combo-pay')).color),
+      };
+    });
+    check('CARD: the portrait is bled through the plate and stays UNDER the words',
+      legible.hasArt && legible.scrim && legible.plateImg
+      && legible.artZ < legible.textZ && legible.artZ < legible.nameZ,
+      JSON.stringify({ art: legible.artZ, text: legible.textZ, name: legible.nameZ,
+                       scrim: legible.scrim }));
+    check('CARD: light type on a dark plate — every readout well clear of its ground',
+      legible.nameLum > 0.7 && legible.proseLum > 0.55 && legible.numLum > 0.85
+      && legible.payLum > 0.55,
+      JSON.stringify({ name: legible.nameLum, prose: legible.proseLum,
+                       num: legible.numLum, pay: legible.payLum }));
+
     check('CARD: the combo is its own banded block — named, iconed, and never a footnote',
       anat.tag === 'After an Ally' && anat.pay === 'costs 1 AP.' && anat.condIcon
       && anat.proseSize >= 9 && anat.proseSize > anat.paySize

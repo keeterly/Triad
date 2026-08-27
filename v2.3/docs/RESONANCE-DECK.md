@@ -1733,6 +1733,81 @@ clipping the combo strip — the part of the face a mark most often changes.
 
 ---
 
+## Build 40 — the card stops being a proxy
+
+The note: the cards look cheap and cheesy, and v2.2's were closer. Both halves
+are right, and it is worth being precise about why.
+
+The card was a **parchment rectangle** — beige gradients, dark text, a flat
+plate holding one or two vector glyphs. Every choice in it was defensible on
+its own and the sum read as a print-and-play proxy laid on top of a painted
+game rather than as part of one. It fought the board: the board is a wet grey
+street at dusk and the hand was five cream tiles.
+
+v2.2 got one thing right that v2.3 had thrown away: **the art was the card.**
+A bust-framed portrait bled through the whole face behind a vertical scrim
+that took the lower two thirds to near-black, so the picture carried the mood
+and the words sat on the dark end of it. What v2.2 did NOT solve is why Build
+29 removed the portrait in the first place: it was being asked to identify the
+card and could not. Five cards of one hero were five copies of one picture,
+and against dark character art the plate was a black smear.
+
+**Both, then.** The glyph identifies the card; the portrait, bled behind a
+scrim, is atmosphere and says only whose hand this is. Neither is doing the
+other's job, which is the whole reason they can now coexist.
+
+- Dark plate, cream type, gold hairlines. An inner rule inside the edge —
+  which is most of what makes a printed card look printed.
+- The portrait at 205% of the card's height, anchored at −24%, because these
+  are full-body figures with the head at roughly 18–28% of a tall canvas: at
+  −7% the plate filled with torso and staff.
+- The title sits on the art where the scrim has gone dark, with a gold rule
+  under it — the composition every painted card uses, and the reason the top
+  half can be picture at no cost to the words.
+- The combo strip loses its grey band for a gold hairline. On a dark card the
+  rule alone is enough to make it a separate block.
+- END TURN went dark too. Once the cards did, a parchment slab was the
+  brightest thing on the screen — the wrong hierarchy for the button you press
+  when you have nothing left to do.
+
+### Four things that had to be fixed to make it work
+
+**Pale figures and dark ones have to sit at the same level.** Elin is white
+and gold; Ash and Mira are near-black. At a brightness that flattered the dark
+two, her cards blew out and the glyph — the thing that says *which* card this
+is — vanished into her cloak. The plate is pulled down far enough that every
+portrait is scenery.
+
+**`text-overflow: ellipsis` does nothing inside a flex container.** The title
+was a centred `nowrap` child of a flex box, so the longest name in the deck
+spilled out *both* sides and read as "SHIELD THE BLADI". As a block the
+ellipsis works — and then the ellipsis turned out not to be needed, because…
+
+**…an obsolete rule was enlarging the very names it was written to rescue.**
+`.k-card-res .k-cname { font-size: 8.5px }` shrank long resonance titles from
+the old 9.5px face. The face is 8.2px now, so it was making them *bigger* —
+and outranking the new length rule while doing it, because a two-class
+selector beats a one-class one. Retired.
+
+**The mark's twelve pixels moved.** Build 39 took the sigil band's height out
+of the art zone, because `.k-ctext` is the `flex-grow` child with
+`overflow: hidden` and a new row in the flow gets paid for by clipping the
+combo strip. Once the art went full-bleed it had no height of its own to give,
+so the band silently went back to costing text — six cards clipped. It comes
+off the title's top margin now, which is the same bargain: less picture above
+the name.
+
+### And the guard this design needs that the old one did not
+
+A parchment card with black text could not become unreadable by accident. A
+dark card with a portrait bled through it can: if the art layer ever rises over
+the text, or the scrim under the rules stops being dark, the face is still
+*there* and completely illegible — and nothing else in the suite would notice.
+Two checks now assert the stacking order and the measured luminance of every
+readout against its ground.
+
+---
+
 ## Errata — three records the code had outgrown
 
 A playthrough audit read these sections against the code and found them stale.

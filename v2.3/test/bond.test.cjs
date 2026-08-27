@@ -414,6 +414,12 @@ const { boot } = require('./harness.cjs');
           const r = e.getBoundingClientRect();
           if (r.width < 1 && r.height < 1) return;
           if (getComputedStyle(e).visibility === 'hidden') return;
+          // DECORATIVE BLEED IS NOT A SPILL. The card's portrait is deliberately
+          // larger than the plate it sits in — that is what a bust crop IS —
+          // and its parent clips it. getBoundingClientRect reports the
+          // unclipped box, so it looked like an overflow. Content still has to
+          // fit; only aria-hidden decoration is allowed past the edge.
+          if (e.getAttribute('aria-hidden') === 'true') return;
           if (r.left < st.left - 0.5 || r.right > st.right + 0.5
               || r.top < st.top - 0.5 || r.bottom > st.bottom + 0.5) {
             out.push((e.className || e.tagName) + ' @' + Math.round(r.top) + ',' + Math.round(r.left));
