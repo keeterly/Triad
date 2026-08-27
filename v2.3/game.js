@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 38;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 39;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -485,7 +485,7 @@ function combatSummary(p) {
 }
 
 function freshTurnState() {
-  return { actionsPlayed: [], moved: 0, cycled: false, stitchedPairs: [] };
+  return { actionsPlayed: [], moved: 0, cycled: false, stitchedPairs: [], echo: false };
 }
 
 function startCombat(opts) {
@@ -539,6 +539,9 @@ function startCombat(opts) {
     deck: [], hand: [], discard: [], exhausted: [],
     ap: AP_PER_TURN, apMax: AP_PER_TURN,
     turnState: freshTurnState(),
+    // WHAT THE BOND CHANGED about the cards this party carries. Copied in, so
+    // a fight can never write a mark back onto the run.
+    sigils: Object.assign({}, opts.sigils || {}),
     bond: { stitches: 0, generated: false },   // the authored Ash+Elin pair
     counterstance: false,       // Ash: next successful parry this round deals +2 Break
     intercession: null,         // Elin will take this ally's parry window next enemy action
@@ -694,6 +697,51 @@ function intentByTarget() {
 // ═════════════════════════════════════════════════════════════════════════════
 // THE EVALUATOR — deterministic, and the ONLY copy of this logic.
 // ═════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
+// SIGILS — what a bond changes about a card you already carry
+// ═════════════════════════════════════════════════════════════════════════════
+// The deck's combo layer asks cards to be played in an order: FOLLOW_UP wants
+// a different hero to have just acted, FINALE wants all three. In a five-card
+// hand drawn from fifteen that is a demanding ask, and the honest complaint
+// about it is that cards are hard to CONNECT — you hold the right two and the
+// turn never lines them up.
+//
+// A sigil is a mark on ONE card in the roster that changes how it plays rather
+// than what it does — Balatro's glass and gold, Slay the Spire's retain — and
+// three of the five exist specifically to make the combo layer reachable. They
+// are earned by the bond, so the mechanical answer to "these do not connect"
+// is the same as the fictional one: they have not been together long enough.
+//
+// One per card, no stacking. The deck does not grow and neither does this.
+const SIGILS = {
+  // HELD SAYS WHAT IT COSTS. "Stays in hand" reads as free, and it is not:
+  // the next turn draws back up to five, so a card you keep is a card you do
+  // not draw. Measured — a bot placing it without choosing lost 1.7 points of
+  // completion with it. A player who picks the card they wanted to keep gains;
+  // one who does not, pays. The face has to make that legible.
+  held:    { name: 'Held',    line: 'Stays in hand when the turn ends \u2014 so you draw one fewer.' },
+  echo:    { name: 'Echo',    line: 'The next card counts as after an ally.' },
+  opening: { name: 'Opening', line: 'Its combo counts if this is the turn\u2019s first card.' },
+  kindled: { name: 'Kindled', line: 'Playing this adds 6 to the bond.' },
+  bright:  { name: 'Bright',  line: 'Half again as strong \u2014 and it leaves the fight.' },
+};
+const SIGIL_KZ = 6;
+const sigilOf = (cardId) => (C && C.sigils ? C.sigils[cardId] : null) || null;
+// BRIGHT scales the numbers a card actually deals, and nothing else. It walks
+// the atoms rather than a whitelist of keys, so a card that grows a new number
+// later is covered without anyone remembering to come back here — but `true`
+// flags (intercede, drawDiscard) are not quantities and must not be touched.
+const BRIGHT_MULT = 1.5;
+function brighten(effects) {
+  return effects.map(fx => {
+    const out = {};
+    for (const k of Object.keys(fx)) {
+      out[k] = (typeof fx[k] === 'number') ? Math.ceil(fx[k] * BRIGHT_MULT) : fx[k];
+    }
+    return out;
+  });
+}
+
 function evalCondition(cond, ownerId) {
   const ts = C.turnState, last = ts.actionsPlayed[ts.actionsPlayed.length - 1];
   switch (cond) {
@@ -720,14 +768,30 @@ function evalCondition(cond, ownerId) {
 function evaluateCard(cardId) {
   const card = cardDef(cardId);
   if (!card) return null;
-  const condActive = card.cond ? evalCondition(card.cond.type, card.owner) : false;
+  const sigil = sigilOf(cardId);
+  let condActive = card.cond ? evalCondition(card.cond.type, card.owner) : false;
+  // A SIGIL CAN OPEN A CONDITION THE BOARD DID NOT. Both routes are read here
+  // rather than inside evalCondition, which stays a pure function of the
+  // condition type — a sigil is a fact about one card, not about the rule.
+  if (card.cond && !condActive) {
+    const ts = C.turnState;
+    // OPENING: the turn's first card has nobody to follow, which is exactly
+    // the hand a FOLLOW_UP card is stranded in.
+    if (sigil === 'opening' && !ts.actionsPlayed.length) condActive = true;
+    // ECHO, set by the card played BEFORE this one: it stands in for the ally.
+    else if (ts.echo && card.cond.type === 'FOLLOW_UP') condActive = true;
+  }
   // A conditional card gets a cost reduction OR increased output — never
-  // both. Costs never fall below 1 (deck §3).
+  // both. Costs never fall below 1 (deck §3), which is why no sigil touches
+  // cost: almost every card in the deck costs 1, so a discount sigil would be
+  // dead on arrival against that floor.
   const currentCost = Math.max(1,
     (condActive && card.cond.reward === 'cost') ? card.cond.costTo : card.cost);
-  const resolvedEffects = (condActive && card.cond.reward === 'output')
+  let resolvedEffects = (condActive && card.cond.reward === 'output')
     ? [...card.base, ...card.cond.bonus] : card.base.slice();
-  return { cardId, card, condActive, currentCost, resolvedEffects };
+  if (sigil === 'bright') resolvedEffects = brighten(resolvedEffects);
+  return { cardId, card, condActive, currentCost, resolvedEffects, sigil,
+           exhaust: !!card.exhaust || sigil === 'bright' };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -874,9 +938,9 @@ function playCard(cardId, allyId) {
   C.ap -= ev.currentCost;
   // the ghost leaves from where the card actually sat, so it must be measured
   // BEFORE the hand re-renders
-  if (ev.card.exhaust) fxExhaust(cardId); else flyFromHand(cardId, 'discard');
+  if (ev.exhaust) fxExhaust(cardId); else flyFromHand(cardId, 'discard');
   C.hand.splice(C.hand.indexOf(cardId), 1);
-  (ev.card.exhaust ? C.exhausted : C.discard).push(cardId);   // Resonance Exhausts
+  (ev.exhaust ? C.exhausted : C.discard).push(cardId);   // Resonance and Bright Exhaust
 
   // BOND STITCH (deck §8): playing right after a DIFFERENT hero is a
   // Follow-Up, and stitches that pair — max 1 per pair per phase. Two
@@ -922,7 +986,12 @@ function playCard(cardId, allyId) {
   }
   try { resolveEffects(ev.resolvedEffects, owner, allyId); } finally { _act = null; }
   C.turnState.actionsPlayed.push({ cardId, ownerId: owner, condActive: ev.condActive });
-  C.telemetry.plays.push({ t: C.turn, cardId, cost: ev.currentCost, cond: ev.condActive });
+  // KINDLED pays the bond, and ECHO is set for the card that comes NEXT — so
+  // it is written after this card's own condition has already been read.
+  if (ev.sigil === 'kindled') kizunaGain(SIGIL_KZ);
+  C.turnState.echo = (ev.sigil === 'echo');
+  C.telemetry.plays.push({ t: C.turn, cardId, cost: ev.currentCost, cond: ev.condActive,
+                           sigil: ev.sigil || null });
   fxPlayCard(cardId, ev);
   if (C.phase !== 'VICTORY') setPhase('PLAYER_READY');
   renderAll();
@@ -2366,14 +2435,18 @@ const sleep = (ms) => new Promise(r => setTimeout(r, (typeof window !== 'undefin
 // as the hand duplicating itself rather than emptying.
 async function fxSweepHand() {
   const target = document.getElementById('k-disc-btn');
-  const n = C.hand.length;
+  // HELD STAYS. The sweep used to shift from the front until the hand was
+  // empty; a kept card has to be stepped OVER rather than counted out, or the
+  // loop walks off the end of a hand that never empties.
+  const going = C.hand.filter(id => sigilOf(id) !== 'held');
+  const n = going.length;
   for (let i = 0; i < n; i++) {
     const S = stageBox();
-    const id = C.hand[0];
+    const id = going[i];
     const node = document.querySelector('.k-card[data-card="' + id + '"]');
     const from = S && node ? boxOf(node, S) : null;
     const html = node ? node.innerHTML : '';
-    C.hand.shift();
+    C.hand.splice(C.hand.indexOf(id), 1);
     C.discard.push(id);
     renderHand();                       // the ranks close in the same frame
     renderPiles();
@@ -2663,7 +2736,8 @@ function renderHand() {
     // labelled — dim while it sleeps, gold when it is live.
     const gem = ev.condActive && ev.currentCost !== c.cost
       ? ev.currentCost + '<s>' + c.cost + '</s>' : String(ev.currentCost);
-    return '<button class="k-card' + (ev.condActive && !dead ? ' k-card-active' : '') + (afford ? '' : ' k-card-poor')
+    return '<button class="k-card' + (ev.sigil ? ' k-card-sig k-sig-' + ev.sigil : '')
+      + (ev.condActive && !dead ? ' k-card-active' : '') + (afford ? '' : ' k-card-poor')
       + (dead ? ' k-card-dead' : '') + (isPairCard(c) ? ' k-card-res' : '')
       + (_sel === id ? ' k-card-sel' : '') + '" data-card="' + id + '"'
       + ' style="--rot:' + rot + 'deg;--dy:' + dy + 'px;--tilt:' + tilt
@@ -2733,7 +2807,7 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
       + '<span class="k-combo-tag">' + icon(COND_ICON[c.cond.type] || 'follow')
       + (COND_LABEL[c.cond.type] || c.cond.type)
       + (ev.condActive ? '<i class="k-combo-state">ON</i>' : '') + '</span>'
-      + '<span class="k-combo-pay">' + condReward(c) + '</span></span>'
+      + '<span class="k-combo-pay">' + condReward(c, ev.sigil) + '</span></span>'
     : c.exhaust
       ? '<span class="k-combo k-combo-exh on"><span class="k-combo-tag">'
         + icon('finale') + 'Exhaust<i class="k-combo-state">ON</i></span>'
@@ -2762,10 +2836,18 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
     + '<span class="k-cart ' + tone + (glyphs.length > 1 ? ' k-cart-two' : '') + '">'
     + glyphs.map(g => icon(g, 'k-cverb')).join('') + '</span>'
     + '<span class="k-cname">' + c.name + '</span>'
+    // THE MARK IS ON THE FACE. A sigil that changed how a card played and did
+    // not appear on it would be a rule the player had to remember per card.
+    + (ev.sigil && SIGILS[ev.sigil]
+        ? '<span class="k-csig k-csig-' + ev.sigil + '">' + SIGILS[ev.sigil].name + '</span>' : '')
     // the prose sits in its own inner span: .k-cprose centres its content with
     // flex, and a flex container turns each inline child into an item — which
     // silently ate the spaces and printed "9damage."
-    + '<span class="k-ctext"><span class="k-cprose"><span>' + prose(c.base) + '</span></span>'
+    // THE FACE MUST NOT LIE. This printed prose(c.base) — the card's numbers
+    // BEFORE its mark — so a Bright card advertised 7 damage and dealt 11.
+    // Same rule Build 23 set for the combo layer, broken again by a feature
+    // that changes numbers somewhere other than the combo.
+    + '<span class="k-ctext"><span class="k-cprose"><span>' + prose(faceBase(c, ev.sigil)) + '</span></span>'
     + cond + '</span>';
 }
 // A CARD SHOWN OUTSIDE A FIGHT. The run layer — a bond scene's fork, the swap
@@ -2777,9 +2859,15 @@ function staticCardHTML(id, opts) {
   const o = opts || {};
   const c = o.def || cardDef(id);
   if (!c) return '';
-  const ev = { card: c, condActive: false, currentCost: c.cost, resolvedEffects: c.base };
+  // A PREVIEW SHOWS THE MARK IT WILL ARRIVE WITH. `sigil` is passed in rather
+  // than read from combat state, because the run layer is the only place that
+  // knows what a card is about to be given.
+  const sigil = o.sigil || null;
+  const ev = { card: c, condActive: false, currentCost: c.cost, sigil,
+               resolvedEffects: sigil === 'bright' ? brighten(c.base) : c.base };
   const art = HEROES23[primaryHero(c)].art;
-  return '<div class="k-card k-card-static' + (o.cls ? ' ' + o.cls : '') + '">'
+  return '<div class="k-card k-card-static' + (sigil ? ' k-card-sig k-sig-' + sigil : '')
+    + (o.cls ? ' ' + o.cls : '') + '">'
     + cardFaceHTML(c, ev, String(c.cost), art) + '</div>';
 }
 // Plain sentences, numbers bolded — the way a card is read at a glance.
@@ -2831,13 +2919,21 @@ function prose(effects, plain) {
   return out.join(plain ? ' ' : '<br>');
 }
 // What the condition PAYS, as a clause that finishes the label's sentence.
-function condReward(card) {
+// What the top block of the face should print: the card's numbers as the mark
+// leaves them, which is what will actually land.
+function faceBase(card, sigil) {
+  return sigil === 'bright' ? brighten(card.base) : card.base;
+}
+function condReward(card, sigil) {
   if (!card.cond) return '';
   if (card.cond.reward === 'cost') return 'costs <b>' + card.cond.costTo + '</b> AP.';
-  const hits = card.cond.bonus.filter(f => f.dmg);
+  // the combo's own numbers are brightened too — they are numbers this card
+  // deals, and evaluateCard brightens the whole resolved list
+  const bonus = sigil === 'bright' ? brighten(card.cond.bonus) : card.cond.bonus;
+  const hits = bonus.filter(f => f.dmg);
   const parts = [];
   if (hits.length) parts.push(icon('atk') + '<b>+' + fmtN(hits.reduce((n, f) => n + f.dmg, 0)) + '</b> damage.');
-  const rest = prose(card.cond.bonus.filter(f => !f.dmg));
+  const rest = prose(bonus.filter(f => !f.dmg));
   if (rest) parts.push(rest);
   return parts.join('<br>');
 }
@@ -3447,7 +3543,7 @@ window.K = {
   actionKind, castTone,
   intentByTarget,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, staticCardHTML,
-  cam, bgParallax,
+  cam, bgParallax, SIGILS, sigilOf, brighten,
   BOND_CARDS, BOND_IDS, baseRoster, rosterIds, rosterValid, SLOTS_PER_HERO,
   ownerHeroes, primaryHero, isPairCard, pairOf,
   _setPhase: setPhase,          // test-only: end a fight without playing it out

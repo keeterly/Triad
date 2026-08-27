@@ -211,6 +211,49 @@ const { boot } = require('./harness.cjs');
     check('TRADE: five slots a hero, fifteen cards — the deck never grows',
       done.sizes.every(n => n === 5) && done.total === 15, JSON.stringify(done.sizes));
 
+    // A BOND LEVEL NOW PAYS TWICE — a card, and a mark on one they already
+    // carry — so the trade hands on to the marking screen before the fire.
+    const marking = await J(() => {
+      const up = (id) => !document.getElementById(id).classList.contains('k-hidden');
+      const cards = [...document.querySelectorAll('#k-mark-cols .k-mk')];
+      // The mark is decided by the pair and the level — ash|mira level 1 —
+      // so the screen's title is checked against the map, not a literal.
+      const want = window.R.sigilFor('ash|mira', 1);
+      return { onMark: up('k-mark'), onCamp: up('k-camp'),
+               want, wantName: window.K.SIGILS[want].name.toUpperCase(),
+               pending: window.R.state().pendingSigil,
+               title: (document.getElementById('k-mark-title') || {}).textContent,
+               line: ((document.getElementById('k-mark-line') || {}).textContent || '').length,
+               offered: cards.length,
+               faces: cards.filter(c => c.querySelector('.k-card-static')).length,
+               wearing: cards.filter(c => c.querySelector('.k-csig')).length };
+    });
+    check('MARK: the level also teaches a mark, and every card it may land on is DRAWN wearing it',
+      marking.onMark && !marking.onCamp && marking.pending
+      && marking.pending === marking.want && marking.title === marking.wantName
+      && marking.line > 10
+      && marking.offered === 10 && marking.faces === 10 && marking.wearing === 10,
+      JSON.stringify(marking));
+
+    const placed = await J(() => {
+      const btn = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
+      const id = btn.dataset.id;
+      btn.click();
+      const r = window.R.state();
+      const up = (x) => !document.getElementById(x).classList.contains('k-hidden');
+      const all = window.K.rosterIds(r.roster);
+      return { id, sigil: r.sigils[id], pending: r.pendingSigil,
+               onCamp: up('k-camp'), onMark: up('k-mark'),
+               marks: Object.keys(r.sigils).length,
+               owned: all.indexOf(id) >= 0,
+               sizes: [r.roster.ash.length, r.roster.elin.length, r.roster.mira.length],
+               uniq: new Set(all).size };
+    });
+    check('MARK: placing it marks exactly one card the party carries, and spends the grant',
+      placed.sigil && placed.pending == null && placed.marks === 1 && placed.owned
+      && placed.sizes.every(n => n === 5) && placed.uniq === 15,
+      JSON.stringify(placed));
+
     const back = await J(() => ({
       camp: !document.getElementById('k-camp').classList.contains('k-hidden'),
       swap: !document.getElementById('k-swap').classList.contains('k-hidden'),
@@ -225,23 +268,35 @@ const { boot } = require('./harness.cjs');
     await atCamp({ bonds: { 'ash|mira': 40, 'ash|elin': 0, 'elin|mira': 0 }, embers: 6, tier: 2 });
     await sleep(420);
     const chain = await J(() => {
-      const out = { titles: [] };
+      const out = { titles: [], marks: [] };
+      // Each level now runs scene → fork → swap → MARK, and only then hands
+      // back to the next scene or the fire.
+      const step = (ix) => {
+        window.R.sceneSkip(); window.R.takeBond(ix);
+        document.querySelector('#k-swap-cols .k-swapcard').click();
+        document.getElementById('k-swap-go').click();
+        out.marks.push(!document.getElementById('k-mark').classList.contains('k-hidden'));
+        const btn = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
+        if (btn) btn.click();
+      };
       out.titles.push(document.getElementById('k-scene-title').textContent);
-      window.R.sceneSkip(); window.R.takeBond(0);
-      document.querySelector('#k-swap-cols .k-swapcard').click();
-      document.getElementById('k-swap-go').click();
+      step(0);
       out.second = !document.getElementById('k-scene').classList.contains('k-hidden');
       out.titles.push(document.getElementById('k-scene-title').textContent);
-      window.R.sceneSkip(); window.R.takeBond(1);
-      document.querySelector('#k-swap-cols .k-swapcard').click();
-      document.getElementById('k-swap-go').click();
+      step(1);
       const r = window.R.state();
+      out.sigils = Object.keys(r.sigils).length;
+      out.pending = r.pendingSigil;
       out.camp = !document.getElementById('k-camp').classList.contains('k-hidden');
       out.level = r.levels['ash|mira'];
       out.sizes = ['ash', 'elin', 'mira'].map(h => r.roster[h].length);
       out.uniq = new Set(window.K.rosterIds(r.roster)).size;
       return out;
     });
+    check('MARK: each level marks one card, and the grant never survives its own screen',
+      chain.marks.length === 2 && chain.marks.every(Boolean)
+      && chain.sigils === 2 && chain.pending == null,
+      JSON.stringify({ marks: chain.marks, sigils: chain.sigils, pending: chain.pending }));
     check('TRADE: two levels crossed on one road is two scenes at the same fire, and still 5/5/5',
       chain.second && chain.titles[0] !== chain.titles[1] && chain.level === 2
       && chain.camp && chain.sizes.every(n => n === 5) && chain.uniq === 15,

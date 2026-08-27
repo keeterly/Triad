@@ -271,6 +271,205 @@ const { boot } = require('./harness.cjs');
       JSON.stringify(breath));
   }
 
+  // ═══ A04d · SIGILS — what a bond changes about a card you carry ═══
+  {
+    // The complaint these answer: cards are hard to CONNECT. FOLLOW_UP wants a
+    // different hero to have just acted, and a five-card hand rarely offers
+    // the order. Three of the five marks exist to loosen exactly that.
+    //
+    // Cross Sever is Ash's FOLLOW_UP card, and Cleave is also Ash's — so
+    // playing Cleave then Cross Sever is precisely the case the deck refuses.
+    const echo = await J(() => {
+      const run = (sigils) => {
+        window.K.startCombat({ seed: 7, sigils });
+        window.K.forceHand(['cleave', 'crosssever', 'serrate', 'qthrow', 'mend']);
+        const before = window.K.evaluateCard('crosssever').condActive;
+        window.K.playCard('cleave');
+        return { before, after: window.K.evaluateCard('crosssever').condActive,
+                 cost: window.K.evaluateCard('crosssever').currentCost };
+      };
+      return { bare: run({}), marked: run({ cleave: 'echo' }) };
+    });
+    check('ECHO: the same hero acting twice does not connect — until one of them is marked',
+      echo.bare.before === false && echo.bare.after === false
+      && echo.marked.after === true && echo.marked.cost < 2,
+      JSON.stringify(echo));
+
+    // OPENING answers the other half of the same problem: the turn's FIRST
+    // card has nobody to follow, which is exactly where a FOLLOW_UP card is
+    // stranded when it is the only thing you can afford.
+    const opening = await J(() => {
+      const first = (sigils) => {
+        window.K.startCombat({ seed: 7, sigils });
+        window.K.forceHand(['crosssever', 'cleave', 'serrate', 'qthrow', 'mend']);
+        const ev = window.K.evaluateCard('crosssever');
+        return { on: ev.condActive, cost: ev.currentCost };
+      };
+      const bare = first({}), marked = first({ crosssever: 'opening' });
+      // and it stops applying once the turn is under way
+      // Cleave is ALSO Ash's, so once the turn is under way Cross Sever has
+      // neither the mark's reason (it is no longer first) nor the ordinary
+      // one (no ally has acted). That is the case that catches OPENING
+      // quietly becoming "always on".
+      window.K.startCombat({ seed: 7, sigils: { crosssever: 'opening' } });
+      window.K.forceHand(['cleave', 'crosssever', 'serrate', 'qthrow', 'mend']);
+      window.K.playCard('cleave');
+      const later = window.K.evaluateCard('crosssever').condActive;
+      // and an ALLY acting still opens it the ordinary way
+      window.K.startCombat({ seed: 7 });
+      window.K.forceHand(['serrate', 'crosssever', 'cleave', 'qthrow', 'mend']);
+      window.K.playCard('serrate');
+      const byAlly = window.K.evaluateCard('crosssever').condActive;
+      return { bare, marked, later, byAlly };
+    });
+    check('OPENING: the turn’s first card has nobody to follow — the mark says that counts',
+      opening.bare.on === false && opening.marked.on === true
+      && opening.marked.cost < opening.bare.cost,
+      JSON.stringify(opening));
+    // After an ally HAS acted the ally is the reason, not the mark — this is
+    // the check that would catch OPENING quietly turning into "always on".
+    check('OPENING: it is the OPENING, not a permanent pass — and the ally route still works',
+      opening.later === false && opening.byAlly === true,
+      JSON.stringify({ afterSameHero: opening.later, afterAlly: opening.byAlly }));
+
+    const held = await J(async () => {
+      window.K.startCombat({ seed: 7, sigils: { mend: 'held' } });
+      window.K.forceHand(['mend', 'cleave', 'serrate', 'qthrow', 'frostbind']);
+      const before = window.K.state().hand.slice();
+      await window.K.endTurn({ skipParry: true });
+      const after = window.K.state().hand.slice();
+      return { before, after, discard: window.K.state().discard.slice() };
+    });
+    check('HELD: the marked card stays in hand when the turn ends, and nothing else does',
+      held.after.indexOf('mend') >= 0
+      && held.before.filter(id => id !== 'mend').every(id => held.after.indexOf(id) < 0
+                                                            || held.discard.indexOf(id) >= 0),
+      JSON.stringify({ before: held.before, after: held.after }));
+    // THE SWEEP USED TO SHIFT FROM THE FRONT until the hand was empty. A kept
+    // card has to be stepped over rather than counted out, or the loop walks
+    // off the end of a hand that never empties — and every other card would
+    // have survived with it.
+    // The turn ends and the next one DRAWS BACK UP, so the hand is five again
+    // — the question is which four went, not how many are left.
+    check('HELD: keeping one card does not keep the rest — the sweep still empties around it',
+      held.before.filter(id => id !== 'mend').every(id => held.discard.indexOf(id) >= 0)
+      && held.discard.indexOf('mend') < 0,
+      JSON.stringify({ before: held.before, discard: held.discard }));
+
+    const kindled = await J(() => {
+      const run = (sigils) => {
+        window.K.startCombat({ seed: 7, sigils });
+        window.K.forceHand(['cleave', 'serrate', 'qthrow', 'mend', 'frostbind']);
+        window.K.playCard('cleave');
+        return window.K.state().kizuna;
+      };
+      return { bare: run({}), marked: run({ cleave: 'kindled' }) };
+    });
+    check('KINDLED: the marked card pays the bond on top of whatever it does',
+      Math.abs((kindled.marked - kindled.bare) - 6) < 1e-9, JSON.stringify(kindled));
+
+    const bright = await J(() => {
+      const ev = (sigils) => {
+        window.K.startCombat({ seed: 7, sigils });
+        window.K.forceHand(['cleave', 'serrate', 'qthrow', 'mend', 'frostbind']);
+        return window.K.evaluateCard('cleave');
+      };
+      const bare = ev({}), lit = ev({ cleave: 'bright' });
+      const dmg = (e) => e.resolvedEffects.reduce((n, fx) => n + (fx.dmg || 0), 0);
+      window.K.startCombat({ seed: 7, sigils: { cleave: 'bright' } });
+      window.K.forceHand(['cleave', 'serrate', 'qthrow', 'mend', 'frostbind']);
+      window.K.playCard('cleave');
+      const st = window.K.state();
+      return { bare: dmg(bare), lit: dmg(lit), exhaustFlag: lit.exhaust,
+               exhausted: st.exhausted.indexOf('cleave') >= 0,
+               inDiscard: st.discard.indexOf('cleave') >= 0 };
+    });
+    check('BRIGHT: half again as strong, and it leaves the fight rather than the discard',
+      bright.lit === Math.ceil(bright.bare * 1.5) && bright.exhaustFlag
+      && bright.exhausted && !bright.inDiscard, JSON.stringify(bright));
+    // A true flag is not a quantity. Intercession carries `intercede: true`,
+    // and multiplying that by 1.5 would turn the atom into 2 and quietly
+    // change what the effect resolver is being handed.
+    const flags = await J(() => {
+      window.K.startCombat({ seed: 7, sigils: { intercession: 'bright' } });
+      const ev = window.K.evaluateCard('intercession');
+      return ev.resolvedEffects.map(fx => JSON.stringify(fx));
+    });
+    check('BRIGHT: it scales the numbers and leaves the flags alone',
+      flags.join('|').indexOf('"intercede":true') >= 0
+      && flags.join('|').indexOf('"intercede":2') < 0, flags.join(' '));
+
+    const face = await J(() => {
+      window.K.startCombat({ seed: 7, sigils: { cleave: 'bright' } });
+      window.K.forceHand(['cleave', 'serrate', 'qthrow', 'mend', 'frostbind']);
+      const btn = document.querySelector('.k-card[data-card="cleave"]');
+      const chip = btn && btn.querySelector('.k-csig');
+      const plain = document.querySelector('.k-card[data-card="serrate"] .k-csig');
+      // What the face SHOULD say, computed from the evaluator rather than
+      // written down here — a literal would have to be re-guessed every time
+      // the card or the multiplier moves.
+      const lands = window.K.evaluateCard('cleave').resolvedEffects
+        .reduce((n, fx) => n + (fx.dmg || 0), 0);
+      return { chip: chip ? chip.textContent : null,
+               tinted: !!btn && btn.classList.contains('k-card-sig'),
+               vis: chip ? getComputedStyle(chip).display : null,
+               w: chip ? Math.round(chip.getBoundingClientRect().width) : 0,
+               onPlain: !!plain, lands,
+               says: (btn.querySelector('.k-cprose') || {}).textContent };
+    });
+    // A mark that changes how a card plays and does not appear on it is a rule
+    // the player has to remember per card.
+    // A CARD IS 150px AND .k-ctext IS THE FLEX-GROW CHILD WITH overflow:hidden,
+    // so a new row in the flow gets paid for by clipping the combo strip — the
+    // part of the face a mark most often changes. The band's height has to come
+    // out of the art zone, and this is the check that says so.
+    const room = await J(() => {
+      // EVERY CARD IN THE DECK, marked and unmarked, five at a time. The
+      // question is not "does anything clip" — it is whether the BAND clips
+      // anything, so the same cards are measured both ways and compared.
+      const ids = Object.keys(window.K.CARD_DEFS);
+      const measure = (sigils) => {
+        const out = {};
+        window.K.startCombat({ seed: 7, sigils });
+        for (let i = 0; i + 5 <= ids.length; i += 5) {
+          window.K.forceHand(ids.slice(i, i + 5));
+          document.querySelectorAll('.k-card').forEach(c => {
+            const t = c.querySelector('.k-ctext');
+            const cr = c.getBoundingClientRect(), tr = t.getBoundingClientRect();
+            out[c.dataset.card] = { over: t.scrollHeight - t.clientHeight,
+                                    spills: tr.bottom > cr.bottom + 0.5,
+                                    marked: c.classList.contains('k-card-sig'),
+                                    combo: !!c.querySelector('.k-combo') };
+          });
+        }
+        return out;
+      };
+      const bare = measure({});
+      const all = {}; ids.forEach(id => { all[id] = 'echo'; });
+      const lit = measure(all);
+      return { bare, lit, ids: Object.keys(bare) };
+    });
+    // The band's height comes out of the art zone, so it must cost the text
+    // block nothing at all — not "a little less than before".
+    const worse = room.ids.filter(id => room.lit[id].over > room.bare[id].over
+                                        || room.lit[id].spills);
+    check('MARK: the band costs art, not text — it clips nothing the unmarked card did not',
+      worse.length === 0 && room.ids.every(id => room.lit[id].marked)
+      && room.ids.every(id => room.lit[id].combo === room.bare[id].combo),
+      JSON.stringify({ worse, n: room.ids.length }));
+    // And while this was being written it turned out two cards were ALREADY
+    // clipping their own payoff strip, marked or not, and had been for many
+    // builds. That is a separate bug and it is fixed; this keeps it fixed.
+    const clipped = room.ids.filter(id => room.bare[id].over > 1);
+    check('CARD: no card in the deck clips its own text — all twenty-eight fit their face',
+      clipped.length === 0, JSON.stringify({ clipped, n: room.ids.length }));
+
+    check('MARK: a marked card wears its mark, an unmarked one does not, and the number is the new number',
+      face.chip === 'Bright' && face.tinted && face.vis !== 'none' && face.w > 20
+      && !face.onPlain && new RegExp('\\b' + face.lands + '\\b').test(face.says || ''),
+      JSON.stringify(face));
+  }
+
   // ═══ A05a · THE FAR PLANE MOVES TOO, JUST LESS ═══
   {
     const par = await J(async () => {

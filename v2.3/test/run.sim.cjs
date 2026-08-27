@@ -12,11 +12,17 @@
 const { boot } = require('./harness.cjs');
 const { BOT } = require('./bot.cjs');
 
-const BANDS = [
+const ALL_BANDS = [
   { name: 'NO PARRY',      p: 0.00, glo: 0,  ghi: 6 },
   { name: '~HALF PARRIES', p: 0.50, glo: 8,  ghi: 45 },
   { name: 'EXCELLENT',     p: 0.92, glo: 65, ghi: 100 },
 ];
+// SIM_BAND runs one tier at a time, so a comparison that only concerns the
+// half-parry band can be run at the sample size a shipped NUMBER needs rather
+// than the one the three-tier gate can afford.
+const BANDS = process.env.SIM_BAND
+  ? ALL_BANDS.filter(b => b.name.toLowerCase().indexOf(process.env.SIM_BAND.toLowerCase()) >= 0)
+  : ALL_BANDS;
 const RUNS = Number(process.env.SIM_RUNS || 120);
 const MAX_TURNS = 30;
 const MAXHP = { ash: 42, elin: 36, mira: 34 };
@@ -35,6 +41,7 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
   const KZ_CARRY = process.env.SIM_KZCARRY != null
     ? Number(process.env.SIM_KZCARRY)
     : await J(() => window.R.KIZUNA_CARRY);
+  const SIGIL_BY_PAIR = await J(() => window.R.SIGIL_BY_PAIR);
   const BOND = await J(() => ({ steps: window.R.BOND_STEPS, pairs: window.R.PAIRS,
     scenes: Object.keys(window.R.BONDS).reduce((a, k) => {
       a[k] = window.R.BONDS[k].map(sc => sc.picks.map(p => p.card)); return a;
@@ -72,7 +79,8 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
     let roster = JSON.parse(JSON.stringify(BASE_ROSTER));
     const bonds = { ...start.bonds };
     const levels = { 'ash|elin': 0, 'ash|mira': 0, 'elin|mira': 0 };
-    let traded = 0;
+    let traded = 0, marked = 0;
+    const sigils = {};             // cardId → the mark the bond put on it
     let nodes = [];     // what this run has kindled
     const trace = [];   // what the party had left walking away from each stop
     for (let col = 0; col < 6; col++) {
@@ -126,6 +134,27 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
             const list = roster[drop.hero];
             list[list.indexOf(drop.id)] = card;
             traded++;
+            // THE LEVEL ALSO MARKS A CARD. A sim that traded the card and
+            // skipped the mark would measure the social layer at less than it
+            // is — and the mark is the half that exists to make the combo
+            // layer reachable, which is the half most likely to move a number.
+            // Deliberately unclever again: the first unmarked card the pair
+            // owns, so the figure stays a FLOOR.
+            let sig = SIGIL_BY_PAIR[pair] && SIGIL_BY_PAIR[pair][levels[pair] - 1];
+            // Diagnostics, so the mark can be measured against its own absence
+            // the way the bond layer was. SIM_NOSIG places nothing; SIM_ONLYSIG
+            // places only the named mark.
+            if (process.env.SIM_NOSIG != null) sig = null;
+            if (process.env.SIM_ONLYSIG && sig !== process.env.SIM_ONLYSIG) sig = null;
+            if (sig) {
+              const owners = pair.split('|');
+              let target = null;
+              for (const h of owners) {
+                for (const id of roster[h]) if (!sigils[id]) { target = id; break; }
+                if (target) break;
+              }
+              if (target) { sigils[target] = sig; marked++; }
+            }
           }
         }
         let buying = true;
@@ -143,7 +172,7 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
       const r = await page.evaluate(
         ([src, sd, pp, mt, o]) => eval(src)(sd, pp, mt, o),
         [BOT, seed * 31 + col * 7 + 1, p, MAX_TURNS, { foe: want.foe, partyHp: hp, kizuna, roster,
-          vigor: start.vigor,
+          vigor: start.vigor, sigils,
           foeBonus: want.kind === 'boss' ? start.foeBonus : 0,
           upgrades: nodes.map(id => (TREE.find(n => n.id === id) || {}).card).filter(Boolean),
           allout: (TREE.find(n => nodes.indexOf(n.id) >= 0 && n.allout) || {}).allout || null }]);
@@ -152,11 +181,11 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
       for (const k of BOND.pairs) bonds[k] += ((r.pairBond || {})[k] || 0);
       trace.push({ col, kind: want.kind, foe: want.foe, left: total(hp), turns: r.turns,
                    allouts: r.allouts || 0 });
-      if (!r.win) return { win: false, diedAt: col, kind: want.kind, foe: want.foe, hp, embers, fights, trace, nodes, traded, roster, woke: start.woke };
+      if (!r.win) return { win: false, diedAt: col, kind: want.kind, foe: want.foe, hp, embers, fights, trace, nodes, traded, marked, roster, woke: start.woke };
       embers += ({ husk: 2, cultist: 2, wraith: 3, revenant: 5, mourner: 8 })[want.foe] || 2;
-      if (want.kind === 'boss') return { win: true, diedAt: null, hp, embers, fights, trace, nodes, traded, roster, woke: start.woke };
+      if (want.kind === 'boss') return { win: true, diedAt: null, hp, embers, fights, trace, nodes, traded, marked, roster, woke: start.woke };
     }
-    return { win: false, diedAt: 5, kind: 'ran-out', hp, embers, fights, trace, nodes, traded, roster, woke: start.woke };
+    return { win: false, diedAt: 5, kind: 'ran-out', hp, embers, fights, trace, nodes, traded, marked, roster, woke: start.woke };
   }
 
   console.log(`\n  KIZUNA v2.3 — the road, walked ${RUNS}× per tier\n`);
@@ -179,8 +208,9 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
     // than one of them — a rotation that quietly collapsed to a single boon
     // would report 120 roads and measure one.
     const unwoken = res.filter(r => !r.woke).length;
+    const marks = res.reduce((n, r) => n + (r.marked || 0), 0) / res.length;
     const woke = {}; res.forEach(r => { woke[r.woke] = (woke[r.woke] || 0) + 1; });
-    rows.push({ name: band.name, rate, col0, held, shapeBad, unwoken, woke,
+    rows.push({ name: band.name, rate, col0, held, shapeBad, unwoken, woke, marks,
                 purse: purse[Math.floor(purse.length / 2)] });
     console.log(`  ${held ? '✓' : '✗'} ${band.name.padEnd(15)} runs completed ${rate.toFixed(1)}%  `
       + `[gate ${band.glo}–${band.ghi}%]  died at stop ` + JSON.stringify(deaths)
@@ -210,20 +240,26 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
   const rosters = [];
   for (const band of BANDS) void band;
   const allRosters = [];
-  const trailhead = rows.find(r => r.name === '~HALF PARRIES');
+  const trailhead = rows.find(r => r.name === '~HALF PARRIES') || rows[0];
   const fodderOk = trailhead.col0 <= 8;
   console.log(`  ${fodderOk ? '✓' : '✗'} TRAILHEAD      a competent party does not wipe on the first stop `
     + `(${trailhead.col0.toFixed(1)}% at ~half parries · gate ≤8%)`);
-  const monotone = rows[0].rate <= rows[1].rate && rows[1].rate <= rows[2].rate;
+  const monotone = rows.length < 3 || (rows[0].rate <= rows[1].rate && rows[1].rate <= rows[2].rate);
   console.log(`  ${monotone ? '✓' : '✗'} MONOTONE       every step up in parry skill is a longer road survived`);
+  // THE MARK IS HALF OF WHAT A BOND LEVEL PAYS, and it is the half that exists
+  // to make the combo layer reachable. A tier that trades cards and marks none
+  // is measuring the social layer at less than it is.
+  const markOk = rows.some(r => r.marks > 0);
+  console.log(`  ${markOk ? '✓' : '✗'} THE MARK       every bond level marks a card too `
+    + `(${rows.map(r => r.name.trim().split(' ')[0] + ' ' + r.marks.toFixed(2)).join(' · ')} per road)`);
   const wokeOk = rows.every(r => r.unwoken === 0 && Object.keys(r.woke).length >= 3);
   console.log(`  ${wokeOk ? '✓' : '✗'} AWAKENING      every road answered its offer, and the tier walked `
-    + `${Object.keys(rows[1].woke).sort().join('/')} `
+    + `${Object.keys(rows[rows.length - 1].woke).sort().join('/')} `
     + `(${rows.reduce((n, r) => n + r.unwoken, 0)} unanswered of ${RUNS * 3})`);
   const shapeOk = rows.every(r => r.shapeBad === 0);
   console.log(`  ${shapeOk ? '✓' : '✗'} FIVE SLOTS     every road ends on 5/5/5 and fifteen unique cards `
     + `(${rows.reduce((n, r) => n + r.shapeBad, 0)} broken of ${RUNS * 3})`);
-  const allOk = rows.every(r => r.held) && fodderOk && monotone && shapeOk && wokeOk;
+  const allOk = rows.every(r => r.held) && fodderOk && monotone && shapeOk && wokeOk && markOk;
   console.log(`\n=== ${rows.filter(r => r.held).length}/${rows.length} run gates held · ${RUNS} roads each ===`);
   await H.browser.close();
   process.exit(allOk ? 0 : 1);

@@ -228,13 +228,23 @@ const MAX_TURNS = 30;
           if (first) first.click();
           const go = document.getElementById('k-swap-go');
           if (go && !go.disabled) go.click();
+          // A BOND LEVEL PAYS TWICE. The swap hands on to the marking screen,
+          // and the walk has to answer it or the fire never opens.
+          const marked = !document.getElementById('k-mark').classList.contains('k-hidden');
+          const mk = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
+          const markedCard = mk ? mk.dataset.id : null;
+          if (mk) mk.click();
           const r = window.R.state();
-          return { card, dropped, sizes: ['ash', 'elin', 'mira'].map(h => r.roster[h].length),
+          return { card, dropped, marked, markedCard, sigil: r.sigils[markedCard] || null,
+                   sizes: ['ash', 'elin', 'mira'].map(h => r.roster[h].length),
                    uniq: new Set(window.K.rosterIds(r.roster)).size };
         });
         log.push(`stop ${col}: bond — took ${traded.card}, gave up ${traded.dropped}`);
         check(`SLICE: the bond at stop ${col} trades one for one — still five slots a hero`,
           traded.sizes.every(n => n === 5) && traded.uniq === 15, JSON.stringify(traded));
+        check(`SLICE: the bond at stop ${col} also marks a card the party already carries`,
+          traded.marked && !!traded.markedCard && !!traded.sigil,
+          JSON.stringify({ marked: traded.marked, card: traded.markedCard, sigil: traded.sigil }));
         await sleep(300);
         v = await visible();
       }

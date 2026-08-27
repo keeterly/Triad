@@ -211,6 +211,26 @@
     return out;
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // WHAT EACH BOND TEACHES — one sigil per level crossed
+  // ═══════════════════════════════════════════════════════════════════════
+  // The complaint the sigil answers is that cards are hard to CONNECT: the
+  // combo layer wants an order a five-card hand rarely offers. Three of the
+  // five marks exist to loosen exactly that, and they are earned by the bond,
+  // so the mechanical answer to "these two do not work together" is the same
+  // as the fictional one — they have not been together long enough yet.
+  //
+  // The MARK is fixed by the pair and the level; the CARD it goes on is the
+  // player's. One decision, one screen. Letting the player choose both would
+  // be two screens for one reward, and it would cost each pair the identity
+  // that makes their level-up feel like theirs rather than a menu.
+  const SIGIL_BY_PAIR = {
+    'ash|elin':  ['held', 'bright'],     // she holds the line; he keeps one back
+    'ash|mira':  ['echo', 'kindled'],    // the two quick ones — a move flows on
+    'elin|mira': ['opening', 'bright'],  // they are the ones who start things
+  };
+  const sigilFor = (pair, lv) => (SIGIL_BY_PAIR[pair] || [])[lv - 1] || null;
+
   const PAIRS = ['ash|elin', 'ash|mira', 'elin|mira'];
   const BOND_STEPS = [12, 30];               // points to reach level 1, then 2
   const PAIR_NAME = { 'ash|elin': 'ASH + ELIN', 'ash|mira': 'ASH + MIRA', 'elin|mira': 'ELIN + MIRA' };
@@ -449,6 +469,7 @@
   let RUN = null;
   let _pick = null;                  // the node the finger is asking about
   let _swapBack = null;              // where confirmSwap returns to
+  let _markPair = null;              // whose cards the pending mark may land on
   let _busy = false;
 
   function freshRun(seed) {
@@ -463,6 +484,9 @@
       flash: null,                                // the receipt from the last stop
       pending: null,                              // a stop entered but not finished
       camped: 0, campDone: null,                  // the fire only mends once per visit
+      sigils: {},                                 // cardId → the mark it wears
+      pendingSigil: null,                         // a mark earned, not yet placed
+      markPair: null,                             // whose cards it may land on
       woke: null,                                 // the memory reached for on waking
       vigor: 0,                                   // max HP the party woke up with
       foeBonus: 0,                                // HP the Regent woke up with
@@ -497,7 +521,7 @@
 
   // ── the screen ────────────────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
-  const SCREENS = { map: 'k-map', combat: 'k-stage', camp: 'k-camp', scene: 'k-scene', swap: 'k-swap', wake: 'k-wake' };
+  const SCREENS = { map: 'k-map', combat: 'k-stage', camp: 'k-camp', scene: 'k-scene', swap: 'k-swap', wake: 'k-wake', mark: 'k-mark' };
   function screen(which) {
     for (const k of Object.keys(SCREENS)) {
       const el2 = $(SCREENS[k]);
@@ -722,6 +746,7 @@
     screen('combat');
     window.K.startCombat({ foe, partyHp: RUN.hp, onEnd: onFightEnd, kizuna: RUN.kizuna || 0,
                            roster: RUN.roster, upgrades: cardUps(), allout: alloutOf(),
+                           sigils: RUN.sigils || {},
                            vigor: RUN.vigor || 0,
                            // A DEBT IS SETTLED WITH THE REGENT, not with every
                            // wraith on the way to her. Borrowing against the
@@ -823,6 +848,8 @@
     saveProfile();
     _pendingCard = pick.card;
     _pendingAfter = pick.after;
+    // The level also teaches them something about what they already carry.
+    RUN.pendingSigil = sigilFor(_scene.pair, _scene.lv);
     _scene = null; _beat = 0;
     save();
     screen('swap');
@@ -1136,15 +1163,79 @@
     RUN.flash = { icon: 'camp', tone: 'gold', title: window.K.CARD_DEFS[_pendingCard].name.toUpperCase() + ' — LEARNED',
       sub: _swapPick.hero.toUpperCase() + ' gives up ' + window.K.CARD_DEFS[_swapPick.id].name + ' to carry it.',
       gain: '5/5/5', gainSub: 'the deck never grows' };
+    const _wasCard = _pendingCard;
     _pendingCard = null; _swapPick = null; _pendingAfter = '';
     const back = _swapBack; _swapBack = null;
+    const pair = window.K.pairOf(_wasCard) || (_wasCard ? null : null);
     save();
+    // A BOND LEVEL PAYS TWICE: a card, and a mark on one they already carry.
+    if (back !== 'map' && RUN.pendingSigil && pair) return openMark(pair.join('|'));
     // A SWAP KNOWS WHERE IT CAME FROM. The awakening's card arrives before
     // there is a campfire to go back to; returning to one would have shown the
     // fire's screen with no fire behind it.
     if (back === 'map') return toMap();
     // another pair may also be waiting at this same fire
     if (!openBondScene()) { screen('camp'); renderCamp(); }
+  }
+
+  // ── the mark ─────────────────────────────────────────────────────────────
+  // One screen, one decision: the bond decided WHAT was learned, the player
+  // decides which card it lands on. Every card is drawn as a card — the whole
+  // point is that the player is looking at the thing they are changing.
+  function renderMark() {
+    const K = window.K, sig = RUN.pendingSigil, def = K.SIGILS[sig];
+    if (!def) return leaveMark();
+    const pair = _markPair || PAIRS[0];
+    $('k-mark-title').textContent = def.name.toUpperCase();
+    $('k-mark-line').textContent = def.line;
+    $('k-mark-ask').textContent = 'WHICH CARD LEARNS IT?';
+    const heroes = pair.split('|');
+    // NOBODY LEFT TO TEACH. Six marks is the most a road can grant and a pair
+    // owns ten cards, so this cannot happen today — but a screen whose only
+    // exit is a button that might all be disabled is one roster change away
+    // from being a dead end, and there is no skip.
+    if (heroes.every(h => (RUN.roster[h] || []).every(id => RUN.sigils[id]))) return leaveMark();
+    $('k-mark-cols').innerHTML = heroes.map(h =>
+      '<div class="k-mk-col"><header><b>' + h.toUpperCase() + '</b></header><div class="k-mk-row">'
+      + (RUN.roster[h] || []).map(id => {
+          const already = RUN.sigils[id];
+          return '<button type="button" class="k-mk' + (already ? ' k-mk-taken' : '')
+            + '" data-id="' + id + '"' + (already ? ' disabled' : '')
+            + '>' + K.staticCardHTML(id, { sigil: already || sig, cls: 'k-card-mk' })
+            + (already ? '<span class="k-mk-note">already ' + K.SIGILS[already].name + '</span>' : '')
+            + '</button>';
+        }).join('')
+      + '</div></div>').join('');
+    $('k-mark-cols').querySelectorAll('.k-mk:not([disabled])').forEach(b =>
+      b.addEventListener('click', (e) => { e.stopPropagation(); placeSigil(b.dataset.id); }));
+  }
+  function placeSigil(cardId) {
+    if (!RUN || !RUN.pendingSigil) return;
+    // ONE MARK PER CARD. Stacking would make a single card the whole deck.
+    if (RUN.sigils[cardId]) return;
+    const owned = [].concat(RUN.roster.ash, RUN.roster.elin, RUN.roster.mira);
+    if (owned.indexOf(cardId) < 0) return;      // only a card they actually carry
+    RUN.sigils[cardId] = RUN.pendingSigil;
+    RUN.flash = { icon: 'camp', tone: 'gold',
+      title: window.K.CARD_DEFS[cardId].name.toUpperCase() + ' \u2014 '
+             + window.K.SIGILS[RUN.pendingSigil].name.toUpperCase(),
+      sub: window.K.SIGILS[RUN.pendingSigil].line,
+      gain: 'the bond', gainSub: 'changes what you already carry' };
+    RUN.pendingSigil = null; RUN.markPair = null; _markPair = null;
+    save();
+    leaveMark();
+  }
+  function leaveMark() {
+    RUN.pendingSigil = null; RUN.markPair = null; _markPair = null; save();
+    if (!openBondScene()) { screen('camp'); renderCamp(); }
+  }
+  function openMark(pair) {
+    if (!RUN || !RUN.pendingSigil) return false;
+    _markPair = pair || RUN.markPair;
+    if (!_markPair) return false;
+    RUN.markPair = _markPair; save();
+    screen('mark'); renderMark();
+    return true;
   }
 
   function toMap() { screen('map'); renderMap(); }
@@ -1193,6 +1284,9 @@
     // AN AWAKENING LEFT UNANSWERED IS RE-ASKED. Closing the tab on the offer
     // used to be the one way to start a run with no memory at all.
     if (!RUN.over && !RUN.woke && !RUN.pending && !RUN.path.length) return toWake();
+    // A MARK EARNED AND NOT PLACED IS RE-ASKED, for the same reason: closing
+    // the tab on it was the one way to lose a reward the road had paid for.
+    if (!RUN.over && RUN.pendingSigil && RUN.markPair && openMark(RUN.markPair)) return;
     if (RUN.pending && !RUN.over) {
       const n = node(RUN.pending);
       if (n) { enter(n); return; }
@@ -1213,6 +1307,7 @@
     TREE, treeNode, kindle, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
     pendingBonds, openBondScene, takeBond, confirmSwap, renderSwap,
     WAKES, wakeOffer, takeWake, renderWake, wakeDef, wakePair,
+    SIGIL_BY_PAIR, sigilFor, renderMark, placeSigil, openMark, leaveMark,
     swapPick: () => _swapPick, pendingCard: () => _pendingCard,
     PAIRS, BOND_STEPS, BONDS, bondLevel, bondScene, PAIR_NAME,
     profile: () => PROFILE, resetProfile() { PROFILE = { heard: [], won: [] }; saveProfile(); },

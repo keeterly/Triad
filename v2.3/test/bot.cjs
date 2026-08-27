@@ -16,7 +16,8 @@ module.exports.BOT = `
                   kizuna: O.kizuna || 0, roster: O.roster || undefined,
                   // what the awakening changed — a bot that dropped these
                   // would report the road as if nobody had chosen anything
-                  vigor: O.vigor || 0, foeBonus: O.foeBonus || 0 });
+                  vigor: O.vigor || 0, foeBonus: O.foeBonus || 0,
+                  sigils: O.sigils || {} });
   let rnd = seed * 2654435761 % 2147483647;
   const rand = () => { rnd = (rnd * 48271) % 2147483647; return rnd / 2147483647; };
   const S = () => K.state();

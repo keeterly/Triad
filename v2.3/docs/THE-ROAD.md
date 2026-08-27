@@ -848,3 +848,56 @@ fights played in real time. Every check passes; the number of them is not
 deterministic. Verified against Build 36, which varies the same way (24/23/23),
 so this is a pre-existing softness in the harness rather than anything the
 awakening did. Worth closing, and not by pretending the count is fixed.
+
+
+---
+
+## Build 39 — the mark
+
+A bond level used to pay once: a card, chosen at the fork, traded into the
+five slots of one of the pair. It pays twice now. The second half is a
+**sigil** — a mark on a card the party *already carries* — and the reason it
+exists is the note that prompted it: cards are difficult to connect.
+
+The combat record holds the vocabulary and the measurement. What belongs here
+is the shape of the seam:
+
+- `RUN.sigils` maps a card id to its mark; `RUN.pendingSigil` and
+  `RUN.markPair` hold a grant that has been earned and not yet placed.
+- The bond decides WHAT (`SIGIL_BY_PAIR`, fixed per pair and level, so a pair's
+  level-up feels like *theirs* rather than a menu); the player decides WHICH.
+- The flow is scene → fork → swap → **mark** → the fire. `confirmSwap` knows
+  where it came from and routes accordingly, which is the same mechanism the
+  awakening's card already used to avoid landing on a campfire screen with no
+  campfire behind it.
+- A grant left unplaced is **re-asked on boot**, exactly like an unanswered
+  awakening. Closing the tab was otherwise the one way to lose a reward the
+  road had already paid for.
+
+### One screen, and no dead end
+
+The marking screen shows the pair's ten cards, each drawn as a card wearing the
+mark it would receive. There is no skip: a grant is a reward, and a screen you
+can leave empty-handed is a screen that will eventually be left empty-handed by
+accident.
+
+That makes "every card already marked" a potential dead end. It cannot happen
+today — a road grants at most six marks and a pair owns ten cards — but a
+screen whose only exit is a button that might all be disabled is one roster
+change away from trapping the run, so it falls through to the fire instead.
+
+### What the simulator had to learn
+
+The run sim models the bond trade locally rather than driving the screens, so
+it would have kept measuring a bond level that pays once. It now places a mark
+per level through the same `SIGIL_BY_PAIR` table the game uses and hands the
+result to the bot, and a new **THE MARK** gate fails if a tier trades cards and
+marks none — the failure mode Build 35 already recorded once, where a sim
+reported three green tiers while trading zero cards.
+
+`SIM_BAND` was added at the same time, for a reason worth writing down: the run
+gate runs 120 roads per tier because three tiers at that depth is what a gate
+can afford, and it is *convenient* to then quote those 120-road numbers as
+measurements. They are not deep enough to be. `SIM_BAND=HALF SIM_RUNS=400`
+measures one tier properly, and the first thing it did was overturn a finding
+this build had already written down.

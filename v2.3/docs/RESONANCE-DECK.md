@@ -1630,6 +1630,109 @@ nothing, and nothing is a very easy thing to be outside of.
 
 ---
 
+## Build 39 — sigils: what a bond changes about a card you already carry
+
+The note this build answers: *cards are difficult to connect.* It is a fair
+reading of the deck. The combo layer asks for an ORDER — `FOLLOW_UP` wants a
+different hero to have just acted, `FINALE` wants all three — and a five-card
+hand drawn from fifteen frequently will not offer one. You hold the two cards
+that would combo and the turn never lines them up.
+
+A **sigil** is a mark on one card in the roster that changes how it PLAYS
+rather than what it does — Balatro's glass and gold, Slay the Spire's retain —
+and three of the five exist specifically to make that order reachable. They are
+earned by the bond, so the mechanical answer to "these two do not work
+together" is the same as the fictional one: **they have not been together long
+enough yet.**
+
+| mark | pair · level | what it does |
+|---|---|---|
+| **Held** | ash+elin · 1 | Stays in hand when the turn ends — so you draw one fewer. |
+| **Echo** | ash+mira · 1 | The next card counts as after an ally. |
+| **Opening** | elin+mira · 1 | Its combo counts if this is the turn's first card. |
+| **Kindled** | ash+mira · 2 | Playing this adds 6 to the bond. |
+| **Bright** | ash+elin · 2, elin+mira · 2 | Half again as strong — and it leaves the fight. |
+
+One mark per card, no stacking. Nothing new is spent: the marks trade in
+health, the ladder, the draw and the combo layer, all of which already existed.
+The deck still does not grow.
+
+**The bond decides WHAT; the player decides WHICH.** One screen, one decision.
+Letting the player choose both would be two screens for one reward and would
+cost each pair the identity that makes their level-up feel like theirs. Every
+card on that screen is drawn as a card, wearing the mark it would receive — the
+change is the thing being chosen, so it is the thing on screen.
+
+### Measured, and one number I nearly reported wrong
+
+The run simulator places a mark on every bond level, deliberately uncleverly —
+the first unmarked card the pair owns — so the figure is a floor. Half-parry
+band, 400 roads per condition:
+
+| condition | completion | marks placed / road |
+|---|---|---|
+| no marks at all | 38.8% | 0 |
+| **all five** | **39.0%** | 1.36 |
+| `echo` only | 39.8% | 0.66 |
+| `held` only | 38.3% | 0.25 |
+
+**The marks are close to neutral for a placer that does not choose.** The
+direction is the one the design predicts — Echo up, Held down — but at four
+hundred roads the spread is about one point, which is near the noise floor and
+much smaller than a first pass at 120 roads suggested (it read +2.5 and −1.7,
+and those magnitudes did not survive the larger sample). What can be said
+flatly: nothing here is a trap, nothing here is mandatory, and a *player* who
+chooses which card wears the mark is doing something this bot cannot.
+
+Held is the one that leans negative, and it leans that way for a legible
+reason: the next turn draws back up to five, so **a card you keep is a card you
+do not draw.** Its face says so now, because "Stays in hand" reads as free and
+it is not. Echo — the mark that exists precisely to answer "these do not
+connect" — is the one that leans positive.
+
+I nearly published a much worse figure for this, twice.
+
+The first run said the marks cost **4.2 points**, and the explanation was ready
+— a naive placer is choosing badly. The explanation was wrong because the
+measurement was: the sim's own placement loop had a misplaced `break`, so it
+marked the first unmarked card of the *last* owner rather than the first.
+Fixing the loop moved the number by three points. The finding was an artefact
+of the instrument, and it only surfaced because the same comparison was run
+again after touching the loop and the baseline had moved.
+
+The second version was subtler and would have been easier to defend: at 120
+roads the per-mark deltas read +2.5 for Echo and −1.7 for Held, which is a
+tidy story about a choice that rewards reading it. At 400 roads those became
++1.0 and −0.5. **The story was fitted to noise.** This project already had a
+rule about not shipping a number from a sweep at n<200; the run gate runs at
+120 because three tiers at that depth is what a gate can afford, and it was
+convenient to forget that a gate's sample size is not a measurement's. The
+simulator takes `SIM_BAND` now so one tier can be run deep without paying for
+three.
+
+### Two bugs the sigils found in the card face
+
+**The face lied about its own numbers.** `cardFaceHTML` printed `prose(c.base)`
+— the card's numbers BEFORE its mark — so a Bright card advertised 7 damage and
+dealt 11. This is the rule Build 23 set for the combo layer, broken again by a
+feature that changes numbers somewhere other than the combo. The top block and
+the combo strip both read through the mark now.
+
+**Two cards had been clipping their own payoff for many builds.** While checking
+that the sigil band had not caused clipping, a sweep of all twenty-eight card
+definitions found Counterstance overflowing `.k-ctext` by 13px and Lightsteel by
+9 — the bottom of their combo strip cut off in the hand, marked or not, and
+nothing to do with this build. Tighter leading and padding cleared both, and a
+check now measures every card in the deck rather than the three that happened to
+be in a test hand.
+
+The band itself takes its twelve pixels from the ART zone, not the text: the
+card is a fixed 150px and `.k-ctext` is the `flex-grow` child with
+`overflow: hidden`, so a new row in the flow would have been paid for by
+clipping the combo strip — the part of the face a mark most often changes.
+
+---
+
 ## Errata — three records the code had outgrown
 
 A playthrough audit read these sections against the code and found them stale.

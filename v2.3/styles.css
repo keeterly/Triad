@@ -333,7 +333,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-cgem.on { border-color: #f0d488; color: #fff3d0; box-shadow: 0 0 11px rgba(240,212,136,0.7); }
 .k-cgem s { font-size: 9px; font-weight: 400; color: #9a9080; }
 .k-cname { font-size: 9.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase;
-  color: #241f18; padding: 3px 4px 2px; line-height: 1.05; min-height: 18px; overflow-wrap: anywhere;
+  color: #241f18; padding: 2px 4px 1px; line-height: 1.05; min-height: 15px; overflow-wrap: anywhere;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   display: flex; align-items: center; justify-content: center; text-align: center; }
 .k-cart { height: 60px; flex-shrink: 0; margin: 0; overflow: hidden; position: relative;
@@ -352,16 +352,23 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* BASE — what the card does. THE NUMBER IS THE CARD: at a uniform weight the
    eye has to READ the line; set half again as large it scans in one look, and
    the words become the footnote they always were. */
-.k-cprose { font-size: 9px; line-height: 1.34; color: #1c1813; padding: 5px 4px 3px;
+/* THE PADDING IS WHAT OVERFLOWED, not the words. Two of the twenty-eight cards
+   — Counterstance and Lightsteel, the two with both a long base and a combo —
+   pushed 9 and 13 pixels past .k-ctext's clip, so the bottom of their payoff
+   strip was cut off in the hand. Found while checking that the sigil band had
+   not caused it; it had not, and it predates the band by many builds. Tighter
+   padding and leading buys the room without touching the type size a card is
+   read at across the room. */
+.k-cprose { font-size: 9px; line-height: 1.2; color: #1c1813; padding: 2px 3px 1px;
   flex-grow: 1; display: flex; align-items: center; justify-content: center; }
 .k-cprose > span { display: block; }
-.k-cprose b { font-weight: 700; font-size: 1.5em; line-height: 0.9; color: #060606;
+.k-cprose b { font-weight: 700; font-size: 1.42em; line-height: 0.86; color: #060606;
   letter-spacing: -0.02em; }
 /* the mark that says WHAT KIND of thing the number is, at a size you can tell
    a blade from a shield at */
 .k-cprose .k-ico { width: 11px; height: 11px; vertical-align: -1.5px; }
 /* COMBO — a banded strip with a named tag, so the payoff is never a footnote */
-.k-combo { margin-top: auto; padding: 2px 3px 3px;
+.k-combo { margin-top: auto; padding: 1px 3px 2px;
   background: rgba(120,106,78,0.16); border-top: 1px solid rgba(90,78,56,0.34);
   display: flex; flex-direction: column; gap: 1px; }
 .k-combo-tag { display: flex; align-items: center; justify-content: center; gap: 2.5px;
@@ -700,6 +707,31 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-pile-head em { font-style: normal; font-size: 8.5px; letter-spacing: 0.14em; color: #8e8574; margin-left: 10px; }
 .k-pile-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
   overflow: hidden; padding: 2px; }
+/* ── SIGILS ────────────────────────────────────────────────────────────────
+   A mark on one card that changes how it PLAYS. It has to be visible on the
+   face itself: a rule the player has to remember per card is a rule they will
+   play around wrongly, and the whole point of the sigil is that the card is
+   now easier to connect than it looks. */
+/* IN THE FLOW, not absolutely placed. Pinned at a fixed offset it printed
+   straight across the card's own prose — the numbers it exists to qualify. */
+.k-csig { display: block; margin: 1px 0 0; z-index: 3;
+  font: 700 7.5px/1.5 var(--serif, Georgia, serif); letter-spacing: 0.2em;
+  text-transform: uppercase; text-align: center; color: #241a10;
+  background: linear-gradient(90deg, transparent, var(--sig, #e0c084) 14%,
+    var(--sig, #e0c084) 86%, transparent); }
+.k-sig-held    { --sig: #bcd3ea; } .k-csig-held    { --sig: #bcd3ea; }
+.k-sig-echo    { --sig: #c9b4e4; } .k-csig-echo    { --sig: #c9b4e4; }
+.k-sig-opening { --sig: #e9d49a; } .k-csig-opening { --sig: #e9d49a; }
+.k-sig-kindled { --sig: #f0b98a; } .k-csig-kindled { --sig: #f0b98a; }
+.k-sig-bright  { --sig: #f4e3a6; } .k-csig-bright  { --sig: #f4e3a6; }
+/* the edge is tinted too, so a marked card is findable in a fan without
+   reading five strips */
+.k-card-sig { box-shadow: 0 0 0 1.5px var(--sig, #e0c084), 0 6px 16px rgba(0,0,0,0.55); }
+/* THE BAND'S HEIGHT COMES OUT OF THE ART. The card is a fixed 150px and
+   .k-ctext is the flex-grow child with overflow:hidden, so a new row in the
+   flow was paid for by CLIPPING the combo strip — the one part of the face
+   the mark most often changes. The art zone gives up twelve pixels instead. */
+.k-card-sig .k-cart { height: 48px; }
 .k-card-static { pointer-events: none; transform: none !important; }
 .k-pile-empty { font-size: 12px; color: #8e8574; letter-spacing: 0.14em; padding: 30px; }
 .k-pile-hint { font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #6d6450; text-align: center; }
@@ -1264,6 +1296,50 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    rules have paused. All three heroes stay on screen the whole time — a
    three-hander reads as a three-hander only while all three are in the shot —
    and the speaker is the one lit and standing forward. */
+/* ── THE MARK ──────────────────────────────────────────────────────────────
+   The bond decided what was learned; this screen is the player deciding which
+   card learns it. Every option is drawn AS A CARD, wearing the mark it would
+   get — the change is the thing being chosen, so it has to be the thing on
+   screen rather than a sentence about it. */
+#k-mark { position: absolute; inset: 0; width: 932px; height: 430px; overflow: hidden;
+  background: #0b0910; color: #cfc8ba; font-family: var(--serif, Georgia, serif); }
+#k-mark, #k-mark * { -webkit-touch-callout: none !important; -webkit-user-select: none; user-select: none; }
+/* `> header`, not `header`: an id-plus-type selector outranks the class rule
+   below it, so this was absolutely positioning the COLUMN headers too and
+   printing ASH and MIRA on top of their own first card. */
+#k-mark > header { position: absolute; left: 20px; right: 20px; top: 14px; z-index: 3;
+  display: flex; align-items: baseline; gap: 14px; }
+#k-mark-title { font: 600 20px/1 var(--serif, Georgia, serif); letter-spacing: 0.26em;
+  color: #e8cf95; }
+#k-mark-line { font: italic 400 12.5px/1.3 var(--serif, Georgia, serif); color: #a89e90; }
+#k-mark-ask { position: absolute; left: 20px; top: 44px; z-index: 3; margin: 0;
+  font: 600 10px/1 var(--serif, Georgia, serif); letter-spacing: 0.24em; color: #8d8478; }
+#k-mark-cols { position: absolute; left: 20px; right: 20px; top: 68px; bottom: 16px; z-index: 3;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+  align-content: center; }
+/* FIVE CARDS ACROSS A HALF-WIDTH COLUMN. At full size they need 540px and
+   there is 437, so they are scaled — and because a transform leaves the layout
+   box behind, each button is sized to the SCALED card rather than the original.
+   The first pass let the boxes keep their full width, which pushed the two
+   columns apart and clipped the leftmost card off the edge. */
+.k-mk-col { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.k-mk-col > header { position: static; display: block; flex: 0 0 auto; }
+.k-mk-col > header b { font: 600 10.5px/1 var(--serif, Georgia, serif); letter-spacing: 0.22em;
+  color: #c9a45c; }
+.k-mk-row { display: flex; flex-direction: row; gap: 3px; justify-content: center; width: 100%; }
+.k-mk { flex: 0 0 auto; background: none; border: 0; padding: 0; cursor: pointer;
+  position: relative; font-family: inherit;
+  width: 81px; height: 113px; }
+.k-card-mk { transform: scale(0.75) !important; transform-origin: top left;
+  transition: filter 140ms ease; }
+.k-mk:hover .k-card-mk, .k-mk:focus-visible .k-card-mk { filter: brightness(1.18); }
+.k-mk-taken { cursor: default; }
+.k-mk-taken .k-card-mk { filter: grayscale(0.5) brightness(0.62); }
+.k-mk-note { position: absolute; left: 0; right: 0; bottom: 4px; z-index: 4;
+  font: 600 7px/1.2 var(--serif, Georgia, serif); letter-spacing: 0.12em;
+  text-transform: uppercase; color: #b8ad9c; text-align: center;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.95); }
+
 /* ── THE AWAKENING ────────────────────────────────────────────────────────
    Three memories, one taken. The card is a MEMORY first and a boon second, so
    the prose gets the room and the mechanical line sits under it in gold —
