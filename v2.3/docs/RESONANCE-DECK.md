@@ -1513,6 +1513,62 @@ while the new one failed.
 
 ---
 
+## Build 37 — a wound you can see, and the verb that had no picture
+
+Build 36 sorted every card into four verbs — heal, cast, slash, ward — and then
+shipped animations for three of them. A guard card paid its cost, changed a
+number in the roster, and left the board completely still: the exact complaint
+that build set out to answer, surviving inside its own fix. **The ward** is a
+hexagonal plate that snaps up over every hero it covers, with a steel-coloured
+number, so `Shared Grace` guarding all three now reads as three.
+
+**The bars stopped easing.** Every HP bar in the game transitioned its width
+over 400ms — which is the shape of a meter settling, not of something being
+taken off you. The number slammed and the bar politely drifted after it. The
+fill snaps now, so the truth is instant, and a pale **ghost** holds at the old
+value for a beat before falling to meet it: the size of the bite stays on
+screen *after* the bite. Healing runs the other way — the ghost jumps ahead and
+the fill grows into it, so a mend reads as filling rather than as a wound in
+reverse.
+
+**The break pips go out one at a time.** Knocking a pip out is the most
+consequential thing a support card does and it was a silent repaint; the row
+flashed as a whole, so you could see that break had moved and never by how
+much. They stagger from the top down now, so a two-break card reads as two.
+
+**A spell's number is the colour of the spell.** Steel keeps the house red;
+ice, light and life read as themselves.
+
+### Three mistakes, and what each one taught
+
+**A bloom cost the figures their breathing — since Build 36.** `k-mended` set
+`animation:` on `.k-fig`, which *replaces* the idle breathe rather than layering
+over it, so a healed hero stopped breathing and snapped back when the class came
+off. The ward repeated it a build later. Every other transient state here
+(`k-struck`, `k-acts`, `k-charging`) pauses the breathe instead of overwriting
+it; both blooms are a filter on a transition now, with no animation property to
+clobber a clock with. This was caught by an *existing* check — the diorama's
+"every figure breathes on its own clock" — which is the argument for writing
+checks that assert a property rather than a symptom.
+
+**The pips were animated in the wrong direction.** The first pass popped pips
+coming *on*. The gauge counts **down**: `C.boss.brk` is the resistance still
+standing and a card's `brk` atom takes it away, so the only time a pip comes on
+is when a fight starts. The check that caught it was one written against the
+same wrong assumption — it failed for the right reason anyway, and reading its
+output rather than adjusting it until it passed is what found the real rule.
+
+**A repaint that changed nothing wiped the trail.** Resolution re-renders the
+HUD several times for one blow. The first call opened the ghost correctly; the
+second, carrying the *same* value, took the "no decrease" branch and snapped it
+shut — so the trail existed for exactly as long as it took the next render to
+run, which is to say never. `setBar` returns early on an unchanged value now.
+The tell was a test asserting the ghost stood at the old width and finding it
+already at the new one; had the check only asked "is there a ghost element",
+this would have shipped.
+
+---
+
 ## Errata — three records the code had outgrown
 
 A playthrough audit read these sections against the code and found them stale.

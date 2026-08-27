@@ -207,6 +207,133 @@ const { boot } = require('./harness.cjs');
     check('MEND: healing is seen — motes rise, the mended hero blooms, and the number is green',
       mend.motes >= 4 && mend.bloom && /^\+\d+$/.test(mend.pop || '') && mend.healed,
       JSON.stringify(mend));
+
+    // THE FOURTH VERB. Build 36 sorted every card into heal | cast | slash |
+    // ward and shipped animations for three of them.
+    const ward = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      window.K.forceHand(['sgrace', 'cleave', 'serrate', 'qthrow', 'mend']);
+      window.K.playCard('sgrace');
+      await new Promise(r => setTimeout(r, 40));
+      const pl = document.querySelector('.k-ward');
+      const pop = document.querySelector('.k-pop-ward');
+      const cs = pl ? getComputedStyle(pl) : null;
+      return { plates: document.querySelectorAll('.k-ward').length,
+               styled: !!(cs && cs.position === 'absolute' && pl.offsetWidth > 0
+                          && cs.animationName && cs.animationName !== 'none'),
+               bloom: !!document.querySelector('.k-hero.k-warded'),
+               pop: pop ? pop.textContent : null,
+               guarded: window.K.state().heroes.ash.guard > 0,
+               noSlash: document.querySelectorAll('.k-slash').length };
+    });
+    // Shared Grace guards all three, so all three plates come up.
+    check('WARD: guarding is seen — a plate snaps up on every hero it covers',
+      ward.plates >= 3 && ward.styled && ward.bloom && ward.guarded && /\d/.test(ward.pop || ''),
+      JSON.stringify(ward));
+    check('WARD: raising a guard does not swing a sword',
+      ward.noSlash === 0, ward.noSlash + ' slashes on a ward');
+
+    // THE BUG THIS CHECK EXISTS FOR: a bloom that sets `animation:` on .k-fig
+    // REPLACES the idle breathe instead of layering over it, so a healed or
+    // guarded hero stops breathing and snaps back when the class comes off.
+    // Build 36 shipped that on k-mended and the ward repeated it. Every other
+    // transient state here pauses the breathe rather than overwriting it, and
+    // this asks the next verb to do the same.
+    const breath = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      window.K.forceHand(['sgrace', 'mend', 'cleave', 'serrate', 'qthrow']);
+      const fig = (id) => document.querySelector('.k-hero[data-hero="' + id + '"] .k-fig');
+      const nameOf = (id) => getComputedStyle(fig(id)).animationName;
+      const idle = ['ash', 'elin', 'mira'].map(nameOf);
+      window.K.playCard('sgrace');
+      await new Promise(r => setTimeout(r, 40));
+      const warded = ['ash', 'elin', 'mira'].map(nameOf);
+      window.K.startCombat({ seed: 7 });
+      const c = window.K.state(); c.heroes.ash.hp = 20;
+      window.K.forceHand(['mend', 'cleave', 'serrate', 'qthrow', 'sgrace']);
+      window.K.playCard('mend');
+      await new Promise(r => setTimeout(r, 40));
+      const mended = ['ash', 'elin', 'mira'].map(nameOf);
+      return { idle, warded, mended };
+    });
+    check('BLOOM: being healed or guarded never costs a figure its breathing',
+      breath.idle.every(n => n === 'k-breathe')
+      && breath.warded.every(n => n === 'k-breathe')
+      && breath.mended.every(n => n === 'k-breathe'),
+      JSON.stringify(breath));
+  }
+
+  // ═══ A05b · A BAR THAT EASES DOWN IS NOT A WOUND ═══
+  {
+    const bar = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      window.K.forceHand(['cleave', 'serrate', 'qthrow', 'mend', 'sgrace']);
+      const box = document.getElementById('k-bhp-fill').parentNode;
+      const g = () => box.querySelector('.k-bar-ghost');
+      const w = (e) => (e ? parseFloat(e.style.width) : null);
+      const before = w(document.getElementById('k-bhp-fill'));
+      window.K.playCard('cleave');
+      await new Promise(r => setTimeout(r, 30));
+      const fillNow = w(document.getElementById('k-bhp-fill'));
+      const ghostHeld = w(g());
+      const snapped = getComputedStyle(document.getElementById('k-bhp-fill')).transitionDuration;
+      await new Promise(r => setTimeout(r, 320));
+      const ghostFell = w(g());
+      return { exists: !!g(), before, fillNow, ghostHeld, ghostFell, snapped,
+               ghostTrans: g() ? getComputedStyle(g()).transitionDuration : null };
+    });
+    // The fill takes the hit at once; the ghost is still standing where the
+    // health used to be, and only then falls to meet it.
+    check('BAR: the fill snaps to the truth and a ghost holds where the health was',
+      bar.exists && bar.fillNow < bar.before
+      && Math.abs(bar.ghostHeld - bar.before) < 0.01
+      && bar.snapped === '0s',
+      JSON.stringify({ before: bar.before, fillNow: bar.fillNow,
+                       ghostHeld: bar.ghostHeld, snapped: bar.snapped }));
+    check('BAR: the ghost then falls to meet it — it is a trail, not a second bar',
+      Math.abs(bar.ghostFell - bar.fillNow) < 0.01 && parseFloat(bar.ghostTrans) > 0,
+      JSON.stringify({ ghostFell: bar.ghostFell, fillNow: bar.fillNow, trans: bar.ghostTrans }));
+
+    // Healing runs the other way: nothing should be left behind.
+    const healBar = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      const c = window.K.state(); c.heroes.ash.hp = 20; window.K.render();
+      await new Promise(r => setTimeout(r, 20));
+      const row = document.querySelector('.k-pt-hero[data-hero="ash"] .k-bar');
+      const w = (sel) => parseFloat(row.querySelector(sel).style.width);
+      const before = w('.k-bar-fill');
+      window.K.forceHand(['mend', 'cleave', 'serrate', 'qthrow', 'sgrace']);
+      window.K.playCard('mend');
+      await new Promise(r => setTimeout(r, 30));
+      return { before, fill: w('.k-bar-fill'), ghost: w('.k-bar-ghost') };
+    });
+    check('BAR: a heal leaves no ghost behind it — the trail is for wounds',
+      healBar.fill > healBar.before && Math.abs(healBar.ghost - healBar.fill) < 0.01,
+      JSON.stringify(healBar));
+
+    // A 2-break card used to repaint the row in silence. The gauge counts
+    // DOWN — brk is the resistance still standing — so the event to animate
+    // is a pip going OUT. The first pass of this animated pips coming on,
+    // which is a thing that only happens when a fight starts.
+    const pips = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      const brk0 = window.K.state().boss.brk;
+      window.K.forceHand(['sgrace', 'cleave', 'serrate', 'qthrow', 'mend']);
+      window.K.playCard('sgrace');
+      await new Promise(r => setTimeout(r, 40));
+      const out = document.querySelectorAll('#k-break .k-pip-out');
+      const cs = out[0] ? getComputedStyle(out[0]) : null;
+      return { brk0, brk1: window.K.state().boss.brk,
+               lit: document.querySelectorAll('#k-break .k-pip.on').length,
+               out: out.length,
+               anim: cs ? cs.animationName : null,
+               stagger: [...out].map(e => getComputedStyle(e).animationDelay) };
+    });
+    check('BREAK: every pip the card knocked out goes out, one after another',
+      pips.brk1 < pips.brk0 && pips.out === pips.brk0 - pips.brk1
+      && pips.lit === pips.brk1 && pips.anim === 'k-pip-out'
+      && new Set(pips.stagger).size === pips.out,
+      JSON.stringify(pips));
   }
 
   // ═══ A06 · THE BOND ARRIVES WITH THE PARTY ═══

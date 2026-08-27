@@ -126,7 +126,14 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   clip-path: inset(50%); white-space: nowrap; }
 .k-bar { position: relative; height: 6px; background: rgba(10,9,11,0.78);
   border: 1px solid rgba(150,138,114,0.45); border-radius: 1px; box-shadow: 0 1px 3px rgba(0,0,0,0.6); }
-.k-bar-fill { position: absolute; left: 1px; top: 1px; bottom: 1px; border-radius: 1px; transition: width 0.4s ease; }
+.k-bar-fill { position: absolute; left: 1px; top: 1px; bottom: 1px; border-radius: 1px;
+  transition: width 300ms cubic-bezier(.2,.8,.3,1); }
+/* the wound left behind — see setBar(). It holds at the old value while the
+   fill snaps to the new one, then falls to meet it, so the bite is visible
+   AFTER the bite rather than only during it. */
+.k-bar-ghost { position: absolute; left: 1px; top: 1px; bottom: 1px; border-radius: 1px;
+  background: rgba(255,228,196,0.62); box-shadow: 0 0 6px rgba(255,214,170,0.45);
+  transition: width 460ms cubic-bezier(.35,.15,.25,1); }
 .k-bar-party { background: linear-gradient(90deg, #a8996f, #ddcfa2); }
 .k-bar-boss { background: linear-gradient(90deg, #7e2a20, #b23a2a); }
 .k-hpnum { font-size: 12px; color: #9a9080; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
@@ -163,6 +170,17 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   background: rgba(10,9,11,0.6); }
 .k-pip.on { background: linear-gradient(180deg, #dcb46e, #b08c46); border-color: #c9a45c;
   box-shadow: 0 0 4px rgba(201,164,92,0.4); }
+/* a pip knocked out says so — staggered from the top down, so a 3-break card
+   reads as three separate lights going out rather than one wider dimming */
+.k-pip-out { animation: k-pip-out 420ms cubic-bezier(.2,.9,.3,1) backwards;
+  animation-delay: calc(var(--pip-i, 0) * 80ms); }
+@keyframes k-pip-out {
+  0%   { transform: scale(1); background: #dcb46e; border-color: #c9a45c;
+         box-shadow: 0 0 0 rgba(255,214,140,0); }
+  35%  { transform: scale(1.7); background: #fff3d2; border-color: #fff;
+         box-shadow: 0 0 14px rgba(255,224,160,0.95); }
+  100% { transform: scale(1); background: none; box-shadow: 0 0 0 rgba(255,214,140,0); }
+}
 #k-break.k-flash .k-pip.on { animation: k-pipflash 0.5s ease; }
 @keyframes k-pipflash { 40% { box-shadow: 0 0 8px rgba(201,164,92,0.9); } }
 .k-chill { font-size: 10px; color: #9db8c4; }
@@ -945,7 +963,15 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    its OWN wrapper, so the strike, recoil and charge animations on the <img>
    underneath still play without fighting it — and each is offset so the three
    of them are never in lockstep, which is what makes a crowd look alive. */
-.k-fig { position: absolute; left: 0; right: 0; bottom: 0; top: 0; display: block;
+/* A BLOOM MUST NOT COST THE FIGURE ITS BREATH. Build 36's k-mended, and the
+   ward that followed it, set `animation:` on .k-fig — which REPLACED the idle
+   breathe rather than layering over it, so a healed or guarded hero stopped
+   breathing and snapped back when the class came off. Every other transient
+   state here pauses the breathe (k-struck, k-acts, k-charging) instead of
+   overwriting it. A bloom is a filter on a transition now: no animation
+   property, no clock to clobber. */
+.k-fig { transition: filter 200ms ease-out;
+  position: absolute; left: 0; right: 0; bottom: 0; top: 0; display: block;
   transform-origin: 50% 100%; animation: k-breathe 4.4s ease-in-out infinite; }
 .k-hero[data-hero="ash"]  .k-fig { animation-duration: 4.6s; animation-delay: -0.4s; }
 .k-hero[data-hero="elin"] .k-fig { animation-duration: 5.2s; animation-delay: -2.1s; }
@@ -1218,6 +1244,64 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    rules have paused. All three heroes stay on screen the whole time — a
    three-hander reads as a three-hander only while all three are in the shot —
    and the speaker is the one lit and standing forward. */
+/* ── THE AWAKENING ────────────────────────────────────────────────────────
+   Three memories, one taken. The card is a MEMORY first and a boon second, so
+   the prose gets the room and the mechanical line sits under it in gold —
+   the same order the campfire's nodes use, for the same reason: the player
+   should be choosing a thing that happened, not a stat. */
+#k-wake { position: absolute; inset: 0; width: 932px; height: 430px; overflow: hidden;
+  background: #08070a; color: #cfc8ba; }
+#k-wake, #k-wake * { -webkit-touch-callout: none !important; -webkit-user-select: none; user-select: none; }
+#k-wake img { -webkit-user-drag: none; pointer-events: none; }
+#k-wake-bg { position: absolute; inset: 0; }
+#k-wake-bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  object-position: 50% 38%; filter: saturate(0.34) brightness(0.42) contrast(1.05) blur(2px); }
+#k-wake-title { position: absolute; top: 22px; left: 0; right: 0; z-index: 3; margin: 0;
+  font: 600 21px/1 var(--serif, Georgia, serif); letter-spacing: 0.3em; text-align: center;
+  color: #e8dcc0; text-shadow: 0 2px 14px rgba(0,0,0,0.9); }
+#k-wake-sub { position: absolute; top: 52px; left: 0; right: 0; z-index: 3; margin: 0;
+  font: 400 12px/1 var(--serif, Georgia, serif); letter-spacing: 0.09em; text-align: center;
+  color: #9a9084; }
+/* THE ROW IS AS TALL AS ITS TALLEST MEMORY, not as tall as the screen. Pinned
+   to the bottom edge it stretched three short paragraphs over 326px and left a
+   hand-sized hole in the middle of every card. Height is content-driven now and
+   the cards still stretch to match each other, so the gain lines share a
+   baseline across all three. */
+#k-wake-cards { position: absolute; left: 22px; right: 22px; top: 88px; bottom: 20px; z-index: 3;
+  max-height: 322px;
+  /* one flex LINE, centred in the space under the title. `align-content`
+     places the line; `align-items: stretch` still matches the three cards to
+     each other inside it, so the gain lines share a baseline. Without the
+     wrap the row could only be pinned or stretched, and pinned left a
+     hand-sized hole of black under every card. */
+  display: flex; gap: 14px; flex-wrap: wrap; align-content: center; align-items: stretch; }
+.k-wk { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; text-align: left;
+  padding: 16px 16px 14px; border-radius: 4px; cursor: pointer;
+  border: 1px solid rgba(150,132,96,0.34);
+  background: linear-gradient(180deg, rgba(30,26,24,0.92), rgba(15,13,15,0.95));
+  color: #cfc8ba; font-family: var(--serif, Georgia, serif);
+  transition: border-color 160ms ease, transform 160ms ease, background 160ms ease; }
+.k-wk:hover, .k-wk:focus-visible { border-color: rgba(228,196,124,0.8);
+  transform: translateY(-3px);
+  background: linear-gradient(180deg, rgba(42,35,28,0.95), rgba(18,15,16,0.96)); }
+.k-wk-who { font: 600 10px/1 var(--serif, Georgia, serif); letter-spacing: 0.24em;
+  color: #8d8478; margin-bottom: 6px; }
+.k-wk-title { font: 600 16px/1.15 var(--serif, Georgia, serif); letter-spacing: 0.11em;
+  color: #e8cf95; margin-bottom: 10px; }
+/* the prose takes the space, and pushes the mechanics to the floor of the card
+   so all three read on the same baseline however long the memory runs */
+.k-wk-line { flex: 1 1 auto; font: italic 400 12px/1.5 var(--serif, Georgia, serif);
+  color: #b3aa9c; margin-bottom: 12px; }
+.k-wk-gain { font: 600 12px/1.3 var(--serif, Georgia, serif); letter-spacing: 0.05em;
+  color: #e8cf95; }
+.k-wk-cost { font: 400 11px/1.3 var(--serif, Georgia, serif); letter-spacing: 0.04em;
+  color: #c98a72; margin-top: 4px; }
+/* a trade wears its cost — the one card in the offer that is not simply a gift */
+.k-wk-trade { border-color: rgba(190,120,92,0.46); }
+.k-wk-trade:hover, .k-wk-trade:focus-visible { border-color: rgba(216,138,104,0.85); }
+.k-wk-card { border-color: rgba(140,176,208,0.44); }
+.k-wk-card:hover, .k-wk-card:focus-visible { border-color: rgba(170,206,238,0.85); }
+
 #k-scene { position: absolute; inset: 0; width: 932px; height: 430px; overflow: hidden;
   background: #08070a; color: #cfc8ba; cursor: pointer; }
 #k-scene, #k-scene * { -webkit-touch-callout: none !important; -webkit-user-select: none; user-select: none; }
@@ -1660,6 +1744,37 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-hero.k-casting .k-fig { filter: brightness(1.28) saturate(1.1)
   drop-shadow(0 0 16px var(--rune, rgba(154,216,224,0.7))); }
 
+/* ── THE WARD ──────────────────────────────────────────────────────────────
+   The fourth verb. Build 36 sorted every card into heal | cast | slash | ward
+   and animated three of them; a guard card changed a number in the roster and
+   left the board completely still. */
+.k-ward { position: absolute; z-index: 33; pointer-events: none;
+  width: 74px; height: 86px; margin: -43px 0 0 -37px;
+  clip-path: polygon(50% 0, 100% 22%, 100% 64%, 50% 100%, 0 64%, 0 22%);
+  background: linear-gradient(160deg, rgba(206,224,244,0.5), rgba(126,158,196,0.16) 60%, transparent);
+  border: 0; opacity: 0;
+  box-shadow: 0 0 18px rgba(170,200,232,0.6);
+  animation: k-ward 560ms cubic-bezier(.15,.9,.3,1) forwards; }
+/* the rim, drawn as a second plate so the facet edges stay crisp under the
+   glow instead of being swallowed by it */
+.k-ward::after { content: ''; position: absolute; inset: 0;
+  clip-path: polygon(50% 0, 100% 22%, 100% 64%, 50% 100%, 0 64%, 0 22%,
+                     50% 5%, 4% 24%, 4% 62%, 50% 94%, 96% 62%, 96% 24%);
+  background: rgba(226,240,255,0.95); }
+@keyframes k-ward {
+  0%   { opacity: 0; transform: scale(0.55) translateY(10px); }
+  38%  { opacity: 1; transform: scale(1.06) translateY(0); }
+  70%  { opacity: 0.9; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.02); }
+}
+.k-hero.k-warded .k-fig { filter: brightness(1.16) drop-shadow(0 0 16px rgba(178,206,238,0.85)); }
+.k-pop-ward { color: #cfe2f6 !important;
+  text-shadow: 0 0 12px rgba(150,190,232,0.8), 0 2px 5px rgba(0,0,0,0.9) !important; }
+
+/* a spell's number is the colour of the spell */
+.k-pop-tone { color: var(--rune) !important;
+  text-shadow: 0 0 14px var(--rune), 0 2px 6px rgba(0,0,0,0.92) !important; }
+
 /* the four things a cast can be made of */
 .k-tone-ice   { --rune: #8fd4e8; }
 .k-tone-life  { --rune: #9fdc86; }
@@ -1679,11 +1794,6 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   22%  { opacity: 1; }
   100% { opacity: 0; transform: translateY(-74px) scale(0.9); }
 }
-.k-hero.k-mended .k-fig { animation: k-mended 700ms ease-out; }
-@keyframes k-mended {
-  0%   { filter: none; }
-  30%  { filter: brightness(1.3) drop-shadow(0 0 20px rgba(152,216,120,0.85)); }
-  100% { filter: none; }
-}
+.k-hero.k-mended .k-fig { filter: brightness(1.3) drop-shadow(0 0 20px rgba(152,216,120,0.85)); }
 .k-pop-heal { color: #b6e89c !important;
   text-shadow: 0 0 12px rgba(152,216,120,0.8), 0 2px 5px rgba(0,0,0,0.9) !important; }

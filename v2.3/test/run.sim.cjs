@@ -49,13 +49,28 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
   // the embers when it is not, which is the same heuristic the map is asking
   // a human to apply.
   async function walk(seed, p) {
-    const road = await J((s) => {
+    // THE ROAD NOW OPENS ON A CHOICE, and a sim that skipped it would be
+    // walking a road no player can walk. The boon is taken through the real
+    // run layer and its effects are READ BACK rather than re-implemented here,
+    // so the sim cannot drift from the game. The pick rotates by seed so all
+    // of them are walked across a tier instead of one being sampled 120 times.
+    // AN OLD HABIT is excluded: it opens the swap screen and waits for a
+    // finger, which a headless walk does not have.
+    const start = await J((s) => {
       window.R.newRun(s);
-      return window.R.map().map(n => ({ id: n.id, col: n.col, kind: n.kind, foe: n.foe, to: n.to }));
+      const offer = window.R.wakeOffer().filter(w => w.kind !== 'card');
+      window.R.takeWake(offer[s % offer.length].id);
+      const r = window.R.state();
+      return { map: window.R.map().map(n => ({ id: n.id, col: n.col, kind: n.kind, foe: n.foe, to: n.to })),
+               woke: r.woke, embers: r.embers, kizuna: r.kizuna, vigor: r.vigor || 0,
+               foeBonus: r.foeBonus || 0, hp: r.hp, bonds: r.bonds };
     }, seed);
-    let at = null, hp = { ...MAXHP }, embers = 0, fights = 0, tier = 1, kizuna = 0;
+    const road = start.map;
+    const maxhp = {}; for (const k of Object.keys(MAXHP)) maxhp[k] = MAXHP[k] + start.vigor;
+    let at = null, hp = start.hp ? { ...start.hp } : { ...maxhp };
+    let embers = start.embers, fights = 0, tier = 1, kizuna = start.kizuna;
     let roster = JSON.parse(JSON.stringify(BASE_ROSTER));
-    const bonds = { 'ash|elin': 0, 'ash|mira': 0, 'elin|mira': 0 };
+    const bonds = { ...start.bonds };
     const levels = { 'ash|elin': 0, 'ash|mira': 0, 'elin|mira': 0 };
     let traded = 0;
     let nodes = [];     // what this run has kindled
@@ -63,13 +78,13 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
     for (let col = 0; col < 6; col++) {
       const open = at ? road.find(n => n.id === at).to : road.filter(n => n.col === 0).map(n => n.id);
       const opts = open.map(id => road.find(n => n.id === id));
-      const hurt = total(hp) / total(MAXHP);
+      const hurt = total(hp) / total(maxhp);
       const want = opts.find(n => n.kind === 'camp' && hurt < 0.72)
         || opts.find(n => n.kind === 'story' && hurt >= 0.72)
         || opts.find(n => n.kind !== 'camp') || opts[0];
       at = want.id;
       if (want.kind === 'camp') {
-        for (const k of Object.keys(MAXHP)) hp[k] = Math.min(MAXHP[k], Math.round(hp[k] + MAXHP[k] * CAMP_FRAC));
+        for (const k of Object.keys(maxhp)) hp[k] = Math.min(maxhp[k], Math.round(hp[k] + maxhp[k] * CAMP_FRAC));
         // A SIM THAT NEVER SPENDS MEASURES A PARTY NOBODY PLAYS. Same error the
         // ladder note warns about: a bot that hoards its embers reports the road
         // as harder than it is, and every number tuned off it is tuned for a
@@ -128,6 +143,8 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
       const r = await page.evaluate(
         ([src, sd, pp, mt, o]) => eval(src)(sd, pp, mt, o),
         [BOT, seed * 31 + col * 7 + 1, p, MAX_TURNS, { foe: want.foe, partyHp: hp, kizuna, roster,
+          vigor: start.vigor,
+          foeBonus: want.kind === 'boss' ? start.foeBonus : 0,
           upgrades: nodes.map(id => (TREE.find(n => n.id === id) || {}).card).filter(Boolean),
           allout: (TREE.find(n => nodes.indexOf(n.id) >= 0 && n.allout) || {}).allout || null }]);
       hp = r.hp;
@@ -135,11 +152,11 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
       for (const k of BOND.pairs) bonds[k] += ((r.pairBond || {})[k] || 0);
       trace.push({ col, kind: want.kind, foe: want.foe, left: total(hp), turns: r.turns,
                    allouts: r.allouts || 0 });
-      if (!r.win) return { win: false, diedAt: col, kind: want.kind, foe: want.foe, hp, embers, fights, trace, nodes, traded, roster };
+      if (!r.win) return { win: false, diedAt: col, kind: want.kind, foe: want.foe, hp, embers, fights, trace, nodes, traded, roster, woke: start.woke };
       embers += ({ husk: 2, cultist: 2, wraith: 3, revenant: 5, mourner: 8 })[want.foe] || 2;
-      if (want.kind === 'boss') return { win: true, diedAt: null, hp, embers, fights, trace, nodes, traded, roster };
+      if (want.kind === 'boss') return { win: true, diedAt: null, hp, embers, fights, trace, nodes, traded, roster, woke: start.woke };
     }
-    return { win: false, diedAt: 5, kind: 'ran-out', hp, embers, fights, trace, nodes, traded, roster };
+    return { win: false, diedAt: 5, kind: 'ran-out', hp, embers, fights, trace, nodes, traded, roster, woke: start.woke };
   }
 
   console.log(`\n  KIZUNA v2.3 — the road, walked ${RUNS}× per tier\n`);
@@ -158,7 +175,12 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
     const shapeBad = res.filter(r => !r.roster
       || ['ash', 'elin', 'mira'].some(h => (r.roster[h] || []).length !== 5)
       || new Set(['ash', 'elin', 'mira'].reduce((a, h) => a.concat(r.roster[h]), [])).size !== 15).length;
-    rows.push({ name: band.name, rate, col0, held, shapeBad,
+    // EVERY ROAD ANSWERED ITS AWAKENING, and the tier as a whole walked more
+    // than one of them — a rotation that quietly collapsed to a single boon
+    // would report 120 roads and measure one.
+    const unwoken = res.filter(r => !r.woke).length;
+    const woke = {}; res.forEach(r => { woke[r.woke] = (woke[r.woke] || 0) + 1; });
+    rows.push({ name: band.name, rate, col0, held, shapeBad, unwoken, woke,
                 purse: purse[Math.floor(purse.length / 2)] });
     console.log(`  ${held ? '✓' : '✗'} ${band.name.padEnd(15)} runs completed ${rate.toFixed(1)}%  `
       + `[gate ${band.glo}–${band.ghi}%]  died at stop ` + JSON.stringify(deaths)
@@ -194,10 +216,14 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
     + `(${trailhead.col0.toFixed(1)}% at ~half parries · gate ≤8%)`);
   const monotone = rows[0].rate <= rows[1].rate && rows[1].rate <= rows[2].rate;
   console.log(`  ${monotone ? '✓' : '✗'} MONOTONE       every step up in parry skill is a longer road survived`);
+  const wokeOk = rows.every(r => r.unwoken === 0 && Object.keys(r.woke).length >= 3);
+  console.log(`  ${wokeOk ? '✓' : '✗'} AWAKENING      every road answered its offer, and the tier walked `
+    + `${Object.keys(rows[1].woke).sort().join('/')} `
+    + `(${rows.reduce((n, r) => n + r.unwoken, 0)} unanswered of ${RUNS * 3})`);
   const shapeOk = rows.every(r => r.shapeBad === 0);
   console.log(`  ${shapeOk ? '✓' : '✗'} FIVE SLOTS     every road ends on 5/5/5 and fifteen unique cards `
     + `(${rows.reduce((n, r) => n + r.shapeBad, 0)} broken of ${RUNS * 3})`);
-  const allOk = rows.every(r => r.held) && fodderOk && monotone && shapeOk;
+  const allOk = rows.every(r => r.held) && fodderOk && monotone && shapeOk && wokeOk;
   console.log(`\n=== ${rows.filter(r => r.held).length}/${rows.length} run gates held · ${RUNS} roads each ===`);
   await H.browser.close();
   process.exit(allOk ? 0 : 1);

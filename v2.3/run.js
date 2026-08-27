@@ -122,6 +122,95 @@
   // Levels reset with the run — they are earned in the fighting. What PERSISTS
   // is the profile: which scenes you have heard and which cards you have won.
   // That is the progression that outlives a death.
+  // ═══════════════════════════════════════════════════════════════════════
+  // THE AWAKENING — the three of them wake, and one of them reaches back
+  // ═══════════════════════════════════════════════════════════════════════
+  // Slay the Spire opens every run with a choice made before you know
+  // anything: it costs nothing, it cannot be optimised, and it is the first
+  // thing that makes this run different from the last one. That is the job
+  // here too — but the shape has to be ours, so a boon is never a stat bolted
+  // onto a character. It is a MEMORY one of them reaches for, and the thing
+  // it gives is the thing that memory is about.
+  //
+  // Everything an awakening can grant already exists: embers, the bond,
+  // health, a pair's closeness, a card won on an earlier road. Nothing here
+  // invents a currency — the deck still does not grow, and `habit` pays for
+  // its card with a slot like every other card in the game.
+  //
+  // THREE ARE OFFERED, and the composition is fixed even though the contents
+  // are not: exactly one is a TRADE — a real gain against a real cost — so
+  // the choice is never three flavours of free. When an earlier run has won a
+  // card, one slot is always that card, which is what makes the persistent
+  // profile matter on turn one rather than at the third campfire.
+  const WAKES = [
+    { id: 'kindling', kind: 'plain', who: 'ASH', title: 'KINDLING',
+      line: 'Ash keeps a twist of dry grass in her coat for no reason she can name. '
+          + 'Her mother\u2019s hands, doing this, in a room that is gone. The road will want a fire.',
+      gain: '+4 embers', apply(r) { r.embers += 4; } },
+    { id: 'lastnote', kind: 'plain', who: 'ELIN', title: 'THE LAST NOTE',
+      line: 'The three of them held a chord once, at the end of something. Elin never let go of it. '
+          + 'It is still there under everything, waiting to be finished.',
+      gain: 'the bond begins at 45', apply(r) { r.kizuna = 45; } },
+    { id: 'rest', kind: 'plain', who: 'MIRA', title: 'A NIGHT THAT KEPT',
+      line: 'One night nobody woke them. Mira remembers the weight of the other two against her back, '
+          + 'and how nothing came. She has been carrying the rest of that night ever since.',
+      gain: '+6 health, all three', apply(r) { r.vigor += 6; } },
+    { id: 'close', kind: 'plain', who: null, title: 'STILL CLOSE',
+      line: 'Something one of them did for another, so small neither would call it anything. '
+          + 'It is the reason they can still find each other without looking.',
+      gain: 'a pair begins close', apply(r) { r.bonds[wakePair()] = 10; } },
+    // the persistent slot — offered only when an earlier road won something
+    { id: 'habit', kind: 'card', who: 'ALL THREE', title: 'AN OLD HABIT',
+      line: 'There is a thing they learned on a road that ended badly. The hands remember it '
+          + 'whether or not anyone wants them to. The deck will have to make room.',
+      gain: 'carry a card you have won', apply() {} },
+    // the trades — one of these is always in the offer
+    { id: 'borrowed', kind: 'trade', who: 'ALL THREE', title: 'BORROWED FIRE',
+      line: 'There is a way to take the warmth now and settle for it later. All three of them '
+          + 'know how. None of them says so out loud.',
+      gain: '+8 embers', cost: 'they set out already hurt',
+      apply(r) { r.embers += 8; r.hp = { ash: 34, elin: 29, mira: 27 }; } },
+    { id: 'debt', kind: 'trade', who: 'ELIN', title: 'A DEBT OF BREATH',
+      line: 'Reach back far enough and the chord is already ringing. So is everything that was '
+          + 'listening to it the first time.',
+      gain: 'the bond begins at 70', cost: 'the Regent wakes with 14 more',
+      apply(r) { r.kizuna = 70; r.foeBonus += 14; } },
+  ];
+  const wakeDef = (id) => WAKES.find(w => w.id === id);
+  // WHICH PAIR "STILL CLOSE" MEANS is a fact about the run, not about the
+  // screen. The first pass decided it inside renderWake(), so taking the
+  // memory without drawing it first — which is what the simulator and every
+  // test do — silently fell back to a default pair, and the sim measured a
+  // boon the game does not offer. Decided once, on demand, from the seed.
+  function wakePair() {
+    if (RUN && !RUN.wakePair) { rseed(RUN.seed ^ 0xC10E); RUN.wakePair = PAIRS[Math.floor(rr() * 3) % 3]; }
+    return RUN ? RUN.wakePair : PAIRS[0];
+  }
+  const wonCards = () => (PROFILE && PROFILE.won ? PROFILE.won : [])
+    .filter(id => window.K.CARD_DEFS[id]);
+
+  // Deterministic in the run's own seed, on its own cursor, so the same seed
+  // always wakes the same way — and so a test can name what it is choosing.
+  function wakeOffer() {
+    if (!RUN) return [];
+    rseed(RUN.seed ^ 0x5EED);
+    const pick = (list) => list[Math.floor(rr() * list.length) % list.length];
+    const plains = WAKES.filter(w => w.kind === 'plain');
+    const out = [pick(WAKES.filter(w => w.kind === 'trade'))];
+    out.push(wonCards().length ? wakeDef('habit') : pick(plains));
+    const rest = plains.filter(w => out.indexOf(w) < 0);
+    out.push(pick(rest));
+    // A THIRD DRAWN FROM WHAT IS LEFT, not from the whole pool: picking twice
+    // from `plains` gave the same memory twice roughly one seed in four.
+    const rest2 = plains.filter(w => out.indexOf(w) < 0);
+    if (out[1] === out[2] && rest2.length) out[2] = pick(rest2);
+    for (let i = out.length - 1; i > 0; i--) {          // shuffle, so the trade
+      const j = Math.floor(rr() * (i + 1));             // is not always first
+      const t = out[i]; out[i] = out[j]; out[j] = t;
+    }
+    return out;
+  }
+
   const PAIRS = ['ash|elin', 'ash|mira', 'elin|mira'];
   const BOND_STEPS = [12, 30];               // points to reach level 1, then 2
   const PAIR_NAME = { 'ash|elin': 'ASH + ELIN', 'ash|mira': 'ASH + MIRA', 'elin|mira': 'ELIN + MIRA' };
@@ -359,6 +448,7 @@
   // ── run state ─────────────────────────────────────────────────────────────
   let RUN = null;
   let _pick = null;                  // the node the finger is asking about
+  let _swapBack = null;              // where confirmSwap returns to
   let _busy = false;
 
   function freshRun(seed) {
@@ -373,6 +463,10 @@
       flash: null,                                // the receipt from the last stop
       pending: null,                              // a stop entered but not finished
       camped: 0, campDone: null,                  // the fire only mends once per visit
+      woke: null,                                 // the memory reached for on waking
+      vigor: 0,                                   // max HP the party woke up with
+      foeBonus: 0,                                // HP the Regent woke up with
+      wakePair: null,                             // the pair STILL CLOSE names
       seen: [],                                   // the memories this run has heard
       tier: 1,                                    // raised by MEMORY stops (Build 28)
       hp: null,                                   // null = everyone is whole
@@ -403,7 +497,7 @@
 
   // ── the screen ────────────────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
-  const SCREENS = { map: 'k-map', combat: 'k-stage', camp: 'k-camp', scene: 'k-scene', swap: 'k-swap' };
+  const SCREENS = { map: 'k-map', combat: 'k-stage', camp: 'k-camp', scene: 'k-scene', swap: 'k-swap', wake: 'k-wake' };
   function screen(which) {
     for (const k of Object.keys(SCREENS)) {
       const el2 = $(SCREENS[k]);
@@ -627,7 +721,12 @@
     const foe = window.K.FOES[n.foe] || window.K.FOES.wraith;
     screen('combat');
     window.K.startCombat({ foe, partyHp: RUN.hp, onEnd: onFightEnd, kizuna: RUN.kizuna || 0,
-                           roster: RUN.roster, upgrades: cardUps(), allout: alloutOf() });
+                           roster: RUN.roster, upgrades: cardUps(), allout: alloutOf(),
+                           vigor: RUN.vigor || 0,
+                           // A DEBT IS SETTLED WITH THE REGENT, not with every
+                           // wraith on the way to her. Borrowing against the
+                           // whole road would just be a difficulty setting.
+                           foeBonus: foe.tier === 'boss' ? (RUN.foeBonus || 0) : 0 });
   }
 
   function onFightEnd(sum) {
@@ -924,6 +1023,63 @@
     toMap();
   }
 
+  // ── the awakening screen ─────────────────────────────────────────────────
+  function renderWake() {
+    const offer = wakeOffer();
+    const box = $('k-wake-cards'); if (!box) return;
+    // STILL CLOSE names a real pair, chosen once and remembered, so the card
+    // can say WHO — "a pair begins close" is a mechanic; "Ash and Mira are
+    // still close" is the thing the game is actually about.
+    const pair = wakePair();
+    const won = wonCards();
+    box.innerHTML = offer.map(w => {
+      // The voice line already names the pair; repeating it here just said
+      // ASH + MIRA twice. The number is the part the player cannot infer —
+      // level 1 is 12, so 10 is one stitch short of their first scene.
+      const gain = w.id === 'close' ? 'they begin at 10 of ' + BOND_STEPS[0]
+                 : w.id === 'habit' ? 'carry ' + (won.length === 1
+                     ? window.K.CARD_DEFS[won[0]].name : 'one of ' + won.length + ' cards you have won')
+                 : w.gain;
+      // STILL CLOSE speaks in the voice of the pair it names. Every other
+      // memory carries its own; the row is never empty, because a card with
+      // no voice put its title on a different baseline from the two beside it.
+      const who = w.id === 'close' ? PAIR_NAME[pair] : w.who;
+      return '<button type="button" class="k-wk k-wk-' + w.kind + '" data-wake="' + w.id + '">'
+        + '<span class="k-wk-who">' + who + '</span>'
+        + '<b class="k-wk-title">' + w.title + '</b>'
+        + '<em class="k-wk-line">' + w.line + '</em>'
+        + '<span class="k-wk-gain">' + gain + '</span>'
+        + (w.cost ? '<span class="k-wk-cost">' + w.cost + '</span>' : '')
+        + '</button>';
+    }).join('');
+    box.querySelectorAll('.k-wk').forEach(b =>
+      b.addEventListener('click', (e) => { e.stopPropagation(); takeWake(b.dataset.wake); }));
+  }
+
+  function takeWake(id) {
+    if (!RUN || RUN.woke) return;
+    const w = wakeDef(id); if (!w) return;
+    // ONLY WHAT WAS OFFERED. Without this the id is an open door into the
+    // whole pool from anywhere that can reach R.takeWake.
+    if (wakeOffer().indexOf(w) < 0) return;
+    RUN.woke = id;
+    if (id === 'habit') {
+      const won = wonCards();
+      if (!won.length) { RUN.woke = null; return; }
+      // Straight into the swap screen the rest of the game already uses, so
+      // the five-slot rule is enforced by the one piece of code that knows it.
+      _pendingCard = won[0];
+      _pendingAfter = 'The hands remember it. Something has to make room.';
+      _swapPick = null; _swapBack = 'map';
+      save();
+      screen('swap'); renderSwap();
+      return;
+    }
+    w.apply(RUN);
+    save();
+    toMap();
+  }
+
   // ── the swap ─────────────────────────────────────────────────────────────
   function renderSwap() {
     const K = window.K;
@@ -971,7 +1127,12 @@
       sub: _swapPick.hero.toUpperCase() + ' gives up ' + window.K.CARD_DEFS[_swapPick.id].name + ' to carry it.',
       gain: '5/5/5', gainSub: 'the deck never grows' };
     _pendingCard = null; _swapPick = null; _pendingAfter = '';
+    const back = _swapBack; _swapBack = null;
     save();
+    // A SWAP KNOWS WHERE IT CAME FROM. The awakening's card arrives before
+    // there is a campfire to go back to; returning to one would have shown the
+    // fire's screen with no fire behind it.
+    if (back === 'map') return toMap();
     // another pair may also be waiting at this same fire
     if (!openBondScene()) { screen('camp'); renderCamp(); }
   }
@@ -983,8 +1144,9 @@
     RUN.roster = window.K.baseRoster();
     _pick = null; _busy = false;
     save();
-    toMap();
+    toWake();
   }
+  function toWake() { screen('wake'); renderWake(); }
 
   // ── boot ──────────────────────────────────────────────────────────────────
   function bindCamp() {
@@ -1018,6 +1180,9 @@
     // better than the alternatives it replaces: a memory silently stripped of
     // the only tier it could ever have given, or a boss stop that leaves the
     // run with nowhere to go and no way to end it.
+    // AN AWAKENING LEFT UNANSWERED IS RE-ASKED. Closing the tab on the offer
+    // used to be the one way to start a run with no memory at all.
+    if (!RUN.over && !RUN.woke && !RUN.pending && !RUN.path.length) return toWake();
     if (RUN.pending && !RUN.over) {
       const n = node(RUN.pending);
       if (n) { enter(n); return; }
@@ -1037,6 +1202,7 @@
     render: renderMap,
     TREE, treeNode, kindle, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
     pendingBonds, openBondScene, takeBond, confirmSwap, renderSwap,
+    WAKES, wakeOffer, takeWake, renderWake, wakeDef, wakePair,
     swapPick: () => _swapPick, pendingCard: () => _pendingCard,
     PAIRS, BOND_STEPS, BONDS, bondLevel, bondScene, PAIR_NAME,
     profile: () => PROFILE, resetProfile() { PROFILE = { heard: [], won: [] }; saveProfile(); },

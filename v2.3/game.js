@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 36;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 37;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -498,11 +498,17 @@ function startCombat(opts) {
   _camPoseCur = null;                     // a fresh fight re-composes the shot
   const foe = opts.foe || FOES.mourner;
   const carry = opts.partyHp || null;     // a run carries its wounds between fights
-  const hero = (id) => ({
-    row: HEROES23[id].row0,
-    hp: carry && carry[id] != null ? Math.max(0, Math.min(HEROES23[id].maxHp, carry[id])) : HEROES23[id].maxHp,
-    max: HEROES23[id].maxHp, guard: 0, downed: false,
-  });
+  // TWO THINGS THE AWAKENING CAN CHANGE. The run→engine seam is deliberately
+  // narrow, so these are named for what they are rather than passed as a bag
+  // of modifiers: `vigor` is max HP the party woke up with, `foeBonus` is HP
+  // this particular foe woke up with. Both default to nothing.
+  const vigor = Math.max(0, opts.vigor || 0);
+  const hero = (id) => {
+    const max = HEROES23[id].maxHp + vigor;
+    return { row: HEROES23[id].row0,
+             hp: carry && carry[id] != null ? Math.max(0, Math.min(max, carry[id])) : max,
+             max, guard: 0, downed: false };
+  };
   C = {
     phase: 'INTRO',
     turn: 1,
@@ -513,7 +519,8 @@ function startCombat(opts) {
     onEnd: opts.onEnd || null,
     heroes: { ash: hero('ash'), elin: hero('elin'), mira: hero('mira') },
     boss: {
-      name: foe.name, hp: foeHp(foe), max: foeHp(foe), phase: 1,
+      name: foe.name, hp: foeHp(foe) + Math.max(0, opts.foeBonus || 0),
+      max: foeHp(foe) + Math.max(0, opts.foeBonus || 0), phase: 1,
       breakMax: foe.brk, brk: foe.brk, broken: false, cancelNext: false,
       bleed: 0, chill: 0, intentIx: 0, _healedRecently: false,
     },
@@ -791,7 +798,7 @@ function breakDamage(n) {
 function guardHero(heroId, n) {
   if (C && C.phase !== 'PLAYER_ACTION_RESOLVING') setTimeout(renderPartyHud, 0);
   const h = C.heroes[heroId];
-  if (h && !h.downed) h.guard += n;
+  if (h && !h.downed) { h.guard += n; if (typeof fxWard === 'function') fxWard(heroId, n); }
 }
 // ownerId: who played the card. allyId: chosen ally for 'ally'-target cards.
 // ONE CARD, ONE NUMBER. A card whose effects carry two damage atoms — a base
@@ -1943,8 +1950,12 @@ function fxBurst(node, tone) {
 }
 // the number, once, for whatever the whole card added up to
 function popDamage(n, why) {
+  // A spell's number is the colour of the spell. Steel keeps the house red;
+  // ice, light and life each read as themselves, so the number agrees with
+  // the thing that threw it instead of contradicting it.
+  const tone = (_act && _act.kind === 'cast' && why === 'hit') ? ' k-pop-tone k-tone-' + _act.tone : '';
   popupOver(document.getElementById('k-boss-art'), fmtN(n),
-    (why === 'bleed' ? 'k-pop-bleed' : 'k-pop-dmg') + ' ' + POP_TIER(n));
+    (why === 'bleed' ? 'k-pop-bleed' : 'k-pop-dmg') + ' ' + POP_TIER(n) + tone);
 }
 function fxDamageBoss(n, why) { fxStrikeBoss(n, why); popDamage(n, why); }
 function fxBreak() { const el = document.getElementById('k-break'); if (el) { el.classList.remove('k-flash'); void el.offsetWidth; el.classList.add('k-flash'); } }
@@ -2036,6 +2047,28 @@ function fxCast(heroId, tone, toNode) {
   }
 }
 
+// ── the ward ─────────────────────────────────────────────────────────────────
+// Build 36 sorted every card into four verbs — heal, cast, slash, ward — and
+// then shipped animations for three. A guard card played its cost, changed a
+// number in the roster and did NOTHING on the board, which is the same
+// complaint that build set out to answer, surviving inside its own fix.
+function fxWard(heroId, n) {
+  const S = stageBox(); if (!S || !n) return;
+  const h = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
+  if (!h) return;
+  const c = centreOf(h);
+  h.classList.remove('k-warded'); void h.offsetWidth; h.classList.add('k-warded');
+  setTimeout(() => h.classList.remove('k-warded'), 280);
+  if (c) {
+    const pl = document.createElement('i');
+    pl.className = 'k-ward';
+    pl.style.left = c.x + 'px'; pl.style.top = (c.y + 18) + 'px';
+    S.st.appendChild(pl);
+    setTimeout(() => pl.remove(), 680);
+  }
+  popupOver(h, '\u2688' + fmtN(n), 'k-pop-ward');
+}
+
 // ── the mend ─────────────────────────────────────────────────────────────────
 // Healing used to be invisible: a number in the roster changed and nothing on
 // the board moved. The one card in the deck whose whole job is to undo damage
@@ -2046,7 +2079,7 @@ function fxHeal(heroId, n) {
   if (!h) return;
   const c = centreOf(h);
   h.classList.remove('k-mended'); void h.offsetWidth; h.classList.add('k-mended');
-  setTimeout(() => h.classList.remove('k-mended'), 720);
+  setTimeout(() => h.classList.remove('k-mended'), 300);
   if (c) {
     for (let i = 0; i < 6; i++) {
       const m = document.createElement('i');
@@ -2417,13 +2450,47 @@ function renderAll() {
   renderPartyHud(); renderBossHud(); renderIntent(); renderHand();
   renderApDial(); renderPiles(); renderHeroes(); renderOutcome();
 }
+// A BAR THAT EASES DOWN DOES NOT READ AS A WOUND. Every HP bar in the game
+// transitioned width over 400ms, which is the shape of a meter SETTLING — the
+// number slammed and the bar politely drifted. It snaps now, so the truth is
+// instant, and a pale ghost holds at the old value for a beat before falling
+// to meet it: the size of the bite stays on screen after the bite. Healing
+// runs the other way — the ghost jumps ahead and the fill grows into it.
+function setBar(bar, pct) {
+  if (!bar) return;
+  const fill = bar.querySelector('.k-bar-fill'); if (!fill) return;
+  let ghost = bar.querySelector('.k-bar-ghost');
+  if (!ghost) {
+    ghost = document.createElement('i');
+    ghost.className = 'k-bar-ghost';
+    bar.insertBefore(ghost, fill);          // behind the fill, same box
+    ghost.style.width = pct + '%';
+  }
+  const was = parseFloat(fill.dataset.pct);
+  fill.dataset.pct = pct;
+  const fresh = !(was >= 0);
+  // A REPAINT THAT CHANGES NOTHING MUST NOT WIPE THE TRAIL. Resolution
+  // re-renders the HUD several times for one blow; the first call opened the
+  // ghost correctly and the second, with the same value, snapped it shut
+  // again — so the trail existed for exactly as long as it took the next
+  // render to run, which is to say never.
+  if (!fresh && Math.abs(pct - was) < 0.01) return;
+  // The snap has to be a real style change, not a class the next render might
+  // race: inline transition off for the drop, back to the sheet for a gain.
+  fill.style.transition = (!fresh && pct < was) ? 'none' : '';
+  fill.style.width = pct + '%';
+  clearTimeout(ghost._t);
+  if (fresh || pct > was) { ghost.style.width = pct + '%'; return; }
+  ghost.style.width = was + '%';
+  ghost._t = setTimeout(() => { ghost.style.width = pct + '%'; }, 190);
+}
 function renderPartyHud() {
   for (const id of Object.keys(C.heroes)) {
     const h = C.heroes[id];
     const row = document.querySelector('.k-pt-hero[data-hero="' + id + '"]');
     if (!row) continue;
     row.classList.toggle('k-downed', !!h.downed);
-    row.querySelector('.k-bar-fill').style.width = (h.hp / h.max * 100) + '%';
+    setBar(row.querySelector('.k-bar'), h.hp / h.max * 100);
     row.querySelector('.k-pt-hp').innerHTML = '<b>' + fmtN(h.hp) + '</b> / ' + fmtN(h.max)
       + (h.guard > 0 ? ' <span class="k-pt-guard">⛨' + fmtN(h.guard) + '</span>' : '');
   }
@@ -2471,12 +2538,29 @@ async function fxAllOut(living) {
 function renderBossHud() {
   el('k-bhp').textContent = fmtN(C.boss.hp);
   el('k-bmax').textContent = fmtN(C.boss.max);
-  el('k-bhp-fill').style.width = (C.boss.hp / C.boss.max * 100) + '%';
+  setBar(el('k-bhp-fill').parentNode, C.boss.hp / C.boss.max * 100);
   el('k-bflag').textContent = (C.boss.broken || C.boss.cancelNext) ? 'BROKEN' : '';
   el('k-turn-n').textContent = C.turn;
+  // THE BREAK GAUGE ONLY EVER FLASHED AS A WHOLE. Knocking a pip out is the
+  // single most consequential thing a support card does, and it was a silent
+  // repaint — the row flashed, so you could see that break had moved and
+  // never by how much. The pips knocked out THIS repaint go out one at a
+  // time, from the top down, so a 3-break card reads as three.
+  //
+  // The gauge counts DOWN: C.boss.brk is the resistance still standing, and a
+  // card's `brk` atom takes it away. The first pass of this animated pips
+  // coming ON, which is a thing that only happens when a fight starts.
+  const box = el('k-break');
+  const before = box.dataset.brk === undefined ? C.boss.brk : +box.dataset.brk;
   const pips = [];
-  for (let i = 0; i < C.boss.breakMax; i++) pips.push('<span class="k-pip' + (i < C.boss.brk ? ' on' : '') + '"></span>');
-  el('k-break').innerHTML = pips.join('');
+  for (let i = 0; i < C.boss.breakMax; i++) {
+    const on = i < C.boss.brk;
+    const gone = !on && i < before;                 // lit a moment ago, dark now
+    pips.push('<span class="k-pip' + (on ? ' on' : '') + (gone ? ' k-pip-out' : '')
+      + '" style="--pip-i:' + (before - 1 - i) + '"></span>');
+  }
+  box.dataset.brk = C.boss.brk;
+  box.innerHTML = pips.join('');
   el('k-chill').textContent = C.boss.chill > 0 ? '❄ ' + fmtN(C.boss.chill) : '';
   el('k-bleed').textContent = C.boss.bleed > 0 ? '🩸 ' + fmtN(C.boss.bleed) : '';
 }

@@ -24,7 +24,11 @@ const MAX_TURNS = 30;
   // EXACTLY ONE SCREEN, ALWAYS. The router is four `classList.toggle` calls;
   // the failure it invites is two screens up at once or none at all, and both
   // look like "the game froze" to a player.
-  const visible = () => J(() => ['k-stage', 'k-map', 'k-camp', 'k-scene']
+  // EVERY SCREEN THE GAME HAS. "And on nothing else" is only a claim about
+  // the screens this list knows about — k-wake and k-swap were both missing
+  // from it, so a run could have opened on two screens at once and this would
+  // have reported one.
+  const visible = () => J(() => ['k-stage', 'k-map', 'k-camp', 'k-scene', 'k-swap', 'k-wake']
     .filter(id => !document.getElementById(id).classList.contains('k-hidden')));
 
   const breaches = [];
@@ -33,7 +37,8 @@ const MAX_TURNS = 30;
       const r = window.R.state(), out = [];
       if (r.embers < 0) out.push('negative embers: ' + r.embers);
       if (r.tier < 1 || r.tier > 5) out.push('tier out of range: ' + r.tier);
-      const H2 = { ash: 42, elin: 36, mira: 34 };
+      // A NIGHT THAT KEPT raises the ceiling, so the ceiling is not a constant.
+      const H2 = { ash: 42 + (r.vigor || 0), elin: 36 + (r.vigor || 0), mira: 34 + (r.vigor || 0) };
       if (r.hp) for (const id of Object.keys(H2)) {
         if (r.hp[id] > H2[id]) out.push(id + ' over max: ' + r.hp[id]);
         if (r.hp[id] < 0) out.push(id + ' below zero: ' + r.hp[id]);
@@ -80,10 +85,110 @@ const MAX_TURNS = 30;
     }
     return best.map(n => n.id);
   });
+  // ═══ THE AWAKENING — the run's first choice, before it knows anything ═══
+  await invariants('waking');
+  {
+    const v = await visible();
+    check('SLICE: the game opens on the awakening, and on nothing else',
+      v.length === 1 && v[0] === 'k-wake', v.join(','));
+    const offer = await J(() => {
+      const o = window.R.wakeOffer();
+      const cards = [...document.querySelectorAll('#k-wake-cards .k-wk')];
+      return { ids: o.map(w => w.id), kinds: o.map(w => w.kind),
+               drawn: cards.map(c => c.dataset.wake),
+               titles: cards.map(c => (c.querySelector('.k-wk-title') || {}).textContent),
+               lines: cards.map(c => ((c.querySelector('.k-wk-line') || {}).textContent || '').length),
+               gains: cards.map(c => (c.querySelector('.k-wk-gain') || {}).textContent),
+               costs: cards.map(c => !!c.querySelector('.k-wk-cost')) };
+    });
+    check('WAKE: three memories are offered, and the screen draws the three it chose',
+      offer.ids.length === 3 && new Set(offer.ids).size === 3
+      && offer.drawn.join(',') === offer.ids.join(','),
+      JSON.stringify({ ids: offer.ids, drawn: offer.drawn }));
+    // The composition is fixed even though the contents are not: exactly one
+    // of the three costs you something, so the choice is never three flavours
+    // of free.
+    check('WAKE: exactly one of the three is a trade, and it is the one wearing a cost',
+      offer.kinds.filter(k => k === 'trade').length === 1
+      && offer.costs.filter(Boolean).length === 1
+      && offer.costs[offer.kinds.indexOf('trade')] === true,
+      JSON.stringify({ kinds: offer.kinds, costs: offer.costs }));
+    check('WAKE: every memory is written, not just priced — a title, prose, and what it gives',
+      offer.titles.every(t => t && t.length > 3)
+      && offer.lines.every(n => n > 80)
+      && offer.gains.every(g => g && g.length > 3),
+      JSON.stringify({ titles: offer.titles, lines: offer.lines, gains: offer.gains }));
+
+    // A DETERMINISTIC OFFER. The rest of the run is seeded; the choice that
+    // opens it cannot be the one thing that is not, or a seed no longer names
+    // a run.
+    const stable = await J(() => {
+      const a = window.R.wakeOffer().map(w => w.id);
+      window.R.newRun(5150);
+      const b = window.R.wakeOffer().map(w => w.id);
+      window.R.newRun(4242);
+      const c = window.R.wakeOffer().map(w => w.id);
+      window.R.newRun(5150);
+      return { a, b, c };
+    });
+    check('WAKE: the same seed wakes the same way, and a different seed does not',
+      stable.a.join(',') === stable.b.join(',') && stable.b.join(',') !== stable.c.join(','),
+      JSON.stringify(stable));
+
+    // Take the trade — it is the option with something to go wrong.
+    const took = await J(() => {
+      const t = window.R.wakeOffer().find(w => w.kind === 'trade');
+      const before = JSON.parse(JSON.stringify(window.R.state()));
+      window.R.takeWake(t.id);
+      const r = window.R.state();
+      const hidden = (id) => document.getElementById(id).classList.contains('k-hidden');
+      return { id: t.id, woke: r.woke, onMap: !hidden('k-map'),
+               embers: [before.embers, r.embers], kizuna: [before.kizuna, r.kizuna],
+               foeBonus: r.foeBonus, hp: r.hp,
+               gained: r.embers > before.embers || r.kizuna > before.kizuna,
+               paid: !!r.hp || r.foeBonus > 0 };
+    });
+    check('WAKE: taking a memory applies it, records it, and opens the road',
+      took.woke === took.id && took.onMap && took.gained && took.paid,
+      JSON.stringify(took));
+
+    // The offer is answered ONCE. Without this, R.takeWake is a button that
+    // grants a boon every time it is pressed.
+    const again = await J(() => {
+      const r0 = JSON.parse(JSON.stringify(window.R.state()));
+      window.R.wakeOffer().forEach(w => window.R.takeWake(w.id));
+      const r = window.R.state();
+      return { woke: r.woke, was: r0.woke, embers: [r0.embers, r.embers],
+               kizuna: [r0.kizuna, r.kizuna], foeBonus: [r0.foeBonus, r.foeBonus] };
+    });
+    check('WAKE: a memory can only be reached for once',
+      again.woke === again.was && again.embers[0] === again.embers[1]
+      && again.kizuna[0] === again.kizuna[1] && again.foeBonus[0] === again.foeBonus[1],
+      JSON.stringify(again));
+
+    // And nothing outside the offer can be taken.
+    const offPool = await J(() => {
+      window.R.newRun(5150);
+      const offered = window.R.wakeOffer().map(w => w.id);
+      const outsider = window.R.WAKES.map(w => w.id).find(id => offered.indexOf(id) < 0);
+      window.R.takeWake(outsider);
+      return { outsider, woke: window.R.state().woke };
+    });
+    check('WAKE: a memory that was not offered cannot be taken',
+      offPool.outsider && offPool.woke == null, JSON.stringify(offPool));
+
+    // Back to the run this slice actually walks, with a plain memory taken so
+    // the road below is measured against a known start.
+    await J(() => {
+      window.R.newRun(5150);
+      const plain = window.R.wakeOffer().find(w => w.kind === 'plain');
+      window.R.takeWake(plain.id);
+    });
+  }
   await invariants('trailhead');
   {
     const v = await visible();
-    check('SLICE: the game opens on the road, and on nothing else',
+    check('SLICE: once the memory is taken, the road — and nothing else',
       v.length === 1 && v[0] === 'k-map', v.join(','));
   }
 

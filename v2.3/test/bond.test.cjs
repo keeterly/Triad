@@ -270,6 +270,103 @@ const { boot } = require('./harness.cjs');
       stored.saved && stored.won >= 1, JSON.stringify(stored));
   }
 
+  // ═══ WHAT A WON CARD IS FOR — the awakening's persistent slot ═══
+  // Before this, a card won on an earlier road did nothing until the run
+  // happened to reach a campfire with the right pair at the right level. The
+  // profile persisted and then sat there. AN OLD HABIT is the seam that makes
+  // it matter on the first screen of the next run.
+  console.log('\n── an old habit ──');
+  {
+    const seeded = await J(() => {
+      window.R.resetProfile();
+      const p = window.R.profile();
+      p.won.push('shieldsong');                 // as if an earlier road won it
+      window.R.newRun(31);
+      const offer = window.R.wakeOffer();
+      const card = document.querySelector('#k-wake-cards .k-wk-card');
+      return { ids: offer.map(w => w.id), kinds: offer.map(w => w.kind),
+               drawn: !!card,
+               gain: card ? (card.querySelector('.k-wk-gain') || {}).textContent : null };
+    });
+    check('HABIT: a card won on an earlier road is offered on waking, by name',
+      seeded.ids.indexOf('habit') >= 0 && seeded.kinds.filter(k => k === 'card').length === 1
+      && seeded.drawn && /Shieldsong/i.test(seeded.gain || ''),
+      JSON.stringify(seeded));
+
+    // It is NOT free. The deck does not grow — five slots a hero, always — so
+    // the card arrives through the same swap screen every other card uses.
+    const swap = await J(() => {
+      window.R.takeWake('habit');
+      const hidden = (id) => document.getElementById(id).classList.contains('k-hidden');
+      return { onSwap: !hidden('k-swap'), onMap: !hidden('k-map'),
+               pending: window.R.pendingCard(),
+               cols: [...document.querySelectorAll('#k-swap-cols .k-swapcard')].length };
+    });
+    check('HABIT: the card does not simply appear — it goes through the swap, like every other card',
+      swap.onSwap && !swap.onMap && swap.pending === 'shieldsong' && swap.cols >= 5,
+      JSON.stringify(swap));
+
+    const done = await J(() => {
+      const first = document.querySelector('#k-swap-cols .k-swapcard');
+      const dropped = first.dataset.id, hero = first.dataset.hero;
+      first.click();
+      window.R.confirmSwap();
+      const r = window.R.state();
+      const hidden = (id) => document.getElementById(id).classList.contains('k-hidden');
+      const all = [].concat(r.roster.ash, r.roster.elin, r.roster.mira);
+      return { dropped, hero, onMap: !hidden('k-map'), woke: r.woke,
+               sizes: [r.roster.ash.length, r.roster.elin.length, r.roster.mira.length],
+               uniq: new Set(all).size, has: all.indexOf('shieldsong') >= 0,
+               gone: all.indexOf(dropped) < 0 };
+    });
+    // The swap that follows an awakening has no campfire to go back to — the
+    // first pass sent it to the camp screen with no fire behind it.
+    check('HABIT: the trade is one for one, still five slots a hero, and it lets go onto the road',
+      done.has && done.gone && done.sizes.every(n => n === 5) && done.uniq === 15
+      && done.onMap && done.woke === 'habit',
+      JSON.stringify(done));
+
+    // WHICH PAIR "STILL CLOSE" MEANS IS A FACT ABOUT THE RUN. The first pass
+    // decided it inside renderWake(), so taking the memory without drawing the
+    // screen first — which is what the simulator and every test do — fell back
+    // to a default pair, and the sim measured a boon the game does not offer.
+    const pairing = await J(() => {
+      window.R.resetProfile();
+      window.R.newRun(9001);
+      const drawn = window.R.wakePair();                 // the screen drew it
+      // A RUN THAT NEVER DREW THE SCREEN — the simulator, and every test that
+      // calls takeWake directly. Clearing the field puts the run back in the
+      // state those callers are actually in.
+      window.R._set({ wakePair: null });
+      const bare = window.R.wakePair();
+      window.R.newRun(9001);
+      window.R._set({ wakePair: null });
+      window.R.WAKES.find(w => w.id === 'close').apply(window.R.state());
+      const bonds = window.R.state().bonds;
+      const boosted = Object.keys(bonds).filter(k => bonds[k] > 0);
+      // and a different seed is allowed to name a different pair
+      window.R.newRun(9002); const other = window.R.wakePair();
+      window.R.newRun(9001); const again = window.R.wakePair();
+      return { drawn, bare, boosted, other, again };
+    });
+    check('CLOSE: the pair is decided by the run, not by whether the screen was drawn',
+      pairing.bare === pairing.drawn && pairing.again === pairing.drawn
+      && pairing.boosted.length === 1 && pairing.boosted[0] === pairing.drawn,
+      JSON.stringify(pairing));
+
+    // And a profile with nothing won must never offer it.
+    const bare = await J(() => {
+      window.R.resetProfile();
+      window.R.newRun(31);
+      return { ids: window.R.wakeOffer().map(w => w.id),
+               kinds: window.R.wakeOffer().map(w => w.kind) };
+    });
+    check('HABIT: a first-ever run is never offered a card it has not won',
+      bare.ids.indexOf('habit') < 0 && bare.ids.length === 3
+      && bare.kinds.filter(k => k === 'trade').length === 1,
+      JSON.stringify(bare));
+  }
+
   const r = report();
   await H.browser.close();
   process.exit(r.passed === r.total && r.errs === 0 ? 0 : 1);

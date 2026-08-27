@@ -14,7 +14,17 @@ const { boot } = require('./harness.cjs');
   const { J, check, report, sleep } = H;
 
   const R = () => J(() => JSON.parse(JSON.stringify(window.R.state())));
-  const reset = (seed) => J((s) => { window.R.newRun(s); return true; }, seed);
+  // A RUN NOW OPENS ON THE AWAKENING, not on the road. The road's own checks
+  // are about what comes after that choice, so they answer it — deliberately,
+  // by name, rather than by clicking whatever happens to be first, so a change
+  // to the offer cannot silently change what the road suite is measuring.
+  const reset = (seed) => J((s) => {
+    window.R.newRun(s);
+    const offer = window.R.wakeOffer();
+    const plain = offer.find(w => w.kind === 'plain') || offer[0];
+    window.R.takeWake(plain.id);
+    return true;
+  }, seed);
   // Ending a fight without playing it out: the road cares about the seam, and
   // the 106-check combat suite already owns everything on the far side of it.
   const finish = (outcome, parry) => J(async (a) => {
@@ -425,13 +435,22 @@ const { boot } = require('./harness.cjs');
     await H.page.waitForFunction(() => window.__ready === true, null, { timeout: 8000 });
     const after = await J(() => {
       const r = window.R.state();
-      return { at: r.at, embers: r.embers, stop: r.stop, seed: r.seed, hidden: document.getElementById('k-map').classList.contains('k-hidden') };
+      const hidden = (id) => document.getElementById(id).classList.contains('k-hidden');
+      return { at: r.at, embers: r.embers, stop: r.stop, seed: r.seed, woke: r.woke,
+               inFight: !hidden('k-stage'), onWake: !hidden('k-wake'), onMap: !hidden('k-map') };
     });
     // ?test=1 always starts a clean run so the suite is repeatable; the check
     // is that a run round-trips through storage at all, which the reset proves
     // by loading a DIFFERENT run than the one in memory.
-    check('SAVE: reloading lands on the road, not in a fight that no longer exists',
-      after.hidden === false && after.at === null, JSON.stringify(after));
+    //
+    // A FRESH RUN NOW OPENS ON THE AWAKENING. The bug this guards against is
+    // reloading back into a fight that no longer exists, and that is still
+    // exactly what it asks: nowhere near the stage, standing at the trailhead
+    // with the offer unanswered.
+    check('SAVE: reloading never lands in a fight that no longer exists',
+      after.inFight === false && after.at === null && after.onWake === true
+      && after.woke == null,
+      JSON.stringify(after));
     const round = await J((b) => {
       localStorage.setItem('kizuna23.run', JSON.stringify(b));
       window.R.boot({});

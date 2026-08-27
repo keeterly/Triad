@@ -759,3 +759,92 @@ is free and the only question is how fast you get it.
 What can be said flatly: the gates hold either way, and **the 5/5/5 rule held
 across every one of 360 simulated roads** — checked against the simulator's own
 trades, not only against the interface's.
+
+
+---
+
+## Build 37 — the awakening
+
+Slay the Spire opens every run with a choice made before you know anything.
+It costs nothing, it cannot be optimised, and it is the first thing that makes
+this run different from the last one. That job needed doing here too — but the
+shape had to be ours, because a boon that is a stat bolted onto a character is
+exactly the thing this game has spent thirty builds not being.
+
+So it is a **memory**. The three of them wake at the trailhead and one of them
+reaches back for something, and the thing it gives is the thing that memory is
+about. Ash's mother's hands twisting dry grass gives you a fire to light. The
+chord the three of them held at the end of something gives you the bond,
+already ringing. The night nobody woke them gives you the health they got from
+sleeping through it.
+
+### What it is allowed to give
+
+Nothing new. Every boon spends a currency that already exists — embers, the
+KIZUNA ladder, health, a pair's closeness, a card won on an earlier road — so
+the awakening adds a decision without adding a system. In particular **the deck
+still does not grow**: `AN OLD HABIT` hands you a card you won on a previous
+run and then sends you straight into the same swap screen every other card in
+the game goes through, because five slots a hero is the rule the whole social
+layer turns on and a run's first screen is not an exception to it.
+
+| id | kind | gives | costs |
+|---|---|---|---|
+| `kindling` | plain | +4 embers | — |
+| `lastnote` | plain | the bond begins at 45 | — |
+| `rest` | plain | +6 health, all three | — |
+| `close` | plain | a named pair begins at 10 (level 1 is 12) | — |
+| `habit` | card | a card won on an earlier road | a slot, like every card |
+| `borrowed` | trade | +8 embers | they set out already hurt |
+| `debt` | trade | the bond begins at 70 | the Regent wakes with 14 more |
+
+### Three are offered, and the composition is fixed
+
+The contents vary; the shape does not. **Exactly one of the three is a trade**,
+so the choice is never three flavours of free — and when an earlier run has won
+a card, one slot is always that card. That second rule is the point of the
+persistent profile. Before this, a card won on an earlier road did nothing
+until the run happened to reach a campfire with the right pair at the right
+level; the profile persisted and then sat there. Now it is on the first screen.
+
+The offer is drawn from the run's own seed on its own cursor, so a seed still
+names a run — the awakening cannot be the one thing about a run that is not
+reproducible.
+
+### Two new seams, and no more than two
+
+`startCombat` gained `vigor` (max HP the party woke up with) and `foeBonus`
+(HP *this* foe woke up with). Both default to nothing. The debt is settled with
+the Regent and not with every wraith on the way to her, because borrowing
+against the whole road would just be a difficulty setting.
+
+### What it cost the road, measured
+
+The run simulator now takes a boon through the real run layer and reads the
+result back rather than re-implementing it, and rotates the pick by seed so a
+tier walks all six rather than sampling one 120 times. Across 120 roads a tier:
+
+| tier | before (Build 36) | with the awakening |
+|---|---|---|
+| no parry | 0.0% | 0.0% |
+| ~half parries | 32.5% | **39.2%** |
+| excellent | 90.8% | **94.2%** |
+
+Median purse at half parries went 6 → 8. **A free boon at the trailhead is
+worth about seven points of completion**, which is a real leg-up and is meant
+to be one; every gate still holds, and the ordering by skill is untouched.
+
+One road in 120 at the *no-parry* tier now dies at the first stop, which it
+never did before — that is `BORROWED FIRE` starting the party at about 81%
+health in the hands of someone who cannot defend at all. The trailhead gate is
+measured at half parries, where it is still 0.0%. A trade that only has teeth
+for a player who cannot parry is a trade behaving correctly.
+
+### A softness this build did not introduce but did notice
+
+The slice suite's **check count varies between runs** — 30 to 33 — because the
+bond-trade check fires once per pending bond scene and bond points accrue from
+fights played in real time. Every check passes; the number of them is not
+deterministic. Verified against Build 36, which varies the same way (24/23/23),
+so this is a pre-existing softness in the harness rather than anything the
+awakening did. Worth closing, and not by pretending the count is fixed.
