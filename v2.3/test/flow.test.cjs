@@ -101,6 +101,28 @@ const { boot } = require('./harness.cjs');
     check('SAYS: the swap caption does not print through the pile’s own label',
       clear && !clear.overlap && clear.tag === 'SPAN', JSON.stringify(clear));
   }
+  // ═══ A06 · THE BOND ARRIVES WITH THE PARTY ═══
+  {
+    const kz = await J(() => {
+      window.K.startCombat({ seed: 7, kizuna: 40 });
+      const seeded = window.K.state().kizuna;
+      const bar = document.getElementById('k-kz-fill');
+      const shown = bar ? bar.style.width : null;
+      window.K.startCombat({ seed: 7 });
+      const bare = window.K.state().kizuna;
+      window.K.startCombat({ seed: 7, kizuna: 900 });
+      const capped = window.K.state().kizuna;
+      return { seeded, shown, bare, capped };
+    });
+    // A four-round fodder fight cannot fill the bar from nothing, so without a
+    // carry the all-out is a thing that happens against the elite and the
+    // Regent and nowhere else — which makes Crescendo, the most expensive node
+    // in the tree, an upgrade to a button pressed twice a run.
+    check('BOND: a fight can open with the bond the run already built, and it is drawn',
+      kz.seeded === 40 && kz.shown === '40%' && kz.bare === 0 && kz.capped === 100,
+      JSON.stringify(kz));
+  }
+
   // ═══ A02 · THE TELEGRAPH SAYS WHO, AND HOW MUCH EACH ═══
   console.log('\n── the telegraph ──');
   {

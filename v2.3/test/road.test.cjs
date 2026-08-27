@@ -240,6 +240,20 @@ const { boot } = require('./harness.cjs');
     await finish('victory', clean);
     const won = await R();
     const foeWorth = await J((id) => window.K.FOES[id].embers, on.foe);
+    // HALF THE BOND SURVIVES THE ROAD — and the road has to show it, or it is
+    // a resource the player only ever meets mid-fight.
+    const bond = await J(() => {
+      const r = window.R.state();
+      const el2 = document.getElementById('k-map-kizuna');
+      return { carry: window.R.KIZUNA_CARRY, held: r.kizuna,
+               shown: el2 ? !el2.classList.contains('k-hidden') : null,
+               width: (document.getElementById('k-map-kz-fill') || {}).style
+                 ? document.getElementById('k-map-kz-fill').style.width : null };
+    });
+    check('RUN: the bond the party carries is on the road, not only in a fight',
+      bond.carry > 0 && bond.carry < 1 && (bond.held > 0 ? bond.shown : !bond.shown),
+      JSON.stringify(bond));
+
     check('RUN: a win pays the foe’s embers plus what the parry earned',
       won.embers === foeWorth + 2 && won.lastGain.clean === 2,
       JSON.stringify({ embers: won.embers, base: foeWorth, bonus: won.lastGain }));

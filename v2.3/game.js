@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 33;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 34;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -375,6 +375,7 @@ function combatSummary(p) {
     outcome: p === 'VICTORY' ? 'victory' : 'defeat',
     foe: C.foe ? C.foe.id : null,
     turns: C.turn,
+    kizuna: C.kizuna,
     partyHp: { ash: C.heroes.ash.hp, elin: C.heroes.elin.hp, mira: C.heroes.mira.hp },
     turned: par.filter(r => r.turned).length,
     flawless: par.filter(r => r.flawless).length,
@@ -416,7 +417,14 @@ function startCombat(opts) {
       breakMax: foe.brk, brk: foe.brk, broken: false, cancelNext: false,
       bleed: 0, chill: 0, intentIx: 0, _healedRecently: false,
     },
-    kizuna: 0, allOuts: 0,
+    // WHAT THE THREE OF THEM ALREADY HAVE. A bond does not reset because a
+    // fight ended — and mechanically it could not be allowed to, because a
+    // four-round fodder fight never fills the bar from zero. The all-out was
+    // therefore something that happened twice a run, against the elite and the
+    // Regent, which made Crescendo — the most expensive node in the tree and
+    // the premise's "team attacks that develop over time" — an upgrade to a
+    // button you press twice.
+    kizuna: Math.max(0, Math.min(KIZUNA_MAX, opts.kizuna || 0)), allOuts: 0,
     deck: shuffle(DECK_IDS), hand: [], discard: [], exhausted: [],
     ap: AP_PER_TURN, apMax: AP_PER_TURN,
     turnState: freshTurnState(),

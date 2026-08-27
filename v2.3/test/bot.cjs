@@ -12,7 +12,8 @@ module.exports.BOT = `
   const K = window.K;
   const O = opts || {};
   K.startCombat({ seed, foe: O.foe ? K.FOES[O.foe] : undefined, partyHp: O.partyHp || undefined,
-                  upgrades: O.upgrades || undefined, allout: O.allout || undefined });
+                  upgrades: O.upgrades || undefined, allout: O.allout || undefined,
+                  kizuna: O.kizuna || 0 });
   let rnd = seed * 2654435761 % 2147483647;
   const rand = () => { rnd = (rnd * 48271) % 2147483647; return rnd / 2147483647; };
   const S = () => K.state();
@@ -20,6 +21,10 @@ module.exports.BOT = `
   // Every exit reports the wounds it leaves behind: on a road they are the
   // opening position of the next fight, so no return path may omit them.
   const HP = () => ({ ash: S().heroes.ash.hp, elin: S().heroes.elin.hp, mira: S().heroes.mira.hp });
+  // what the bond is worth walking away, and how often the all-out actually
+  // fired — the number that says whether the ladder is part of a fight at all
+  const KZ = () => S().kizuna;
+  const AO = () => S().allOuts;
 
   // What this action is about to do to each hero, given how reliably THIS
   // player parries. A real player knows their own hands.
@@ -85,8 +90,8 @@ module.exports.BOT = `
 
   for (let turn = 0; turn < maxTurns; turn++) {
     let st = S();
-    if (st.phase === 'VICTORY') return { win: true, turns: st.turn, hp: HP() };
-    if (st.phase === 'DEFEAT') return { win: false, turns: st.turn, died: true, hp: HP() };
+    if (st.phase === 'VICTORY') return { win: true, turns: st.turn, hp: HP(), kizuna: KZ(), allouts: AO() };
+    if (st.phase === 'DEFEAT') return { win: false, turns: st.turn, died: true, hp: HP(), kizuna: KZ(), allouts: AO() };
     const it = K.currentIntent();
 
     // Positional counterplay: the Scything Advance spares the Back row.
@@ -101,7 +106,7 @@ module.exports.BOT = `
     // that never uses its best turn, and reports the fight as harder than it is.
     if (S().kizuna >= 100) {
       await K.allOut();
-      if (S().phase === 'VICTORY') return { win: true, turns: S().turn, hp: HP() };
+      if (S().phase === 'VICTORY') return { win: true, turns: S().turn, hp: HP(), kizuna: KZ(), allouts: AO() };
     }
 
     // TRIAGE FIRST — buy exactly enough survival, then swing with the rest.
@@ -123,7 +128,7 @@ module.exports.BOT = `
       if (!best || bestV < 1.2) break;
       if (!K.playCard(best)) break;
       if (S().pendingDiscard) K.pickDiscard(S().hand[0]);
-      if (S().phase === 'VICTORY') return { win: true, turns: S().turn, hp: HP() };
+      if (S().phase === 'VICTORY') return { win: true, turns: S().turn, hp: HP(), kizuna: KZ(), allouts: AO() };
     }
 
     // THEN OFFENSE — value per AP, nudged toward alternating heroes so the
@@ -159,7 +164,7 @@ module.exports.BOT = `
         for (const id of h) { const d = dmgOf(id); if (d < wv) { wv = d; worst = id; } }
         K.pickDiscard(worst);
       }
-      if (S().phase === 'VICTORY') return { win: true, turns: S().turn, hp: HP() };
+      if (S().phase === 'VICTORY') return { win: true, turns: S().turn, hp: HP(), kizuna: KZ(), allouts: AO() };
     }
 
     // Free cycle: dump whatever is least useful right now.
@@ -184,9 +189,9 @@ module.exports.BOT = `
       }
     }
     const r = await K.endTurn({ grades });
-    if (r && r.outcome === 'victory') return { win: true, turns: S().turn, hp: HP() };
-    if (r && r.outcome === 'defeat') return { win: false, turns: S().turn, died: true, hp: HP() };
+    if (r && r.outcome === 'victory') return { win: true, turns: S().turn, hp: HP(), kizuna: KZ(), allouts: AO() };
+    if (r && r.outcome === 'defeat') return { win: false, turns: S().turn, died: true, hp: HP(), kizuna: KZ(), allouts: AO() };
   }
-  return { win: false, turns: maxTurns, timeout: true, hp: HP() };
+  return { win: false, turns: maxTurns, timeout: true, hp: HP(), kizuna: KZ(), allouts: AO() };
 })
 `;

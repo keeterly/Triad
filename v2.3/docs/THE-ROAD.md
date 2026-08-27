@@ -568,3 +568,43 @@ Both are inside seed noise at 120 roads, but the crossing fix genuinely changed
 the topology of a third of all roads — the routes a run can take are not the
 same routes they were — so these are not strictly comparable to Build 28's.
 They are a new baseline, not a regression.
+
+---
+
+## Build 34 — the bond travels
+
+The last item on the playthrough's "named, not fixed" list that sits on a
+pillar the brief actually names: *"team attacks that develop over time."*
+
+**It wasn't developing, because it barely happened.** KIZUNA reset to zero at
+every stop, and a four-round fodder fight cannot fill the bar from nothing. So
+the all-out existed only against the elite and the Regent — which made
+**Crescendo**, the most expensive node in the tree, an upgrade to a button
+pressed twice a run.
+
+**Half the bond now survives a fight.** Not all of it: a full carry turns the
+ladder into a bank you fill on fodder and empty on the Regent, which is one
+decision made once rather than a resource you feel. Half means the all-out
+starts appearing in mid-road fights, while the Regent still has to be earned
+inside her own fight. And the road draws what you carry, because a resource the
+player only meets mid-fight is not a run resource.
+
+### Measured against its own absence
+
+`SIM_KZCARRY` overrides the game's constant so the change could be measured
+against zero rather than against a remembered number — same seeds, same count:
+
+| all-outs per run | no carry | half carry |
+|---|---|---|
+| ~half parries | 0.21 | **0.71** |
+| excellent | 1.17 | **2.13** |
+
+Three and a half times as often at the middle tier. It went from *"fires once
+in five runs"* to *"fires most runs"*, and from about one to about two per run
+at high skill. Run completion moved 29.2% → 33.3% and 95.8% → 91.7%, both
+inside seed noise at 24 roads; the full-count figures are below.
+
+The sim's bot spends the ladder the moment it fills, so these are a **floor**.
+A player who banks it for the Regent gets more out of the carry than this
+measures — and that banking decision is itself new, and is the kind of question
+a road is supposed to ask.

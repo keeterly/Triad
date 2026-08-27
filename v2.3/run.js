@@ -28,6 +28,13 @@
   // instalment of an attrition sum: at 0.35 the run sim walked a competent
   // party into her at 60% health, where a 33% encounter becomes a 10% one.
   const CAMP_FRAC = 0.55;
+  // HALF THE BOND SURVIVES THE ROAD. Not all of it: a full carry turns the
+  // ladder into a bank you fill on fodder and empty on the Regent, which is
+  // one decision made once rather than a resource you feel. Half means the
+  // all-out starts appearing in mid-road fights — which is the whole point,
+  // since a four-round fight cannot fill the bar from nothing — while the
+  // Regent still has to be earned inside her own fight.
+  const KIZUNA_CARRY = 0.5;
   const COLS = 6;
   const STOPS = COLS;                       // one node visited per column
 
@@ -248,6 +255,7 @@
     return {
       seed: s, map: buildMap(s), at: null, path: [], stop: 0,
       embers: 0, nodes: [],                       // the tree nodes this run has kindled
+      kizuna: 0,                                  // what the three of them carry
       flash: null,                                // the receipt from the last stop
       pending: null,                              // a stop entered but not finished
       camped: 0, campDone: null,                  // the fire only mends once per visit
@@ -370,6 +378,14 @@
     $('k-map-prog').textContent = RUN.over ? (RUN.over === 'win' ? 'THE DESCENT IS ENDED' : 'THE ROAD ENDS HERE')
       : 'STOP ' + Math.min(RUN.stop + 1, STOPS) + ' OF ' + STOPS;
     $('k-embers-n').textContent = RUN.embers;
+    const kz = $('k-map-kizuna'), kzf = $('k-map-kz-fill'), kzn = $('k-map-kz-n');
+    if (kz && kzf && kzn) {
+      const v = RUN.kizuna || 0;
+      kz.classList.toggle('k-hidden', v <= 0);
+      kzf.style.width = v + '%';
+      kzn.textContent = v + '%';
+      kz.classList.toggle('k-mkz-full', v >= 100);
+    }
     // one spark, drawn from one place — the header used to carry its own copy
     // in index.html, which is how it ended up being the campfire's teardrop
     const spark = $('k-ember-ico');
@@ -496,7 +512,7 @@
   function enterFight(n) {
     const foe = window.K.FOES[n.foe] || window.K.FOES.wraith;
     screen('combat');
-    window.K.startCombat({ foe, partyHp: RUN.hp, onEnd: onFightEnd,
+    window.K.startCombat({ foe, partyHp: RUN.hp, onEnd: onFightEnd, kizuna: RUN.kizuna || 0,
                            upgrades: cardUps(), allout: alloutOf() });
   }
 
@@ -504,6 +520,7 @@
     RUN.pending = null;
     RUN.last = sum;
     RUN.hp = sum.partyHp;
+    RUN.kizuna = Math.round((sum.kizuna || 0) * KIZUNA_CARRY);
     if (sum.outcome === 'defeat') { RUN.over = 'loss'; save(); return toMap(); }
     // EMBERS ARE PAID FOR THE FIGHT AND FOR THE PARRY, separately. The base is
     // the foe's worth; the bonus is what the parry earned, so the best thing in
@@ -774,6 +791,6 @@
     // test-only
     _set(patch) { Object.assign(RUN, patch || {}); save(); renderMap(); },
     _pick: () => _pick,
-    KIND, PLAN, STOPS, CAMP_FRAC,
+    KIND, PLAN, STOPS, CAMP_FRAC, KIZUNA_CARRY,
   };
 })();

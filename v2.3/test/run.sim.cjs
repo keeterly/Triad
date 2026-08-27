@@ -30,6 +30,11 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
   // copy of a tuning constant measures a game nobody is playing.
   const CAMP_FRAC = await J(() => window.R.CAMP_FRAC);
   const TREE = await J(() => JSON.parse(JSON.stringify(window.R.TREE)));
+  // SIM_KZCARRY overrides the game's carry so the change can be measured
+  // against its own absence rather than against a remembered number.
+  const KZ_CARRY = process.env.SIM_KZCARRY != null
+    ? Number(process.env.SIM_KZCARRY)
+    : await J(() => window.R.KIZUNA_CARRY);
 
   // One road, walked. The bot has no map sense, so it takes the choice a
   // player would take by default — it prefers a campfire when it is hurt and
@@ -40,7 +45,7 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
       window.R.newRun(s);
       return window.R.map().map(n => ({ id: n.id, col: n.col, kind: n.kind, foe: n.foe, to: n.to }));
     }, seed);
-    let at = null, hp = { ...MAXHP }, embers = 0, fights = 0, tier = 1;
+    let at = null, hp = { ...MAXHP }, embers = 0, fights = 0, tier = 1, kizuna = 0;
     let nodes = [];     // what this run has kindled
     const trace = [];   // what the party had left walking away from each stop
     for (let col = 0; col < 6; col++) {
@@ -73,11 +78,13 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
       fights++;
       const r = await page.evaluate(
         ([src, sd, pp, mt, o]) => eval(src)(sd, pp, mt, o),
-        [BOT, seed * 31 + col * 7 + 1, p, MAX_TURNS, { foe: want.foe, partyHp: hp,
+        [BOT, seed * 31 + col * 7 + 1, p, MAX_TURNS, { foe: want.foe, partyHp: hp, kizuna,
           upgrades: nodes.map(id => (TREE.find(n => n.id === id) || {}).card).filter(Boolean),
           allout: (TREE.find(n => nodes.indexOf(n.id) >= 0 && n.allout) || {}).allout || null }]);
       hp = r.hp;
-      trace.push({ col, kind: want.kind, foe: want.foe, left: total(hp), turns: r.turns });
+      kizuna = Math.round((r.kizuna || 0) * KZ_CARRY);
+      trace.push({ col, kind: want.kind, foe: want.foe, left: total(hp), turns: r.turns,
+                   allouts: r.allouts || 0 });
       if (!r.win) return { win: false, diedAt: col, kind: want.kind, foe: want.foe, hp, embers, fights, trace, nodes };
       embers += ({ husk: 2, cultist: 2, wraith: 3, revenant: 5, mourner: 8 })[want.foe] || 2;
       if (want.kind === 'boss') return { win: true, diedAt: null, hp, embers, fights, trace, nodes };
@@ -103,7 +110,8 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
     console.log(`  ${held ? '✓' : '✗'} ${band.name.padEnd(15)} runs completed ${rate.toFixed(1)}%  `
       + `[gate ${band.glo}–${band.ghi}%]  died at stop ` + JSON.stringify(deaths)
       + `  median purse ${purse[Math.floor(purse.length / 2)]}`
-      + `  median kindled ${(() => { const k = res.map(r => (r.nodes || []).length).sort((a2, b2) => a2 - b2); return k[Math.floor(k.length / 2)]; })()}`);
+      + `  median kindled ${(() => { const k = res.map(r => (r.nodes || []).length).sort((a2, b2) => a2 - b2); return k[Math.floor(k.length / 2)]; })()}`
+      + `  all-outs/run ${(res.reduce((n, r) => n + (r.trace || []).reduce((m, t) => m + (t.allouts || 0), 0), 0) / res.length).toFixed(2)}`);
     // WHERE THE HEALTH GOES. A completion rate says a road is too hard; the
     // attrition trace says which stop made it too hard, which is the only one
     // of the two you can act on.

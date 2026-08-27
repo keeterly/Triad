@@ -1451,3 +1451,18 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-card-res .k-cname { font-size: 8.5px; letter-spacing: 0; }
 .k-combo-exh .k-combo-pay { font-size: 8px; line-height: 1.2; }
 .k-combo { overflow: visible; }
+
+/* ═══ BUILD 34 — the bond travels ════════════════════════════════════════
+   Half the KIZUNA survives a fight, so the all-out stops being a thing that
+   happens twice a run against the two biggest foes. It has to be visible on
+   the road or it is a resource the player only ever meets mid-fight. */
+#k-map-kizuna { display: flex; align-items: center; gap: 6px; }
+.k-mkz-lbl { font-size: 8px; letter-spacing: 0.22em; color: #8d8474; }
+.k-mkz-bar { width: 64px; height: 5px; border-radius: 3px; overflow: hidden;
+  background: rgba(255,255,255,0.1); }
+.k-mkz-bar i { display: block; height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, #9a7fc4, #e0c084); transition: width 420ms ease; }
+#k-map-kz-n { font-size: 12px; color: #c9bde0; }
+.k-mkz-full .k-mkz-bar i { background: linear-gradient(90deg, #f0cf92, #fff2cf);
+  box-shadow: 0 0 8px rgba(240,207,146,0.8); }
+.k-mkz-full #k-map-kz-n { color: #f0cf92; }
