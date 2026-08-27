@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 37;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 38;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1813,6 +1813,33 @@ function cam(spec) {
   c.style.setProperty('--cam-pitch', clamp(s.pitch, 5) + 'deg');
   c.style.setProperty('--cam-ms', (s.ms == null ? 420 : s.ms) + 'ms');
   c.style.setProperty('--cam-ease', s.ease || CAM_SNAP);
+  bgParallax(s, clamp);
+}
+// PARALLAX. The backdrop is not in #k-cast — it is a plate behind the whole
+// volume — so it never moved, and a lens that swung the cast across a fixed
+// painting is what made a 3D board read as figures on a poster.
+//
+// It takes a REDUCED share of the same numbers rather than its own animation,
+// so it can never disagree with the camera: a far plane shifts the same way
+// the near one does and by less, which is the whole of parallax. The dolly is
+// the exception — pushing in barely changes a horizon — so it buys a little
+// scale instead of a lot of travel. Timing is shared through --cam-ms.
+const BG_PAN = 0.30, BG_LIFT = 0.24, BG_ROLL = 0.34, BG_ZOOM = 0.00042;
+function bgParallax(s, clamp) {
+  const b = document.getElementById('k-backdrop'); if (!b) return;
+  const dz = clamp(s.dz, CAM_MAX_DZ);
+  b.style.setProperty('--bg-x', (clamp(s.x, CAM_MAX_PAN) * BG_PAN).toFixed(2) + 'px');
+  b.style.setProperty('--bg-y', (clamp(s.y, CAM_MAX_PAN * 0.5) * BG_LIFT).toFixed(2) + 'px');
+  b.style.setProperty('--bg-r', (clamp(s.r, CAM_MAX_ROLL) * BG_ROLL).toFixed(3) + 'deg');
+  // the over-scale is the parallax slack: it must always exceed the largest
+  // travel the pan can ask for, or the plate's edge walks into frame
+  b.style.setProperty('--bg-s', (1.1 + dz * BG_ZOOM).toFixed(4));
+  // THE PLATE NEEDS ITS OWN TIMING VARS. #k-backdrop is a SIBLING of #k-cast,
+  // not a descendant, and a custom property inherits down rather than
+  // sideways — so reading --cam-ms here silently fell through to the 420ms
+  // default and the backdrop ignored every duration the camera asked for.
+  b.style.setProperty('--bg-ms', (s.ms == null ? 420 : s.ms) + 'ms');
+  b.style.setProperty('--bg-ease', s.ease || CAM_SNAP);
 }
 // ONLY WHEN THE SIDE CHANGES. Every card resolution ends by returning to
 // PLAYER_READY, and re-posing on each of those cancelled the punch the blow
@@ -2482,6 +2509,8 @@ function setBar(bar, pct) {
   clearTimeout(ghost._t);
   if (fresh || pct > was) { ghost.style.width = pct + '%'; return; }
   ghost.style.width = was + '%';
+  // FFXIV's read: the amount lost goes white for a beat, THEN drains.
+  ghost.classList.remove('k-bar-hit'); void ghost.offsetWidth; ghost.classList.add('k-bar-hit');
   ghost._t = setTimeout(() => { ghost.style.width = pct + '%'; }, 190);
 }
 function renderPartyHud() {
@@ -2738,6 +2767,20 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
     // silently ate the spaces and printed "9damage."
     + '<span class="k-ctext"><span class="k-cprose"><span>' + prose(c.base) + '</span></span>'
     + cond + '</span>';
+}
+// A CARD SHOWN OUTSIDE A FIGHT. The run layer — a bond scene's fork, the swap
+// screen — had no way to draw a card, so it printed a name and a sentence in a
+// box. The player was asked to choose between two cards while looking at
+// neither. There is no combat to evaluate against here, so every conditional
+// is drawn asleep, which is exactly the state the card will arrive in.
+function staticCardHTML(id, opts) {
+  const o = opts || {};
+  const c = o.def || cardDef(id);
+  if (!c) return '';
+  const ev = { card: c, condActive: false, currentCost: c.cost, resolvedEffects: c.base };
+  const art = HEROES23[primaryHero(c)].art;
+  return '<div class="k-card k-card-static' + (o.cls ? ' ' + o.cls : '') + '">'
+    + cardFaceHTML(c, ev, String(c.cost), art) + '</div>';
 }
 // Plain sentences, numbers bolded — the way a card is read at a glance.
 // WHAT KIND OF CARD IS THIS, in at most two marks. Ordered by how much the
@@ -3403,7 +3446,8 @@ window.K = {
   parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
   actionKind, castTone,
   intentByTarget,
-  FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText,
+  FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, staticCardHTML,
+  cam, bgParallax,
   BOND_CARDS, BOND_IDS, baseRoster, rosterIds, rosterValid, SLOTS_PER_HERO,
   ownerHeroes, primaryHero, isPairCard, pairOf,
   _setPhase: setPhase,          // test-only: end a fight without playing it out

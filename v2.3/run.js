@@ -937,14 +937,19 @@
     if (forkBox) {
       forkBox.classList.toggle('k-hidden', !forking);
       if (forking) {
+        // SHOW THE CARD, not a description of it. The fork used to print a
+        // name and a sentence in a box, so the player chose between two cards
+        // while looking at neither — and then met the real face for the first
+        // time in the middle of a fight. It is the same renderer the hand
+        // uses, so the preview cannot disagree with what arrives.
         forkBox.innerHTML = '<span class="k-fork-ask">' + (_scene.ask || '') + '</span>'
-          + _scene.picks.map((p, i) => {
-            const c = window.K.CARD_DEFS[p.card];
-            return '<button type="button" class="k-fork" data-ix="' + i + '">'
+          + '<div class="k-fork-row">'
+          + _scene.picks.map((p, i) =>
+              '<button type="button" class="k-fork" data-ix="' + i + '">'
               + '<span class="k-fork-line">' + p.line + '</span>'
-              + '<span class="k-fork-card"><b>' + c.name + '</b>'
-              + '<em>' + window.K.effectText(c.base) + '</em></span></button>';
-          }).join('');
+              + window.K.staticCardHTML(p.card, { cls: 'k-card-fork' })
+              + '</button>').join('')
+          + '</div>';
         forkBox.querySelectorAll('.k-fork').forEach(b =>
           b.addEventListener('click', (e) => { e.stopPropagation(); takeBond(+b.dataset.ix); }));
       }
@@ -1090,6 +1095,11 @@
     // straight into a flex container made `#k-swap-new > span` match all three
     // — so the cost, the body and the owners each got the card's own styling
     // and the whole thing spilled off the right edge of the screen.
+    // THE SWAP KEEPS ITS COMPACT CHIP. A full 150px face was tried here and
+    // hung off the top of the screen — the header has 90px — and it would have
+    // been competing with ten card rows for the eye anyway. The place a card
+    // has to be SEEN is the fork, where it is chosen before it is owned; here
+    // it is being weighed against ten others in the same grammar they use.
     $('k-swap-new').innerHTML = '<span class="k-sw-newcard">' + swapCardHTML(_pendingCard, true) + '</span>';
     $('k-swap-ask').textContent = 'FIVE SLOTS EACH — WHAT LEAVES?';
     $('k-swap-cols').innerHTML = pair.map(h => {

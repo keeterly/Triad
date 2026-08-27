@@ -149,13 +149,27 @@ const { boot } = require('./harness.cjs');
     const fork = await J(() => {
       window.R.sceneSkip();                       // straight to the fork
       const box = document.getElementById('k-scene-fork');
-      const picks = [...box.querySelectorAll('.k-fork')].map(b => ({
-        line: (b.querySelector('.k-fork-line') || {}).textContent,
-        card: (b.querySelector('.k-fork-card b') || {}).textContent,
-      }));
+      // THE FORK SHOWS THE CARD ITSELF now, not a description of it — the
+      // same face the hand draws, so the preview cannot disagree with what
+      // arrives. The reply line still sits above it.
+      const picks = [...box.querySelectorAll('.k-fork')].map(b => {
+        const face = b.querySelector('.k-card-static');
+        return { line: (b.querySelector('.k-fork-line') || {}).textContent,
+                 card: (b.querySelector('.k-cname') || {}).textContent,
+                 face: !!face,
+                 gem: (b.querySelector('.k-cgem') || {}).textContent,
+                 prose: ((b.querySelector('.k-cprose') || {}).textContent || '').trim().length,
+                 glyphs: b.querySelectorAll('.k-cverb').length,
+                 w: face ? Math.round(face.getBoundingClientRect().width) : 0 };
+      });
       return { shown: !box.classList.contains('k-hidden'), picks,
                plateHidden: getComputedStyle(document.getElementById('k-scene-plate')).display === 'none' };
     });
+    check('FORK: the card is DRAWN, not described — a real face, with its cost and its verb',
+      fork.picks.length === 2 && fork.picks.every(p => p.face && p.w > 60
+        && /^\d+$/.test(p.gem || '') && p.prose > 4 && p.glyphs >= 1),
+      JSON.stringify(fork.picks.map(p => ({ card: p.card, gem: p.gem, w: p.w,
+                                            prose: p.prose, glyphs: p.glyphs }))));
     check('FORK: skipping goes to the fork, and each reply names the card it wins',
       fork.shown && fork.picks.length === 2 && fork.picks.every(p => p.line && p.card)
       && fork.picks[0].card !== fork.picks[1].card, JSON.stringify(fork.picks));
@@ -325,6 +339,46 @@ const { boot } = require('./harness.cjs');
       done.has && done.gone && done.sizes.every(n => n === 5) && done.uniq === 15
       && done.onMap && done.woke === 'habit',
       JSON.stringify(done));
+
+    // NOTHING ON EITHER DECISION SCREEN HANGS OFF THE EDGE. Giving the fork a
+    // real card face grew it; the same change tried on the swap screen put a
+    // 150px card in a 90px header and half of it ended up above the top of
+    // the screen. Neither screen had anything watching for that.
+    const fits = await J(() => {
+      // MEASURE AGAINST THE SCREEN THAT IS ACTUALLY UP. The first pass took
+      // #k-stage as the frame — which is hidden while a scene is showing, so
+      // its rect is all zeroes and every element in the fork read as spilling.
+      // Same trap as the Build 28 fit check: a hidden element measures to
+      // nothing, and nothing is a very easy thing to be outside of.
+      const spill = (root) => {
+        const host = document.querySelector(root);
+        if (!host || host.classList.contains('k-hidden')) return ['screen not up: ' + root];
+        const st = host.getBoundingClientRect(), out = [];
+        if (st.width < 10) return ['frame has no size: ' + root];
+        document.querySelectorAll(root + ' *').forEach(e => {
+          const r = e.getBoundingClientRect();
+          if (r.width < 1 && r.height < 1) return;
+          if (getComputedStyle(e).visibility === 'hidden') return;
+          if (r.left < st.left - 0.5 || r.right > st.right + 0.5
+              || r.top < st.top - 0.5 || r.bottom > st.bottom + 0.5) {
+            out.push((e.className || e.tagName) + ' @' + Math.round(r.top) + ',' + Math.round(r.left));
+          }
+        });
+        return out;
+      };
+      window.R.resetProfile(); window.R.newRun(31);
+      const o = window.R.wakeOffer().find(w => w.kind === 'plain');
+      window.R.takeWake(o.id);
+      window.R._set({ bonds: { 'ash|elin': 14, 'ash|mira': 0, 'elin|mira': 0 },
+                      levels: { 'ash|elin': 0, 'ash|mira': 0, 'elin|mira': 0 } });
+      window.R.openBondScene(); window.R.sceneSkip();
+      const fork = spill('#k-scene');
+      window.R.takeBond(0);
+      const swap = spill('#k-swap');
+      return { fork, swap };
+    });
+    check('FITS: nothing on the fork or the swap screen hangs off the edge of the stage',
+      fits.fork.length === 0 && fits.swap.length === 0, JSON.stringify(fits));
 
     // WHICH PAIR "STILL CLOSE" MEANS IS A FACT ABOUT THE RUN. The first pass
     // decided it inside renderWake(), so taking the memory without drawing the

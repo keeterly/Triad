@@ -12,7 +12,17 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   background: #131116; color: #cfc8ba; }
 
 /* ── backdrop: the painted plate, plus a quiet scrim for HUD legibility ── */
-#k-backdrop { position: absolute; inset: 0; }
+/* THE FAR PLANE MOVES TOO, JUST LESS. The backdrop sat outside #k-cast, so
+   every dolly, roll and yaw slid the cast across a painted plate that never
+   moved — which is what made a 3D board read as figures on a poster. It takes
+   its own reduced share of the same camera now (JS writes --bg-*, so the
+   fall-off lives in one place), and it is over-scaled so the parallax slack
+   never drags an edge into frame. */
+#k-backdrop { position: absolute; inset: 0; overflow: hidden;
+  transform: translate(var(--bg-x, 0px), var(--bg-y, 0px))
+             rotate(var(--bg-r, 0deg)) scale(var(--bg-s, 1.1));
+  transition: transform var(--bg-ms, 420ms) var(--bg-ease, cubic-bezier(.2,.8,.3,1)); }
+@media (prefers-reduced-motion: reduce) { #k-backdrop { transform: scale(1.1) !important; } }
 #k-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 42%; }
 .k-scrim { position: absolute; inset: 0; background:
   linear-gradient(180deg, rgba(10,9,12,0.42) 0%, rgba(10,9,12,0.08) 16%, rgba(10,9,12,0) 30%),
@@ -134,6 +144,16 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-bar-ghost { position: absolute; left: 1px; top: 1px; bottom: 1px; border-radius: 1px;
   background: rgba(255,228,196,0.62); box-shadow: 0 0 6px rgba(255,214,170,0.45);
   transition: width 460ms cubic-bezier(.35,.15,.25,1); }
+/* FFXIV'S READ: the amount lost goes WHITE for a beat before it drains. The
+   ghost already spans exactly the lost segment — from the new value to the
+   old — so flashing the ghost is flashing the wound, and the drain that
+   follows is the same width transition it always had. */
+.k-bar-ghost.k-bar-hit { animation: k-bar-hit 300ms ease-out; }
+@keyframes k-bar-hit {
+  0%   { background: #fff; box-shadow: 0 0 12px rgba(255,255,255,0.95); }
+  55%  { background: #fff; box-shadow: 0 0 9px rgba(255,246,226,0.8); }
+  100% { background: rgba(255,228,196,0.62); box-shadow: 0 0 6px rgba(255,214,170,0.45); }
+}
 .k-bar-party { background: linear-gradient(90deg, #a8996f, #ddcfa2); }
 .k-bar-boss { background: linear-gradient(90deg, #7e2a20, #b23a2a); }
 .k-hpnum { font-size: 12px; color: #9a9080; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
@@ -1561,11 +1581,21 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* THE FORK. Two replies, and each one is a different card — a choice that only
    changed a line of dialogue would be a choice in name only, so the card the
    reply wins is printed on the reply. */
-#k-scene-fork { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%);
-  z-index: 7; width: 780px; display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap;
-  justify-content: center; }
-.k-fork-ask { width: 100%; text-align: center; font-size: 11px; letter-spacing: 0.26em;
-  color: #a58cc4; margin-bottom: 2px; }
+#k-scene-fork { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
+  z-index: 7; width: 620px; display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap;
+  justify-content: center; padding-top: 8px; }
+/* THE FORK NEEDS ITS OWN GROUND. Once the fork held real cards it grew tall
+   enough to reach the figures, and the question printed as faint letter-spaced
+   purple straight across two character plates — unreadable, and it is the one
+   line telling the player what they are being asked. The panel darkens what is
+   behind it now, and the ask is lit rather than tinted. */
+#k-scene.k-sc-fork #k-scene-fork::before { content: ''; position: absolute; z-index: -1;
+  left: -60px; right: -60px; top: -26px; bottom: -40px; pointer-events: none;
+  background: radial-gradient(72% 84% at 50% 62%, rgba(8,7,10,0.93) 0%, rgba(8,7,10,0.72) 62%,
+    rgba(8,7,10,0) 100%); }
+.k-fork-ask { width: 100%; text-align: center; font-size: 11.5px; letter-spacing: 0.26em;
+  color: #d8c6ee; margin-bottom: 6px;
+  text-shadow: 0 0 14px rgba(8,7,10,0.98), 0 2px 6px rgba(8,7,10,0.95); }
 .k-fork { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 6px;
   padding: 11px 14px; border-radius: 4px; cursor: pointer; text-align: left; font-family: inherit;
   background: linear-gradient(180deg, rgba(30,25,40,0.96), rgba(18,15,25,0.97));
@@ -1575,10 +1605,21 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   box-shadow: 0 0 0 1px rgba(224,192,132,0.2), 0 8px 22px rgba(0,0,0,0.6); }
 .k-fork:active { transform: translateY(1px); }
 .k-fork-line { font-size: 15px; color: #efe6d4; line-height: 1.25; }
-.k-fork-card { display: flex; flex-direction: column; gap: 1px; padding-top: 6px;
-  border-top: 1px solid rgba(201,164,92,0.22); }
-.k-fork-card b { font-size: 12px; letter-spacing: 0.08em; color: #e0c084; }
-.k-fork-card em { font-style: normal; font-size: 10.5px; color: #9a9080; line-height: 1.3; }
+/* the reply on top, the CARD under it — the thing being chosen, drawn */
+.k-fork-row { display: flex; gap: 14px; width: 100%; align-items: stretch; }
+.k-fork { align-items: center; }
+/* A DECISION CARD IS READ, not glanced at. 108px is the size of a card in a
+   fan of five on a phone; here there are two of them and nothing else to
+   look at, so it is scaled up — and the margin pays back the space the
+   transform does not take, since a scale leaves the layout box behind.
+   .k-card-static pins transform to none (to kill the fan's rotation vars),
+   hence the !important here rather than a plain override. */
+.k-fork .k-card-fork { margin-top: 4px; margin-bottom: 46px;
+  transform: scale(1.32) !important; transform-origin: top center;
+  transition: transform 160ms ease; }
+.k-fork:hover .k-card-fork, .k-fork:focus-visible .k-card-fork {
+  transform: scale(1.36) translateY(-3px) !important; }
+.k-fork-line { text-align: center; }
 #k-scene.k-sc-fork #k-scene-plate { display: none; }
 #k-scene.k-sc-fork #k-scene-skip { display: none; }
 

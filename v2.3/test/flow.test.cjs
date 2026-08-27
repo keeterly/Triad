@@ -86,20 +86,28 @@ const { boot } = require('./harness.cjs');
       bait && bait.every(r => r.got === r.want), JSON.stringify(bait));
   }
 
-  // ═══ A0b · THE CAPTION SITS CLEAR OF THE PILE'S OWN LABEL ═══
+  // ═══ A0b · NOTHING IN THE DECK CORNER RUNS OFF THE EDGE ═══
   {
-    // the swap caption was an <em> inside .k-pile, so it inherited the pile
-    // label's own absolute placement and printed straight through DECK
+    // The swap caption used to live here. It was a 200px sentence hung off a
+    // 62px pile in the bottom-left corner and it ran off the screen; the check
+    // that replaced it asks the stronger question, of everything in that
+    // corner rather than of the one element that was wrong.
     const clear = await J(() => {
-      const hint = document.querySelector('#k-deck-btn .k-cycle-hint');
-      const lbl = document.querySelector('#k-deck-btn em');
-      if (!hint || !lbl) return null;
-      const a2 = hint.getBoundingClientRect(), b2 = lbl.getBoundingClientRect();
-      const overlap = a2.bottom > b2.top && a2.top < b2.bottom && a2.right > b2.left && a2.left < b2.right;
-      return { overlap, hint: Math.round(a2.top), lbl: Math.round(b2.top), tag: hint.tagName };
+      const st = document.getElementById('k-stage').getBoundingClientRect();
+      const bad = [];
+      document.querySelectorAll('#k-deck-btn, #k-deck-btn *, #k-disc-btn, #k-disc-btn *')
+        .forEach(e => {
+          const r = e.getBoundingClientRect();
+          if (!r.width && !r.height) return;
+          if (r.left < st.left - 0.5 || r.right > st.right + 0.5
+              || r.top < st.top - 0.5 || r.bottom > st.bottom + 0.5) {
+            bad.push((e.id || e.className || e.tagName) + ' @' + Math.round(r.left));
+          }
+        });
+      return { bad, hint: !!document.querySelector('.k-cycle-hint') };
     });
-    check('SAYS: the swap caption does not print through the pile’s own label',
-      clear && !clear.overlap && clear.tag === 'SPAN', JSON.stringify(clear));
+    check('CORNER: nothing on either pile hangs off the edge of the stage',
+      clear.bad.length === 0 && !clear.hint, JSON.stringify(clear));
   }
   // ═══ A07 · A BLOW LOOKS LIKE WHAT THREW IT ═══
   console.log('\n── the verb of the blow ──');
@@ -263,6 +271,57 @@ const { boot } = require('./harness.cjs');
       JSON.stringify(breath));
   }
 
+  // ═══ A05a · THE FAR PLANE MOVES TOO, JUST LESS ═══
+  {
+    const par = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      const bg = document.getElementById('k-backdrop');
+      const cast = document.getElementById('k-cast');
+      const read = (e, n) => e.style.getPropertyValue(n).trim();
+      const snap = () => ({
+        bx: parseFloat(read(bg, '--bg-x')), by: parseFloat(read(bg, '--bg-y')),
+        br: parseFloat(read(bg, '--bg-r')), bs: parseFloat(read(bg, '--bg-s')),
+        cx: parseFloat(read(cast, '--cam-x')), cr: parseFloat(read(cast, '--cam-r')),
+        tf: getComputedStyle(bg).transform });
+      // ms: 0 — with a transition running, getComputedStyle returns the value
+      // MID-FLIGHT, so two snapshots taken back to back read identical and
+      // the check learns nothing about where the plate was going.
+      window.K.cam({ x: 30, y: 12, dz: 90, r: 2.0, yaw: 5, ms: 0 });
+      const pushed = snap();
+      window.K.cam({ x: -30, y: -12, dz: 0, r: -2.0, yaw: -5, ms: 0 });
+      const pulled = snap();
+      return { pushed, pulled };
+    });
+    // Same direction as the cast, smaller magnitude — that is the whole of
+    // parallax. A backdrop that moved the other way would read as a mistake,
+    // and one that moved the same amount would not be a backdrop.
+    const p1 = par.pushed, p2 = par.pulled;
+    check('PARALLAX: the backdrop follows the lens the same way the cast does, and by less',
+      p1.bx > 0 && p1.bx < p1.cx && p2.bx < 0 && p2.bx > p2.cx
+      && Math.abs(p1.br) < Math.abs(p1.cr) && p1.br * p1.cr > 0,
+      JSON.stringify({ bx: [p1.bx, p2.bx], cx: [p1.cx, p2.cx], br: p1.br, cr: p1.cr }));
+    check('PARALLAX: it is actually transformed — a var nothing reads is not a camera',
+      p1.tf !== 'none' && p1.tf !== p2.tf, JSON.stringify({ pushed: p1.tf, pulled: p2.tf }));
+    // THE SLACK MUST COVER THE TRAVEL. The plate is over-scaled so the pan has
+    // somewhere to go; if the scale ever buys less room than the largest pan
+    // asks for, the painting's edge walks into frame.
+    const slack = await J(() => {
+      const bg = document.getElementById('k-backdrop');
+      const st = document.getElementById('k-stage');
+      const worst = [];
+      for (const x of [-40, 40]) for (const y of [-20, 20]) for (const r of [-3, 3]) {
+        window.K.cam({ x, y, dz: 0, r, ms: 0 });
+        const b = bg.getBoundingClientRect(), s2 = st.getBoundingClientRect();
+        if (b.left > s2.left + 0.5 || b.right < s2.right - 0.5
+            || b.top > s2.top + 0.5 || b.bottom < s2.bottom - 0.5) worst.push([x, y, r]);
+      }
+      window.K.cam({ x: 0, y: 0, dz: 0, r: 0, ms: 0 });
+      return worst;
+    });
+    check('PARALLAX: the plate still covers the stage at every extreme of the pan',
+      slack.length === 0, JSON.stringify(slack));
+  }
+
   // ═══ A05b · A BAR THAT EASES DOWN IS NOT A WOUND ═══
   {
     const bar = await J(async () => {
@@ -290,6 +349,21 @@ const { boot } = require('./harness.cjs');
       && bar.snapped === '0s',
       JSON.stringify({ before: bar.before, fillNow: bar.fillNow,
                        ghostHeld: bar.ghostHeld, snapped: bar.snapped }));
+    // FFXIV's read: the lost amount goes WHITE before it drains.
+    const flash = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      window.K.forceHand(['cleave', 'serrate', 'qthrow', 'mend', 'sgrace']);
+      const box = document.getElementById('k-bhp-fill').parentNode;
+      window.K.playCard('cleave');
+      await new Promise(r => setTimeout(r, 20));
+      const g = box.querySelector('.k-bar-ghost');
+      const cs = getComputedStyle(g);
+      return { hit: g.classList.contains('k-bar-hit'), anim: cs.animationName,
+               dur: cs.animationDuration };
+    });
+    check('BAR: the wound flashes white before it drains — the amount lost, not the whole bar',
+      flash.hit && flash.anim === 'k-bar-hit' && parseFloat(flash.dur) > 0,
+      JSON.stringify(flash));
     check('BAR: the ghost then falls to meet it — it is a trail, not a second bar',
       Math.abs(bar.ghostFell - bar.fillNow) < 0.01 && parseFloat(bar.ghostTrans) > 0,
       JSON.stringify({ ghostFell: bar.ghostFell, fillNow: bar.fillNow, trans: bar.ghostTrans }));
@@ -511,13 +585,21 @@ const { boot } = require('./harness.cjs');
     check('SAYS: the step cue survives a re-render — it used to be written over',
       survives === 3, survives + ' of 3');
 
+    // THE CAPTION IS GONE — it ran off the bottom-left corner — so the free
+    // swap is signalled by the gold dot on the pile alone. The invariant that
+    // still matters is the one that put the caption there in the first place:
+    // a touchscreen has no hover, so this must never retreat into a title
+    // tooltip. What it costs is that the dot shows the swap is AVAILABLE and
+    // no longer says what it is; that is a known trade, not an oversight.
     const swap = await J(() => {
-      const hint = document.querySelector('#k-deck-btn .k-cycle-hint');
-      return { text: hint ? hint.textContent : null,
+      const dot = document.getElementById('k-cycle-dot');
+      const vis = dot && getComputedStyle(dot).opacity;
+      return { dot: !!dot, vis, spent: document.getElementById('k-deck-btn').classList.contains('k-cycle-spent'),
                titles: document.querySelectorAll('#k-deck-btn[title], #k-cycle-dot[title]').length };
     });
-    check('SAYS: the free swap is written on the pile, not hidden in a hover tooltip on a touchscreen',
-      !!swap.text && /swap/i.test(swap.text) && swap.titles === 0, JSON.stringify(swap));
+    check('SAYS: the free swap is shown on the pile, never in a hover tooltip a finger cannot reach',
+      swap.dot && parseFloat(swap.vis) > 0 && !swap.spent && swap.titles === 0,
+      JSON.stringify(swap));
 
     // A FEINT IS GRADED LIKE A TAP — press on the beat; doing nothing MISSES.
     // Its arrival label is WAIT, which two independent reviewers of this game

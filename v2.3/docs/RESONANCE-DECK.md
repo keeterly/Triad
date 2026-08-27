@@ -1569,6 +1569,67 @@ this would have shipped.
 
 ---
 
+## Build 38 — the far plane moves, the wound flashes, and a choice is a card
+
+**The backdrop was a poster.** It sits outside `#k-cast`, which is the element
+carrying the camera transform, so every dolly, roll and yaw slid the whole cast
+across a painted plate that never moved — which is precisely what makes a 3D
+board read as figures standing in front of a photograph. It takes a reduced
+share of the same numbers now: `BG_PAN 0.30`, `BG_LIFT 0.24`, `BG_ROLL 0.34`,
+and a little scale off the dolly rather than a lot of travel, because pushing
+in barely changes a horizon. The plate is over-scaled to 1.1 so the parallax
+slack always exceeds the largest pan; a check sweeps every extreme of the pan
+and fails if the painting's edge ever walks into frame.
+
+It shares the camera's *numbers* rather than running its own animation, so it
+can never disagree with the lens about where the shot is.
+
+**A bug the parallax check caught, that a screenshot never would have.**
+`--cam-ms` and `--cam-ease` are written on `#k-cast`. `#k-backdrop` is its
+**sibling**, and a custom property inherits *down*, not sideways — so the
+backdrop silently fell through to the 420ms default and ignored every duration
+the camera asked for. Visually it looked like parallax; it was parallax on the
+wrong clock, and the only reason it surfaced is that the check asked for the
+transform at two *settled* poses and got the same answer twice.
+
+**The wound flashes before it drains.** FFXIV's read: the amount lost goes
+white for a beat, then falls. Build 37's ghost already spans exactly the lost
+segment — from the new value to the old — so flashing the ghost *is* flashing
+the wound, and the drain that follows is the same width transition it always
+had. Six lines, because the previous build put the geometry in the right place.
+
+**A choice is shown as a card.** A bond scene's fork used to print a name and a
+sentence in a bordered box: the player chose between two cards while looking at
+neither, and met the real face for the first time in the middle of a fight.
+`staticCardHTML()` draws a card outside a fight — no combat to evaluate
+against, so every conditional is drawn asleep, which is exactly the state the
+card will arrive in — and it is the same `cardFaceHTML` the hand uses, so the
+preview cannot disagree with what turns up.
+
+The same treatment was tried on the swap screen and **reverted**: a 150px face
+in a 90px header hung 42px above the top of the screen, and even fixed it would
+have been competing with ten card rows for the eye. The swap weighs a card
+against ten others in their own grammar; the fork is where a card has to be
+*seen*, because that is where it is chosen before it is owned.
+
+**The bottom-left caption is gone.** "drop a card to swap" was a 200px sentence
+hung off a 62px pile in the corner and it ran off the screen. Removing it also
+uncovered the AP pips, which it had been printing straight over. What it costs
+is real and worth stating: the gold dot on the deck still shows the free swap
+is *available* and no longer says what it is. The check that guarded it now
+guards the thing that actually mattered — that the affordance never retreats
+into a `title` tooltip, which a finger cannot reach — plus a new one that no
+element on either pile hangs off the stage at all.
+
+**And a fit check for both decision screens**, written immediately after the
+swap-card overflow, and verified by putting the overflow back and watching it
+fail at `-42px`. Its first draft measured against `#k-stage`, which is *hidden*
+while a scene is up — an all-zero rect, so every element in the fork read as
+spilling. The same trap Build 28 recorded. A hidden element measures to
+nothing, and nothing is a very easy thing to be outside of.
+
+---
+
 ## Errata — three records the code had outgrown
 
 A playthrough audit read these sections against the code and found them stale.
