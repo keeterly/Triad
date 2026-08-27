@@ -731,3 +731,31 @@ you did not take is still there, offering the half you have not heard.
 
 `test/bond.test.cjs` — **20/20**. Plus flow 126, road 34, camp 32, slice 22
 (the slice grew two checks, one per bond trade it now walks). Zero page errors.
+
+### The social layer, measured against its own absence
+
+`SIM_NOBONDS` walks the same seeds without it. 120 roads per tier:
+
+| | with bonds | without |
+|---|---|---|
+| ~half parries, runs completed | **32.5%** | 39.2% |
+| excellent | 90.8% | 90.8% |
+| bond cards traded per run | 1.15 | 0 |
+| roads ending on 5/5/5, fifteen unique | **360 of 360** | — |
+
+**A careless trade costs you about seven points of completion.** That is the
+result, and it is the one the design asked for: bond cards are sidegrades, so
+a swap made badly is a downgrade. The simulator's trader is deliberately
+unclever — it gives up whatever scores lowest on a crude value-per-AP metric,
+which means it hands over **Cleave**, the deck's best plain hit, because two
+small effects out-score one large one on that metric.
+
+So this figure is a **floor**, not a verdict: it is what the social layer is
+worth to someone choosing badly. A player who reads the fork gains; a player
+who does not, loses. Which is what a real choice is supposed to do — and it is
+the opposite of the failure mode a card reward usually has, where every gain
+is free and the only question is how fast you get it.
+
+What can be said flatly: the gates hold either way, and **the 5/5/5 rule held
+across every one of 360 simulated roads** — checked against the simulator's own
+trades, not only against the interface's.
