@@ -1709,35 +1709,33 @@ const { boot } = require('./harness.cjs');
       const one = document.querySelector('#k-hand .k-card[data-card="cleave"]');
       const img = one.querySelector('.k-cbg'), plate = one.querySelector('.k-cart');
       const ir = img.getBoundingClientRect(), pr = plate.getBoundingClientRect();
-      // a card with no painting of its own — a bond card, which is earned.
-      // Shieldsong is ash|elin and primaryHero picks ash, so the portrait it
-      // falls back to is Ash's (kai.webp), not the pair's second name..
-      // Shieldsong is ash|elin and primaryHero picks ash, so the portrait it
-      // falls back to is Ash's (kai.webp), not the pair's second name.
-      const host = document.createElement('div');
-      host.style.cssText = 'position:fixed;left:0;top:0;';
-      host.innerHTML = window.K.staticCardHTML('shieldsong');
-      document.body.appendChild(host);
-      const fb = host.querySelector('.k-cbg');
-      const fbr = fb.getBoundingClientRect(), fpr = host.querySelector('.k-cart').getBoundingClientRect();
-      const out = {
+      // THE WHOLE DECK IS PAINTED NOW. This used to assert that a bond card
+      // FALLS BACK to its owner's portrait, which was true and worth asserting
+      // while the twelve bond cards had no art of their own. They do now, so
+      // the rule it guards has CHANGED rather than gone: every card in the deck
+      // carries its own painting, and no card anywhere falls back.
+      const every = Object.keys(window.K.CARD_DEFS).map(id => ({
+        id, art: window.K.cardArt(id) }));
+      return {
         srcs, distinct: new Set(srcs).size,
         painted: /cards\/cleave\.webp$/.test(srcs[0]),
         // the painting is dropped in whole: same box as the plate, no blow-up
         fills: Math.abs(ir.height - pr.height) < 2 && Math.abs(ir.width - pr.width) < 2,
-        fallbackSrc: fb.getAttribute('src'),
-        fallbackOwn: fb.classList.contains('k-cbg-own'),
-        // and the fallback keeps the bust blow-up — taller than its plate
-        fallbackBust: fbr.height > fpr.height * 1.4,
+        deck: every.length,
+        unpainted: every.filter(c => !c.art).map(c => c.id),
+        allDistinct: new Set(every.map(c => c.art)).size,
+        // …and the fallback is still WIRED, because it is what a card added
+        // tomorrow lands on before anyone paints it
+        unknownFallsBack: window.K.cardArt('__no_such_card__') === null,
       };
-      host.remove();
-      return out;
     });
-    check('CARD: each card carries its own painting, dropped in whole, portrait as fallback',
+    check('CARD: every card in the deck carries its own painting — none falls back',
       art.distinct === 5 && art.painted && art.fills
-      && /kai\.webp$/.test(art.fallbackSrc || '') && art.fallbackOwn && art.fallbackBust,
-      JSON.stringify({ distinct: art.distinct, painted: art.painted, fills: art.fills,
-        fallback: art.fallbackSrc, own: art.fallbackOwn, bust: art.fallbackBust }));
+      && art.unpainted.length === 0 && art.allDistinct === art.deck
+      && art.unknownFallsBack,
+      JSON.stringify({ distinct: art.distinct, fills: art.fills, deck: art.deck,
+        unpainted: art.unpainted, allDistinct: art.allDistinct,
+        fallbackWired: art.unknownFallsBack }));
 
     check('CARD: the portrait is bled through the plate and stays UNDER the words',
       legible.hasArt && legible.scrim && legible.plateImg

@@ -1,9 +1,9 @@
-# CARD ART — the house rule, what exists, and what is still owed
+# CARD ART — the house rule, the twenty-eight, and what is still owed
 
-Sixteen cards have their own painting. Twelve do not. This is the record of how
-the sixteen were made so the twelve match them, written down because the recipe
-lived only in a chat session and the next batch has to look like it belongs to
-the same deck.
+All twenty-eight cards have their own painting. This is the record of how they
+were made, so anything added later looks like it belongs to the same deck —
+written down because the recipe lived only in a chat session, and a deck whose
+art rule exists nowhere is a deck that drifts on its next card.
 
 ---
 
@@ -48,7 +48,9 @@ third image in a batch.
 
 Output goes to `art/cards/<cardId>.webp`. `CARD_ART` in `game.js` is the switch:
 an id listed there gets its painting, an id not listed falls back to the owner's
-portrait framed as a bust. Adding art is two steps — drop the file in, add the id.
+portrait framed as a bust. Adding art is two steps — drop the file in, add the
+id. Nothing falls back today; the path is kept because it is what a card added
+tomorrow lands on before anyone paints it.
 
 ---
 
@@ -65,12 +67,30 @@ up the violet steel.
 
 ---
 
-## Owed — the twelve bond cards
+## Done — the twelve bond cards
 
-These are the cards the road actually gives you, and they are the ones still
-falling back to a portrait. **A bond card is about two people**, so every one of
-these is a two-figure composition — which is what makes them worth painting
-rather than just worth filling in.
+These are the cards the road actually gives you. **A bond card is about two
+people**, so every one of these is a two-figure composition — which is what
+makes them worth painting rather than just worth filling in.
+
+**Painted, all twelve.** Both owners' portraits go in as `image_references`, the
+way `lightsteel` did. One of the twelve hit a `429 rate_limit_reached` on
+submission and was simply re-sent on its own; the batch tool reports per-item
+failures rather than losing the whole call.
+
+Two things were measured afterwards rather than eyeballed, and one of them
+overturned what my eye had said:
+
+- **They looked paler than the roster set.** They are not. Mean luminance of the
+  visible band (the top 37%, which is all that survives above the title) is
+  117.1 for the roster and 123.9 for the bonds — under 6% apart, inside both
+  sets' own spread. What actually reads as "paler as a group" is the bond set
+  having a higher FLOOR: no very dark cards to anchor it, where the roster has
+  several. No correction applied, because none was warranted.
+- **The figures sit lower in frame**, so cropping the dead bottom off and
+  re-fitting looked like it would lift them into the band. It does the
+  opposite: edge energy in the visible band drops 7–22% across all twelve,
+  because enlarging pushes the subjects further DOWN and out. Idea discarded.
 
 Each already carries a one-line description in `BOND_CARDS`, and that line is
 the brief. The prompts below are those lines staged as compositions.
@@ -102,14 +122,9 @@ the brief. The prompts below are those lines staged as compositions.
 | `thornandlamp` | A little of everything, for everyone. | Elin holding a lamp of gold light high while Mira works low and fast beneath it, thorned violet trailing from her blade |
 | `namethefear` | Say what it is out loud, and it staggers. | Both facing the same unseen thing head-on, Elin's mouth open mid-word with gold light on her breath, Mira steady beside her |
 
-### Running the batch
+### What it cost
 
-Twelve images, twelve credits at the settings above. The batch tool caps at
-twelve per call, so it is one `generate_image_batch` → `jobs_wait` → download →
-resize → drop into `art/cards/` → add the twelve ids to `CARD_ART`.
-
-Two-figure prompts need **both** reference portraits passed as
-`image_references`, the way `lightsteel` did.
+Twelve credits, 501.5 → 489.5. Total for the whole deck: 28 images, 28 credits.
 
 ---
 

@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 48;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 49;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -3297,6 +3297,17 @@ const CARD_ART = {
   lcascade: 1, mend: 1, frostbind: 1, sgrace: 1, intercession: 1,
   serrate: 1, qthrow: 1, twinfang: 1, backstab: 1, execute: 1,
   lightsteel: 1,
+  // THE TWELVE BOND CARDS, and every one of them is a TWO-FIGURE painting —
+  // which is the whole reason they were worth painting rather than just worth
+  // filling in. A bond card is about two people doing one thing: Shield the
+  // Blade is Ash's guard raised with Mira already moving out past it, Both
+  // Blades is his greatsword still in its follow-through while her dagger
+  // flashes by on the same arc, A Quiet Word is the two of them close with one
+  // small light between their hands. The portrait fallback could not say any
+  // of that; it could only say "Ash".
+  shieldsong: 1, lastvigil: 1, gravebloom: 1, ashenoath: 1,
+  shieldblade: 1, twinshadow: 1, cutthecord: 1, bothblades: 1,
+  coldmercy: 1, quietword: 1, thornandlamp: 1, namethefear: 1,
 };
 // The id is the BASE id, not the upgraded one — Cleave+ is the same swing as
 // Cleave and shares its painting rather than going bare.
