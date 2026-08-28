@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 42;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 43;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -551,6 +551,13 @@ function startCombat(opts) {
   };
   C.deck = shuffle(rosterIds(C.roster));
   for (const id of Object.keys(C.heroes)) if (C.heroes[id].hp <= 0) C.heroes[id].downed = true;
+  // A FIGHT IS AN ENTRANCE. The battle theme restarts from its downbeat rather
+  // than resuming, and it is ducked under the effects because the parry's own
+  // sounds and the numbers are what the player is reading. Cueing here as well
+  // as from the run layer's screen change is deliberate and free: re-cueing a
+  // track that is already foreground is a no-op, and it means the standalone
+  // combat page (no run layer at all) still has music.
+  try { MUSIC.play(MUSIC_SRC.combat, 0.42, false); } catch (_) {}
   dressEncounter(foe);
   drawOpening();
   setPhase('PLAYER_READY');
@@ -1297,6 +1304,269 @@ function logLine(t) { C.log.push(t); const el = document.getElementById('k-log')
 // Set false to restore the deck's keep-your-hand rule — nothing else changes.
 const HAND_SWEEP = true;
 
+// ═════════════════════════════════════════════════════════════════════════════
+// MUSIC — two decks, one crossfader (ported from v2.2)
+// ═════════════════════════════════════════════════════════════════════════════
+// Games like Clair Obscur do not CUT between exploration and battle music: they
+// run both stems and equal-power crossfade one into the other, so summed
+// loudness stays flat — no dip on the way in, no bump. Two <audio> decks do the
+// same job here. The world bed lives on one and combat on the other, and a
+// change of screen dissolves between them.
+//
+// The two tracks are treated differently on purpose. The ROAD is a place you
+// keep returning to, so its theme RESUMES where it left off — leaving the map
+// for a fight and coming back should feel like stepping out of a room the music
+// was still playing in. COMBAT is an entrance, so it restarts from its downbeat
+// every time.
+//
+// And leaving combat does NOT crossfade. Two pieces this different overlapping
+// for two seconds is a mess; the battle theme fades fully out, there is a beat
+// of silence, and then the road's song swells in.
+const MUSIC_SRC = {
+  combat: '../audio/combat-theme.mp3?v=1',
+  world:  '../audio/worldmap-theme.mp3?v=1',
+};
+// The combat theme is 120 BPM with its downbeat grid offset ~0.14s. This is not
+// decoration: the parry grid runs at the same 120 (BEAT_MS = 500) and phase-
+// locks to these numbers, so the rings close ON the track. Tune by ear if the
+// track is ever re-exported.
+const MUSIC_BPM = 120, MUSIC_OFFSET = 0.14, MUSIC_BEAT = 60 / MUSIC_BPM;
+// Muting is a real setting and has to survive a reload; it lives beside the
+// other kizuna23.* keys. Default ON — a game whose parry is built on a beat
+// should open with the beat audible.
+const MUSIC_KEY = 'kizuna23.music';
+// WHAT THE PLAYER CHOSE, which is not the same question as whether anything is
+// going to play. The button paints from this one: it reports a decision, and a
+// speaker showing a slash for a reason the player never asked for is a lie
+// about their own settings.
+function musicPref() {
+  try { return localStorage.getItem(MUSIC_KEY) !== '0'; } catch (_) { return true; }
+}
+// WHETHER ANYTHING PLAYS, which the whole engine gates on.
+function musicOn() {
+  // THE SUITE DOES NOT DOWNLOAD 11MB PER BOOT. Every check boots a fresh page
+  // and most of them enter combat, so leaving music on under ?test=1 would put
+  // two large fetches behind several hundred boots for no assertion's benefit.
+  // ?test=1&music=1 turns it back on, which is how the music's own checks run —
+  // opt-in rather than a mock, so what they exercise is the shipping path.
+  if (testMode() && !/[?&]music=1/.test(location.search)) return false;
+  return musicPref();
+}
+function musicSet(on) {
+  try { localStorage.setItem(MUSIC_KEY, on ? '1' : '0'); } catch (_) {}
+  MUSIC.refresh();
+}
+const MUSIC = (() => {
+  const CROSS = 2400;                 // crossfade length (ms) — long and gentle
+  const decks = [];                   // [{a}, {a}] — two Audio elements
+  let active = -1, want = false, wantSrc = null, wantVol = 0.5;
+  let xf = null, lvl = null, seqT = null, hiddenPaused = false;
+  const posBySrc = {};                // where each track was, so it can resume
+  // TWO SPELLINGS OF THE SAME TRACK. `a.src` reads back as the browser's
+  // RESOLVED absolute URL — "http://host/audio/worldmap-theme.mp3" — while what
+  // we hand in is the relative "../audio/worldmap-theme.mp3?v=1". Comparing
+  // them stripped of their query still never matches, and this module asks that
+  // question twice in places where getting it wrong is silent:
+  //
+  //   · "is this track already foreground?" always answered NO, so cueing the
+  //     bed a second time (which happens on every screen change, and on every
+  //     fight, since both startCombat and the screen change cue it) tore down a
+  //     playing deck and built the same track up again on the other one — two
+  //     decks running the same file, one crossfading into the other;
+  //   · "where was this track when it went out?" wrote the bookmark under one
+  //     spelling and read it under the other, so `resume` always resumed from
+  //     zero and the road's theme restarted from the top every single time you
+  //     came back from a fight — the exact behaviour the resume flag exists to
+  //     prevent.
+  //
+  // v2.2 shipped this and neither symptom was ever traced. The identity of a
+  // track is its FILENAME; both spellings agree about that.
+  const baseOf = (s) => (s || '').split('?')[0];
+  const keyOf = (s) => { const b = baseOf(s); const i = b.lastIndexOf('/'); return i < 0 ? b : b.slice(i + 1); };
+  const mk = () => {
+    try { const a = new Audio(); a.loop = true; a.preload = 'auto'; a.volume = 0; return { a }; }
+    catch (_) { return null; }
+  };
+  // The decks are made with NO src, so nothing is fetched until a track is
+  // actually wanted — the two files are 11MB between them and only one of them
+  // is ever needed at a time.
+  const ensure = () => {
+    if (decks.length || typeof Audio === 'undefined') return;
+    const d0 = mk(), d1 = mk(); if (d0 && d1) decks.push(d0, d1);
+  };
+  // Equal-power: incoming rises on sin, outgoing falls on cos, so the sum is
+  // flat. One timer drives both.
+  // AN INTERRUPTED CROSSFADE MUST NOT STRAND THE DECK IT WAS RETIRING. Clearing
+  // the timer used to be the whole of "cancel", which left the outgoing deck
+  // frozen at whatever level it had reached — still playing, forever. It is
+  // reachable in ordinary play: enter a fight and leave it inside the 2.4s
+  // crossfade (a one-turn kill, a defeat on the opening volley) and the road's
+  // bed keeps playing underneath the battle theme for the rest of the session.
+  // A deck that was on its way out is finished on its way out.
+  //
+  // …but only for a deck the NEW job is not about to bring back in. Unmuting
+  // cancels the fade-to-silence and ramps the very same deck back up; settling
+  // it blindly paused the deck that was being restored, so the level rose on a
+  // stopped track — audible as "unmute does nothing", and it left the combat
+  // theme frozen so the next hand-off had nothing to fade.
+  let xfJob = null;
+  const crossfade = (out, inc, vol, ms) => {
+    clearInterval(xf);
+    if (xfJob && xfJob.out && xfJob.out !== inc && xfJob.out !== out) {
+      try { xfJob.out.a.volume = 0; xfJob.out.a.pause(); } catch (_) {}
+    }
+    xfJob = { out, inc };
+    const outFrom = out ? out.a.volume : 0;
+    const steps = Math.max(1, Math.round(ms / 40)); let i = 0;
+    xf = setInterval(() => {
+      i++; const t = Math.min(1, i / steps);
+      const kin = Math.sin(t * Math.PI / 2), kout = Math.cos(t * Math.PI / 2);
+      if (inc) { try { inc.a.volume = Math.max(0, Math.min(1, vol * kin)); } catch (_) {} }
+      if (out) { try { out.a.volume = Math.max(0, Math.min(1, outFrom * kout)); } catch (_) {} }
+      if (i >= steps) { clearInterval(xf); xfJob = null; if (out) { try { out.a.pause(); } catch (_) {} } }
+    }, 40);
+  };
+  // A level nudge that never dips to zero, so re-asserting a track that is
+  // already up (map → camp → map) is inaudible rather than a little swell.
+  const fadeDeck = (d, target, ms) => {
+    if (!d) return;
+    clearInterval(lvl);
+    const from = d.a.volume; if (Math.abs(from - target) < 0.01) return;
+    const steps = Math.max(1, Math.round(ms / 40)); let i = 0;
+    lvl = setInterval(() => {
+      i++; const t = Math.min(1, i / steps);
+      try { d.a.volume = Math.max(0, Math.min(1, from + (target - from) * t)); } catch (_) {}
+      if (i >= steps) clearInterval(lvl);
+    }, 40);
+  };
+  const startDeck = (d, src, resume) => {
+    if (keyOf(d.a.src) !== keyOf(src)) { try { d.a.src = src; } catch (_) {} }
+    const at = resume ? (posBySrc[keyOf(src)] || 0) : 0;
+    try { d.a.currentTime = at; } catch (_) {}
+    try { d.a.volume = 0; } catch (_) {}
+    const p = d.a.play(); if (p && p.catch) p.catch(() => {});   // blocked → a gesture retries
+  };
+  // AUTOPLAY IS BLOCKED UNTIL THE PLAYER TOUCHES SOMETHING, on every browser
+  // that matters. Rather than asking for permission, every pointerdown is a
+  // chance to start a track that is wanted but was refused.
+  try { document.addEventListener('pointerdown', () => {
+    if (!want || !musicOn() || hiddenPaused) return;
+    const d = active >= 0 ? decks[active] : null;
+    if (d && d.a.paused) {
+      const p = d.a.play(); if (p && p.catch) p.catch(() => {});
+      if (d.a.volume < 0.02) crossfade(null, d, wantVol, 500);
+    }
+  }, { capture: true }); } catch (_) {}
+  // LOCK AND BACKGROUND. A phone that locks with the music running comes back
+  // to it mid-phrase; currentTime means it picks up exactly where it stopped.
+  const pauseForHide = () => {
+    hiddenPaused = false;
+    decks.forEach(d => { if (d && d.a && !d.a.paused) { hiddenPaused = true; try { d.a.pause(); } catch (_) {} } });
+  };
+  const resumeFromHide = () => {
+    if (!hiddenPaused) return;
+    hiddenPaused = false;
+    if (!want || !musicOn()) return;
+    const d = active >= 0 ? decks[active] : null;
+    if (d && d.a.paused) { const p = d.a.play(); if (p && p.catch) p.catch(() => {}); }
+  };
+  try {
+    document.addEventListener('visibilitychange', () => { if (document.hidden) pauseForHide(); else resumeFromHide(); });
+    window.addEventListener('pagehide', pauseForHide);
+  } catch (_) {}
+  return {
+    // Fade from whatever is up to `src`. resume=true continues that track from
+    // where it paused (the road); resume=false restarts it (a fresh entrance).
+    // opts.sequence uses the fade-out → silence → fade-in hand-off instead of
+    // an overlapping crossfade.
+    play(src, vol, resume, opts) {
+      want = true; wantSrc = src; wantVol = (vol == null ? 0.5 : vol);
+      clearTimeout(seqT);
+      ensure(); if (!decks.length || !musicOn()) return;
+      const cur = active >= 0 ? decks[active] : null;
+      // ALREADY FOREGROUND — do not restart it and do not dip it. Screens change
+      // often and most of those changes want the same bed; re-cueing has to be
+      // a genuine no-op or the road's theme stutters every time you open a menu.
+      if (cur && keyOf(cur.a.src) === keyOf(src)) {
+        if (cur.a.paused) { const p = cur.a.play(); if (p && p.catch) p.catch(() => {}); }
+        fadeDeck(cur, wantVol, 800);
+        return;
+      }
+      if (cur) { try { posBySrc[keyOf(cur.a.src)] = cur.a.currentTime || 0; } catch (_) {} }
+      const next = active === 0 ? 1 : 0;
+      if (opts && opts.sequence) {
+        const outMs = opts.outMs || 1100, gap = opts.gap || 300, inMs = opts.inMs || 1900;
+        if (cur) crossfade(cur, null, 0, outMs);
+        active = next;
+        seqT = setTimeout(() => {
+          // superseded (straight back into a fight) or backgrounded meanwhile
+          if (!want || keyOf(wantSrc) !== keyOf(src) || !musicOn() || hiddenPaused) return;
+          startDeck(decks[next], src, resume);
+          crossfade(null, decks[next], wantVol, inMs);
+        }, outMs + gap);
+        return;
+      }
+      startDeck(decks[next], src, resume);
+      crossfade(cur, decks[next], wantVol, (opts && opts.ms) || CROSS);
+      active = next;
+    },
+    stop() {
+      want = false; wantSrc = null;
+      if (active >= 0 && decks[active]) {
+        try { posBySrc[keyOf(decks[active].a.src)] = decks[active].a.currentTime || 0; } catch (_) {}
+        crossfade(decks[active], null, 0, 1000);
+      }
+    },
+    // reflect a live toggle without losing the player's place in the track
+    refresh() {
+      ensure(); if (!decks.length) return;
+      if (musicOn() && want && wantSrc) {
+        const d = active >= 0 ? decks[active] : null;
+        if (d && keyOf(d.a.src) === keyOf(wantSrc)) {
+          const p = d.a.play(); if (p && p.catch) p.catch(() => {});
+          crossfade(null, d, wantVol, 700);
+        } else this.play(wantSrc, wantVol, true);
+      } else if (active >= 0 && decks[active]) crossfade(decks[active], null, 0, 500);
+    },
+    // THE BEAT CLOCK. Where is the COMBAT deck, and when is its next grid point?
+    // Reads whichever deck is carrying the battle theme and only while it is
+    // actually audible, so the road's bed never drives the parry's timing.
+    beat() {
+      let a = null;
+      for (const d of decks) {
+        if (d && d.a && keyOf(d.a.src).indexOf('combat-theme') >= 0) { a = d.a; break; }
+      }
+      const playing = !!(a && !a.paused && musicOn() && (a.currentTime || 0) > 0.05 && a.volume > 0.01);
+      return {
+        playing, beatSec: MUSIC_BEAT,
+        now: () => (a ? (a.currentTime || 0) : 0),
+        // the next grid point at least `lead` seconds out, on a `sub`-second grid
+        nextGrid: (lead, sub) => {
+          const g = sub || MUSIC_BEAT;
+          const tt = (a ? (a.currentTime || 0) : 0) + (lead || 0);
+          return Math.ceil((tt - MUSIC_OFFSET) / g) * g + MUSIC_OFFSET;
+        },
+      };
+    },
+    // FOR THE CHECKS. The decks are `new Audio()` and therefore never in the
+    // document, so a test cannot reach them with a querySelector — the first
+    // pass of the music suite tried and silently measured nothing at all. Both
+    // decks are reported, not just the foreground one, because half of what
+    // this system has to get right is what the OUTGOING deck is doing.
+    _state() {
+      const d = active >= 0 ? decks[active] : null;
+      const one = (x) => x ? { src: keyOf(x.a.src) || null, vol: x.a.volume,
+                               paused: x.a.paused, at: x.a.currentTime || 0 } : null;
+      return { want, wantSrc, wantVol, on: musicOn(), active,
+               src: d ? keyOf(d.a.src) : null, vol: d ? d.a.volume : 0,
+               paused: d ? d.a.paused : true, at: d ? (d.a.currentTime || 0) : 0,
+               decks: decks.length, deck: decks.map(one),
+               // where each track was bookmarked when it went out
+               marks: Object.assign({}, posBySrc) };
+    },
+  };
+})();
+
 const beatWait = (ms) => new Promise(r => setTimeout(r, Math.max(0, ms)));
 const BEAT_MS = 500;             // 120 BPM
 const BEAT_LEADIN = 2;           // beats of empty runway before the first note
@@ -1331,8 +1601,36 @@ function parryThread(fromEl, x, y) {
   return svg;
 }
 
+// PHASE-LOCK THE VOLLEY TO THE TRACK. The parry grid has always run at 120 BPM
+// — BEAT_MS is 500 — which is the combat theme's tempo exactly. What it never
+// did was start on one of the track's beats: t0 was "two beats from whenever
+// the volley happened to open", so the rings closed at the right INTERVAL and
+// the wrong PHASE, and a bar of parries sat a random fraction of a beat off the
+// music under it. Right tempo, wrong downbeat, which is the one way a rhythm
+// read can feel wrong without looking wrong.
+//
+// So the runway is rounded forward to the track's next grid point. The audio
+// element's clock and performance.now() are read as a pair and the difference
+// converted, because the two are unrelated timebases. When the music is off or
+// still blocked by autoplay, `playing` is false and the grid keeps its old
+// free-running behaviour — the parry has never depended on the music and must
+// not start.
+function gridStart() {
+  const free = performance.now() + BEAT_LEADIN * BEAT_MS;
+  let b = null;
+  try { b = MUSIC.beat(); } catch (_) { return free; }
+  if (!b || !b.playing) return free;
+  const nowSec = b.now();
+  // the lead-in, in seconds, rounded UP to the track's next beat — never
+  // shortening the runway the hand is promised
+  const target = b.nextGrid(BEAT_LEADIN * BEAT_MS / 1000, b.beatSec);
+  const delta = (target - nowSec) * 1000;
+  if (!isFinite(delta) || delta < 0) return free;
+  return performance.now() + delta;
+}
+
 function beatOpen(totalNotes) {
-  _grid = { t0: performance.now() + BEAT_LEADIN * BEAT_MS, idx: 0, note: 0, total: totalNotes };
+  _grid = { t0: gridStart(), idx: 0, note: 0, total: totalNotes };
   const st = el('k-stage'); if (!st) return;
   const pulse = document.createElement('div');
   pulse.id = 'k-beat';
@@ -3631,6 +3929,7 @@ window.K = {
   },
   parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
   actionKind, castTone, cardArt,
+  MUSIC, MUSIC_SRC, musicOn, musicPref, musicSet, gridStart,
   intentByTarget,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, staticCardHTML,
   cam, bgParallax, SIGILS, sigilOf, brighten,

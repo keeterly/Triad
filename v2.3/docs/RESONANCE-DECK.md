@@ -1974,6 +1974,105 @@ the layout's.
 
 ---
 
+## Build 43 — the music, and the beat it was always supposed to keep
+
+v2.2's two tracks come across: `combat-theme.mp3` and `worldmap-theme.mp3`, now
+in a shared `/audio/` beside `/art/` so no version owns them. The engine comes
+across too — a two-deck equal-power crossfader — because the interesting part
+was never the files.
+
+### The rule is one line in one function
+
+`screen()` in the run layer is the only thing that decides which screen is up,
+so it is also the only thing that decides what is playing: the stage gets the
+battle theme, everything else gets the road's bed. Scattering cues through the
+map, the camp, the scene and the swap would mean four places that can disagree
+about what should be playing.
+
+The two tracks are treated differently on purpose:
+
+- **The road RESUMES.** It is a place you keep coming back to, and a theme that
+  restarts every time you return makes it a menu instead.
+- **Combat RESTARTS**, from its downbeat. It is an entrance.
+- **Leaving combat is a hand-off, not a blend.** Two pieces this different
+  overlapping for two seconds is a mess. The battle theme goes fully out, a
+  beat of quiet lands on the victory, then the road swells back.
+
+`startCombat` cues the battle theme as well as the screen change, which is free
+(re-cueing a foreground track is a no-op) and means the standalone combat page
+has music too.
+
+### The parry now lands on the track
+
+This is the part worth the port. The parry grid has always run at 120 BPM —
+`BEAT_MS` is 500 — which is the combat theme's tempo exactly. What it never did
+was **start** on one of the track's beats: `t0` was "two beats from whenever
+this volley happened to open", so the rings closed at the right *interval* and
+the wrong *phase*, a random fraction of a beat off the music underneath them.
+Right tempo, wrong downbeat, which is the one way a rhythm read can feel wrong
+without looking wrong.
+
+`gridStart()` rounds the runway forward onto the track's next grid point,
+reading the audio element's clock and `performance.now()` as a pair because the
+two are unrelated timebases. Forward, never to nearest, so locking can lengthen
+the lead-in but never steal it. With the music off or still blocked by autoplay
+the grid keeps its old free-running behaviour — the parry has never depended on
+the music and must not start.
+
+### Three bugs, two of them inherited
+
+Writing the suite found three, and the first two shipped in v2.2 with neither
+symptom ever traced:
+
+1. **The decks were keyed by two different spellings of the same track.**
+   `a.src` reads back as the browser's resolved absolute URL while what we hand
+   in is relative, so `keyOf` compared `http://host/audio/x.mp3` against
+   `../audio/x.mp3` and always said "different". Two consequences, both silent:
+   *"is this already foreground?"* answered NO every time, so cueing the bed
+   again tore down a playing deck and rebuilt the same file on the other one —
+   two decks, one track, crossfading into itself; and the resume bookmark was
+   written under one spelling and read under the other, so **`resume` always
+   resumed from zero** and the road's theme restarted from the top after every
+   single fight. The identity of a track is its filename.
+2. **Cancelling a crossfade was only `clearInterval`**, which left the deck it
+   was retiring frozen mid-fade and still playing. Reachable in ordinary play:
+   leave a fight inside the 2.4s entrance crossfade — a one-turn kill, a defeat
+   on the opening volley — and the road's bed plays under the battle theme for
+   the rest of the session.
+3. And the fix for (2) was then too blunt: unmuting cancels a fade-to-silence
+   and ramps **the same deck** back up, so settling the outgoing deck blindly
+   paused the deck being restored. The level climbed on a stopped track. The
+   check for it passed anyway, because it asked only for a volume above zero —
+   a rising number on a frozen clock is exactly the shape of a hollow check, and
+   it now asserts `currentTime` is advancing.
+
+Each of the three was re-introduced deliberately and watched to fail before
+being fixed for good.
+
+### One setting, kept out of the way
+
+There is a mute, because shipping music with no way to silence it is worse than
+shipping none. It is a 15px speaker at the end of the ROAD's header — not a
+floating control over the battlefield, which is exactly the permanent furniture
+several passes of this build have been removing. The road is the hub between
+every fight, so it is always one screen away and never on the screen that has
+to stay clean. It shows its state with a **shape** (waves, or a slash) rather
+than with opacity, because a dimmed speaker reads as "quiet", not "off".
+
+And it paints from the player's **preference**, not from whether audio is
+actually live — `musicPref()` and `musicOn()` are separate questions. Under
+`?test=1` music is suppressed so several hundred boots do not fetch 11MB, and
+while the button read the effective state it showed a slash in every screenshot
+of the map, reporting a mute the player had never asked for. The road suite
+holds that line now.
+
+`test/music.test.cjs` — **17/17** — is the only suite that boots with
+`&music=1`. It is an opt-in rather than a mock, so what runs is the shipping
+path with real `<audio>` elements, which matters: nearly every bug this system
+can have lives in the browser's audio object rather than in our state.
+
+---
+
 ## Errata — three records the code had outgrown
 
 A playthrough audit read these sections against the code and found them stale.

@@ -462,6 +462,21 @@ const { boot } = require('./harness.cjs');
       JSON.stringify(round));
   }
 
+  // THE MUTE REPORTS A CHOICE, NOT AN ENVIRONMENT. This suite boots WITHOUT
+  // &music=1, so nothing is playing — and while the button painted from the
+  // effective state rather than from the stored preference it showed a slash
+  // here, telling a player their music was off when they had never touched it.
+  // The road suite is the right place to hold that line, because it is the one
+  // that sees the header in its ordinary, silent-under-test condition.
+  const mute = await J(() => {
+    const b = document.getElementById('k-mute');
+    return b ? { muted: b.classList.contains('k-muted'),
+                 pref: window.K.musicPref(), on: window.K.musicOn() } : null;
+  });
+  check('ROAD: the music button shows the player\u2019s choice, not whether audio is live',
+    !!mute && mute.pref === true && mute.on === false && mute.muted === false,
+    JSON.stringify(mute));
+
   const r = report();
   await H.browser.close();
   process.exit(r.passed === r.total && r.errs === 0 ? 0 : 1);

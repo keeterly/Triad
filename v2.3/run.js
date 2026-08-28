@@ -522,11 +522,37 @@
   // ── the screen ────────────────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
   const SCREENS = { map: 'k-map', combat: 'k-stage', camp: 'k-camp', scene: 'k-scene', swap: 'k-swap', wake: 'k-wake', mark: 'k-mark' };
+  // WHICH SCREEN IS UP IS ALSO WHICH MUSIC IS PLAYING, and this is the only
+  // function that answers the first question — so it answers the second too.
+  // Scattering cues through the map, the camp, the scene and the swap would
+  // mean four places that can disagree about what should be playing; there is
+  // one rule here instead: the stage gets the battle theme, everything else
+  // gets the road's bed.
+  //
+  // The road's bed RESUMES. You leave it for a fight and come back to it, and
+  // restarting the track each time would make the map feel like a menu rather
+  // than a place. Combat restarts, because it is an entrance.
+  let _lastScreen = null;
   function screen(which) {
     for (const k of Object.keys(SCREENS)) {
       const el2 = $(SCREENS[k]);
       if (el2) el2.classList.toggle('k-hidden', k !== which);
     }
+    const M = window.K && window.K.MUSIC, SRC = window.K && window.K.MUSIC_SRC;
+    if (M && SRC) {
+      try {
+        if (which === 'combat') M.play(SRC.combat, 0.42, false);
+        // LEAVING COMBAT IS A HAND-OFF, NOT A BLEND. The two pieces are too
+        // different to overlap for two seconds: the battle theme goes fully
+        // out, a breath of quiet lands on the victory beat, then the road
+        // swells back in. Every other screen change is the same bed already
+        // playing, which re-cues as a no-op.
+        else if (_lastScreen === 'combat')
+          M.play(SRC.world, 0.5, true, { sequence: true, outMs: 1100, gap: 300, inMs: 1900 });
+        else M.play(SRC.world, 0.5, true);
+      } catch (_) {}
+    }
+    _lastScreen = which;
   }
 
   // Icons carry the kind. Drawn rather than lettered, because the decision has
@@ -1264,6 +1290,34 @@
     if (skip) skip.addEventListener('click', (e) => { e.stopPropagation(); sceneSkip(); });
     const sw = $('k-swap-go');
     if (sw) sw.addEventListener('click', (e) => { e.stopPropagation(); confirmSwap(); });
+    const mute = $('k-mute');
+    if (mute) {
+      const paint = () => {
+        // the PREFERENCE, not the effective state — the button reports what the
+        // player chose, and ?test=1 suppressing audio is not their choice
+        const on = window.K.musicPref ? window.K.musicPref() : true;
+        mute.classList.toggle('k-muted', !on);
+        mute.setAttribute('aria-pressed', on ? 'false' : 'true');
+        mute.title = on ? 'Music on' : 'Music off';
+        // The speaker draws its own waves; muted, they are replaced by a slash,
+        // because a speaker with the waves merely dimmed reads as "quiet", not
+        // "off", at 15px.
+        mute.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">'
+          + '<path d="M4 9 h3.5 L12 5 v14 l-4.5 -4 H4 z" fill="currentColor"/>'
+          + (on
+              ? '<path d="M15.5 9.2 a4 4 0 0 1 0 5.6 M18 6.7 a7.5 7.5 0 0 1 0 10.6"'
+                + ' fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'
+              : '<path d="M15.5 9.5 L21 14.5 M21 9.5 L15.5 14.5"'
+                + ' fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>')
+          + '</svg>';
+      };
+      paint();
+      mute.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.K.musicSet(!window.K.musicPref());
+        paint();
+      });
+    }
   }
 
   function boot(opts) {

@@ -1289,6 +1289,20 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-embers svg { width: 19px; height: 19px; }
 #k-embers b { font-size: 22px; color: #f0cf92; font-weight: 700; }
 #k-embers em { font-style: normal; font-size: 9px; letter-spacing: 0.2em; color: #8d8474; }
+/* THE MUTE — the only setting this game has, and it is kept quiet. It sits at
+   the end of the road's header rather than floating over the battlefield: the
+   map is the hub between every fight, so the control is always one screen away
+   and never furniture on the one screen that has to stay clean. Dim until
+   touched, and dimmer still when the music is off — the state reads at a
+   glance from the slash, not from the opacity. */
+#k-mute { margin-left: 4px; padding: 4px; background: none; border: 0;
+  color: #8d8474; opacity: 0.55; cursor: pointer; line-height: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 160ms ease, color 160ms ease; }
+#k-mute svg { width: 15px; height: 15px; display: block; }
+#k-mute:hover, #k-mute:focus-visible { opacity: 0.95; color: #e0c084; outline: none; }
+#k-mute.k-muted { opacity: 0.34; }
+#k-mute.k-muted:hover { opacity: 0.7; }
 
 /* ── the edges: exactly three weights, because a glance sorts three ── */
 #k-map-edges { position: absolute; inset: 0; width: 932px; height: 430px; z-index: 2; pointer-events: none; }
