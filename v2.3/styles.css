@@ -40,7 +40,7 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
    Hidden until the sheet actually loads; when it is on it REPLACES the plate,
    and the CSS breathe underneath goes quiet — the frames are the breathing. */
 .k-fanim { display: none; position: absolute; left: 50%; bottom: 8px;
-  transform: translateX(-50%); width: 100%; pointer-events: none;
+  transform: translateX(-50%); pointer-events: none;
   background-repeat: no-repeat;
   filter: drop-shadow(0 10px 18px rgba(0,0,0,0.75));
   -webkit-box-reflect: below -6px linear-gradient(rgba(0,0,0,0) 58%, rgba(255,255,255,0.14)); }

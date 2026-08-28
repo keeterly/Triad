@@ -1,9 +1,9 @@
-# FOE ANIMATION — what works, what does not, and what one foe cost
+# FOE ANIMATION — what works, what does not, and what it cost
 
-The Mourning Regent is the pilot. She is the only foe with real animation, and
-this is the record of how it was made and what was ruled out getting there —
-written down because two plausible approaches fail for reasons that are not
-obvious until you have paid for them.
+All five foes are animated: a painted idle each, and the Mourning Regent also
+carries a wind-up and her four acts. This is the record of how they were made
+and what was ruled out getting there — written down because two plausible
+approaches fail for reasons that are not obvious until you have paid for them.
 
 ---
 
@@ -55,22 +55,29 @@ painted once, moving. So the sheet is cut out of a clip.
 
 | | |
 |---|---|
-| model | `kling3_0`, `mode: pro`, `sound: off`, `16:9`, 5s |
-| cost | **8.75 credits per clip** (`seedance_2_5` is 32.5 for the same thing) |
+| model | `kling3_0`, `mode: pro`, `sound: off`, `16:9` |
+| duration | **3s — not 5s.** See the camera note below; this is the whole trick. |
+| cost | **5.25 credits** per 3s clip, 8.75 at 5s (`seedance_2_5` is 32.5) |
 | input | the foe's own plate, composited on white and padded to 16:9 at 1280×720 |
-| output | 1920×1080, ~6 MB mp4 |
+| output | 1920×1080, ~5 MB mp4 |
 
-The prompt has to fight for three things, and gets two of them:
+The prompt has to fight for three things:
 
 - **A flat pure-white void.** Works, and it is what makes the frames
-  compositable — white keys cleanly off charcoal and bone, and the Regent's
-  bone-white robe ribbons sit far enough below the void's value to survive.
-- **A locked-off camera.** Works for roughly the first 1.5 seconds and then
-  fails: the camera dollies back and the figure shrinks to a third of its size
-  for the rest of the clip. Every "no zoom, no dolly, no pan" phrasing in the
-  prompt was ignored. **Only the opening window is usable**, which is the single
-  most important thing to know before generating more of these.
-- **The character's design held.** Works — every frame is unmistakably her.
+  compositable — white keys cleanly off charcoal and bone, and the bone-white
+  robe ribbons sit far enough below the void's value to survive. The ONE thing
+  it cannot survive is a bright conjured flare: the Choir's spell blooms to a
+  wide soft white, and white light on a white void cannot be told from the
+  backdrop, so the key cut it into a hard-edged disc that read as a bug rather
+  than a spell. Its frames come from the first second, before the bloom.
+- **A locked-off camera. THIS IS WHAT THE DURATION IS FOR.** At 5s the camera
+  dollies back however the prompt is phrased — every "no zoom, no dolly, no pan"
+  was ignored — and the figure shrinks to a third of its size across the back two
+  thirds of the clip. At **3s it does not happen at all**: the figure holds its
+  size end to end and the whole clip is usable. Chasing this with prompt wording
+  is wasted effort; shorten the clip instead.
+- **The character's design held.** Works — every frame is unmistakably the same
+  creature, which is the whole reason this route beats the still one.
 
 ---
 
@@ -78,15 +85,21 @@ The prompt has to fight for three things, and gets two of them:
 
 ```
 tools/pull-frames.py clip.mp4 --strip strip.png          # look, choose times
-tools/pull-frames.py clip.mp4 --sheet art/foe-<id>-anim.webp \
-    --cell 440 --cols 6 --at idle:0.05 idle:0.20 idle:0.35 ...
+tools/pull-frames.py clip.mp4 \
+    --clip toll=act-toll.mp4 --clip sweep=act-sweep.mp4 \
+    --sheet art/foe-<id>-anim.webp --cell 380 --cols 6 \
+    --at idle:0.05 idle:0.20 toll:toll:1.65 sweep:sweep:1.39 ...
 ```
 
 `--strip` writes a labelled contact sheet so states are picked by eye against the
 real frames. `--sheet` keys them and packs a **uniform grid**, printing the
-descriptor to paste into `FOE_SHEETS` in `game.js`.
+descriptor to paste into `FOE_SHEETS` in `game.js`. `--clip KEY=PATH` adds
+another source: a foe's states do not come from one recording — the idle is its
+own clip and every act is another — and they have to land in ONE sheet, because
+the shared crop that keeps the creature at a constant size across states can only
+be computed over all of them together.
 
-Two details in there are load-bearing:
+Four details in there are load-bearing:
 
 - **The key is a ramp with a floor, not a threshold.** A codec's white is not
   255 everywhere — it rings around dark edges and bands faintly across a flat
@@ -101,6 +114,19 @@ Two details in there are load-bearing:
   trimming each frame separately subtracts exactly the motion the clip was
   generated for. That tool is still in `tools/` for the pose case; it was not
   used for this.
+- **The alpha channel is the file, not the painting.** Dropping WebP `quality`
+  from 82 to 66 saves 12%, because most of the bytes are the cutout mask.
+  `alpha_quality` is the lever that matters: at 60 it takes 30% off for a mean
+  error of 1.9/255 along the soft edge where the hair and ribbons live (max 10)
+  — measured, because that fringe is the one place a cutout visibly breaks.
+- **The sheet reports `figH`, and the runtime sizes by it.** A cell carries
+  margin the painted plate does not — the Regent's acts reach further than her
+  idle, and each foe's clip framed it a little differently — so a layer stretched
+  to the box would swap the plate for a visibly smaller creature, by a different
+  amount for each foe. `figH` is the median figure height inside a cell, and the
+  runtime blows the cell up until the figure stands exactly as tall as the plate
+  it replaces. Median, not max, so one frame with the staff flung out of frame
+  cannot shrink every other frame to accommodate it.
 
 ## The game side
 
@@ -130,28 +156,65 @@ The idle **bounces** rather than wraps. Six frames of drift do not close into a
 ring — frame 5 is the far end of the sway, not the way back to frame 0 — so a
 wrap snaps the robes across the whole excursion once a second.
 
-One real bug came out of the checks and is worth not reintroducing: two fights
-started in the same frame arm two probes, a cached sheet resolves both, and each
-mounted its own layer while the teardown retired only the first (`querySelector`
-is singular). The orphan was invisible — the class was off — but it held its own
-interval and was one class away from a doubled Regent. Arming is idempotent now,
-and `FOE ANIM: two fights in one frame…` is the check that holds it.
+A state is NAMED AFTER the pose class it accompanies — `k-foe-toll` drives the
+`toll` frames — so `FOE_ACT` stays the only mapping, and adding an intent can
+never leave the frames pointing somewhere else. A foe whose sheet has no such
+state simply keeps what it is showing, and the CSS pose above still plays, which
+is what lets frames land one state and one foe at a time.
+
+Two real bugs came out of the checks and are worth not reintroducing:
+
+- **Two fights started in the same frame arm two probes**, a cached sheet
+  resolves both, and each mounted its own layer while the teardown retired only
+  the first (`querySelector` is singular). The orphan was invisible — the class
+  was off — but it held its own interval and was one class away from a doubled
+  Regent. Arming is idempotent now.
+- **A client rect is not a size here.** The check on the sizing maths first
+  compared the layer's `getBoundingClientRect` against the plate's, and failed
+  by 5% while the maths was exactly right. The Regent stands inside the field's
+  perspective volume, so every rect is a PROJECTED rect — and not uniformly: at
+  that position the box measures 0.996× across and 1.024× down, while the layer,
+  sitting lower in the frustum, measures 0.990× and 1.041×. Two projected numbers
+  taken at different heights say nothing about whether they are the same size.
+  Anything measuring the board's geometry has to use layout values.
 
 ---
 
-## What is owed
+## What is in, and what is owed
 
-- **Her acts.** The wind-up, the toll, the sweep and the benediction are still
-  CSS moving a sheet rather than painted frames. They need clips of their own,
-  cut from the opening window before the camera pulls back — so **short clips,
-  one act each**, not one long clip covering everything.
-- **The other four foes.** The Husk, the Choir, the Wraith and the Revenant have
-  no sheet. At 8.75 credits a clip an idle apiece is ~35 credits.
-- **Weight.** The Regent's six-frame idle is 296 KB. Five foes with idles and
-  acts would run to several MB; if it gets there, drop `--cell` from 440 and
-  lower the WebP quality before dropping frames.
+| foe | states | frames | weight |
+|---|---|---|---|
+| The Mourning Regent | idle, wind, toll, sweep, rain, gather | 20 | 379 KB |
+| The Hollow Husk | idle | 6 | 120 KB |
+| The Choir of One | idle | 6 | 136 KB |
+| The Grief-Wraith | idle | 6 | 115 KB |
+| The Kneeling Revenant | idle | 6 | 106 KB |
 
-### What it has cost so far
+856 KB for the whole bestiary. Set against 644 KB of card art and 22 MB of
+music, it is not the thing to optimise next.
 
-16 credits on the stills that did not work, 8.75 on the clip that did.
-489.5 → ~464.75.
+Still owed:
+
+- **Acts for the other four.** Each has a painted idle; their intents still move
+  a still sheet with CSS rather than pulling their own frames. The wiring is
+  already there and costs nothing to extend — a state named after its pose class
+  is picked up automatically — so it is four to eight clips at ~5.25 each.
+- **Reactions.** Nobody has a struck or a broken frame yet: `k-recoil` and
+  `k-broken` still animate the whole layer rather than swapping frames under it.
+- **A caveat on the Husk's clip.** Told it was "dead weight barely holding
+  itself up", the model took the line literally and collapsed the beast flat to
+  the ground after 1.5s. Its frames come from before that. Worth remembering
+  that a characterful prompt gets ACTED ON, not merely styled.
+
+### What it has cost
+
+| | |
+|---|---|
+| stills that did not work | 16 credits |
+| the Regent's idle clip (5s) | 8.75 |
+| four act clips + four foe idles (3s) | 42 |
+| **total** | **~67 credits**, 489.5 → ~422 |
+
+One submission came back as a preset recommendation instead of a job
+(`submission_failed`, carrying a `preset_id`); re-sending the identical request
+with `declined_preset_id` set to that id goes straight through.

@@ -3063,7 +3063,19 @@ const { boot } = require('./harness.cjs');
         plate: img && getComputedStyle(img).display,
         figIdle: fig && getComputedStyle(fig).animationName,
         w: lr && lr.width, h: lr && lr.height, boxW: br && br.width,
-        bottom: lr && br && Math.round(br.bottom - lr.bottom),
+        // MEASURED IN LAYOUT SPACE, NOT ON SCREEN. The Regent stands inside the
+        // field's perspective volume, so a client rect is a PROJECTED rect — and
+        // the projection is not uniform: at this position the box measures 0.996x
+        // across and 1.024x down, and the layer, sitting lower in the frustum,
+        // 0.990x and 1.041x. Comparing two projected numbers taken at different
+        // heights says nothing about whether they are the same size. offsetHeight
+        // is the layout box, which is what the sizing maths actually controls.
+        lay: l && l.offsetHeight,
+        gap: l && (box.clientHeight - (l.offsetTop + l.offsetHeight)),
+        plateH: img && img.naturalWidth
+          ? Math.min(box.clientHeight, box.clientWidth * img.naturalHeight / img.naturalWidth)
+          : null,
+        sheet: window.K.FOE_SHEETS.mourner,
       };
     });
     check('FOE ANIM: the Regent wears her sheet, and it is really on screen',
@@ -3079,10 +3091,19 @@ const { boot } = require('./harness.cjs');
     // win, so the Regent was being animated twice.
     check('FOE ANIM: the CSS idle underneath is switched off, not left doubling up',
       on.figIdle === 'none', JSON.stringify({ figIdle: on.figIdle }));
-    // the layer sits where the plate sat — same width, same ground line
-    check('FOE ANIM: the sheet stands on the plate\'s ground line, at the plate\'s size',
-      Math.abs(on.w - on.boxW) < 12 && Math.abs(on.bottom - 8) <= 2,
-      JSON.stringify({ w: on.w, boxW: on.boxW, bottomGap: on.bottom }));
+    // THE RULE MOVED IN BUILD 51, and this check moved with it. It used to ask
+    // that the layer be the width of the box, which was right while the sheet
+    // held one state: the cell was the idle and nothing else. Now the cell also
+    // has to hold the acts, which reach further, and each foe's clip framed it
+    // differently — so a box-width layer renders a visibly smaller creature, by
+    // a different amount per foe. The layer is sized by the FIGURE now, so what
+    // is asked here is the thing that actually matters: the creature inside the
+    // cell stands as tall as the painting it replaced, and on the same line.
+    const figLaidOut = on.lay * on.sheet.figH / on.sheet.cellH;
+    check('FOE ANIM: the creature stands at the plate\'s size, on the plate\'s ground line',
+      on.plateH > 0 && Math.abs(figLaidOut - on.plateH) < 3 && Math.abs(on.gap - 8) <= 1,
+      JSON.stringify({ figure: +figLaidOut.toFixed(1), plate: +on.plateH.toFixed(1),
+                       layerH: on.lay, groundGap: on.gap }));
 
     // IT MOVES. A still layer showing frame 0 forever passes every check above.
     const moved = await J(async () => {
@@ -3115,23 +3136,91 @@ const { boot } = require('./harness.cjs');
       bounce.seq.length >= 4 && bounce.jump <= 21,
       JSON.stringify(bounce));
 
-    // THE DEGRADATION CONTRACT. Four foes have no sheet yet, and the ones that
-    // do must survive a missing file. Naming a foe changes NOTHING until its
-    // sheet really loads — the painted plate stays, which is what lets art land
-    // one foe at a time without a build ever showing an empty box.
+    // THE DEGRADATION CONTRACT. In Build 50 this was checked by switching to a
+    // foe that had no entry at all — but every foe has a sheet now, so the only
+    // way left to reach the path is the one that still matters in the wild: an
+    // entry whose FILE does not load. Naming a foe changes NOTHING until its
+    // sheet really arrives; a missing or broken file leaves the painted plate
+    // up rather than an empty box, which is what lets art land one foe at a
+    // time and what protects a build against a bad deploy.
     const bare = await J(async () => {
+      const real = window.K.FOE_SHEETS.husk.file;
+      window.K.FOE_SHEETS.husk.file = 'foe-husk-anim-THIS-DOES-NOT-EXIST.webp';
       window.K.startCombat({ seed: 7, foe: window.K.FOES.husk });
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 800));
       const box = document.getElementById('k-boss-art');
       const img = box.querySelector('img');
-      return { armed: box.classList.contains('k-has-anim'),
-               layer: !!box.querySelector('.k-fanim'),
-               plate: getComputedStyle(img).display,
-               src: (img.getAttribute('src') || '') };
+      const out = { armed: box.classList.contains('k-has-anim'),
+                    layer: !!box.querySelector('.k-fanim'),
+                    plate: getComputedStyle(img).display,
+                    src: (img.getAttribute('src') || '') };
+      window.K.FOE_SHEETS.husk.file = real;
+      return out;
     });
-    check('FOE ANIM: a foe with no sheet keeps its painted plate, with nothing missing',
+    check('FOE ANIM: a sheet that fails to load leaves the painted plate standing',
       bare.armed === false && bare.layer === false && bare.plate !== 'none'
       && /foe-husk/.test(bare.src), JSON.stringify(bare));
+
+    // EVERY FOE, not just the one that was piloted. A sheet that loads for the
+    // Regent and quietly fails for the other four would pass every check above.
+    const all = await J(async () => {
+      const out = {};
+      for (const id of ['husk', 'cultist', 'wraith', 'revenant', 'mourner']) {
+        window.K.startCombat({ seed: 7, foe: window.K.FOES[id] });
+        await new Promise(r => setTimeout(r, 700));
+        const box = document.getElementById('k-boss-art');
+        const l = box.querySelector('.k-fanim');
+        out[id] = !!(box.classList.contains('k-has-anim') && l
+                     && getComputedStyle(l).display === 'block'
+                     && l.getBoundingClientRect().height > 60
+                     && l.style.backgroundImage.indexOf('foe-' + id + '-anim') >= 0);
+      }
+      return out;
+    });
+    check('FOE ANIM: all five foes wear their own sheet, each the right one',
+      Object.values(all).every(Boolean), JSON.stringify(all));
+
+    // THE ACTS DRIVE THE FRAMES. The Regent's sheet carries a wind-up and four
+    // acts beyond the idle, and the whole point is that the intent picks them —
+    // a sheet stuck on its idle while the CSS pose does all the work would look
+    // exactly like Build 50 and pass everything written for it.
+    const acts = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      await new Promise(r => setTimeout(r, 700));
+      const l = document.querySelector('.k-fanim');
+      const sh = window.K.FOE_SHEETS.mourner;
+      const frameNow = () => {
+        const x = parseFloat(l.style.backgroundPositionX) || 0;
+        const y = parseFloat(l.style.backgroundPositionY) || 0;
+        return Math.round(x / 100 * (sh.cols - 1)) + Math.round(y / 100 * (sh.rows - 1)) * sh.cols;
+      };
+      const seen = {};
+      // drive the real hooks the fight drives, one intent at a time
+      const idle = frameNow();
+      window.K._fxFoeWind();
+      await new Promise(r => setTimeout(r, 60));
+      seen.wind = frameNow();
+      for (const [intent, state] of [['hymn', 'toll'], ['scythe', 'sweep'],
+                                     ['rain', 'rain'], ['benediction', 'gather']]) {
+        window.K._fxFoeAct(intent);
+        await new Promise(r => setTimeout(r, 60));
+        seen[state] = frameNow();
+      }
+      window.K._fxFoeSettle();
+      await new Promise(r => setTimeout(r, 60));
+      seen.settled = frameNow();
+      return { idle, seen, sheet: sh.states };
+    });
+    const inState = (f, st) => acts.sheet[st].indexOf(f) >= 0;
+    check('FOE ANIM: the wind-up and all four acts each pull their own frames',
+      inState(acts.seen.wind, 'wind') && inState(acts.seen.toll, 'toll')
+      && inState(acts.seen.sweep, 'sweep') && inState(acts.seen.rain, 'rain')
+      && inState(acts.seen.gather, 'gather'),
+      JSON.stringify(acts.seen));
+    // …and the foe comes back to rest when the turn does, rather than holding
+    // its last swing for the remainder of the fight.
+    check('FOE ANIM: settling drops the foe back onto its idle frames',
+      inState(acts.seen.settled, 'idle'), JSON.stringify({ settled: acts.seen.settled }));
 
     // …and coming back to the Regent re-arms it, rather than leaving the last
     // encounter's layer behind or stacking a second one on top. TWO FIGHTS IN
@@ -3147,12 +3236,14 @@ const { boot } = require('./harness.cjs');
       const layers = box.querySelectorAll('.k-fanim').length;
       // and it survives being handed off to a foe with no sheet at all
       window.K.startCombat({ seed: 7, foe: window.K.FOES.husk });
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 800));
       return { layers, armed: box.classList.contains('k-has-anim'),
                orphans: box.querySelectorAll('.k-fanim').length };
     });
+    // The Husk has a sheet of its own now, so handing off no longer means going
+    // bare — but the thing being guarded is unchanged: ONE layer, never two.
     check('FOE ANIM: two fights in one frame still leave exactly one layer, and no orphan',
-      back.layers === 1 && back.orphans === 0 && back.armed === false,
+      back.layers === 1 && back.orphans === 1 && back.armed === true,
       JSON.stringify(back));
 
     // leave the page on a clean Regent fight for whatever runs after this block

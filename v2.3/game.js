@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 50;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 51;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1429,10 +1429,20 @@ function foeSet(slot, cls, ms) {
 }
 // THE BREATH BEFORE THE BLOW. Held rather than timed out: the wind-up ends when
 // the act begins, so however long the launch takes the foe stays coiled.
-function fxFoeWind() { foeSet(FOE_POSES, 'k-foe-wind'); }
-function fxFoeAct(intentId) { foeSet(FOE_POSES, FOE_ACT[intentId] || 'k-foe-toll'); }
+// ONE mapping, not two. A sheet's act states are NAMED AFTER the pose class they
+// accompany — `k-foe-toll` drives the `toll` frames — so adding an intent to
+// FOE_ACT above can never leave the frames pointing somewhere else, and there is
+// no second table to keep in step with the first.
+const sheetStateOf = (cls) => (cls || '').replace('k-foe-', '') || 'idle';
+function fxFoeWind() { foeSet(FOE_POSES, 'k-foe-wind'); foeAnimState('wind'); }
+function fxFoeAct(intentId) {
+  const cls = FOE_ACT[intentId] || 'k-foe-toll';
+  foeSet(FOE_POSES, cls); foeAnimState(sheetStateOf(cls));
+}
 function fxFoeSwing(kind) { foeSet(FOE_SWINGS, FOE_SWING[kind] || 'k-fs-jab', 420); }
-function fxFoeSettle() { foeSet(FOE_POSES, null); foeSet(FOE_SWINGS, null); }
+function fxFoeSettle() {
+  foeSet(FOE_POSES, null); foeSet(FOE_SWINGS, null); foeAnimState('idle');
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE PAINTED IDLE — real frames, cut out of a generated clip
@@ -1458,16 +1468,55 @@ function fxFoeSettle() { foeSet(FOE_POSES, null); foeSet(FOE_SWINGS, null); }
 // them and every act above still plays. The idle lives on `.k-fig`, and the
 // sheet must not inherit that one, because the sheet IS the idle; running both
 // would breathe the creature twice.
+// BOUNCE, not wrap, for every idle. Six frames of drift do not close into a
+// ring — the last frame is the far end of the sway, not the way back to the
+// first — so wrapping snaps the cloth across the whole excursion once a second.
+// Played out and back, the same six frames are a hover.
+//
+// The ACTS hold. An act that timed itself back to the idle would drop the foe
+// to resting in the middle of its own volley, because a barrage runs longer than
+// the swing that opens it; `fxFoeSettle` is what lets it go, exactly as it
+// already does for the CSS poses.
+//
+// Five foes, five tempos — the same rule the CSS idles follow. The Husk is dead
+// weight, the Revenant moves as little as it can, and the Choir is singing.
 const FOE_SHEETS = {
   mourner: {
     file: 'foe-mourner-anim.webp',
-    cols: 6, rows: 1, cellW: 440, cellH: 285,
+    cols: 6, rows: 4, cellW: 380, cellH: 214, figH: 209,
+    states: { idle: [0, 1, 2, 3, 4, 5], wind: [6, 7], toll: [8, 9, 10],
+              sweep: [11, 12, 13], rain: [14, 15, 16], gather: [17, 18, 19] },
+    play: { idle: { ms: 150, bounce: true },
+            wind: { ms: 130 }, toll: { ms: 95 }, sweep: { ms: 85 },
+            rain: { ms: 110 }, gather: { ms: 130 } },
+  },
+  husk: {
+    file: 'foe-husk-anim.webp',
+    cols: 6, rows: 1, cellW: 380, cellH: 237, figH: 218,
     states: { idle: [0, 1, 2, 3, 4, 5] },
-    // BOUNCE, not wrap. Six frames of drift do not close into a ring — frame 5
-    // is the far end of the sway, not the way back to frame 0 — so wrapping
-    // snaps the robes across the whole excursion once a second. Played out and
-    // back, the same six frames are a hover.
-    play: { idle: { ms: 150, bounce: true } },
+    play: { idle: { ms: 190, bounce: true } },
+  },
+  cultist: {
+    file: 'foe-cultist-anim.webp',
+    // taken from the FIRST second of its clip, before the bloom: the Choir's
+    // conjured light flares to a wide soft white, and a white flare on a white
+    // void is the one thing this key cannot tell from the backdrop — it cut it
+    // into a hard-edged disc that read as a bug rather than a spell
+    cols: 6, rows: 1, cellW: 380, cellH: 232, figH: 229,
+    states: { idle: [0, 1, 2, 3, 4, 5] },
+    play: { idle: { ms: 170, bounce: true } },
+  },
+  wraith: {
+    file: 'foe-wraith-anim.webp',
+    cols: 6, rows: 1, cellW: 380, cellH: 214, figH: 199,
+    states: { idle: [0, 1, 2, 3, 4, 5] },
+    play: { idle: { ms: 165, bounce: true } },
+  },
+  revenant: {
+    file: 'foe-revenant-anim.webp',
+    cols: 6, rows: 1, cellW: 380, cellH: 230, figH: 224,
+    states: { idle: [0, 1, 2, 3, 4, 5] },
+    play: { idle: { ms: 220, bounce: true } },
   },
 };
 let _fanim = null, _fanimT = null, _fanimWant = null;
@@ -1499,9 +1548,28 @@ function foeAnimTick() {
   if (play.bounce) {
     if (a.frame + a.dir < 0 || a.frame + a.dir >= n) a.dir = -a.dir;
     a.frame += a.dir;
+  } else if (a.frame + 1 < n) {
+    a.frame++;
+  } else if (play.loop) {
+    a.frame = 0;
+  } else if (play.then && a.sheet.states[play.then]) {
+    a.state = play.then; a.frame = 0; a.dir = 1;
   } else {
-    a.frame = (a.frame + 1) % n;
+    return;             // HOLD: an act stays coiled on its last frame
   }
+  foeAnimPaint();
+}
+// THE ACTS HOLD, and `fxFoeSettle` is what lets them go — exactly how the CSS
+// poses above already behave. An act that timed itself back to the idle would
+// drop the foe back to resting in the middle of its own volley, because a
+// barrage runs longer than the swing that opens it.
+function foeAnimState(name) {
+  const a = _fanim; if (!a) return;
+  // A foe whose sheet does not carry this act simply keeps what it is showing.
+  // The CSS pose on the parent still plays over it, so the act still reads —
+  // which is what lets frames land one state at a time.
+  if (!a.sheet.states[name] || a.state === name) return;
+  a.state = name; a.frame = 0; a.dir = 1; a.at = performance.now();
   foeAnimPaint();
 }
 // THE DEGRADATION CONTRACT, inherited from v2.2 and worth keeping exactly:
@@ -1531,11 +1599,23 @@ function foeAnimArm(foeId) {
     // box holds exactly one layer and exactly one clock however many resolve
     if (_fanimT) { clearInterval(_fanimT); _fanimT = null; }
     box.querySelectorAll('.k-fanim').forEach(n => n.remove());
+    const img = box.querySelector('img');
     const l = document.createElement('span');
     l.className = 'k-fanim';
     l.style.backgroundImage = "url('" + src + "')";
     l.style.backgroundSize = (sheet.cols * 100) + '% ' + (sheet.rows * 100) + '%';
-    l.style.aspectRatio = sheet.cellW + ' / ' + sheet.cellH;
+    // SIZED BY THE CREATURE, NOT BY ITS CELL. A cell carries margin the painted
+    // plate does not — the Regent's acts reach further than her idle, and each
+    // foe's clip framed it a little differently — so a layer stretched to the
+    // box would swap the plate for a visibly smaller foe, and by a different
+    // amount for each one. Blow the cell up until the figure inside it stands
+    // exactly as tall as the plate it is replacing, and the swap is invisible.
+    const bw = box.clientWidth || 250, bh = box.clientHeight || 264;
+    const pr = (img && img.naturalWidth) ? (img.naturalHeight / img.naturalWidth)
+                                         : (511 / 760);   // every plate's shape
+    const cellH = Math.min(bh, bw * pr) * sheet.cellH / sheet.figH;
+    l.style.height = cellH + 'px';
+    l.style.width = (cellH * sheet.cellW / sheet.cellH) + 'px';
     box.insertBefore(l, box.firstChild);
     box.classList.add('k-has-anim');
     _fanim = { el: l, sheet, state: 'idle', frame: 0, dir: 1, at: performance.now() };
@@ -4381,6 +4461,10 @@ window.K = {
   },
   parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
   actionKind, castTone, cardArt, overHand, FOE_SHEETS,
+  // test-only: drive the foe's performance directly, through the same hooks the
+  // fight drives, so a check can ask what each intent actually pulls
+  _fxFoeWind: () => fxFoeWind(), _fxFoeAct: (i) => fxFoeAct(i),
+  _fxFoeSettle: () => fxFoeSettle(),
   MUSIC, MUSIC_SRC, musicOn, musicPref, musicSet, gridStart, ICON_PATHS, icon,
   intentByTarget,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, staticCardHTML,

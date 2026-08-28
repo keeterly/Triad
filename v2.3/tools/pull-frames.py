@@ -92,7 +92,7 @@ def key_white(im, lo=232, hi=250, floor=40):
     return out
 
 # ── the sheet ────────────────────────────────────────────────────────────────
-def build_sheet(frames, out, cell_w, cols, quality=82):
+def build_sheet(frames, out, cell_w, cols, quality=78, alpha_quality=60):
     """Pack keyed frames into a uniform grid and describe it.
 
     `frames` is [(state, image)] in play order. Every cell is the same size and
@@ -106,15 +106,42 @@ def build_sheet(frames, out, cell_w, cols, quality=82):
         raise SystemExit("every frame keyed to nothing — check the clip's backdrop")
     union = (min(b[0] for b in boxes), min(b[1] for b in boxes),
              max(b[2] for b in boxes), max(b[3] for b in boxes))
+    # a hair of margin, so nothing in the set sits flush against a cell edge
+    # where the drop shadow and the reflection would clip it
+    pad = int(round(0.02 * max(union[2] - union[0], union[3] - union[1])))
+    W, H = frames[0][1].size
+    union = (max(0, union[0] - pad), max(0, union[1] - pad),
+             min(W, union[2] + pad), min(H, union[3] + pad))
     uw, uh = union[2] - union[0], union[3] - union[1]
     cell_h = max(1, int(round(cell_w * uh / uw)))
     cells = [f.crop(union).resize((cell_w, cell_h), Image.LANCZOS) for _, f in frames]
+
+    # HOW TALL THE CREATURE STANDS INSIDE ITS CELL. The cell carries margin the
+    # painted plate does not — the acts reach further than the idle, and every
+    # clip framed the character a little differently — so a layer sized to the
+    # box would swap the plate for a visibly smaller creature. The runtime sizes
+    # the layer by the FIGURE instead, and this is the number it needs. Median,
+    # not max: one frame with the staff flung out of frame should not shrink
+    # every other frame to accommodate it.
+    heights = []
+    for c in cells:
+        bb = c.getchannel("A").point(lambda v: 255 if v > 40 else 0).getbbox()
+        if bb:
+            heights.append(bb[3] - bb[1])
+    heights.sort()
+    fig_h = heights[len(heights) // 2] if heights else cell_h
 
     rows = (len(cells) + cols - 1) // cols
     sheet = Image.new("RGBA", (cell_w * cols, cell_h * rows), (0, 0, 0, 0))
     for i, c in enumerate(cells):
         sheet.paste(c, ((i % cols) * cell_w, (i // cols) * cell_h))
-    sheet.save(out, "WEBP", quality=quality, method=6)
+    # THE ALPHA IS THE COST, not the colour. Dropping WebP `quality` from 82 to 66
+    # saves 12% because most of the file is the cutout mask, not the painting.
+    # `alpha_quality` is the lever that matters: at 60 it takes 30% off, for a
+    # mean error of 1.9/255 along the soft edge where the hair and ribbons live
+    # (max 10) — measured, not guessed, because that fringe is the one place a
+    # cutout can visibly break.
+    sheet.save(out, "WEBP", quality=quality, alpha_quality=alpha_quality, method=6)
 
     states, order = {}, []
     for i, (state, _) in enumerate(frames):
@@ -126,7 +153,8 @@ def build_sheet(frames, out, cell_w, cols, quality=82):
           % (out, sheet.width, sheet.height, os.path.getsize(out),
              len(cells), cols, rows, cell_w, cell_h))
     print("\nconst FOE_SHEET_<NAME> = {")
-    print("  cols: %d, rows: %d, cellW: %d, cellH: %d," % (cols, rows, cell_w, cell_h))
+    print("  cols: %d, rows: %d, cellW: %d, cellH: %d, figH: %d,"
+          % (cols, rows, cell_w, cell_h, fig_h))
     print("  states: { %s }," % ", ".join(
         "%s: [%s]" % (st, ", ".join(str(i) for i in states[st])) for st in order))
     print("};")
@@ -137,12 +165,17 @@ def main(argv=None):
     ap.add_argument("clip")
     ap.add_argument("--strip", help="write a labelled contact sheet here and stop")
     ap.add_argument("--n", type=int, default=24, help="frames in the contact sheet")
-    ap.add_argument("--at", nargs="+", default=[], metavar="STATE:SECONDS",
-                    help="cut these instants as keyed PNGs")
+    ap.add_argument("--at", nargs="+", default=[], metavar="STATE[:CLIP]:SECONDS",
+                    help="cut these instants; CLIP names a --clip key, else the positional clip")
+    ap.add_argument("--clip", action="append", default=[], dest="clips",
+                    metavar="KEY=PATH",
+                    help="another source clip, addressable as KEY in --at")
     ap.add_argument("--out", default="frames", help="directory for --at output")
     ap.add_argument("--sheet", help="pack the --at frames into this grid sheet instead")
-    ap.add_argument("--cell", type=int, default=440, help="cell width in the sheet")
+    ap.add_argument("--cell", type=int, default=380, help="cell width in the sheet")
     ap.add_argument("--cols", type=int, default=6, help="cells per row")
+    ap.add_argument("--q", type=int, default=78, help="WebP quality")
+    ap.add_argument("--aq", type=int, default=60, help="WebP alpha quality")
     ap.add_argument("--raw", action="store_true", help="skip keying (debug)")
     a = ap.parse_args(argv)
 
@@ -177,19 +210,38 @@ def main(argv=None):
     if not a.at:
         print("nothing to do: pass --strip to look, or --at to cut", file=sys.stderr)
         return 2
+    # ONE SHEET, SEVERAL CLIPS. A foe's states do not come from one recording —
+    # the idle is its own clip and every act is another — and they have to land in
+    # ONE sheet, because the shared crop that keeps the character at a constant
+    # size across states can only be computed over all of them together.
+    extra = {}
+    for m in a.clips:
+        k, _, v = m.partition("=")
+        if not v:
+            raise SystemExit("bad --clip (want KEY=PATH): " + m)
+        extra[k] = v
+
     cut = []
     for spec in a.at:
-        state, _, ts = spec.partition(":")
-        if not ts:
-            raise SystemExit("bad spec (want state:seconds): " + spec)
+        bits = spec.split(":")
+        if len(bits) == 2:
+            state, src, ts = bits[0], a.clip, bits[1]
+        elif len(bits) == 3:
+            state, key, ts = bits
+            if key not in extra:
+                raise SystemExit("no --clip named %r (have: %s)"
+                                 % (key, ", ".join(sorted(extra)) or "none"))
+            src = extra[key]
+        else:
+            raise SystemExit("bad spec (want state:seconds or state:clip:seconds): " + spec)
         t = float(ts)
-        im = grab(a.clip, t)
+        im = grab(src, t)
         if not a.raw:
             im = key_white(im)
         cut.append((state, t, im))
 
     if a.sheet:
-        build_sheet([(st, im) for st, _, im in cut], a.sheet, a.cell, a.cols)
+        build_sheet([(st, im) for st, _, im in cut], a.sheet, a.cell, a.cols, a.q, a.aq)
         return 0
 
     os.makedirs(a.out, exist_ok=True)

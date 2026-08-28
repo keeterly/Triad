@@ -59,6 +59,9 @@ async function boot(opts = {}) {
     // back to Georgia there; that reset is environment noise, not a bug
     const src = (m.location() && m.location().url) || '';
     if (/fonts\.(googleapis|gstatic)\.com/.test(src)) return;
+    // the foe-sheet degradation check ASKS for a file that is not there — the
+    // 404 is the thing under test, not noise, and the filename says so
+    if (/THIS-DOES-NOT-EXIST/.test(src)) return;
     errs.push('console: ' + m.text());
   });
   const query = opts.query ? '&' + String(opts.query).replace(/^[?&]/, '') : '';
