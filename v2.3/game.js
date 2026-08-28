@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 40;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 41;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -2736,7 +2736,8 @@ function renderHand() {
     // labelled — dim while it sleeps, gold when it is live.
     const gem = ev.condActive && ev.currentCost !== c.cost
       ? ev.currentCost + '<s>' + c.cost + '</s>' : String(ev.currentCost);
-    return '<button class="k-card' + (ev.sigil ? ' k-card-sig k-sig-' + ev.sigil : '')
+    return '<button data-own="' + (c.owner || primaryHero(c))
+      + '" class="k-card' + (ev.sigil ? ' k-card-sig k-sig-' + ev.sigil : '')
       + (ev.condActive && !dead ? ' k-card-active' : '') + (afford ? '' : ' k-card-poor')
       + (dead ? ' k-card-dead' : '') + (isPairCard(c) ? ' k-card-res' : '')
       + (_sel === id ? ' k-card-sel' : '') + '" data-card="' + id + '"'
@@ -2813,6 +2814,7 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
         + icon('finale') + 'Exhaust<i class="k-combo-state">ON</i></span>'
         + '<span class="k-combo-pay">Leaves the fight when played.</span></span>'
       : '';
+  void COND_LABEL;
   // THE ART ZONE CARRIES THE CARD'S VERB, not the hero's face a second time.
   //
   // It used to hold `ownerArt` — the same portrait as the emblem in the corner,
@@ -2831,8 +2833,19 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
   // itself into "attack" and "answer" before a single word is read.
   const glyphs = cardGlyphs(ev.resolvedEffects);
   const tone = c.target === 'enemy' ? 'k-cart-warm' : 'k-cart-cool';
+  // HOW MANY THINGS THIS CARD DOES sets how tight the rows are. The concept
+  // this face is built to shows two rows on every card; the deck has cards
+  // with four. Rather than let those clip — or set every card at the size the
+  // worst one needs — the block tightens only when it has to.
+  const rowsHTML = prose(faceBase(c, ev.sigil), 'rows');
+  const nRows = (rowsHTML.match(/k-crow/g) || []).length + (cond ? 1 : 0);
+  const rowClass = 'k-ctext' + (nRows >= 4 ? ' k-rows-4' : nRows === 3 ? ' k-rows-3' : '');
+  // WHOSE CARD THIS IS, SAID rather than pictured. The corner held a 17px
+  // portrait disc — the same face as the art behind it, at a size where Ash
+  // and Mira are one silhouette. A name in small caps over the title reads at
+  // a glance and gives the top corner back to the cost.
+  const who = (ownerHeroes(c) || []).map(h => (HEROES23[h] ? HEROES23[h].name : h)).join(' + ');
   return '<span class="k-cgem' + (ev.condActive && ev.currentCost !== c.cost ? ' on' : '') + '">' + gem + '</span>'
-    + '<img class="k-owner" src="' + ownerArt + '" alt="">'
     // THE PLATE CARRIES BOTH NOW. Build 29 took the portrait out because it was
     // being asked to identify the card and could not — five cards of one hero
     // were five copies of one picture, and against dark art the zone was a
@@ -2844,7 +2857,8 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
     // A LONG NAME GETS ITS OWN SIZE rather than an ellipsis. "Light Through
     // Steel" needs 106px of a 94px line at the deck's title size, and a card
     // whose name is cut off is a card the player cannot look up.
-    + '<span class="k-cname' + (c.name.length > 14 ? ' k-cname-long' : '') + '">' + c.name + '</span>'
+    + '<span class="k-cwho">' + who + '</span>'
+    + '<span class="k-cname' + (c.name.length > 16 ? ' k-cname-vlong' : c.name.length > 11 ? ' k-cname-long' : '') + '">' + c.name + '</span>'
     // THE MARK IS ON THE FACE. A sigil that changed how a card played and did
     // not appear on it would be a rule the player had to remember per card.
     + (ev.sigil && SIGILS[ev.sigil]
@@ -2856,7 +2870,7 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
     // BEFORE its mark — so a Bright card advertised 7 damage and dealt 11.
     // Same rule Build 23 set for the combo layer, broken again by a feature
     // that changes numbers somewhere other than the combo.
-    + '<span class="k-ctext"><span class="k-cprose"><span>' + prose(faceBase(c, ev.sigil)) + '</span></span>'
+    + '<span class="' + rowClass + '"><span class="k-cprose">' + rowsHTML + '</span>'
     + cond + '</span>';
 }
 // A CARD SHOWN OUTSIDE A FIGHT. The run layer — a bond scene's fork, the swap
@@ -2875,7 +2889,8 @@ function staticCardHTML(id, opts) {
   const ev = { card: c, condActive: false, currentCost: c.cost, sigil,
                resolvedEffects: sigil === 'bright' ? brighten(c.base) : c.base };
   const art = HEROES23[primaryHero(c)].art;
-  return '<div class="k-card k-card-static' + (sigil ? ' k-card-sig k-sig-' + sigil : '')
+  return '<div data-own="' + (c.owner || primaryHero(c))
+    + '" class="k-card k-card-static' + (sigil ? ' k-card-sig k-sig-' + sigil : '')
     + (o.cls ? ' ' + o.cls : '') + '">'
     + cardFaceHTML(c, ev, String(c.cost), art) + '</div>';
 }
@@ -2900,7 +2915,11 @@ function cardGlyphs(effects) {
   return out.length ? out : ['atk'];
 }
 function prose(effects, plain) {
-  const I = plain ? () => '' : icon;
+  // `plain` was a boolean and is now also the string 'rows', so a truthiness
+  // test silently stripped every icon out of the row layout — the card face
+  // printed "7 DAMAGE" with nothing in front of it. Only the plain-TEXT mode
+  // drops the marks.
+  const I = (plain === true || plain === 'plain') ? () => '' : icon;
   const out = [];
   const hits = effects.filter(f => f.dmg);
   if (hits.length === 1) out.push(I('atk') + '<b>' + fmtN(hits[0].dmg) + '</b> damage.');
@@ -2925,6 +2944,15 @@ function prose(effects, plain) {
   // box happens to end and orphans a word — "9 damage. ✦ 2 / Break." Each
   // clause on its own line never orphans and scans as a list of things the
   // card does, which is what it is.
+  //
+  // `rows` goes further and gives each clause its own ruled ROW. A list of
+  // things separated by hairlines reads as a list of things; the same clauses
+  // stacked with <br> read as a paragraph that happens to have breaks in it,
+  // and the difference is most of what makes a card look designed rather than
+  // typed. The trailing full stop goes with it — a row is not a sentence.
+  if (plain === 'rows') {
+    return out.map(t => '<i class="k-crow">' + t.replace(/\.\s*$/, '') + '</i>').join('');
+  }
   return out.join(plain ? ' ' : '<br>');
 }
 // What the condition PAYS, as a clause that finishes the label's sentence.

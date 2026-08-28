@@ -1615,7 +1615,8 @@ const { boot } = require('./harness.cjs');
         // innerText, not textContent: the clauses are on separate lines now and
         // textContent glues them into "9 damage.2 Break."
         prose: cs.querySelector('.k-cprose').innerText.replace(/\s+/g, ' ').trim(),
-        proseLines: cs.querySelectorAll('.k-cprose br').length + 1,
+        // one ROW per clause now, not one <br> between them
+        proseLines: cs.querySelectorAll('.k-crow').length,
         bolded: cs.querySelectorAll('.k-cprose b').length,
         icons: cs.querySelectorAll('.k-cprose .k-ico').length,
         condIcon: !!cs.querySelector('.k-combo-tag .k-ico'),
@@ -1625,17 +1626,25 @@ const { boot } = require('./harness.cjs');
         pay: cs.querySelector('.k-combo-pay').textContent.replace(/\s+/g, ' ').trim(),
         plainProse: cl.querySelector('.k-cprose').innerText.replace(/\s+/g, ' ').trim(),
         noCondOnCore: !cl.querySelector('.k-combo'),
-        proseSize: px(cs.querySelector('.k-cprose'), 'fontSize'),
+        proseSize: px(cs.querySelector('.k-crow'), 'fontSize'),
+        numSize: px(cs.querySelector('.k-cprose b'), 'fontSize'),
+        rowRule: getComputedStyle(cs.querySelectorAll('.k-crow')[1]).borderTopWidth,
+        nRows: cs.querySelectorAll('.k-crow').length,
         paySize: px(cs.querySelector('.k-combo-pay'), 'fontSize'),
         gemSize: px(cs.querySelector('.k-cgem'), 'fontSize'),
         banded: getComputedStyle(cs.querySelector('.k-combo')).borderTopWidth,
         textBox: !!cs.querySelector('.k-ctext'),
       };
     });
-    check('CARD: the rules are one clause per line, iconed, with the numbers bolded',
-      anat.prose === '9 damage. 2 Break.' && anat.proseLines === 2
+    // A ROW IS NOT A SENTENCE. The clauses are set in small caps without a
+    // trailing full stop now — the period was punctuating a line that is a
+    // list item, and read as a smudge at 8px. The rule the check is really
+    // holding is unchanged: one clause per row, a mark on each, the number
+    // bolded, and the plain card carrying no combo.
+    check('CARD: the rules are one clause per row, marked, with the numbers bolded',
+      anat.prose === '9 DAMAGE 2 BREAK' && anat.proseLines === 2
       && anat.bolded === 2 && anat.icons === 2
-      && anat.plainProse === '4 damage. 4 Guard.' && anat.textBox && anat.noCondOnCore,
+      && anat.plainProse === '4 DAMAGE 4 GUARD' && anat.textBox && anat.noCondOnCore,
       JSON.stringify(anat));
     // The combo must not read as one more grey sentence: it is a named,
     // banded block, and the base line is the biggest type on the face.
@@ -1663,7 +1672,7 @@ const { boot } = require('./harness.cjs');
         plate: lum(getComputedStyle(c).backgroundColor) ,
         plateImg: getComputedStyle(c).backgroundImage.indexOf('gradient') >= 0,
         nameLum: lum(getComputedStyle(name).color),
-        proseLum: lum(getComputedStyle(c.querySelector('.k-cprose')).color),
+        proseLum: lum(getComputedStyle(c.querySelector('.k-crow')).color),
         numLum: lum(getComputedStyle(c.querySelector('.k-cprose b')).color),
         payLum: lum(getComputedStyle(c.querySelector('.k-combo-pay')).color),
       };
@@ -1679,26 +1688,47 @@ const { boot } = require('./harness.cjs');
       JSON.stringify({ name: legible.nameLum, prose: legible.proseLum,
                        num: legible.numLum, pay: legible.payLum }));
 
-    check('CARD: the combo is its own banded block — named, iconed, and never a footnote',
+    // THE RULES ARE A LIST OF THINGS, RULED. The combo used to be a banded
+    // block because it was the only way to stop it reading as one more grey
+    // sentence in a paragraph. There is no paragraph now — every clause has
+    // its own hairlined row and the combo is simply the last one, named and
+    // iconed like the concept sets it. What still has to hold is the
+    // hierarchy: the base NUMBER is the biggest type on the face, and the
+    // payoff never out-sizes it.
+    check('CARD: every clause is its own ruled row, and the combo is the last of them',
       anat.tag === 'After an Ally' && anat.pay === 'costs 1 AP.' && anat.condIcon
-      && anat.proseSize >= 9 && anat.proseSize > anat.paySize
-      && parseFloat(anat.banded) >= 1 && anat.gemSize >= 12,
-      JSON.stringify({ tag: anat.tag, pay: anat.pay, icon: anat.condIcon,
-        prose: anat.proseSize, pay_px: anat.paySize, band: anat.banded, gem: anat.gemSize }));
+      && anat.nRows >= 2 && parseFloat(anat.rowRule) >= 1
+      && parseFloat(anat.banded) >= 1
+      && anat.numSize > anat.proseSize && anat.numSize > anat.paySize
+      && anat.gemSize >= 11,
+      JSON.stringify({ tag: anat.tag, pay: anat.pay, icon: anat.condIcon, rows: anat.nRows,
+        rowRule: anat.rowRule, num: anat.numSize, row_px: anat.proseSize,
+        pay_px: anat.paySize, band: anat.banded, gem: anat.gemSize }));
     const face = await J(() => {
       window.K.startCombat({ seed: 11 });
       window.K.forceHand(['serrate', 'crosssever', 'mend', 'lastlight', 'cstance']);
       window.K.playCard('serrate');                    // arms the Follow-Ups
       const c = document.querySelector('.k-card[data-card="crosssever"]');
       const r = c.getBoundingClientRect();
-      const box = (sel) => { const n = c.querySelector(sel); const b = n.getBoundingClientRect();
-        return { l: b.left - r.left, t: b.top - r.top, r: b.right - r.left, b: b.bottom - r.top }; };
-      const gem = box('.k-cgem'), own = box('.k-owner'), name = box('.k-cname');
+      // LAYOUT GEOMETRY, NOT SCREEN GEOMETRY. The hand is a fan: every card
+      // carries a rotate/rotateY/rotateX, and a transformed element's client
+      // rect is the projected quad — so "is this above that" read through it
+      // depends on where the two sit horizontally. offset* is untransformed.
+      const box = (sel) => { const n = c.querySelector(sel);
+        return { l: n.offsetLeft, t: n.offsetTop, r: n.offsetLeft + n.offsetWidth,
+                 b: n.offsetTop + n.offsetHeight }; };
+      const r2 = { width: c.offsetWidth, height: c.offsetHeight };
+      const gem = box('.k-cgem'), who = box('.k-cwho'), name = box('.k-cname');
       const out = {
-        // what it costs, top-LEFT. whose it is, top-RIGHT. Both above the name.
-        costTopLeft: gem.l < r.width * 0.3 && gem.t < r.height * 0.16,
-        ownTopRight: own.r > r.width * 0.7 && own.t < r.height * 0.16,
-        nameClear: name.t >= gem.b - 1 && name.t >= own.b - 1,
+        // what it costs, top-LEFT. WHOSE IT IS, named directly above the
+        // title — the 17px portrait disc that used to sit top-right was the
+        // same face as the art behind it, at a size where two of the three
+        // heroes are one silhouette.
+        costTopLeft: gem.l < r2.width * 0.3 && gem.t < r2.height * 0.16,
+        noOwnerDisc: !c.querySelector('.k-owner'),
+        whoText: c.querySelector('.k-cwho').textContent,
+        whoAboveName: who.b <= name.t + 1 && who.t > r2.height * 0.3,
+        nameClear: name.t >= gem.b - 1 && name.t >= who.b - 1,
         nameOneLine: c.querySelector('.k-cname').getBoundingClientRect().height < 26
           && getComputedStyle(c.querySelector('.k-cname')).whiteSpace === 'nowrap',
         armedGlow: getComputedStyle(c).animationName,
@@ -1711,8 +1741,10 @@ const { boot } = require('./harness.cjs');
       out.stillGlows = getComputedStyle(p).animationName;
       return out;
     });
-    check('CARD: cost top-left, owner top-right, name on its own line beneath them',
-      face.costTopLeft && face.ownTopRight && face.nameClear && face.nameOneLine,
+    check('CARD: cost top-left, the owner NAMED above the title, the name on its own line',
+      face.costTopLeft && face.noOwnerDisc && face.whoAboveName
+      && /^ASH$|^ELIN$|^MIRA$|\+/.test((face.whoText || '').trim().toUpperCase())
+      && face.nameClear && face.nameOneLine,
       JSON.stringify(face));
     check('CARD: an armed combo glows gold; an unaffordable card greys out and reddens its cost',
       face.armedGlow === 'k-armed' && face.poor && /rgba?\(/.test(face.veil)
@@ -1721,8 +1753,13 @@ const { boot } = require('./harness.cjs');
                   return !!m && +m[1] > +m[2] + 40 && +m[1] > +m[3] + 40; })(),
       JSON.stringify({ glow: face.armedGlow, poor: face.poor, veil: face.veil,
         orb: face.orbRed, glowWhenPoor: face.stillGlows }));
-    check('CARD: MTG-Arena proportion — the face is 63:88, not a tall slab',
-      Math.abs(anat.ratio - 63 / 88) < 0.02, 'w/h = ' + anat.ratio + ' (target ' + (63 / 88).toFixed(3) + ')');
+    // THE PROPORTION MOVED, deliberately. 63:88 is a physical playing card and
+    // it was the right target while the face was a parchment rectangle. The
+    // concept this build is cut to is a TALLER card — 0.63 rather than 0.72 —
+    // which is what gives the art the top half and the rules a column rather
+    // than a box. This asserts the new proportion, not the absence of one.
+    check('CARD: the concept proportion — a tall face at 0.63, not a playing card at 0.72',
+      Math.abs(anat.ratio - 0.634) < 0.02, 'w/h = ' + anat.ratio + ' (target 0.634)');
     const live = await J(() => {
       window.K.playCard('serrate');   // Mira first — Follow-Up needs a DIFFERENT hero
       const cs = document.querySelector('.k-card[data-card="crosssever"]');

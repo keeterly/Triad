@@ -1808,6 +1808,85 @@ readout against its ground.
 
 ---
 
+## Build 41 — the concept pass
+
+A UI concept arrived and it is a stricter thing than what was shipped: almost
+no filled chrome anywhere. Every panel, pill, coin and slab is gone, and the
+whole board is carried by **hairlines, letterspaced small caps and gold**. The
+work of this build was reading that discipline off the image and applying it,
+piece by piece, to a board that had accumulated the opposite.
+
+### The card
+
+- **Taller.** 118 × 186 — 0.63 rather than the 0.72 of a physical playing
+  card. That is what gives the art the top half and the rules a column instead
+  of a box.
+- **The owner is NAMED, not pictured.** The 17px portrait disc in the top-right
+  was the same face as the art behind it, at a size where two of the three
+  heroes are one silhouette. A small-caps name directly over the title reads at
+  a glance and gives the corner back.
+- **The edge carries the owner** — violet steel for Ash, pale gold for Elin,
+  copper for Mira. One neutral brown rim across fifteen cards made the hand a
+  single object; a tinted rim sorts it into three hands before a word is read,
+  which is the job the disc was failing at.
+- **The cost is a ring, not a coin.** A filled bronze medallion was the
+  heaviest object on a card made of hairlines.
+- **The rules are a ruled list.** Each clause gets its own row with a hairline
+  above it, set in small caps with no trailing full stop — a row is not a
+  sentence, and at 8px the period was a smudge. The combo is simply the last
+  row rather than a banded block, because there is no longer a paragraph for it
+  to get lost in.
+- **Rows tighten only when they must.** The concept shows two rows on every
+  card; the deck has cards with four. `k-rows-3` and `k-rows-4` step the type
+  down for those, so the common two-clause card keeps the generous setting
+  instead of every card being set at the size the worst one needs.
+
+### The board
+
+The intent telegraph lost its three filled pills — they are a *readout*, not a
+call to action, and naked marks separated by middle dots read faster. KIZUNA
+became a word, a one-pixel rule and a number. The break gauge became flat
+abutting segments. The AP coin became a ring, END TURN a word with a rule under
+it, the deck and discard outlined stacks rather than slabs, and the party three
+ringed medallions with their names in caps.
+
+### Three checks had to be rewritten, and that is the point of writing this down
+
+These were not bugs. They were the previous design, asserted:
+
+1. **"cost top-left, owner top-right"** — there is no owner disc any more.
+2. **"MTG-Arena proportion — the face is 63:88, not a tall slab"** — the
+   concept is *deliberately* a tall slab. The check now asserts 0.63.
+3. **"the combo is its own banded block"** — the band is a rule now.
+
+Each was rewritten to assert the NEW rule rather than deleted, and the
+invariant underneath each survived: the cost is still top-left, the owner is
+still stated above the title, the combo is still named and iconed, and the base
+number is still the biggest type on the face.
+
+### Two real bugs the rewrite exposed
+
+**`prose(effects, 'rows')` silently stripped every icon.** The second parameter
+was a boolean and became a string, so `const I = plain ? () => '' : icon` — a
+truthiness test — dropped the marks from every row. The card printed
+"7 DAMAGE" with nothing in front of it. Only the plain-text mode should lose
+them.
+
+**`.k-cprose` lost its own colour and size.** When the rows took over the
+styling, the container kept neither, so it inherited 13px black — meaning any
+text placed in it outside a row would have rendered black on black. Caught
+because a luminance check measured the container rather than the row and read
+zero.
+
+And one testing note worth keeping: an assertion of the form "is this element
+above that one" **cannot** be read from `getBoundingClientRect` inside the
+hand. The fan gives every card a `rotate`/`rotateY`/`rotateX`, and a
+transformed element's client rect is the projected quad — so the answer depends
+on where the two elements sit horizontally. Those checks use `offsetTop` now,
+which is layout rather than projection.
+
+---
+
 ## Errata — three records the code had outgrown
 
 A playthrough audit read these sections against the code and found them stale.
