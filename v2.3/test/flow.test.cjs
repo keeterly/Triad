@@ -1529,17 +1529,29 @@ const { boot } = require('./harness.cjs');
           const b = document.getElementById('k-break').getBoundingClientRect();
           return a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom;
         })(),
-        // the ladder lives in the open sky: it must clear both HUDs, the
-        // telegraph and every hero — inside the party stack it sat on top of
-        // whoever was standing in the back row
+        // THE RULE MOVED IN BUILD 56. The ladder used to live in the open sky
+        // between the two HUDs and this asked it to clear everything including
+        // the party HUD — which was right while it floated, and is wrong now
+        // that it is deliberately PART of the party block. It reads as the
+        // party's meter because it sits with the party.
+        //
+        // What still has to hold is the thing this was really guarding: it must
+        // not print over the battlefield or the far HUD, and it must sit BELOW
+        // every hero row rather than on top of one. Flowing inside the block
+        // rather than pinned to a `top` is also what makes that durable — the
+        // party stack grows as status chips appear, and a fixed offset under it
+        // would eventually collide, which is exactly how this check failed.
         kzClear: (() => {
-          const k = document.getElementById('k-kizuna').getBoundingClientRect();
+          const kz = document.getElementById('k-kizuna');
+          const k = kz.getBoundingClientRect();
           const hit = (r) => !(k.right <= r.left || k.left >= r.right
             || k.bottom <= r.top || k.top >= r.bottom);
-          const others = [document.getElementById('k-party-hud'),
-            document.getElementById('k-boss-hud'), document.getElementById('k-intent'),
-            ...document.querySelectorAll('.k-hero')];
-          return !others.some(n => hit(n.getBoundingClientRect()));
+          const others = [document.getElementById('k-boss-hud'),
+            document.getElementById('k-intent'), ...document.querySelectorAll('.k-hero')];
+          const rows = [...document.querySelectorAll('.k-pt-hero')];
+          const belowRows = rows.every(n => n.getBoundingClientRect().bottom <= k.top + 0.5);
+          const inParty = document.getElementById('k-party-hud').contains(kz);
+          return !others.some(n => hit(n.getBoundingClientRect())) && belowRows && inParty;
         })(),
         clipped, worstOver,
         overHead, oneLine, noBanner, iconed, noWords, chipN: chips.length,
@@ -3602,6 +3614,77 @@ const { boot } = require('./harness.cjs');
     // for entirely the wrong reason: audio is off under ?test=1, so every call
     // returned false and "at most two got through" was true of a system that
     // played nothing at all. It needs a page where the sound is really on.
+
+    await J(() => { window.K.startCombat({ seed: 7 }); });
+    await H.sleep(300);
+  }
+
+
+  // ── UI PASS (Build 56) ──────────────────────────────────────────────────────
+  {
+    await J(() => { window.K.startCombat({ seed: 7 }); });
+    await H.sleep(500);
+    const lay = await J(() => {
+      const st = document.getElementById('k-stage');
+      const box = (n) => { const r = n.getBoundingClientRect(); const s = st.getBoundingClientRect();
+        const k = s.width / st.offsetWidth || 1;
+        return { x: (r.left - s.left) / k, y: (r.top - s.top) / k,
+                 w: r.width / k, h: r.height / k, b: (r.bottom - s.top) / k }; };
+      const boss = box(document.getElementById('k-boss-hud'));
+      const kz = box(document.getElementById('k-kizuna'));
+      const party = box(document.getElementById('k-party-hud'));
+      return { boss, kz, party, stageW: st.offsetWidth,
+               inParty: document.getElementById('k-party-hud')
+                 .contains(document.getElementById('k-kizuna')),
+               plates: document.querySelectorAll('#k-boss-hud .k-foe-plate').length };
+    });
+    // THE FOE READOUT WAS 43% OF THE STAGE for a single opponent, in a game that
+    // will have to show three. Held under a third of the width so the others fit.
+    check('UI: the foe readout is under a third of the stage, not half of it',
+      lay.boss.w / lay.stageW < 0.33, JSON.stringify({ w: Math.round(lay.boss.w),
+        pct: Math.round(lay.boss.w / lay.stageW * 100) }));
+    // …and it is ONE PLATE, so a second foe is another plate rather than another
+    // layout. Everything about an opponent lives inside it.
+    check('UI: a foe is a self-contained plate that a second one could stack under',
+      lay.plates === 1, JSON.stringify({ plates: lay.plates }));
+    // THE LADDER BELONGS TO THE PARTY. It floated in the sky between the two
+    // HUDs — clear of everything, which was the requirement, and belonging to
+    // nothing, which is why it read as awkward. It sits under the party now.
+    check('UI: the kizuna ladder is docked with the party, not adrift mid-screen',
+      lay.inParty === true && Math.abs(lay.kz.x - lay.party.x) < 1
+      && lay.kz.w <= lay.party.w && lay.kz.w > lay.party.w * 0.7,
+      JSON.stringify({ inParty: lay.inParty, kzX: Math.round(lay.kz.x),
+                       partyX: Math.round(lay.party.x), kzW: Math.round(lay.kz.w),
+                       partyW: Math.round(lay.party.w) }));
+
+    // BREAKING TURNS THE GAUGE INTO THE WORD. A tag beside the name was a
+    // footnote on the least-read line, with the empty pips still sitting there
+    // saying nothing.
+    const stag = await J(() => {
+      const read = () => {
+        const w = document.querySelector('#k-boss-hud .k-break-wrap');
+        return { stag: w.classList.contains('k-is-stag'),
+                 pips: getComputedStyle(document.getElementById('k-break')).display,
+                 tag: getComputedStyle(w.querySelector('.k-brk-stag')).display,
+                 flag: document.getElementById('k-bflag').textContent.trim() };
+      };
+      const s = window.K.state();
+      s.boss.broken = false; window.K.render();
+      const whole = read();
+      s.boss.broken = true; window.K.render();
+      const broken = read();
+      s.boss.broken = false; window.K.render();
+      return { whole, broken, back: read() };
+    });
+    check('UI: unbroken, the gauge is pips and there is no tag',
+      stag.whole.pips !== 'none' && stag.whole.tag === 'none' && stag.whole.flag === '',
+      JSON.stringify(stag.whole));
+    check('UI: breaking replaces the whole gauge with STAGGERED, and drops the name tag',
+      stag.broken.stag === true && stag.broken.pips === 'none'
+      && stag.broken.tag !== 'none' && stag.broken.flag === '',
+      JSON.stringify(stag.broken));
+    check('UI: and recovering gives the gauge back',
+      stag.back.pips !== 'none' && stag.back.tag === 'none', JSON.stringify(stag.back));
 
     await J(() => { window.K.startCombat({ seed: 7 }); });
     await H.sleep(300);

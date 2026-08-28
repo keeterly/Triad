@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 55;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 56;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -3555,7 +3555,14 @@ function renderBossHud() {
   el('k-bhp').textContent = fmtN(C.boss.hp);
   el('k-bmax').textContent = fmtN(C.boss.max);
   setBar(el('k-bhp-fill').parentNode, C.boss.hp / C.boss.max * 100);
-  el('k-bflag').textContent = (C.boss.broken || C.boss.cancelNext) ? 'BROKEN' : '';
+  // THE GAUGE BECOMES THE WORD. A "BROKEN" tag beside the name was a footnote
+  // on the least-read line of the readout, while the break pips sat next to it
+  // saying nothing at all. Now the gauge itself turns into STAGGERED — same
+  // real estate, different state — and the name carries no tag.
+  const stag = !!(C.boss.broken || C.boss.cancelNext);
+  el('k-bflag').textContent = '';
+  const bw = document.querySelector('#k-boss-hud .k-break-wrap');
+  if (bw) bw.classList.toggle('k-is-stag', stag);
   el('k-turn-n').textContent = C.turn;
   // THE BREAK GAUGE ONLY EVER FLASHED AS A WHOLE. Knocking a pip out is the
   // single most consequential thing a support card does, and it was a silent

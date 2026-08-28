@@ -245,19 +245,41 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-pt-guard { font-size: 10px; color: #c9a45c; }
 #k-intercede { font-size: 9px; color: #c9a45c; letter-spacing: 0.1em; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
 
-#k-boss-hud { position: absolute; right: 16px; top: 10px; width: 404px; display: flex; flex-direction: column;
-  align-items: flex-end; gap: 3px; z-index: 10; }
+/* THE FOE READOUT WAS 404px WIDE — 43% of the stage, for one opponent, in a
+   game that will have to show three. It is 268 now, and everything about a
+   single foe is packed into a .k-foe-plate that stacks: the container holds the
+   turn emblem and a column of plates, so a second and third foe are more plates
+   rather than a second layout. */
+#k-boss-hud { position: absolute; right: 16px; top: 10px; width: 268px; display: flex;
+  flex-direction: column; align-items: flex-end; gap: 3px; z-index: 10; }
+.k-foe-plate { display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+  width: 100%; }
+.k-foe-plate + .k-foe-plate { margin-top: 7px; }
 .k-turn-emblem { display: flex; align-items: center; gap: 5px; margin-bottom: 1px; }
 .k-turn-emblem b { font-size: 14px; color: #e0c084; }
-.k-bname { font-size: 17px; font-weight: 600; letter-spacing: 0.16em; color: #ece2ca;
+.k-bname { font-size: 13.5px; font-weight: 600; letter-spacing: 0.15em; color: #ece2ca;
   text-shadow: 0 1px 5px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.7);
   text-transform: uppercase; }
 .k-bflag { font-size: 11px; color: #d0764a; letter-spacing: 0.18em; }
-.k-bhp-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+.k-bhp-row { display: flex; align-items: center; gap: 7px; width: 100%; }
+.k-bhp-row .k-bar { height: 5px; }
+.k-bhp-row .k-hpnum { font-size: 10px; }
+.k-bhp-row .k-hpnum b { font-size: 11px; }
 .k-bar-w { flex-grow: 1; }
-.k-b-meta { display: flex; gap: 12px; align-items: center; }
+.k-b-meta { display: flex; gap: 10px; align-items: center; }
 .k-break-wrap { font-size: 10px; color: #b0a894; display: flex; align-items: center; gap: 6px;
   text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
+/* STAGGERED REPLACES THE GAUGE, it does not sit beside it. A word tacked on
+   after the foe's name is a footnote; the break gauge going away and the word
+   taking its place is the same real estate saying a different thing, which is
+   how a state change should read. */
+.k-brk-stag { display: none; font-size: 10px; font-weight: 700; letter-spacing: 0.26em;
+  text-transform: uppercase; color: #2a1508; padding: 2px 9px 2px 10px; border-radius: 2px;
+  background: linear-gradient(180deg, #ffca7a, #e08a3c);
+  box-shadow: 0 0 14px rgba(240,150,70,0.5); animation: k-stag 1.15s ease-in-out infinite; }
+.k-break-wrap.k-is-stag .k-brk-lbl, .k-break-wrap.k-is-stag #k-break { display: none; }
+.k-break-wrap.k-is-stag .k-brk-stag { display: inline-block; }
+@keyframes k-stag { 50% { box-shadow: 0 0 22px rgba(255,180,100,0.85); } }
 #k-break { display: flex; gap: 2px; }
 .k-pip { width: 11px; height: 7px; border-radius: 1px; border: 1px solid rgba(124,111,82,0.7);
   display: inline-block; background: none; }
@@ -1280,18 +1302,32 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    What the three of them have built together this fight, in one bar: it fills
    from blows landed and blows turned aside, and when it is full it stops being
    a meter and becomes the button that spends it. */
-#k-kizuna { position: absolute; left: 366px; top: 14px; transform: translateX(-50%);
-  z-index: 12; display: flex; align-items: center; gap: 8px; padding: 3px 0;
-  width: 250px; border-radius: 0; cursor: default; font-family: inherit;
-  background: none; border: 0; }
+/* THE LADDER BELONGS TO THE PARTY, so it sits with them. It used to float in
+   the open sky between the two HUDs — clear of everything, which was the whole
+   requirement it was built to satisfy, and belonging to nothing, which is why
+   it read as awkward. The left column under the party stack and above the AP
+   orb is empty, it is the player's own side of the screen, and the meter now
+   lives there: party above it, the resource it feeds below it. */
+/* NARROWER THAN THE PARTY PLATE, deliberately. At the block's full 190 it
+   reached x206 and clipped the back-row hero's box, which starts at 193 — the
+   same collision the old floating placement existed to avoid, just moved. */
+#k-kizuna { position: relative; margin-top: 2px; transform: none; align-self: flex-start;
+  z-index: 12; display: flex; align-items: center; gap: 7px;
+  padding: 4px 8px 5px; width: 168px; border-radius: 3px; cursor: default;
+  font-family: inherit; border: 0;
+  /* IT HAS TO SURVIVE THE BACKDROP. Floating in the sky it sat over the dark
+     top of the painting; down here it crosses a bright stretch of ruined
+     street, and a 1px rule with grey text simply vanished into it. A whisper
+     of a scrim under it costs nothing and makes it legible everywhere. */
+  background: linear-gradient(180deg, rgba(10,9,12,0.5), rgba(10,9,12,0.26)); }
 .k-kz-lbl { font-size: 7.5px; letter-spacing: 0.22em; text-transform: uppercase;
-  color: #9a9080; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
-.k-kz-bar { flex-grow: 1; height: 1px; border-radius: 0; overflow: hidden;
-  background: rgba(180,166,138,0.24); box-shadow: none; }
+  color: #b8ac95; text-shadow: 0 1px 2px rgba(0,0,0,0.95); }
+.k-kz-bar { flex-grow: 1; height: 2px; border-radius: 1px; overflow: hidden;
+  background: rgba(180,166,138,0.34); box-shadow: none; }
 #k-kz-fill { display: block; height: 100%; width: 0%; border-radius: 0;
   background: linear-gradient(90deg, #a98c4e, #e0c084 70%, #ffeec4);
   transition: width 0.36s cubic-bezier(.2,.8,.3,1); }
-#k-kz-n { font-size: 8px; letter-spacing: 0.12em; color: #b0a894; min-width: 44px;
+#k-kz-n { font-size: 8px; letter-spacing: 0.12em; color: #c6bba4; min-width: 40px;
   text-align: right; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
 /* FULL — it becomes a thing you press, and it has to LOOK like one. Both ways
    into the all-out work — a real touch on this bar fires it, verified — and a
@@ -1317,7 +1353,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-kizuna.k-kz-ready #k-kz-n { color: #241a06; font-weight: 700; min-width: 0;
   background: linear-gradient(180deg, #ffeec4, #e0c084); border-radius: 2px;
   padding: 1.5px 6px; letter-spacing: 0.16em; }
-#k-kizuna.k-kz-ready:active { transform: translateX(-50%) scale(0.97); }
+#k-kizuna.k-kz-ready:active { transform: scale(0.97); }
 @keyframes k-kzready { 50% { box-shadow: 0 0 30px rgba(224,192,132,0.8),
   inset 0 0 16px rgba(255,238,196,0.18); } }
 #k-kizuna.k-kz-born { animation: k-kzborn 0.7s ease; }
