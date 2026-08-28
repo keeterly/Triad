@@ -436,7 +436,18 @@ const { boot } = require('./harness.cjs');
           document.querySelectorAll('.k-card').forEach(c => {
             const t = c.querySelector('.k-ctext');
             const cr = c.getBoundingClientRect(), tr = t.getBoundingClientRect();
+            // BOTH DIRECTIONS. Only the vertical was ever measured, and a
+            // row is a flex line — a clause longer than the card ran off the
+            // side rather than clipping downward, so Quick Throw read
+            // "draw 1, discard" with the last word cut off the face and no
+            // check saw it. `wide` is the text block's own overflow, `past`
+            // is any row breaking the card's edge.
+            const rows = [...c.querySelectorAll('.k-crow, .k-combo-pay')];
+            const past = rows.reduce((m, r) => { const rr = r.getBoundingClientRect();
+              return Math.max(m, rr.right - cr.right, cr.left - rr.left); }, 0);
             out[c.dataset.card] = { over: t.scrollHeight - t.clientHeight,
+                                    wide: t.scrollWidth - t.clientWidth,
+                                    past: +past.toFixed(1),
                                     spills: tr.bottom > cr.bottom + 0.5,
                                     marked: c.classList.contains('k-card-sig'),
                                     combo: !!c.querySelector('.k-combo') };
@@ -463,6 +474,11 @@ const { boot } = require('./harness.cjs');
     const clipped = room.ids.filter(id => room.bare[id].over > 1);
     check('CARD: no card in the deck clips its own text — all twenty-eight fit their face',
       clipped.length === 0, JSON.stringify({ clipped, n: room.ids.length }));
+    // The same question sideways, which nothing asked until Build 42.
+    const spilled = room.ids.filter(id => room.bare[id].wide > 1 || room.bare[id].past > 0.5);
+    check('CARD: no clause runs off the side of its card — rows wrap, they do not clip',
+      spilled.length === 0,
+      JSON.stringify({ spilled: spilled.map(id => ({ id, ...room.bare[id] })), n: room.ids.length }));
 
     check('MARK: a marked card wears its mark, an unmarked one does not, and the number is the new number',
       face.chip === 'Bright' && face.tinted && face.vis !== 'none' && face.w > 20
@@ -1677,6 +1693,52 @@ const { boot } = require('./harness.cjs');
         payLum: lum(getComputedStyle(c.querySelector('.k-combo-pay')).color),
       };
     });
+    // EVERY CARD ITS OWN PAINTING. Until Build 42 the picture was the hero's
+    // portrait, so all five of a hero's cards carried one image and the art
+    // could only say WHOSE card this was, never WHICH. This asserts the thing
+    // that changed: five different cards show five different pictures, and a
+    // painting fills the plate as composed rather than being blown up to 172%
+    // and anchored high the way a full-body portrait has to be. The fallback
+    // is asserted too — a card with no painting yet must still get the bust,
+    // not a stretched portrait or an empty plate.
+    const art = await J(() => {
+      window.K.startCombat({ seed: 7 });
+      window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'execute']);
+      const srcs = [...document.querySelectorAll('#k-hand .k-card .k-cbg')]
+        .map(i => i.getAttribute('src'));
+      const one = document.querySelector('#k-hand .k-card[data-card="cleave"]');
+      const img = one.querySelector('.k-cbg'), plate = one.querySelector('.k-cart');
+      const ir = img.getBoundingClientRect(), pr = plate.getBoundingClientRect();
+      // a card with no painting of its own — a bond card, which is earned.
+      // Shieldsong is ash|elin and primaryHero picks ash, so the portrait it
+      // falls back to is Ash's (kai.webp), not the pair's second name..
+      // Shieldsong is ash|elin and primaryHero picks ash, so the portrait it
+      // falls back to is Ash's (kai.webp), not the pair's second name.
+      const host = document.createElement('div');
+      host.style.cssText = 'position:fixed;left:0;top:0;';
+      host.innerHTML = window.K.staticCardHTML('shieldsong');
+      document.body.appendChild(host);
+      const fb = host.querySelector('.k-cbg');
+      const fbr = fb.getBoundingClientRect(), fpr = host.querySelector('.k-cart').getBoundingClientRect();
+      const out = {
+        srcs, distinct: new Set(srcs).size,
+        painted: /cards\/cleave\.webp$/.test(srcs[0]),
+        // the painting is dropped in whole: same box as the plate, no blow-up
+        fills: Math.abs(ir.height - pr.height) < 2 && Math.abs(ir.width - pr.width) < 2,
+        fallbackSrc: fb.getAttribute('src'),
+        fallbackOwn: fb.classList.contains('k-cbg-own'),
+        // and the fallback keeps the bust blow-up — taller than its plate
+        fallbackBust: fbr.height > fpr.height * 1.4,
+      };
+      host.remove();
+      return out;
+    });
+    check('CARD: each card carries its own painting, dropped in whole, portrait as fallback',
+      art.distinct === 5 && art.painted && art.fills
+      && /kai\.webp$/.test(art.fallbackSrc || '') && art.fallbackOwn && art.fallbackBust,
+      JSON.stringify({ distinct: art.distinct, painted: art.painted, fills: art.fills,
+        fallback: art.fallbackSrc, own: art.fallbackOwn, bust: art.fallbackBust }));
+
     check('CARD: the portrait is bled through the plate and stays UNDER the words',
       legible.hasArt && legible.scrim && legible.plateImg
       && legible.artZ < legible.textZ && legible.artZ < legible.nameZ,
@@ -1719,7 +1781,22 @@ const { boot } = require('./harness.cjs');
                  b: n.offsetTop + n.offsetHeight }; };
       const r2 = { width: c.offsetWidth, height: c.offsetHeight };
       const gem = box('.k-cgem'), who = box('.k-cwho'), name = box('.k-cname');
+      const ty = box('.k-ctype'), art = box('.k-cart');
       const out = {
+        // THE TYPE, TOP-RIGHT, OPPOSITE THE COST. Build 41 put the verb glyph
+        // at 34px in the MIDDLE of the art, which read as a stamp across the
+        // picture. A card has two indices and they belong at the two top
+        // corners: what it costs on the left, what kind of thing it is on the
+        // right. This asserts the corner AND the restraint — a mark that grows
+        // back past a fifth of the card's width is a stamp again.
+        typeTopRight: ty.r > r2.width * 0.7 && ty.t < r2.height * 0.16,
+        typeMarks: c.querySelectorAll('.k-ctype .k-cverb').length,
+        typeSmall: (ty.r - ty.l) < r2.width * 0.35 && (ty.b - ty.t) < r2.height * 0.12,
+        typeClearOfCost: ty.l > gem.r,
+        // and it is no longer INSIDE the art plate — the portrait is alone in
+        // there, which is the whole point of the move
+        typeOutOfArt: !c.querySelector('.k-cart .k-cverb'),
+        artFills: art.b - art.t > r2.height * 0.9,
         // what it costs, top-LEFT. WHOSE IT IS, named directly above the
         // title — the 17px portrait disc that used to sit top-right was the
         // same face as the art behind it, at a size where two of the three
@@ -1741,6 +1818,12 @@ const { boot } = require('./harness.cjs');
       out.stillGlows = getComputedStyle(p).animationName;
       return out;
     });
+    check('CARD: the type marks the top-right corner, small, and off the portrait',
+      face.typeTopRight && face.typeMarks >= 1 && face.typeSmall
+      && face.typeClearOfCost && face.typeOutOfArt && face.artFills,
+      JSON.stringify({ topRight: face.typeTopRight, marks: face.typeMarks,
+        small: face.typeSmall, clearOfCost: face.typeClearOfCost,
+        outOfArt: face.typeOutOfArt, artFills: face.artFills }));
     check('CARD: cost top-left, the owner NAMED above the title, the name on its own line',
       face.costTopLeft && face.noOwnerDisc && face.whoAboveName
       && /^ASH$|^ELIN$|^MIRA$|\+/.test((face.whoText || '').trim().toUpperCase())

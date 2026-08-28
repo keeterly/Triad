@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 41;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 42;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -2775,6 +2775,31 @@ const COND_RULE = {
 };
 // A small, consistent icon vocabulary — the same mark means the same thing on
 // a card, in the inspect panel and in the Regent's intent line.
+// EVERY CARD ITS OWN PAINTING. Until now the picture on a card was the hero's
+// full-body portrait, which meant all five of a hero's cards were one image —
+// the art could only say WHOSE card this was, never WHICH. These are painted
+// per card and per action: Cleave is a blade coming down, Mend is a light held
+// in two hands, Backstab is someone stepping out of a wall of shadow. The top
+// half of the face now answers "what does this do" before a word is read.
+//
+// A card without a painting falls back to the hero portrait, framed as a bust
+// exactly as before — the bond cards are earned rather than dealt, so they can
+// wait. The two framings are NOT interchangeable: a portrait is a tall figure
+// on a blank canvas and has to be blown up and anchored high to fill the plate,
+// while these are composed for this frame and want to sit in it untouched.
+// `k-cbg-own` carries the old blow-up; the bespoke path takes none of it.
+const CARD_ART = {
+  cleave: 1, guardcut: 1, cstance: 1, crosssever: 1, lastlight: 1,
+  lcascade: 1, mend: 1, frostbind: 1, sgrace: 1, intercession: 1,
+  serrate: 1, qthrow: 1, twinfang: 1, backstab: 1, execute: 1,
+  lightsteel: 1,
+};
+// The id is the BASE id, not the upgraded one — Cleave+ is the same swing as
+// Cleave and shares its painting rather than going bare.
+function cardArt(cardId) {
+  return CARD_ART[cardId] ? '../art/cards/' + cardId + '.webp' : null;
+}
+
 const ICON_PATHS = {
   atk:   'M2 14 L11 5 M9 3 L13 1 L11 5 M4 12 L2 14 L1 12',            // a blade
   guard: 'M8 1 L14 4 V8 Q14 12 8 15 Q2 12 2 8 V4 Z',                  // a shield
@@ -2838,13 +2863,30 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
   // with four. Rather than let those clip — or set every card at the size the
   // worst one needs — the block tightens only when it has to.
   const rowsHTML = prose(faceBase(c, ev.sigil), 'rows');
-  const nRows = (rowsHTML.match(/k-crow/g) || []).length + (cond ? 1 : 0);
-  const rowClass = 'k-ctext' + (nRows >= 4 ? ' k-rows-4' : nRows === 3 ? ' k-rows-3' : '');
+  // HOW MUCH TEXT, NOT HOW MANY CLAUSES. This used to count rows, on the
+  // assumption that a row is a line — and it was, only because a row that
+  // outgrew the card ran off the side instead of wrapping. Rows wrap now, so
+  // "Take their parry window" is one clause and two lines, and a card budgeted
+  // as a three-row card clipped. Each row is costed at the lines it will
+  // actually take: roughly 18 uppercase characters fit the 106px of usable
+  // width at the base size, and an icon costs about two characters of it.
+  const LINE_CHARS = 18;
+  const rowLines = (html) => (html.match(/<i class="k-crow">[\s\S]*?<\/i>/g) || [])
+    .reduce((n, r) => n + Math.max(1, Math.ceil(
+      (r.replace(/<svg[\s\S]*?<\/svg>/g, '~~').replace(/<[^>]+>/g, '').trim().length)
+      / LINE_CHARS)), 0);
+  const nRows = rowLines(rowsHTML) + (cond ? 1 : 0);
+  const rowClass = 'k-ctext' + (nRows >= 5 ? ' k-rows-5' : nRows === 4 ? ' k-rows-4'
+    : nRows === 3 ? ' k-rows-3' : '');
   // WHOSE CARD THIS IS, SAID rather than pictured. The corner held a 17px
   // portrait disc — the same face as the art behind it, at a size where Ash
   // and Mira are one silhouette. A name in small caps over the title reads at
   // a glance and gives the top corner back to the cost.
   const who = (ownerHeroes(c) || []).map(h => (HEROES23[h] ? HEROES23[h].name : h)).join(' + ');
+  // The card's own painting if it has one, the hero portrait if it does not.
+  // `own` is what tells the stylesheet which of the two framings to apply.
+  const painted = cardArt(ev.cardId);
+  const src = painted || ownerArt, own = !painted;
   return '<span class="k-cgem' + (ev.condActive && ev.currentCost !== c.cost ? ' on' : '') + '">' + gem + '</span>'
     // THE PLATE CARRIES BOTH NOW. Build 29 took the portrait out because it was
     // being asked to identify the card and could not — five cards of one hero
@@ -2852,7 +2894,15 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
     // black smear. The GLYPH identifies the card; the portrait, bled behind a
     // scrim, is atmosphere and says only whose hand this is.
     + '<span class="k-cart ' + tone + (glyphs.length > 1 ? ' k-cart-two' : '') + '">'
-    + '<img class="k-cbg" src="' + ownerArt + '" alt="" aria-hidden="true">'
+    + '<img class="k-cbg' + (own ? ' k-cbg-own' : '') + '" src="' + src
+    + '" alt="" aria-hidden="true">'
+    + '</span>'
+    // THE TYPE, IN THE CORNER OPPOSITE THE COST. The verb marks used to sit in
+    // the middle of the picture, which is the one place a picture cannot spare
+    // — they were there because the plate had no picture worth protecting. Read
+    // as a pair of corner marks they still sort the hand into attack and answer
+    // at a glance, and the art gets its whole frame back.
+    + '<span class="k-ctype' + (glyphs.length > 1 ? ' k-ctype-two' : '') + ' ' + tone + '">'
     + glyphs.map(g => icon(g, 'k-cverb')).join('') + '</span>'
     // A LONG NAME GETS ITS OWN SIZE rather than an ellipsis. "Light Through
     // Steel" needs 106px of a 94px line at the deck's title size, and a card
@@ -2886,7 +2936,10 @@ function staticCardHTML(id, opts) {
   // than read from combat state, because the run layer is the only place that
   // knows what a card is about to be given.
   const sigil = o.sigil || null;
-  const ev = { card: c, condActive: false, currentCost: c.cost, sigil,
+  // cardId has to be here as well as `card` — the face looks the painting up
+  // by id, and a preview without it silently fell back to the hero portrait,
+  // which is exactly the picture the cutscene preview exists to replace.
+  const ev = { cardId: id, card: c, condActive: false, currentCost: c.cost, sigil,
                resolvedEffects: sigil === 'bright' ? brighten(c.base) : c.base };
   const art = HEROES23[primaryHero(c)].art;
   return '<div data-own="' + (c.owner || primaryHero(c))
@@ -3577,7 +3630,7 @@ window.K = {
     if (ix >= 0) { C.boss.intentIx = ix; renderAll(); }
   },
   parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
-  actionKind, castTone,
+  actionKind, castTone, cardArt,
   intentByTarget,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, staticCardHTML,
   cam, bgParallax, SIGILS, sigilOf, brighten,

@@ -403,17 +403,30 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    says which card this is, and the portrait only says whose. */
 .k-cart { position: absolute; inset: 0; z-index: 0; height: auto; margin: 0;
   overflow: hidden; background: none; box-shadow: none;
-  display: flex; align-items: flex-start; justify-content: center; padding-top: 26px; }
-/* BUST FRAMING, the way v2.2 did it: the portrait is scaled to twice the
-   card's height and anchored near the top, so what fills the plate is a head
-   and shoulders rather than a whole figure shrunk to thumbnail size. A full
-   body at 108px is a smudge; a bust at 108px is a character. */
-.k-cart .k-cbg { display: block; position: absolute; inset: auto;
+  display: block; padding: 0; }
+/* TWO FRAMINGS, because there are two kinds of picture and they are not
+   interchangeable. The DEFAULT is a card's own painting: composed for this
+   frame, lit for it, with its subject already in the upper two thirds and its
+   lower third already falling to black. It wants to be dropped in whole and
+   left alone — a blow-up would push the action out of the top of the card. */
+.k-cart .k-cbg { display: block; position: absolute; inset: 0;
+  width: 100%; height: 100%; left: auto; top: auto; transform: none;
+  object-fit: cover; object-position: 50% 22%;
+  margin: 0; mix-blend-mode: normal; pointer-events: none;
+  /* the paintings are already near-monochrome and low-key, so this is a nudge
+     rather than the heavy pull-down the portraits need */
+  filter: contrast(1.06) brightness(0.9) saturate(0.95); opacity: 0.96; }
+/* BUST FRAMING, the way v2.2 did it — the FALLBACK, for a card that has no
+   painting yet. The portrait is scaled to twice the card's height and anchored
+   near the top, so what fills the plate is a head and shoulders rather than a
+   whole figure shrunk to thumbnail size. A full body at 108px is a smudge; a
+   bust at 108px is a character. */
+.k-cart .k-cbg-own { inset: auto;
   /* The portraits are full-body figures on a tall canvas with the head at
      roughly 18-28% of its height, so the anchor has to lift the frame well
      above the top edge — at -7% the plate filled with torso and staff. */
   height: 172%; width: auto; left: 50%; top: -20%; transform: translateX(-50%);
-  object-fit: cover; margin: 0; mix-blend-mode: normal; pointer-events: none;
+  object-position: 50% 50%;
   /* PALE FIGURES AND DARK ONES HAVE TO SIT AT THE SAME LEVEL. Elin is white
      and gold; Ash and Mira are near-black. At a brightness that flattered the
      dark two, her cards blew out and the glyph — which is the thing that says
@@ -423,6 +436,25 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-cart::after { content: ''; position: absolute; inset: 0; z-index: 1;
   background:
     radial-gradient(78% 52% at 50% 20%, var(--wash, rgba(0,0,0,0)) 0%, rgba(0,0,0,0) 72%),
+    linear-gradient(180deg, rgba(8,7,6,0.12) 0%, rgba(8,7,6,0.2) 30%,
+      rgba(8,7,6,0.62) 48%, rgba(6,5,4,0.93) 62%, #070605 74%, #070605 100%); }
+/* THE WASH IS FOR PLATES THAT HAVE NOTHING TO SAY. It exists to sort the hand
+   into "reaches the enemy" and "answers for the party" when every plate is the
+   same portrait — a warm one and a cool one are at least two things. A card
+   with its own painting already says which it is, in its own colour: Frost
+   Bind is glacial, Mend is gold, Backstab is violet. Laying a red film over
+   those makes five distinct paintings look like one tinted texture, so the
+   wash is dialled almost out where a painting carries the card and left at
+   full strength where the hero portrait still has to do the work.
+   The weak value is the DEFAULT and the strong one the exception, so if :has
+   is unavailable the common case is still the correct one. */
+.k-cart { --washmul: 0.28; }
+.k-cart:has(.k-cbg-own) { --washmul: 1; }
+.k-cart::after { opacity: 1; }
+.k-cart::after { background:
+    radial-gradient(78% 52% at 50% 20%,
+      color-mix(in srgb, var(--wash, rgba(0,0,0,0)) calc(var(--washmul) * 100%), transparent) 0%,
+      rgba(0,0,0,0) 72%),
     linear-gradient(180deg, rgba(8,7,6,0.12) 0%, rgba(8,7,6,0.2) 30%,
       rgba(8,7,6,0.62) 48%, rgba(6,5,4,0.93) 62%, #070605 74%, #070605 100%); }
 /* THE TEXT BOX — two blocks, because the card answers two questions: what it
@@ -448,7 +480,14 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    are — the two or three things this card does. */
 .k-cprose { padding: 0 5px; flex-grow: 1; font-size: 8.4px; color: #cabfa8;
   display: flex; flex-direction: column; justify-content: center; }
+/* A ROW WRAPS RATHER THAN RUNNING OFF THE EDGE. A flex row does not wrap by
+   default, so a clause longer than the card simply overflowed sideways and the
+   last word was clipped by the face — Quick Throw has read "draw 1, discard"
+   for many builds, losing the word that says what it discards. The suite only
+   ever measured VERTICAL overflow, so nothing saw it. Wrapping costs a line of
+   height, which the row-count tightening above already budgets for. */
 .k-crow { display: flex; align-items: center; justify-content: center; gap: 5px;
+  flex-wrap: wrap; row-gap: 0;
   font-size: 8.4px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
   font-style: normal; color: #cabfa8; line-height: 1.15; padding: 3.5px 0;
   border-top: 1px solid rgba(201,164,92,0.13);
@@ -466,6 +505,21 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-rows-4 .k-combo { padding-top: 2px; }
 .k-rows-4 .k-combo-tag { font-size: 6px; }
 .k-rows-4 .k-combo-pay { font-size: 7.3px; line-height: 1.12; }
+/* THE CROWDED CARDS GET THE MARGIN BACK. 5px a side is generous framing on a
+   card with one clause and pure cost on a card with five lines — the narrower
+   the box, the more often a clause wraps, and every wrap buys another line to
+   fit. Widening here removes wraps rather than shrinking type. */
+.k-rows-4, .k-rows-5 { margin-left: 3px; margin-right: 3px; }
+/* FIVE LINES. Intercession is three clauses and five lines — it guards itself,
+   guards an ally, and takes their parry window — and at the four-line setting
+   it clipped its last row by 2px. One more step rather than cutting the words:
+   a rule the player cannot read is worse than a rule set small. */
+.k-rows-5 .k-crow { font-size: 6.9px; padding: 0.5px 0; gap: 3px; line-height: 1.06; }
+.k-rows-5 .k-cprose b { font-size: 1.3em; }
+.k-rows-5 .k-cprose .k-ico { width: 8px; height: 8px; }
+.k-rows-5 .k-combo { padding-top: 1px; }
+.k-rows-5 .k-combo-tag { font-size: 5.7px; }
+.k-rows-5 .k-combo-pay { font-size: 6.9px; line-height: 1.08; }
 /* THE NUMBER IS STILL THE CARD — it is just lit rather than inked now */
 .k-cprose b { font-weight: 600; font-size: 1.5em; line-height: 0.88; color: #fff7e6;
   letter-spacing: 0; text-transform: none;
@@ -1588,25 +1642,36 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    titles. Now it carries up to two glyphs derived from what the card does,
    on a plate that is warm if the card reaches the enemy and cool if it helps
    the party, so the hand sorts into "attack" and "answer" before a word. */
-.k-cart { gap: 8px; }
+/* the art plate lays nothing out any more — the type marks moved to the
+   corner (below), so the portrait is the only thing in here and it is
+   absolutely positioned. */
 /* THE PORTRAIT IS BACK, as atmosphere. Build 29 hid it because it was being
    asked to identify the card and could not — five cards of one hero were one
    picture. The glyph does that job now, so the art is free to do the job it
    is actually good at: telling you whose hand this is and what the world
    looks like. */
 
-/* the glyph rides ABOVE the scrim — it is the card's identity, and it is lit
-   rather than printed, which is what stops the plate reading as a decal */
-.k-cverb { position: relative; z-index: 2; width: 34px; height: 34px; stroke-width: 1.6;
-  filter: drop-shadow(0 1px 3px rgba(0,0,0,1)) drop-shadow(0 0 4px rgba(0,0,0,0.9))
-          drop-shadow(0 0 11px var(--verbglow, rgba(0,0,0,0))); }
-.k-cart-two .k-cverb { width: 26px; height: 26px; }
+/* THE TYPE, IN THE CORNER OPPOSITE THE COST. Build 41 blew the verb glyph up
+   to 34px in the middle of the art, which read as a stamp ACROSS the picture —
+   the one thing the art was supposed to be free of. A card has two indices, and
+   they belong at the two top corners the way a playing card's do: what it costs
+   on the left, what kind of thing it is on the right. Small, lit, and out of
+   the portrait's way. */
+.k-ctype { position: absolute; right: 7px; top: 7px; z-index: 3;
+  display: flex; align-items: center; gap: 3px; pointer-events: none; }
+.k-cverb { position: relative; z-index: 2; width: 15px; height: 15px; stroke-width: 1.7;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,1)) drop-shadow(0 0 5px rgba(0,0,0,0.95))
+          drop-shadow(0 0 8px var(--verbglow, rgba(0,0,0,0))); }
+.k-ctype-two .k-cverb { width: 13.5px; height: 13.5px; }
 /* warm reaches the enemy, cool answers for the party — the same sort the hand
    has always made, carried by a wash across the art rather than a flat plate */
 .k-cart-warm { --wash: rgba(168,58,34,0.38); --verbglow: rgba(240,124,74,0.6); color: #ffc7ab; }
 .k-cart-cool { --wash: rgba(64,126,148,0.34); --verbglow: rgba(126,206,226,0.55); color: #d3eef7; }
-.k-card-poor .k-cart { filter: grayscale(0.85) brightness(0.7); }
-.k-card-res .k-cart { --wash: rgba(150,116,44,0.34); --verbglow: rgba(230,196,112,0.55); color: #f0d9a0; }
+.k-card-poor .k-cart, .k-card-poor .k-ctype { filter: grayscale(0.85) brightness(0.7); }
+/* the corner marks left .k-cart, so the gold treatment has to name them too or
+   a resonance card's type reads in the ordinary warm/cool palette */
+.k-card-res .k-cart, .k-card-res .k-ctype {
+  --wash: rgba(150,116,44,0.34); --verbglow: rgba(230,196,112,0.55); color: #f0d9a0; }
 
 /* THE PARTY, TELLABLE APART. Ash and Mira are both dark figures, and at 34px
    on a black plate both collapsed to the same silhouette — in the roster, at

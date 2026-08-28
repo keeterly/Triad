@@ -1887,6 +1887,93 @@ which is layout rather than projection.
 
 ---
 
+## Build 42 — the card gets a picture of its own
+
+Two changes to the face, both of them about the same thing: the top half of a
+card was decoration, and it is now information.
+
+### The type moves to the corner
+
+Build 41 set the verb glyphs at 34px in the middle of the art plate. That was
+defensible while the plate held the hero's portrait — five identical pictures
+per hero, so a mark across the middle cost nothing and at least told the two
+kinds of card apart. It stops being defensible the moment the plate holds a
+painting, because the one place a picture cannot spare is its centre.
+
+A card has two indices and they belong at the two top corners, the way a
+playing card's do: **what it costs on the left, what kind of thing it is on the
+right.** The marks are 15px there (13.5px when a card carries two), lit rather
+than printed, and the art gets its whole frame back. The hand still sorts into
+attack and answer before a word is read — that job never depended on the size.
+
+### Every card carries its own painting
+
+The picture on a card used to be `HEROES23[hero].art` — the hero's full-body
+portrait, blown up to 172% of the card's height and anchored high so what
+filled the plate was a bust rather than a figure shrunk to a thumbnail. It was
+a good answer to the wrong question. All five of Ash's cards were one image, so
+the art could say **whose** card this was and never **which**.
+
+There are sixteen paintings now, one per card in the starting deck plus Light
+Through Steel, each composed for this frame and for this card's action: Cleave
+is a blade coming down, Mend is a light held in two hands, Backstab is someone
+stepping out of a wall of shadow, Light Through Steel is Elin's hand laid along
+the spine of Ash's blade with the gold running up the violet. They were
+generated against the existing character art as reference, so the figures are
+the same people, and composed to a shared rule — subject in the upper two
+thirds, lower third falling to near-black, one accent hue against charcoal and
+bone — so the hand reads as one set rather than sixteen pictures.
+
+Two consequences worth writing down:
+
+- **The two framings are not interchangeable.** A portrait is a tall figure on
+  a blank canvas and has to be blown up and anchored to fill the plate; a
+  painting is composed for the frame and wants to be dropped in whole. The
+  bespoke path is the default (`inset: 0`, `object-fit: cover`), and the bust
+  blow-up now lives on `.k-cbg-own`, applied only when a card has no painting.
+  The twelve bond cards fall back to it, which is the right way round — they
+  are earned rather than dealt.
+- **The warm/cool wash is dialled almost out where a painting carries the
+  card.** That wash exists to sort a hand of identical portraits into two
+  things. Laid over Frost Bind's glacial blue and Mend's gold it made five
+  distinct paintings look like one tinted texture. The weak value is the
+  default and the strong one the exception (`.k-cart:has(.k-cbg-own)`), so if
+  `:has` is unavailable the common case is still the correct one.
+
+### What the checks missed, found while looking at the paintings
+
+Rendering the whole deck side by side to judge the art turned up a bug nothing
+in the suite could see: **the rules only ever measured VERTICAL overflow.** A
+`.k-crow` is a flex line and flex lines do not wrap, so a clause longer than
+the card ran off the *side* and was clipped by the face. Quick Throw has read
+"draw 1, discard" — losing the word that says what it discards — for many
+builds.
+
+Fixing it took three steps, and the second two only became necessary because of
+the first:
+
+1. Rows wrap (`flex-wrap: wrap; row-gap: 0`). The horizontal clip is gone.
+2. The tightening tiers counted **clauses**, on the assumption that a clause is
+   a line — true only while a long clause silently overflowed instead of
+   wrapping. Three cards then clipped downward. The budget is now an estimate of
+   the lines a row will actually take (~18 uppercase characters to a line at the
+   base size, an icon costing about two of them).
+3. Intercession is three clauses and five lines — it guards itself, guards an
+   ally, and takes their parry window — and still clipped by 2px at the
+   four-line setting. There is a fifth tier now, and the crowded tiers get 2px
+   of side margin back, because widening the box removes wraps rather than
+   shrinking type. A rule the player cannot read is worse than a rule set small.
+
+The horizontal question is asserted from now on, next to the vertical one.
+
+Two prose quirks remain and are **not** from this build: Quick Throw's one long
+clause wraps mid-sentence so a line can begin with a comma, and Backstab prints
+"step to the **front**" with the row's uppercase transform not reaching the
+final word. Both are legible; both are the wording layer's business rather than
+the layout's.
+
+---
+
 ## Errata — three records the code had outgrown
 
 A playthrough audit read these sections against the code and found them stale.
