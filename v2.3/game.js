@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 49;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 50;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -647,6 +647,7 @@ function dressEncounter(foe) {
   // own idle. Five opponents sharing a single slow breathe made them five
   // pictures at different HP totals.
   const b = el('k-boss-art'); if (b) b.dataset.foe = foe.id;
+  foeAnimArm(foe.id);
   const nm = document.querySelector('#k-boss-hud .k-bname');
   if (nm && nm.childNodes[0]) nm.childNodes[0].nodeValue = foe.name + ' ';
   const st = el('k-stage');
@@ -1432,6 +1433,118 @@ function fxFoeWind() { foeSet(FOE_POSES, 'k-foe-wind'); }
 function fxFoeAct(intentId) { foeSet(FOE_POSES, FOE_ACT[intentId] || 'k-foe-toll'); }
 function fxFoeSwing(kind) { foeSet(FOE_SWINGS, FOE_SWING[kind] || 'k-fs-jab', 420); }
 function fxFoeSettle() { foeSet(FOE_POSES, null); foeSet(FOE_SWINGS, null); }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE PAINTED IDLE — real frames, cut out of a generated clip
+// ═════════════════════════════════════════════════════════════════════════════
+// Everything above this line moves a STILL PICTURE: translate, scale and a CSS
+// breathe. It is a good deal better than a foe standing perfectly still, but it
+// is still one drawing being shoved around, and at rest the Regent reads as a
+// photograph that someone is nudging.
+//
+// These frames are the character actually drawn six times. They came out of a
+// five-second clip generated from her own plate, shot on a flat white void with
+// the camera locked, then keyed and packed into one strip — which is worth
+// writing down, because the obvious route does not work. Asking a still model
+// for pose after pose, holding the character with a reference image, returns the
+// REFERENCE'S pose every time: the wind-up, the toll and the sweep all came back
+// as the idle. Loosen the reference enough to break that and the armour, the
+// crown and the silhouette all change, so the frames stop being the same
+// creature. Identity and motion pull against each other and a still model can
+// only hold one of them at a time. A clip holds both for free.
+//
+// The layer is a sibling of the plate, NOT a child of `.k-fig`, on purpose. The
+// pose and the blow live on `#k-boss-art` — the parent — so the sheet inherits
+// them and every act above still plays. The idle lives on `.k-fig`, and the
+// sheet must not inherit that one, because the sheet IS the idle; running both
+// would breathe the creature twice.
+const FOE_SHEETS = {
+  mourner: {
+    file: 'foe-mourner-anim.webp',
+    cols: 6, rows: 1, cellW: 440, cellH: 285,
+    states: { idle: [0, 1, 2, 3, 4, 5] },
+    // BOUNCE, not wrap. Six frames of drift do not close into a ring — frame 5
+    // is the far end of the sway, not the way back to frame 0 — so wrapping
+    // snaps the robes across the whole excursion once a second. Played out and
+    // back, the same six frames are a hover.
+    play: { idle: { ms: 150, bounce: true } },
+  },
+};
+let _fanim = null, _fanimT = null, _fanimWant = null;
+
+function foeAnimPaint() {
+  const a = _fanim; if (!a || !a.el) return;
+  const st = a.sheet.states[a.state] || a.sheet.states.idle || [0];
+  const i = st[Math.min(a.frame, st.length - 1)];
+  const c = a.sheet.cols, r = a.sheet.rows;
+  // A uniform grid needs no per-frame rects: the cell is picked by stepping the
+  // background across in even fractions, which is why the sheet is packed
+  // square-celled rather than tightly.
+  a.el.style.backgroundPositionX = c > 1 ? ((i % c) / (c - 1) * 100) + '%' : '0%';
+  a.el.style.backgroundPositionY = r > 1 ? (Math.floor(i / c) / (r - 1) * 100) + '%' : '0%';
+}
+function foeAnimTick() {
+  const a = _fanim;
+  if (!a || !a.el || !a.el.isConnected) {
+    if (_fanimT) { clearInterval(_fanimT); _fanimT = null; }
+    _fanim = null; return;
+  }
+  if (document.hidden || camReduced()) return;    // reduced motion holds the pose
+  const play = a.sheet.play[a.state] || { ms: 150, bounce: true };
+  const n = (a.sheet.states[a.state] || []).length;
+  if (n < 2) return;
+  const now = performance.now();
+  if (now - a.at < play.ms) return;
+  a.at = now;
+  if (play.bounce) {
+    if (a.frame + a.dir < 0 || a.frame + a.dir >= n) a.dir = -a.dir;
+    a.frame += a.dir;
+  } else {
+    a.frame = (a.frame + 1) % n;
+  }
+  foeAnimPaint();
+}
+// THE DEGRADATION CONTRACT, inherited from v2.2 and worth keeping exactly:
+// naming a foe in FOE_SHEETS does NOTHING until its sheet really loads. The four
+// foes with no sheet keep their painted plate, a missing or broken file leaves
+// the plate up rather than an empty box, and there is no 404 storm — one probe,
+// and silence if it fails.
+function foeAnimArm(foeId) {
+  if (_fanimT) { clearInterval(_fanimT); _fanimT = null; }
+  _fanim = null;
+  _fanimWant = foeId;
+  const box = el('k-boss-art'); if (!box) return;
+  // ALL of them, not the first. Two fights started in the same frame arm two
+  // probes; a cached sheet resolves both, and each one used to mount its own
+  // layer. querySelector then retired one of the pair and left the other behind
+  // — invisible, because the class was off, but one class away from a doubled
+  // Regent, and dragging a stale interval along with it.
+  box.querySelectorAll('.k-fanim').forEach(n => n.remove());
+  box.classList.remove('k-has-anim');
+  const sheet = FOE_SHEETS[foeId]; if (!sheet) return;
+  const src = '../art/' + sheet.file;
+  const probe = new Image();
+  probe.onload = () => {
+    // the encounter may have been swapped out while the sheet was in flight
+    if (_fanimWant !== foeId || !box.isConnected) return;
+    // idempotent: whatever a racing probe may have mounted goes first, so the
+    // box holds exactly one layer and exactly one clock however many resolve
+    if (_fanimT) { clearInterval(_fanimT); _fanimT = null; }
+    box.querySelectorAll('.k-fanim').forEach(n => n.remove());
+    const l = document.createElement('span');
+    l.className = 'k-fanim';
+    l.style.backgroundImage = "url('" + src + "')";
+    l.style.backgroundSize = (sheet.cols * 100) + '% ' + (sheet.rows * 100) + '%';
+    l.style.aspectRatio = sheet.cellW + ' / ' + sheet.cellH;
+    box.insertBefore(l, box.firstChild);
+    box.classList.add('k-has-anim');
+    _fanim = { el: l, sheet, state: 'idle', frame: 0, dir: 1, at: performance.now() };
+    foeAnimPaint();
+    _fanimT = setInterval(foeAnimTick, 60);
+  };
+  probe.onerror = () => {};
+  probe.src = src;
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // RHYTHM DEFENSE UI — notes launch from the Regent and travel to the target
@@ -4267,7 +4380,7 @@ window.K = {
     if (ix >= 0) { C.boss.intentIx = ix; renderAll(); }
   },
   parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
-  actionKind, castTone, cardArt, overHand,
+  actionKind, castTone, cardArt, overHand, FOE_SHEETS,
   MUSIC, MUSIC_SRC, musicOn, musicPref, musicSet, gridStart, ICON_PATHS, icon,
   intentByTarget,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, staticCardHTML,

@@ -130,10 +130,11 @@ Twelve credits, 501.5 → 489.5. Total for the whole deck: 28 images, 28 credits
 
 ## Also owed, and not costed
 
-**Enemy animation.** The five foes act now — a pose per intent, a swing per note
-kind — but every one of them is a still painting being moved. Real animation is
-video generation, priced well above stills, and it should be preflighted with
-`get_cost` on one foe before anything is committed.
+**Enemy animation.** Started, and it has its own record: see `FOE-ANIM.md`. The
+Mourning Regent has a real six-frame painted idle, cut out of a generated clip;
+the other four foes are still a pose per intent moving a still painting, and even
+the Regent's ACTS are. That doc carries the working recipe, the price, and — more
+useful — the two approaches that fail and why, so nobody pays to learn it twice.
 
 **Cutscene art.** The scenes carry the two heroes as small cut-out portraits
 against a dark plate. They would take the same treatment as the cards.

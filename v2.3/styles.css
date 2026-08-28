@@ -34,6 +34,19 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   height: 100%; width: 100%; object-fit: contain; object-position: bottom;
   filter: drop-shadow(0 10px 18px rgba(0,0,0,0.75));
   -webkit-box-reflect: below -6px linear-gradient(rgba(0,0,0,0) 58%, rgba(255,255,255,0.14)); }
+/* THE PAINTED IDLE (Build 50) — six real frames of the Regent, cut out of a
+   generated clip, stepped across one strip. Sits exactly where the plate sits
+   and carries the plate's shadow and reflection, so the swap is invisible.
+   Hidden until the sheet actually loads; when it is on it REPLACES the plate,
+   and the CSS breathe underneath goes quiet — the frames are the breathing. */
+.k-fanim { display: none; position: absolute; left: 50%; bottom: 8px;
+  transform: translateX(-50%); width: 100%; pointer-events: none;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 10px 18px rgba(0,0,0,0.75));
+  -webkit-box-reflect: below -6px linear-gradient(rgba(0,0,0,0) 58%, rgba(255,255,255,0.14)); }
+#k-boss-art.k-has-anim .k-fanim { display: block; }
+#k-boss-art.k-has-anim img { display: none; }
+#k-boss-art.k-has-anim[data-foe] .k-fig { animation: none; }
 /* THE FIELD — one perspective volume. The rows are honest translateZ depths
    inside it rather than a translate+scale fake: the lens supplies both the
    shrink AND the lift toward the horizon, and the lanes, the figures and the
@@ -165,9 +178,9 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   30%  { transform: translateX(-11px) rotate(-2deg); }
   55%  { transform: translateX(9px) rotate(1.5deg); }
   100% { transform: none; } }
-#k-boss-art.k-recoil img { animation: k-recoil 0.34s ease; }
+#k-boss-art.k-recoil img, #k-boss-art.k-recoil .k-fanim { animation: k-recoil 0.34s ease; }
 @keyframes k-recoil { 30% { transform: translateX(-46%) skewX(1.5deg); filter: brightness(1.5); } }
-#k-boss-art.k-broken img { animation: k-brokenreel 0.7s ease; }
+#k-boss-art.k-broken img, #k-boss-art.k-broken .k-fanim { animation: k-brokenreel 0.7s ease; }
 @keyframes k-brokenreel { 20% { transform: translateX(-54%) rotate(-3deg); } 60% { transform: translateX(-48%) rotate(2deg); } }
 /* THE FREEZE. Pseudo-elements were still running while everything else held,
    so the frame never fully stopped — v2.2 paused ::before and ::after too. */
@@ -838,7 +851,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-aim .k-aim-r2 { filter: drop-shadow(0 0 4px rgba(240,212,136,0.9)); }
 .k-aim-valid { filter: drop-shadow(0 0 10px rgba(240,212,136,0.28)); }
 .k-aim-snap { filter: drop-shadow(0 0 18px rgba(240,212,136,0.6)) !important; }
-#k-boss-art.k-aim-snap img, .k-hero.k-aim-snap img { filter: drop-shadow(0 0 16px rgba(240,212,136,0.65)) brightness(1.1); }
+#k-boss-art.k-aim-snap img, #k-boss-art.k-aim-snap .k-fanim, .k-hero.k-aim-snap img { filter: drop-shadow(0 0 16px rgba(240,212,136,0.65)) brightness(1.1); }
 /* while aiming, the held card gets out of its own way */
 .k-card.k-dragging { opacity: 0.94; }
 

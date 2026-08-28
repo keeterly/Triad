@@ -3039,6 +3039,128 @@ const { boot } = require('./harness.cjs');
   }
 
 
+  // ── THE PAINTED IDLE (Build 50) ─────────────────────────────────────────────
+  // The Regent's idle is six real frames cut out of a generated clip, stepped
+  // across one strip. Every check here asks for a PROPERTY, never for presence:
+  // a layer that exists but never advances, or advances while the plate is still
+  // showing through underneath, would satisfy "is the sheet wired up?" and still
+  // be broken on screen.
+  {
+    await J(() => { window.K.startCombat({ seed: 7 }); });
+    await H.sleep(900);
+    const on = await J(() => {
+      const box = document.getElementById('k-boss-art');
+      const l = box && box.querySelector('.k-fanim');
+      const img = box && box.querySelector('img');
+      const fig = box && box.querySelector('.k-fig');
+      const cs = l && getComputedStyle(l);
+      const br = box && box.getBoundingClientRect();
+      const lr = l && l.getBoundingClientRect();
+      return {
+        armed: !!(box && box.classList.contains('k-has-anim')),
+        shown: cs && cs.display,
+        grid: cs && cs.backgroundSize,
+        plate: img && getComputedStyle(img).display,
+        figIdle: fig && getComputedStyle(fig).animationName,
+        w: lr && lr.width, h: lr && lr.height, boxW: br && br.width,
+        bottom: lr && br && Math.round(br.bottom - lr.bottom),
+      };
+    });
+    check('FOE ANIM: the Regent wears her sheet, and it is really on screen',
+      on.armed === true && on.shown === 'block' && on.w > 100 && on.h > 60,
+      JSON.stringify(on));
+    // ONE FOE, ONE FIGURE. The sheet REPLACES the plate; if the plate were still
+    // painted underneath, the two would show as a doubled, ghosting Regent.
+    check('FOE ANIM: the painted plate steps aside rather than showing through',
+      on.plate === 'none', JSON.stringify({ plate: on.plate }));
+    // …and the CSS breathe goes quiet, because the frames ARE the breathing.
+    // This one is here because the first version lost it: the per-foe idles are
+    // declared far below at equal specificity, and source order handed them the
+    // win, so the Regent was being animated twice.
+    check('FOE ANIM: the CSS idle underneath is switched off, not left doubling up',
+      on.figIdle === 'none', JSON.stringify({ figIdle: on.figIdle }));
+    // the layer sits where the plate sat — same width, same ground line
+    check('FOE ANIM: the sheet stands on the plate\'s ground line, at the plate\'s size',
+      Math.abs(on.w - on.boxW) < 12 && Math.abs(on.bottom - 8) <= 2,
+      JSON.stringify({ w: on.w, boxW: on.boxW, bottomGap: on.bottom }));
+
+    // IT MOVES. A still layer showing frame 0 forever passes every check above.
+    const moved = await J(async () => {
+      const l = document.querySelector('.k-fanim');
+      const seen = new Set();
+      for (let i = 0; i < 14; i++) {
+        seen.add(l.style.backgroundPositionX);
+        await new Promise(r => setTimeout(r, 90));
+      }
+      return { frames: [...seen], n: seen.size };
+    });
+    check('FOE ANIM: the frames actually advance — it is animation, not one still',
+      moved.n >= 4, JSON.stringify(moved));
+    // BOUNCE, NOT WRAP. Six frames of drift do not close into a ring, so a wrap
+    // snaps the robes back across the whole excursion. Played out and back, the
+    // walk returns through the middle instead of jumping the ends.
+    const bounce = await J(async () => {
+      const l = document.querySelector('.k-fanim');
+      const seq = [];
+      for (let i = 0; i < 26; i++) {
+        const v = parseFloat(l.style.backgroundPositionX) || 0;
+        if (!seq.length || seq[seq.length - 1] !== v) seq.push(v);
+        await new Promise(r => setTimeout(r, 70));
+      }
+      let jump = 0;
+      for (let i = 1; i < seq.length; i++) jump = Math.max(jump, Math.abs(seq[i] - seq[i - 1]));
+      return { seq, jump };
+    });
+    check('FOE ANIM: the loop bounces back through its frames, never snapping end to end',
+      bounce.seq.length >= 4 && bounce.jump <= 21,
+      JSON.stringify(bounce));
+
+    // THE DEGRADATION CONTRACT. Four foes have no sheet yet, and the ones that
+    // do must survive a missing file. Naming a foe changes NOTHING until its
+    // sheet really loads — the painted plate stays, which is what lets art land
+    // one foe at a time without a build ever showing an empty box.
+    const bare = await J(async () => {
+      window.K.startCombat({ seed: 7, foe: window.K.FOES.husk });
+      await new Promise(r => setTimeout(r, 500));
+      const box = document.getElementById('k-boss-art');
+      const img = box.querySelector('img');
+      return { armed: box.classList.contains('k-has-anim'),
+               layer: !!box.querySelector('.k-fanim'),
+               plate: getComputedStyle(img).display,
+               src: (img.getAttribute('src') || '') };
+    });
+    check('FOE ANIM: a foe with no sheet keeps its painted plate, with nothing missing',
+      bare.armed === false && bare.layer === false && bare.plate !== 'none'
+      && /foe-husk/.test(bare.src), JSON.stringify(bare));
+
+    // …and coming back to the Regent re-arms it, rather than leaving the last
+    // encounter's layer behind or stacking a second one on top. TWO FIGHTS IN
+    // ONE FRAME is the case that caught the real bug: both arms fire a probe,
+    // a cached sheet resolves both, and each mounted its own layer while the
+    // teardown retired only the first — so switching to a sheetless foe left an
+    // orphan behind, holding its own clock, one class away from a doubled foe.
+    const back = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      window.K.startCombat({ seed: 7 });
+      await new Promise(r => setTimeout(r, 700));
+      const box = document.getElementById('k-boss-art');
+      const layers = box.querySelectorAll('.k-fanim').length;
+      // and it survives being handed off to a foe with no sheet at all
+      window.K.startCombat({ seed: 7, foe: window.K.FOES.husk });
+      await new Promise(r => setTimeout(r, 300));
+      return { layers, armed: box.classList.contains('k-has-anim'),
+               orphans: box.querySelectorAll('.k-fanim').length };
+    });
+    check('FOE ANIM: two fights in one frame still leave exactly one layer, and no orphan',
+      back.layers === 1 && back.orphans === 0 && back.armed === false,
+      JSON.stringify(back));
+
+    // leave the page on a clean Regent fight for whatever runs after this block
+    await J(() => { window.K.startCombat({ seed: 7 }); });
+    await H.sleep(400);
+  }
+
+
   const summary = report();
   await H.browser.close();
   process.exit(summary.passed === summary.total && summary.errs === 0 ? 0 : 1);
