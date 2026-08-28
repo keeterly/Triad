@@ -1,9 +1,10 @@
 # FOE ANIMATION — what works, what does not, and what it cost
 
-All five foes are animated: a painted idle each, and the Mourning Regent also
-carries a wind-up and her four acts. This is the record of how they were made
-and what was ruled out getting there — written down because two plausible
-approaches fail for reasons that are not obvious until you have paid for them.
+All five foes are fully animated: a painted idle, a wind-up, every act their
+intent list can ask for, and struck and broken frames. This is the record of how
+they were made and what was ruled out getting there — written down because two
+plausible approaches fail for reasons that are not obvious until you have paid
+for them.
 
 ---
 
@@ -69,7 +70,13 @@ The prompt has to fight for three things:
   it cannot survive is a bright conjured flare: the Choir's spell blooms to a
   wide soft white, and white light on a white void cannot be told from the
   backdrop, so the key cut it into a hard-edged disc that read as a bug rather
-  than a spell. Its frames come from the first second, before the bloom.
+  than a spell. Its idle frames come from the first second, before the bloom.
+  The same trap caught both RAIN acts, differently: a downpour washes the whole
+  field pale, and the key returns a translucent rectangle the exact size of the
+  video frame. Saying "keep all conjured light deep violet and never white" in
+  the prompt helps, and taking the frames before the wash arrives (~1.8s) is
+  what actually settles it. **Watch for it in any act that fills the screen
+  with light.**
 - **A locked-off camera. THIS IS WHAT THE DURATION IS FOR.** At 5s the camera
   dollies back however the prompt is phrased — every "no zoom, no dolly, no pan"
   was ignored — and the figure shrinks to a third of its size across the back two
@@ -182,29 +189,46 @@ Two real bugs came out of the checks and are worth not reintroducing:
 
 ## What is in, and what is owed
 
+Every foe carries exactly the acts its intent list can ask for, and nothing it
+cannot throw — the Husk has no rain, the Wraith no toll.
+
 | foe | states | frames | weight |
 |---|---|---|---|
-| The Mourning Regent | idle, wind, toll, sweep, rain, gather | 20 | 379 KB |
-| The Hollow Husk | idle | 6 | 120 KB |
-| The Choir of One | idle | 6 | 136 KB |
-| The Grief-Wraith | idle | 6 | 115 KB |
-| The Kneeling Revenant | idle | 6 | 106 KB |
+| The Mourning Regent | idle, wind, toll, sweep, rain, gather, hit, broken | 24 | 448 KB |
+| The Hollow Husk | idle, wind, toll, sweep, hit, broken | 18 | 291 KB |
+| The Choir of One | idle, wind, toll, rain, gather, hit, broken | 21 | 346 KB |
+| The Grief-Wraith | idle, wind, sweep, rain, hit, broken | 18 | 316 KB |
+| The Kneeling Revenant | idle, wind, toll, sweep, gather, hit, broken | 21 | 297 KB |
 
-856 KB for the whole bestiary. Set against 644 KB of card art and 22 MB of
-music, it is not the thing to optimise next.
+1.7 MB for 102 frames. Set against 644 KB of card art and 22 MB of music, it is
+not the thing to optimise next.
+
+### Reactions give the state back
+
+A hit does not change what a foe is DOING: it was coiled to strike before the
+blow landed and it is still coiled after. So `foeAnimReact(name, ms)` remembers
+the pose it interrupted and returns to it, rather than dumping the creature onto
+its idle in the middle of its own volley — which would erase the telegraph at
+the moment the telegraph matters most. It times out against the same window the
+CSS shake runs for (340ms for `k-recoil`, 700ms for `k-broken`), so the frames
+and the shudder end together. Struck twice while already reeling, it replays and
+extends rather than making `hit` the thing it returns to.
 
 Still owed:
 
-- **Acts for the other four.** Each has a painted idle; their intents still move
-  a still sheet with CSS rather than pulling their own frames. The wiring is
-  already there and costs nothing to extend — a state named after its pose class
-  is picked up automatically — so it is four to eight clips at ~5.25 each.
-- **Reactions.** Nobody has a struck or a broken frame yet: `k-recoil` and
-  `k-broken` still animate the whole layer rather than swapping frames under it.
-- **A caveat on the Husk's clip.** Told it was "dead weight barely holding
-  itself up", the model took the line literally and collapsed the beast flat to
-  the ground after 1.5s. Its frames come from before that. Worth remembering
-  that a characterful prompt gets ACTED ON, not merely styled.
+- **Nothing, for the foes.** All five are complete. What is left is the party:
+  the three heroes are still portraits, and v2.2's `hero-ash-anim.webp` shows
+  what one looks like animated.
+
+### Two prompt traps, both paid for
+
+- **A characterful line gets ACTED ON, not merely styled.** Told the Husk was
+  "dead weight barely holding itself up", the model collapsed the beast flat to
+  the ground after 1.5s. Its idle frames come from before that, and every later
+  prompt carries an explicit "it stays upright and never lies down".
+- **A reaction has to stop short of a death.** The same risk applies to the
+  broken frames, which want a creature reeling rather than finished, so all five
+  reaction prompts say "still on its feet — it never falls to the ground".
 
 ### What it has cost
 
@@ -213,8 +237,10 @@ Still owed:
 | stills that did not work | 16 credits |
 | the Regent's idle clip (5s) | 8.75 |
 | four act clips + four foe idles (3s) | 42 |
-| **total** | **~67 credits**, 489.5 → ~422 |
+| ten act clips + five reaction clips (3s) | 78.75 |
+| **total** | **~145 credits** for the whole bestiary, 489.5 → ~348 |
 
-One submission came back as a preset recommendation instead of a job
-(`submission_failed`, carrying a `preset_id`); re-sending the identical request
-with `declined_preset_id` set to that id goes straight through.
+Three submissions across the run came back as a preset recommendation instead of
+a job (`submission_failed`, carrying a `preset_id`) — it seems to fire on prompts
+heavy with camera language. Re-sending the identical request with
+`declined_preset_id` set to that id goes straight through every time.

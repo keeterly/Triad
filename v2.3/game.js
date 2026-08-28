@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 51;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 52;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1485,41 +1485,60 @@ const FOE_SHEETS = {
     file: 'foe-mourner-anim.webp',
     cols: 6, rows: 4, cellW: 380, cellH: 214, figH: 209,
     states: { idle: [0, 1, 2, 3, 4, 5], wind: [6, 7], toll: [8, 9, 10],
-              sweep: [11, 12, 13], rain: [14, 15, 16], gather: [17, 18, 19] },
+              sweep: [11, 12, 13], rain: [14, 15, 16], gather: [17, 18, 19],
+              hit: [20, 21], broken: [22, 23] },
     play: { idle: { ms: 150, bounce: true },
             wind: { ms: 130 }, toll: { ms: 95 }, sweep: { ms: 85 },
-            rain: { ms: 110 }, gather: { ms: 130 } },
+            rain: { ms: 110 }, gather: { ms: 130 },
+            hit: { ms: 110 }, broken: { ms: 210, bounce: true } },
   },
   husk: {
     file: 'foe-husk-anim.webp',
-    cols: 6, rows: 1, cellW: 380, cellH: 237, figH: 218,
-    states: { idle: [0, 1, 2, 3, 4, 5] },
-    play: { idle: { ms: 190, bounce: true } },
+    cols: 6, rows: 3, cellW: 380, cellH: 214, figH: 193,
+    states: { idle: [0, 1, 2, 3, 4, 5], wind: [6, 7], toll: [8, 9, 10],
+              sweep: [11, 12, 13], hit: [14, 15], broken: [16, 17] },
+    play: { idle: { ms: 190, bounce: true },
+            wind: { ms: 140 }, toll: { ms: 100 }, sweep: { ms: 95 },
+            hit: { ms: 110 }, broken: { ms: 230, bounce: true } },
   },
   cultist: {
+    // its idle frames come from the FIRST second of its clip, before the bloom:
+    // the Choir's conjured light flares to a wide soft white, and white light on
+    // a white void cannot be told from the backdrop — the key cut it into a
+    // hard-edged disc that read as a bug rather than a spell. Its rain frames
+    // stop before 1.8s for the same reason, where the downpour washes the field.
     file: 'foe-cultist-anim.webp',
-    // taken from the FIRST second of its clip, before the bloom: the Choir's
-    // conjured light flares to a wide soft white, and a white flare on a white
-    // void is the one thing this key cannot tell from the backdrop — it cut it
-    // into a hard-edged disc that read as a bug rather than a spell
-    cols: 6, rows: 1, cellW: 380, cellH: 232, figH: 229,
-    states: { idle: [0, 1, 2, 3, 4, 5] },
-    play: { idle: { ms: 170, bounce: true } },
+    cols: 6, rows: 4, cellW: 380, cellH: 214, figH: 211,
+    states: { idle: [0, 1, 2, 3, 4, 5], wind: [6, 7], toll: [8, 9, 10],
+              rain: [11, 12, 13], gather: [14, 15, 16],
+              hit: [17, 18], broken: [19, 20] },
+    play: { idle: { ms: 170, bounce: true },
+            wind: { ms: 140 }, toll: { ms: 100 }, rain: { ms: 115 },
+            gather: { ms: 130 },
+            hit: { ms: 110 }, broken: { ms: 220, bounce: true } },
   },
   wraith: {
     file: 'foe-wraith-anim.webp',
-    cols: 6, rows: 1, cellW: 380, cellH: 214, figH: 199,
-    states: { idle: [0, 1, 2, 3, 4, 5] },
-    play: { idle: { ms: 165, bounce: true } },
+    cols: 6, rows: 3, cellW: 380, cellH: 214, figH: 205,
+    states: { idle: [0, 1, 2, 3, 4, 5], wind: [6, 7], sweep: [8, 9, 10],
+              rain: [11, 12, 13], hit: [14, 15], broken: [16, 17] },
+    play: { idle: { ms: 165, bounce: true },
+            wind: { ms: 130 }, sweep: { ms: 85 }, rain: { ms: 115 },
+            hit: { ms: 105 }, broken: { ms: 215, bounce: true } },
   },
   revenant: {
     file: 'foe-revenant-anim.webp',
-    cols: 6, rows: 1, cellW: 380, cellH: 230, figH: 224,
-    states: { idle: [0, 1, 2, 3, 4, 5] },
-    play: { idle: { ms: 220, bounce: true } },
+    cols: 6, rows: 4, cellW: 380, cellH: 214, figH: 208,
+    states: { idle: [0, 1, 2, 3, 4, 5], wind: [6, 7], toll: [8, 9, 10],
+              sweep: [11, 12, 13], gather: [14, 15, 16],
+              hit: [17, 18], broken: [19, 20] },
+    play: { idle: { ms: 220, bounce: true },
+            wind: { ms: 150 }, toll: { ms: 100 }, sweep: { ms: 90 },
+            gather: { ms: 140 },
+            hit: { ms: 115 }, broken: { ms: 240, bounce: true } },
   },
 };
-let _fanim = null, _fanimT = null, _fanimWant = null;
+let _fanim = null, _fanimT = null, _fanimWant = null, _fanimBack = null;
 
 function foeAnimPaint() {
   const a = _fanim; if (!a || !a.el) return;
@@ -1569,8 +1588,31 @@ function foeAnimState(name) {
   // The CSS pose on the parent still plays over it, so the act still reads —
   // which is what lets frames land one state at a time.
   if (!a.sheet.states[name] || a.state === name) return;
+  clearTimeout(_fanimBack); _fanimBack = null; a.resume = null;
   a.state = name; a.frame = 0; a.dir = 1; a.at = performance.now();
   foeAnimPaint();
+}
+// A REACTION INTERRUPTS, AND THEN GIVES THE STATE BACK. Being hit does not
+// change what a foe is DOING: it was coiled to strike before the blow landed
+// and it is still coiled after. So a reaction remembers the pose it interrupted
+// and returns to it, rather than dumping the creature onto its idle in the
+// middle of its own volley — and it times out against the same window the CSS
+// shake runs for, so the frames and the shudder end together.
+function foeAnimReact(name, ms) {
+  const a = _fanim; if (!a || !a.sheet.states[name]) return;
+  // Struck again while already reeling: hold it longer and replay, but do NOT
+  // let 'hit' become the thing it goes back to.
+  if (a.state !== name) a.resume = a.state;
+  a.state = name; a.frame = 0; a.dir = 1; a.at = performance.now();
+  foeAnimPaint();
+  clearTimeout(_fanimBack);
+  _fanimBack = setTimeout(() => {
+    _fanimBack = null;
+    if (!_fanim || _fanim.state !== name) return;
+    const back = _fanim.resume || 'idle';
+    _fanim.resume = null;
+    foeAnimState(back);
+  }, ms);
 }
 // THE DEGRADATION CONTRACT, inherited from v2.2 and worth keeping exactly:
 // naming a foe in FOE_SHEETS does NOTHING until its sheet really loads. The four
@@ -1579,6 +1621,7 @@ function foeAnimState(name) {
 // and silence if it fails.
 function foeAnimArm(foeId) {
   if (_fanimT) { clearInterval(_fanimT); _fanimT = null; }
+  clearTimeout(_fanimBack); _fanimBack = null;
   _fanim = null;
   _fanimWant = foeId;
   const box = el('k-boss-art'); if (!box) return;
@@ -2670,6 +2713,7 @@ let _slashN = 0;
 function fxStrikeBoss(n, why) {
   const b = document.getElementById('k-boss-art');
   if (b) { b.classList.remove('k-recoil'); void b.offsetWidth; b.classList.add('k-recoil'); }
+  foeAnimReact('hit', 340);          // the window k-recoil runs for
   // A BLOW LOOKS LIKE WHAT THREW IT. Steel cuts; a spell breaks over the
   // target; a bleed tick is neither and keeps the plain impact it always had.
   if (_act && why === 'hit') {
@@ -3174,7 +3218,14 @@ async function fxDirge(n) {
     setTimeout(() => s.classList.remove('k-dirge'), 700); }
   await sleep(320);
 }
-async function fxInterrupt() { const b = document.getElementById('k-boss-art'); if (b) { b.classList.add('k-broken'); await sleep(700); b.classList.remove('k-broken'); } }
+async function fxInterrupt() {
+  const b = document.getElementById('k-boss-art');
+  if (!b) return;
+  b.classList.add('k-broken');
+  foeAnimReact('broken', 700);
+  await sleep(700);
+  b.classList.remove('k-broken');
+}
 async function fxBossHeal() { popupOver(document.getElementById('k-boss-art'), '+heal', 'k-pop-heal'); await sleep(500); }
 async function fxHitResolved(tgtId, taken, negated, flawless) {
   // THE BAR DRAINS WITH THE NUMBER. The HP was applied the moment the blow
@@ -4465,6 +4516,7 @@ window.K = {
   // fight drives, so a check can ask what each intent actually pulls
   _fxFoeWind: () => fxFoeWind(), _fxFoeAct: (i) => fxFoeAct(i),
   _fxFoeSettle: () => fxFoeSettle(),
+  _fxStrikeBoss: (n, why) => fxStrikeBoss(n, why), _fxInterrupt: () => fxInterrupt(),
   MUSIC, MUSIC_SRC, musicOn, musicPref, musicSet, gridStart, ICON_PATHS, icon,
   intentByTarget,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, staticCardHTML,

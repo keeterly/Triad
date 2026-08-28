@@ -3246,6 +3246,90 @@ const { boot } = require('./harness.cjs');
       back.layers === 1 && back.orphans === 1 && back.armed === true,
       JSON.stringify(back));
 
+    // EVERY FOE'S OWN ACTS. Each of the five carries only the states its intent
+    // list can actually ask for — the Husk has no rain, the Wraith no toll — so
+    // this walks each foe's real intents through the real hook and asks that the
+    // frames it landed on belong to the state that intent maps to. A sheet with
+    // an act missing, or a mapping pointing at the wrong block, reads on screen
+    // as a foe that goes oddly still at the exact moment it should swing.
+    const everyAct = await J(async () => {
+      // RESTATED ON PURPOSE, not read out of FOE_ACT. Deriving it from the
+      // table under test would only prove the lookup works; written out, it
+      // also pins the design decision — a crescendo is a RAIN, not a toll,
+      // which is exactly the entry this check first got wrong.
+      const map = { hymn: 'toll', toll: 'toll', crescendo: 'rain',
+                    scythe: 'sweep', flurry: 'sweep',
+                    rain: 'rain', benediction: 'gather' };
+      const out = {};
+      for (const id of ['husk', 'cultist', 'wraith', 'revenant', 'mourner']) {
+        window.K.startCombat({ seed: 7, foe: window.K.FOES[id] });
+        await new Promise(r => setTimeout(r, 700));
+        const l = document.querySelector('.k-fanim');
+        const sh = window.K.FOE_SHEETS[id];
+        const frameNow = () => {
+          const x = parseFloat(l.style.backgroundPositionX) || 0;
+          const y = parseFloat(l.style.backgroundPositionY) || 0;
+          return Math.round(x / 100 * (sh.cols - 1))
+               + Math.round(y / 100 * (sh.rows - 1)) * sh.cols;
+        };
+        const bad = [];
+        for (const intent of window.K.FOES[id].intents) {
+          const want = map[intent];
+          window.K._fxFoeAct(intent);
+          await new Promise(r => setTimeout(r, 60));
+          if (!sh.states[want]) { bad.push(intent + ':no-' + want); continue; }
+          if (sh.states[want].indexOf(frameNow()) < 0) bad.push(intent + ':wrong');
+        }
+        out[id] = bad;
+      }
+      return out;
+    });
+    check('FOE ANIM: every foe pulls its own frames for every intent it can throw',
+      Object.values(everyAct).every(v => v.length === 0), JSON.stringify(everyAct));
+
+    // REACTIONS INTERRUPT, AND GIVE THE STATE BACK. Being hit does not change
+    // what a foe is DOING — it was coiled before the blow and is still coiled
+    // after — so a reaction that dumped the creature onto its idle would undo
+    // the wind-up in the middle of a volley, and the telegraph would vanish at
+    // the moment it matters most.
+    const react = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      await new Promise(r => setTimeout(r, 700));
+      const l = document.querySelector('.k-fanim');
+      const sh = window.K.FOE_SHEETS.mourner;
+      const frameNow = () => {
+        const x = parseFloat(l.style.backgroundPositionX) || 0;
+        const y = parseFloat(l.style.backgroundPositionY) || 0;
+        return Math.round(x / 100 * (sh.cols - 1))
+             + Math.round(y / 100 * (sh.rows - 1)) * sh.cols;
+      };
+      window.K._fxFoeAct('scythe');                 // it is mid wind-up
+      await new Promise(r => setTimeout(r, 60));
+      const acting = frameNow();
+      window.K._fxStrikeBoss(9, 'hit');             // and it takes a blow
+      await new Promise(r => setTimeout(r, 80));
+      const struck = frameNow();
+      await new Promise(r => setTimeout(r, 420));   // past the 340ms window
+      const after = frameNow();
+      // and a break reels for its own, longer window
+      window.K._fxInterrupt();
+      await new Promise(r => setTimeout(r, 120));
+      const broke = frameNow();
+      await new Promise(r => setTimeout(r, 900));
+      const settled = frameNow();
+      return { acting, struck, after, broke, settled, st: sh.states };
+    });
+    const inS = (f, st) => react.st[st].indexOf(f) >= 0;
+    check('FOE ANIM: a blow lands on struck frames, not on a shake alone',
+      inS(react.acting, 'sweep') && inS(react.struck, 'hit'),
+      JSON.stringify({ acting: react.acting, struck: react.struck }));
+    check('FOE ANIM: and the foe goes back to the act it was interrupted mid-way through',
+      inS(react.after, 'sweep'),
+      JSON.stringify({ after: react.after, wanted: react.st.sweep }));
+    check('FOE ANIM: a break reels on its own frames, then hands the act back',
+      inS(react.broke, 'broken') && inS(react.settled, 'sweep'),
+      JSON.stringify({ broke: react.broke, settled: react.settled }));
+
     // leave the page on a clean Regent fight for whatever runs after this block
     await J(() => { window.K.startCombat({ seed: 7 }); });
     await H.sleep(400);
