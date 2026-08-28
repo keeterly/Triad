@@ -2345,6 +2345,98 @@ This is a guardrail, not a diagnosis, and it is recorded as one.
 
 ---
 
+## Build 47 — a way back out, a deck that shuffles, and an all-out you can reach
+
+### There was no gesture that meant "no"
+
+"If you pick up a card and let go of it in hand it shouldn't still play — no way
+of backing out of a choice."
+
+Exactly right, and the cause is one constant. The drop is a SNAP, not a
+hit-test: it finds the nearest legal target within `SNAP_RADIUS` and takes it.
+`SNAP_RADIUS` is 210px, and the hand sits well inside 210px of every hero — so
+bringing a card back down and releasing it played the card anyway. **There was
+no cancel zone anywhere on the board.** Once you picked a card up you were
+committed to spending it.
+
+Releasing over the hand now cancels, checked before the snap so it wins rather
+than competes. And it says so while the finger is still down — a dashed outline
+round the fan and the words RELEASE TO PUT IT BACK — because a cancel nobody
+can see is not a way out, it is just a play that happened not to happen.
+
+### The deck coming back is an event
+
+A reshuffle happened between frames: the discard count dropped to zero, the draw
+count jumped, and nothing was on screen. In a fifteen-card deck, going through
+the whole thing once is real information about how the fight is going.
+
+`drawOne` counts reshuffles; the draw loop notices the counter moved and plays
+the hand-off before the next card flies. Five face-down cards cross the board
+from the discard to the deck, staggered so it reads as a handful rather than one
+object sliding, and the deck thumps as they land.
+
+One trap: `flyCard` measures its destination from a live ELEMENT, and a
+pre-measured box handed in as an option is silently ignored — the flight simply
+never leaves. The deck button goes in directly.
+
+### The all-out was not broken. It was unreachable.
+
+Both paths into it fire correctly — the API and a real CDP touch on the bar,
+both verified. What was broken was arithmetic. At 1/3 per damage and 8 per
+turned string, a whole fight against a 76 HP foe charges about 50, half of which
+survives to the next stop. The run sim had been reporting the answer all along:
+**1.02 all-outs per ROAD.** About one per six-stop run. Every screenshot the
+player sent showed 79%, 80%, 81% — the payoff mechanic dangling just short
+forever, which is what "broken and doesn't do anything" means from the other
+side of the screen.
+
+And when it did light up, the only thing that changed was a soft glow behind a
+15px strip at the very top of the screen, under the notch, with a NOUN on it.
+Nothing said press. It is a bordered plate now, the fill triples in height, the
+readout becomes `ALL-OUT ▸`, and an invisible `::before` extends the press 14px
+past the paint in every direction — a thumb-sized target without moving anything
+in the HUD.
+
+**The tuning took two passes and the first one broke a gate**, which is the
+whole reason the gates exist. At 0.6 / 13 / 22 the road looked ideal (2.36
+all-outs per run) and the Regent fight went to **56.8%**, over its 55% ceiling —
+more all-outs is more damage, and a 7–9 round boss fight collects a lot of them.
+Backed off to 0.45 / 10 / 17:
+
+| | before | after |
+|---|---|---|
+| all-outs per road, half parries | 1.02 | **1.60** |
+| all-outs per road, excellent | 3.57 | 3.15 |
+| Regent winrate, half parries | 26.4% | **42.7%** (gate 25–55) |
+| road completed, half parries | 36.7% | 35.8% (gate 8–45) |
+
+3/3 shipped gates hold on both sims at 220 and 120 runs respectively.
+
+### Two checks that were lying about themselves
+
+The all-out check read `bar.disabled` and the ready class AFTER pressing the
+bar, by which time the meter is spent and the bar is correctly disabled again —
+which looks identical to a bar that was never pressable. It captures the live
+state before the press now.
+
+And the new block left a played-out fight behind it, which broke three later
+checks (ROWS and both BAIT reads) that assume a fresh board. It hands the suite
+back a fresh fight when it is done. Neither of those was a product bug; both
+were the suite lying, which is worse.
+
+### Not done, and why
+
+- **The memory and upgrade screens still need card visuals.** The swap screen
+  lists cards as text rows while the game now has a painting for every one of
+  them, and the scenes are inconsistent about whether they show a card at all.
+  This is real design work rather than a fix and it is next.
+- **Higgsfield is unavailable in this session** — the MCP server disconnected,
+  so no enemy animations and no new card art were generated. The account was
+  also down to about 1.5 credits after the sixteen card paintings, which is
+  roughly one image.
+
+---
+
 ## Errata — three records the code had outgrown
 
 A playthrough audit read these sections against the code and found them stale.

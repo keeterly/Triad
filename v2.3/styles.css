@@ -340,6 +340,17 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   display: flex; gap: 5px; align-items: flex-end; z-index: 14;
   perspective: 760px; perspective-origin: 50% 130%; }
 #k-hand .k-card-active { margin-bottom: 0; }
+/* RELEASE HERE AND IT GOES BACK. The cancel has to be visible while the finger
+   is still down, or it is not a way out — it is just a play that happened not
+   to happen. */
+#k-hand.k-hand-cancel::after { content: 'RELEASE TO PUT IT BACK';
+  position: absolute; left: 50%; top: -20px; transform: translateX(-50%);
+  font-size: 8px; letter-spacing: 0.22em; color: #cfc3a6; white-space: nowrap;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.95); pointer-events: none; opacity: 0.9; }
+#k-hand.k-hand-cancel::before { content: ''; position: absolute;
+  inset: -8px -14px -6px; border: 1px dashed rgba(201,164,92,0.4);
+  border-radius: 10px; pointer-events: none; }
+#k-hand { position: absolute; }
 #k-hand.k-discarding .k-card { transform: translateY(140px) rotate(4deg); opacity: 0; transition: all 0.3s ease-in; }
 .k-card { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
   touch-action: none; -webkit-tap-highlight-color: transparent;
@@ -1259,14 +1270,33 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   transition: width 0.36s cubic-bezier(.2,.8,.3,1); }
 #k-kz-n { font-size: 8px; letter-spacing: 0.12em; color: #b0a894; min-width: 44px;
   text-align: right; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
-/* FULL — it becomes a thing you press */
-#k-kizuna.k-kz-ready { cursor: pointer; border: 0;
-  background: none;
-  box-shadow: 0 0 18px rgba(224,192,132,0.45);
+/* FULL — it becomes a thing you press, and it has to LOOK like one. Both ways
+   into the all-out work — a real touch on this bar fires it, verified — and a
+   player still reported it "broken and doesn't do anything". Two reasons, and
+   neither of them was the mechanism: it almost never charged (see the kizuna
+   constants), and when it did, the only thing that changed was a soft glow
+   behind a 15px-tall strip at the very top of the screen, under the notch,
+   with a NOUN on it. Nothing said press. */
+#k-kizuna.k-kz-ready { cursor: pointer;
+  border: 1px solid rgba(240,212,136,0.65); border-radius: 3px;
+  background: linear-gradient(180deg, rgba(224,192,132,0.16), rgba(201,164,92,0.06));
+  box-shadow: 0 0 18px rgba(224,192,132,0.45), inset 0 0 12px rgba(255,238,196,0.1);
+  padding: 4px 8px;
   animation: k-kzready 1.7s ease-in-out infinite; }
+/* A THUMB-SIZED TARGET without moving anything. The bar keeps its exact place
+   in the HUD; the press just reaches 14px further in every direction than the
+   thing you can see, which is the difference between a control that reads as
+   decoration and one you can actually hit on a phone. */
+#k-kizuna.k-kz-ready::before { content: ''; position: absolute;
+  inset: -14px -18px; border-radius: 8px; }
+#k-kizuna.k-kz-ready .k-kz-bar { height: 3px; }
 #k-kizuna.k-kz-ready .k-kz-lbl { color: #ffeec4; }
-#k-kizuna.k-kz-ready #k-kz-n { color: #ffeec4; font-weight: 700; }
-@keyframes k-kzready { 50% { box-shadow: 0 0 30px rgba(224,192,132,0.8); } }
+#k-kizuna.k-kz-ready #k-kz-n { color: #241a06; font-weight: 700; min-width: 0;
+  background: linear-gradient(180deg, #ffeec4, #e0c084); border-radius: 2px;
+  padding: 1.5px 6px; letter-spacing: 0.16em; }
+#k-kizuna.k-kz-ready:active { transform: translateX(-50%) scale(0.97); }
+@keyframes k-kzready { 50% { box-shadow: 0 0 30px rgba(224,192,132,0.8),
+  inset 0 0 16px rgba(255,238,196,0.18); } }
 #k-kizuna.k-kz-born { animation: k-kzborn 0.7s ease; }
 @keyframes k-kzborn { 0% { transform: scale(1); } 30% { transform: scale(1.07); } 100% { transform: scale(1); } }
 #k-kizuna:disabled { opacity: 0.9; }

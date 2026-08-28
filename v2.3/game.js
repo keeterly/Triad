@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 46;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 47;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1123,9 +1123,22 @@ const AP_PER_TURN = 3;
 const BOND_PER_STITCH = 2;      // one hero acting straight after the other
 const BOND_PER_SHIELD = 3;      // Elin stepping into a blow meant for someone else
 const KIZUNA_MAX = 100;
-const KIZUNA_PER_DAMAGE = 1 / 3;      // a 15-damage FINALE is worth 5
-const KIZUNA_TURNED = 8;              // a whole string read clean
-const KIZUNA_FLAWLESS = 14;
+// THE ALL-OUT HAS TO BE REACHABLE. A player reported it "broken and doesn't do
+// anything", and both paths into it — the API and a real touch on the bar —
+// fire correctly. What was broken was the ARITHMETIC: at 1/3 per damage and 8
+// per turned string, a whole fight against a 76 HP foe charges roughly 50, half
+// of which survives to the next stop. The run sim measured the result exactly:
+// **1.02 all-outs per ROAD** — about one per six-stop run. The bar sat at 79,
+// 80, 81% in every screenshot the player sent, which is what "broken" means
+// from the other side of the screen: the payoff mechanic dangles just short
+// forever and the button is never live.
+//
+// The premise is a team attack that DEVELOPS over a run, not one that fires
+// once at the end of it. Retuned so an engaged party earns one roughly every
+// other stop, and measured rather than estimated.
+const KIZUNA_PER_DAMAGE = 0.45;       // a 15-damage FINALE is worth ~7
+const KIZUNA_TURNED = 10;             // a whole string read clean
+const KIZUNA_FLAWLESS = 17;
 const ROWS = ['front', 'mid', 'back'];
 const ROW_SHELTER = { front: 1, mid: 0.62, back: 0.3 };
 const MOVE_COST = 1;
@@ -1337,7 +1350,12 @@ async function endTurn(opts) {
   livingHeroes().forEach(id => { C.heroes[id].guard = 0; });
   C.counterstance = false;
   setPhase('HAND_DRAWING');
-  while (C.hand.length < 5) { if (!drawOne()) break; await fxDrawOne(); }
+  while (C.hand.length < 5) {
+    const shuffles = C.reshuffles || 0;
+    if (!drawOne()) break;
+    if ((C.reshuffles || 0) > shuffles) await fxReshuffle();
+    await fxDrawOne();
+  }
 
   C.boss.intentIx = pickIntent();
   C.turn++;
@@ -1352,6 +1370,12 @@ function drawOne() {
     if (!C.discard.length) return false;
     C.deck = shuffle(C.discard);
     C.discard = [];
+    // THE DECK RUNNING OUT IS AN EVENT. It happened silently — the discard
+    // count dropped to zero and the draw count jumped, between frames, with no
+    // moment on screen — so a player watching their last cards go by never saw
+    // the pile come back. This counter is the only state it needs; the draw
+    // loop notices it moved and plays the shuffle before the next card flies.
+    C.reshuffles = (C.reshuffles || 0) + 1;
   }
   C.hand.push(C.deck.pop());
   return true;
@@ -2890,6 +2914,42 @@ async function fxSweepHand() {
 // times in a row — which is what made the top of the turn look broken. The fan
 // now glides to its new shape while the newcomer flies in over it, and the card
 // lands face-up with a flip rather than appearing.
+// THE DISCARD GOES HOME. When the draw pile runs dry the whole discard flies
+// back across the board and lands as the new deck, and only then does the next
+// card come off it — so the moment reads as "you have been through the whole
+// deck once", which in a fifteen-card deck is a real piece of information about
+// the fight rather than a bookkeeping detail.
+async function fxReshuffle() {
+  const S = stageBox();
+  const deck = document.getElementById('k-deck-btn');
+  const disc = document.getElementById('k-disc-btn');
+  if (!S || !deck || !disc) return;
+  const from = boxOf(disc, S);
+  renderPiles();                                  // the counts have already swapped
+  if (!from) return;
+  // a short stack of face-down cards crossing the board, staggered so it reads
+  // as a handful of cards rather than one object sliding. `flyCard` measures its
+  // destination from a live ELEMENT, so the deck button is handed in directly —
+  // a pre-measured box is silently ignored and the flight never leaves.
+  const FAN = 5;
+  const flights = [];
+  for (let i = 0; i < FAN; i++) {
+    flights.push(new Promise(res => setTimeout(() => {
+      flyCard(from, deck, { faceDown: true, fadeOut: true, grow: false, flip: false,
+                            spin: 18 - i * 7, arc: -54 - i * 9, ms: 420 })
+        .then(res, res);
+    }, i * 55)));
+  }
+  setTimeout(() => {
+    deck.classList.remove('k-pile-thump'); void deck.offsetWidth;
+    deck.classList.add('k-pile-thump');
+    setTimeout(() => deck.classList.remove('k-pile-thump'), 320);
+  }, 300);
+  logLine('The deck is spent — what was played is shuffled back.');
+  await Promise.all(flights);
+  await sleep(90);
+}
+
 async function fxDrawOne() {
   const S = stageBox();
   const deck = document.getElementById('k-deck-btn');
@@ -3048,7 +3108,9 @@ function renderKizuna() {
   const pct = Math.round(C.kizuna / KIZUNA_MAX * 100);
   const ready = C.kizuna >= KIZUNA_MAX;
   el('k-kz-fill').style.width = pct + '%';
-  el('k-kz-n').textContent = ready ? 'ALL-OUT' : pct + '%';
+  // A VERB, NOT A NOUN. "ALL-OUT" named the thing without saying what to do
+  // with it, on a control most players never saw light up in the first place.
+  el('k-kz-n').textContent = ready ? 'ALL-OUT \u25B8' : pct + '%';
   bar.classList.toggle('k-kz-ready', ready);
   bar.disabled = !ready || C.phase !== 'PLAYER_READY';
 }
@@ -3591,9 +3653,27 @@ function stageScale() {
 // snap to it if it is anywhere close. Only targets the held card could
 // actually accept are considered, so the snap can never suggest an illegal play.
 const SNAP_RADIUS = 210;
+// THE HAND IS THE WAY BACK. There was no cancel zone anywhere on the board: the
+// snap looks for the NEAREST legal target within 210px and takes it, and the
+// hand sits well inside 210px of every hero, so bringing a card back down and
+// letting go of it played the card. There was no gesture that meant "no" —
+// once you picked a card up you were committed to spending it.
+//
+// Releasing over the hand now cancels, which is what every card game does and
+// what a player will try first. Checked before anything else, so it beats the
+// snap rather than competing with it.
+function overHand(x, y) {
+  const h = el('k-hand'); if (!h) return false;
+  const r = h.getBoundingClientRect();
+  if (!r.width) return false;
+  // a little slack above the fan, because the card rides below the finger and
+  // the hand's own top edge is where a player aims when they mean "put it back"
+  return x >= r.left - 12 && x <= r.right + 12 && y >= r.top - 10 && y <= r.bottom + 40;
+}
 function dropTargetAt(x, y, cardId) {
   const stage = el('k-stage');
   if (!stage) return null;
+  if (overHand(x, y)) return null;
   const inside = (r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
   // THE DRAW PILE IS THE SWAP. A separate CYCLE chip was a third object in the
   // corner explaining a rule; putting the card back where cards come from says
@@ -3793,6 +3873,7 @@ function attachCardInput(btn) {
     dragging = false; armed = false; held = false; lastPt = null;
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
     aimClear();
+    const hand1 = el('k-hand'); if (hand1) hand1.classList.remove('k-hand-cancel');
     // …and PUT THE CARD BACK. This reset the flags but left the lift in place,
     // so a card abandoned while still attached — the hand hidden behind a
     // parry, a screen change mid-drag — stayed sitting wherever the finger had
@@ -3900,6 +3981,10 @@ function attachCardInput(btn) {
       const over = dropTargetAt(e.clientX, e.clientY, btn.dataset.card);
       const want = cardDef(btn.dataset.card).target === 'enemy' ? 'enemy' : 'party';
       btn.classList.toggle('k-drop-ok', !!over && (over.zone === want || over.zone === 'piles'));
+      // …and SAY that letting go here puts it back, rather than leaving the
+      // player to discover a cancel by accidentally not spending a card.
+      const hand = el('k-hand');
+      if (hand) hand.classList.toggle('k-hand-cancel', overHand(e.clientX, e.clientY));
       lastPt = { x: e.clientX, y: e.clientY };
       paintAim();
     }
@@ -3917,6 +4002,7 @@ function attachCardInput(btn) {
     // something else happened to rebuild the hand. Releasing the gesture and
     // interpreting it are two different jobs.
     const wasDragging = dragging;
+    const hand0 = el('k-hand'); if (hand0) hand0.classList.remove('k-hand-cancel');
     if (dragging) {
       dragging = false; if (raf) { cancelAnimationFrame(raf); raf = 0; }
       aimClear();
@@ -3942,6 +4028,7 @@ function attachCardInput(btn) {
   btn.addEventListener('pointercancel', () => { clearTimeout(holdT); armed = false; dragging = false;
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
     aimClear();
+    const hc = el('k-hand'); if (hc) hc.classList.remove('k-hand-cancel');
     btn.classList.remove('k-dragging', 'k-aiming', 'k-drop-ok');
     btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy'); });
 }
@@ -4169,7 +4256,7 @@ window.K = {
     if (ix >= 0) { C.boss.intentIx = ix; renderAll(); }
   },
   parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
-  actionKind, castTone, cardArt,
+  actionKind, castTone, cardArt, overHand,
   MUSIC, MUSIC_SRC, musicOn, musicPref, musicSet, gridStart, ICON_PATHS, icon,
   intentByTarget,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, staticCardHTML,

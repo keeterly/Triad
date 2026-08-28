@@ -2879,6 +2879,97 @@ const { boot } = require('./harness.cjs');
       && !/k-hidden/.test(deadend.after) && deadend.hasDoor,
       JSON.stringify(deadend));
 
+    // ── THE WAY BACK OUT OF A DRAG ──────────────────────────────────────
+    // The snap takes the NEAREST legal target within 210px, and the hand sits
+    // well inside 210px of every hero — so bringing a card back down and
+    // letting go of it played the card. There was no gesture anywhere on the
+    // board that meant "no": once you picked a card up you were committed.
+    await fresh(7);
+    {
+      const back = await J(async () => {
+        window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'execute']);
+        const card = document.querySelector('#k-hand .k-card[data-card="cleave"]');
+        const r = card.getBoundingClientRect();
+        const x0 = r.left + r.width / 2, y0 = r.top + r.height / 2;
+        const at = (t, x, y) => card.dispatchEvent(new PointerEvent(t, {
+          bubbles: true, clientX: x, clientY: y, pointerId: 1 }));
+        const hand = document.getElementById('k-hand');
+        const before = window.K.state().hand.length, ap = window.K.state().ap;
+        at('pointerdown', x0, y0);
+        // out over the board…
+        for (let i = 1; i <= 8; i++) at('pointermove', x0 + i * 40, y0 - i * 22);
+        const outHint = hand.classList.contains('k-hand-cancel');
+        const armed = card.classList.contains('k-aiming');
+        // …then all the way home again
+        for (let i = 8; i >= 0; i--) at('pointermove', x0 + i * 40, y0 - i * 22);
+        const homeHint = hand.classList.contains('k-hand-cancel');
+        at('pointerup', x0, y0);
+        await new Promise(res => setTimeout(res, 200));
+        return { armed, outHint, homeHint,
+                 kept: window.K.state().hand.length === before && window.K.state().ap === ay(ap),
+                 hand: window.K.state().hand.length, ap: window.K.state().ap,
+                 apWas: ap, lifted: [...document.querySelectorAll('#k-hand .k-card')]
+                   .some(c => c.classList.contains('k-aiming') || c.style.getPropertyValue('--dragx')),
+                 hint: hand.classList.contains('k-hand-cancel') };
+        function ay(v) { return v; }
+      });
+      check('DRAG: releasing a card back over the hand puts it back — it never plays',
+        back.armed && !back.outHint && back.homeHint
+        && back.hand === 5 && back.ap === back.apWas && !back.lifted && !back.hint,
+        JSON.stringify(back));
+    }
+
+    // THE DECK RUNNING OUT IS AN EVENT. It used to happen between frames: the
+    // discard count dropped to zero and the draw count jumped, with no moment
+    // on screen, so a player never saw their pile come back.
+    const shuffled = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      const s = window.K.state();
+      s.discard = s.discard.concat(s.deck); s.deck = [];        // next draw must reshuffle
+      let flew = 0;
+      const watch = setInterval(() => {
+        flew = Math.max(flew, document.querySelectorAll('.k-fly').length); }, 25);
+      await window.K.endTurn({ grades: new Array(24).fill('miss') });
+      clearInterval(watch);
+      const a = window.K.state();
+      return { reshuffles: a.reshuffles || 0, deck: a.deck.length,
+               disc: a.discard.length, hand: a.hand.length, flew };
+    });
+    check('DECK: running out shuffles the discard back, and it is SEEN doing it',
+      shuffled.reshuffles === 1 && shuffled.deck > 0 && shuffled.hand === 5
+      && shuffled.flew >= 3,
+      JSON.stringify(shuffled));
+
+    // THE ALL-OUT HAS TO BE REACHABLE AND PRESSABLE. Both paths into it worked
+    // and a player still called it broken: it almost never charged, and when it
+    // did the only change was a glow behind a 15px strip with a noun on it.
+    const kz = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      window.K.state().kizuna = 100;
+      window.K.render();
+      const bar = document.getElementById('k-kizuna');
+      const hp0 = window.K.state().boss.hp;
+      const r = bar.getBoundingClientRect();
+      const cs = getComputedStyle(bar, '::before');
+      // READ THE LIVE STATE BEFORE PRESSING IT. Taken afterwards these report
+      // the bar correctly disabled again — the meter is spent — which looks
+      // exactly like the bar never having been pressable at all.
+      const live = { disabled: bar.disabled, ready: bar.classList.contains('k-kz-ready'),
+                     grew: parseFloat(cs.width) > r.width,   // the press reaches past the paint
+                     label: document.getElementById('k-kz-n').textContent };
+      bar.click();
+      await new Promise(res => setTimeout(res, 1600));
+      return { ...live, hp0, hp: window.K.state().boss.hp, kz: window.K.state().kizuna,
+               offAfter: bar.disabled };
+    });
+    check('ALL-OUT: at full it is live, reads as a press, and actually strikes',
+      kz.ready && !kz.disabled && /\u25B8/.test(kz.label) && kz.grew
+      && kz.hp < kz.hp0 && kz.kz === 0,
+      JSON.stringify(kz));
+    // …and hand the suite back the board it expects. Three later checks read a
+    // fresh fight, and this block leaves one that has been played out.
+    await fresh(7);
+
     // the iOS long-press callout must be suppressed on cards
     const ios = await J(async () => {
       // EVERY figure on the board, not just the cards. A long press on a hero
