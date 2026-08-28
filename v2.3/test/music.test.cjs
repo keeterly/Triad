@@ -221,6 +221,60 @@ const { boot } = require('./harness.cjs');
   check('MUSIC: the control is not furniture on the combat screen',
     onStage.inStage === false, JSON.stringify(onStage));
 
+  // ── COMBAT SFX (Build 55) ────────────────────────────────────────────────
+  // This suite is the only page where sound is genuinely on, so it is the only
+  // place these can be asked honestly. A version of the thinning check briefly
+  // sat in the flow suite and passed for the wrong reason: with audio off every
+  // call returns false, so "at most two got through" was true of a system that
+  // played nothing whatsoever.
+  //
+  // The sounds are SYNTHESISED rather than sampled, because a parry is graded in
+  // tens of milliseconds and an <audio> element's play() lands 50-200ms after it
+  // is asked. So what matters here is that a real WebAudio graph exists and runs.
+  await gesture();
+  await sleep(300);
+  // the graph is built LAZILY, on the first sound rather than at boot — a
+  // browser will not start an AudioContext before the player has touched
+  // something, so there is nothing to build until there is something to play
+  const fired = await J(() => {
+    const out = [];
+    for (const n of ['slash', 'perfect', 'hurt', 'brk']) out.push([n, window.K.sfx(n, 1)]);
+    return out;
+  });
+  check('SFX: every voice actually reaches the synth and plays',
+    fired.every(([, ok]) => ok === true), JSON.stringify(fired));
+  const sx = await J(() => window.K.SFX._state());
+  check('SFX: it is a real audio graph, and it is running rather than suspended',
+    sx.ctx === true && sx.state === 'running' && sx.on === true, JSON.stringify(sx));
+
+  // A VOLLEY IS NOT A MACHINE GUN. Identical voices inside a few milliseconds
+  // stack into one click rather than reading as several blows, so a repeat of
+  // the same voice is thinned — and then allowed again once the ear has moved on.
+  const burst = await J(async () => {
+    const rush = [];
+    for (let i = 0; i < 6; i++) rush.push(window.K.sfx('slash', 1));
+    await new Promise(r => setTimeout(r, 120));
+    const later = window.K.sfx('slash', 1);
+    // a DIFFERENT voice at the same instant is a different blow, not a repeat
+    const other = window.K.sfx('hurt', 1);
+    return { rush, played: rush.filter(Boolean).length, later, other };
+  });
+  check('SFX: a burst of one voice is thinned, but it is not stuck off',
+    burst.played === 1 && burst.later === true, JSON.stringify(burst));
+  check('SFX: thinning is per voice — a different sound at the same moment still lands',
+    burst.other === true, JSON.stringify({ other: burst.other }));
+
+  // ONE MUTE, BOTH SYSTEMS. A player who silenced the game silenced the game;
+  // sound effects that survived the music's mute would be a bug with a volume.
+  const quietFx = await J(() => {
+    window.K.musicSet(false);
+    const off = window.K.sfx('brk', 1);
+    window.K.musicSet(true);
+    return { off, backOn: window.K.sfx('allout', 1) };
+  });
+  check('SFX: the mute silences the effects too, and unmuting brings them back',
+    quietFx.off === false && quietFx.backOn === true, JSON.stringify(quietFx));
+
   const r = report();
   process.exit(r.passed === r.total && r.errs === 0 ? 0 : 1);
 })();

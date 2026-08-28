@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 54;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 55;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -911,6 +911,7 @@ async function allOut() {
   if (!living.length) return false;
   C.kizuna = 0;
   C.allOuts = (C.allOuts || 0) + 1;
+  sfx('allout', 1.5);
   setPhase('PLAYER_ACTION_RESOLVING');
   renderKizuna();
   await fxAllOut(living);
@@ -1743,6 +1744,157 @@ function musicSet(on) {
   try { localStorage.setItem(MUSIC_KEY, on ? '1' : '0'); } catch (_) {}
   MUSIC.refresh();
 }
+// ═════════════════════════════════════════════════════════════════════════════
+// SFX — the blow, the hit, and the parry, SYNTHESISED
+// ═════════════════════════════════════════════════════════════════════════════
+// There was no combat audio at all: a volley of notes resolved in total
+// silence, and a parry — a rhythm mechanic, of all things — gave the ear
+// nothing to time against.
+//
+// These are BUILT, not sampled, and the reason is latency. A parry is graded in
+// tens of milliseconds and the sound IS the feedback; an <audio> element's
+// play() lands somewhere between 50 and 200ms after you ask for it, which on a
+// rhythm read is not late, it is wrong. A WebAudio graph scheduled against the
+// context clock fires when it is told to. It also weighs nothing, which matters
+// in a repo already carrying 22MB of music, and it can be tuned by ear in the
+// file rather than regenerated as an asset.
+//
+// One context, created on the first gesture — a browser will not start an
+// AudioContext before the player has touched something — and it rides the same
+// mute the music does, because a player who silenced the game silenced the game.
+const SFX = (() => {
+  let ctx = null, bus = null, noiseBuf = null;
+
+  function wake() {
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return ctx; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try { ctx = new AC(); } catch (_) { return null; }
+    bus = ctx.createGain();
+    bus.gain.value = 0.9;
+    bus.connect(ctx.destination);
+    // one second of white noise, reused by every percussive voice
+    const n = ctx.sampleRate;
+    noiseBuf = ctx.createBuffer(1, n, n);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    return ctx;
+  }
+  const live = () => (musicOn() && !(typeof window !== 'undefined' && window.__SIM)) ? wake() : null;
+
+  // a filtered noise burst — the body of anything that hits
+  function burst(t, { dur = 0.09, freq = 1800, q = 0.7, gain = 0.5, type = 'bandpass' }) {
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(bus);
+    src.start(t); src.stop(t + dur + 0.02);
+  }
+  // a pitched voice — the ring, the chime, the thump
+  function tone(t, { f0 = 440, f1 = null, dur = 0.18, gain = 0.25, type = 'triangle' }) {
+    const o = ctx.createOscillator(); o.type = type;
+    o.frequency.setValueAtTime(f0, t);
+    if (f1) o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(bus);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+
+  // Each voice is a SHAPE, not a pitch: steel is a bright short scrape with a
+  // ring on top, a spell is two soft tones and no scrape, a body blow is all
+  // low end and no ring. The ear should be able to tell what happened without
+  // looking at the numbers.
+  const VOICES = {
+    slash(t, k) {
+      burst(t, { dur: 0.07, freq: 3200, q: 0.6, gain: 0.42 * k });
+      tone(t + 0.005, { f0: 2600, f1: 1100, dur: 0.13, gain: 0.12 * k, type: 'triangle' });
+    },
+    heavy(t, k) {
+      burst(t, { dur: 0.13, freq: 1400, q: 0.5, gain: 0.5 * k });
+      tone(t, { f0: 150, f1: 62, dur: 0.2, gain: 0.34 * k, type: 'sine' });
+      tone(t + 0.01, { f0: 1900, f1: 780, dur: 0.16, gain: 0.1 * k, type: 'triangle' });
+    },
+    cast(t, k) {
+      tone(t, { f0: 520, f1: 880, dur: 0.26, gain: 0.16 * k, type: 'sine' });
+      tone(t + 0.02, { f0: 784, f1: 1320, dur: 0.22, gain: 0.1 * k, type: 'sine' });
+      burst(t, { dur: 0.18, freq: 2600, q: 1.4, gain: 0.12 * k, type: 'highpass' });
+    },
+    hurt(t, k) {                       // a hero taking it
+      burst(t, { dur: 0.12, freq: 520, q: 0.5, gain: 0.42 * k, type: 'lowpass' });
+      tone(t, { f0: 190, f1: 74, dur: 0.22, gain: 0.3 * k, type: 'sine' });
+    },
+    guard(t, k) {                      // it lands on a ward instead
+      burst(t, { dur: 0.07, freq: 2100, q: 2.4, gain: 0.22 * k });
+      tone(t, { f0: 420, f1: 300, dur: 0.13, gain: 0.14 * k, type: 'triangle' });
+    },
+    // THE PARRY LADDER. Four grades that must be told apart with the eyes shut:
+    // a perfect is a rising two-note chime, a great is the same idea flattened,
+    // a good is one plain note, and a late is a dull knock that does not ring.
+    perfect(t, k) {
+      burst(t, { dur: 0.05, freq: 5200, q: 0.9, gain: 0.2 * k, type: 'highpass' });
+      tone(t, { f0: 880, dur: 0.1, gain: 0.2 * k, type: 'triangle' });
+      tone(t + 0.055, { f0: 1320, dur: 0.22, gain: 0.22 * k, type: 'triangle' });
+    },
+    great(t, k) {
+      tone(t, { f0: 740, dur: 0.09, gain: 0.17 * k, type: 'triangle' });
+      tone(t + 0.05, { f0: 988, dur: 0.16, gain: 0.15 * k, type: 'triangle' });
+    },
+    good(t, k) { tone(t, { f0: 620, dur: 0.13, gain: 0.15 * k, type: 'triangle' }); },
+    late(t, k) {
+      burst(t, { dur: 0.08, freq: 300, q: 0.7, gain: 0.24 * k, type: 'lowpass' });
+      tone(t, { f0: 210, f1: 150, dur: 0.1, gain: 0.1 * k, type: 'sine' });
+    },
+    miss(t, k) {
+      burst(t, { dur: 0.11, freq: 240, q: 0.6, gain: 0.26 * k, type: 'lowpass' });
+    },
+    brk(t, k) {                        // poise gives way
+      tone(t, { f0: 170, f1: 44, dur: 0.5, gain: 0.4 * k, type: 'sine' });
+      burst(t, { dur: 0.3, freq: 900, q: 0.4, gain: 0.4 * k });
+      tone(t + 0.03, { f0: 2400, f1: 600, dur: 0.34, gain: 0.12 * k, type: 'triangle' });
+    },
+    allout(t, k) {                     // the whole party at once
+      tone(t, { f0: 300, f1: 1200, dur: 0.34, gain: 0.24 * k, type: 'sawtooth' });
+      burst(t + 0.16, { dur: 0.24, freq: 2200, q: 0.5, gain: 0.44 * k });
+      tone(t + 0.16, { f0: 180, f1: 60, dur: 0.4, gain: 0.34 * k, type: 'sine' });
+    },
+    heal(t, k) {
+      tone(t, { f0: 660, f1: 990, dur: 0.3, gain: 0.13 * k, type: 'sine' });
+      tone(t + 0.06, { f0: 990, f1: 1320, dur: 0.26, gain: 0.09 * k, type: 'sine' });
+    },
+  };
+
+  let lastAt = 0, lastName = '';
+  return {
+    // `k` scales the voice with the size of what happened, so a 4 and a 24 are
+    // not the same sound at the same loudness
+    play(name, k) {
+      const c = live(); if (!c) return false;
+      const v = VOICES[name]; if (!v) return false;
+      const t = c.currentTime + 0.001;
+      // A VOLLEY IS NOT A MACHINE GUN. Identical voices inside a few ms stack
+      // into a click rather than reading as several blows, so a repeat of the
+      // same voice is thinned rather than layered.
+      if (name === lastName && t - lastAt < 0.035) return false;
+      lastAt = t; lastName = name;
+      try { v(t, Math.max(0.35, Math.min(1.6, k == null ? 1 : k))); } catch (_) { return false; }
+      return true;
+    },
+    // the first real gesture is what a browser waits for
+    unlock() { const c = live(); if (c && c.state === 'suspended') c.resume(); },
+    _state() {
+      return { ctx: !!ctx, state: ctx ? ctx.state : null, on: musicOn(),
+               voices: Object.keys(VOICES) };
+    },
+  };
+})();
+function sfx(name, k) { try { return SFX.play(name, k); } catch (_) { return false; } }
+
 const MUSIC = (() => {
   const CROSS = 2400;                 // crossfade length (ms) — long and gentle
   const decks = [];                   // [{a}, {a}] — two Audio elements
@@ -2714,6 +2866,11 @@ function fxStrikeBoss(n, why) {
   const b = document.getElementById('k-boss-art');
   if (b) { b.classList.remove('k-recoil'); void b.offsetWidth; b.classList.add('k-recoil'); }
   foeAnimReact('hit', 340);          // the window k-recoil runs for
+  // THE SOUND SAYS WHAT THREW IT, the same way the visual effect does: steel
+  // scrapes and rings, a spell blooms, and a bleed tick is the plain impact.
+  if (_act && why === 'hit')
+    sfx(_act.kind === 'cast' ? 'cast' : (_act.heavy ? 'heavy' : 'slash'), 0.7 + Math.min(1, n / 14));
+  else sfx('slash', 0.55);
   // A BLOW LOOKS LIKE WHAT THREW IT. Steel cuts; a spell breaks over the
   // target; a bleed tick is neither and keeps the plain impact it always had.
   if (_act && why === 'hit') {
@@ -2858,6 +3015,7 @@ function fxWard(heroId, n) {
 // the board moved. The one card in the deck whose whole job is to undo damage
 // had less feedback than a card that missed.
 function fxHeal(heroId, n) {
+  if (n > 0) sfx('heal', 0.8 + Math.min(0.6, n / 14));
   const S = stageBox(); if (!S || !n) return;
   const h = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
   if (!h) return;
@@ -3015,6 +3173,11 @@ function fxNoteGrade(ring, ax, ay, grade, kind) {
   // EVERY landed press flashes the frame, tinted by how well it was read —
   // v2.2's parry-flash. Without it a note resolves as a word appearing.
   parryFlash(grade);
+  // the one place every graded press passes through, so the ladder is heard in
+  // exactly the order it is scored
+  sfx(grade === 'perfect' ? 'perfect' : grade === 'great' ? 'great'
+    : grade === 'good' ? 'good' : grade === 'late' ? 'late' : 'miss',
+    kind === 'burst' ? 1.15 : 1);
   if (grade === 'perfect') { shockRing(ax, ay, kind === 'burst' ? 1.5 : 1.1, 'gold'); hitstop(110); }
   else if (grade === 'great') { shockRing(ax, ay, 0.7, 'gold'); hitstop(75); }
   else if (grade === 'miss' && kind === 'bait') { screenPulse('hurt'); screenKick(1.1); }
@@ -3223,6 +3386,7 @@ async function fxInterrupt() {
   if (!b) return;
   b.classList.add('k-broken');
   foeAnimReact('broken', 700);
+  sfx('brk', 1.4);
   await sleep(700);
   b.classList.remove('k-broken');
 }
@@ -3239,8 +3403,10 @@ async function fxHitResolved(tgtId, taken, negated, flawless) {
       'k-pop-dmg k-pop-hurt ' + POP_TIER(taken + 4));   // a hero has less HP; the same
                                                         // number hurts them more
     fxImpact(at, Math.min(2.4, taken / 5), 'hurt', 'l');
+    sfx('hurt', 0.6 + Math.min(1, taken / 12));
   } else if (negated) {
     fxDeflect(at, !!flawless);
+    sfx('guard', flawless ? 1.2 : 0.9);
   }
   await sleep(330);
 }
@@ -4593,6 +4759,7 @@ function bindChrome() {
   el('k-stage').addEventListener('selectstart', (e) => e.preventDefault());
   el('k-stage').addEventListener('dragstart', (e) => e.preventDefault());
   el('k-stage').addEventListener('pointerdown', (e) => {
+    SFX.unlock();          // the first touch is what a browser waits for
     if (_focus) { closeInspect(); return; }
     // TAPPING THE PERSON IS TAPPING THE RETICLE. The brackets are the button,
     // but nobody aims at a bracket when a character is standing under it.
@@ -4648,7 +4815,11 @@ window.K = {
   _fxFoeWind: () => fxFoeWind(), _fxFoeAct: (i) => fxFoeAct(i),
   _fxFoeSettle: () => fxFoeSettle(),
   _fxStrikeBoss: (n, why) => fxStrikeBoss(n, why), _fxInterrupt: () => fxInterrupt(),
-  MUSIC, MUSIC_SRC, musicOn, musicPref, musicSet, gridStart, ICON_PATHS, icon,
+  // test-only: drive the two paths that carry combat audio, through the very
+  // functions the fight calls, so a check hears what a player would
+  _fxNoteGrade: (grade, kind) => fxNoteGrade(null, 400, 200, grade, kind),
+  _fxHitResolved: (id, taken, negated, flawless) => fxHitResolved(id, taken, negated, flawless),
+  MUSIC, MUSIC_SRC, musicOn, musicPref, musicSet, gridStart, ICON_PATHS, icon, SFX, sfx,
   intentByTarget,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, staticCardHTML,
   cam, bgParallax, SIGILS, sigilOf, brighten,

@@ -3519,6 +3519,95 @@ const { boot } = require('./harness.cjs');
   }
 
 
+  // ── COMBAT AUDIO (Build 55) ────────────────────────────────────────────────
+  // There was no combat sound at all: a volley resolved in silence, and a parry
+  // — a rhythm mechanic — gave the ear nothing to time against. These checks
+  // record which VOICE each moment reaches for, by standing in front of the one
+  // function every sound passes through. The bug they exist to catch is a
+  // mistyped voice name, which fails completely silently and looks like nothing.
+  {
+    await J(() => { window.K.startCombat({ seed: 7 }); });
+    await H.sleep(500);
+    const named = await J(() => {
+      const v = window.K.SFX._state().voices;
+      return { voices: v, has: ['slash','heavy','cast','hurt','guard','perfect','great',
+                                'good','late','miss','brk','allout','heal']
+        .filter(n => v.indexOf(n) < 0) };
+    });
+    check('SFX: every voice the fight asks for actually exists',
+      named.has.length === 0, JSON.stringify(named));
+
+    // THE PARRY LADDER, heard in the order it is scored. Four grades that have
+    // to be distinguishable with the eyes shut, so each one must reach its own
+    // voice and never fall through to a neighbour's.
+    const ladder = await J(async () => {
+      const heard = [];
+      const real = window.K.SFX.play;
+      window.K.SFX.play = (n, k) => { heard.push(n); return true; };
+      for (const g of ['perfect', 'great', 'good', 'late', 'miss']) {
+        window.K._fxNoteGrade(g, 'tap');
+        await new Promise(r => setTimeout(r, 60));
+      }
+      window.K.SFX.play = real;
+      return heard;
+    });
+    check('SFX: each parry grade reaches its own voice, none falling through',
+      ladder.join() === 'perfect,great,good,late,miss', JSON.stringify(ladder));
+
+    // WHAT THREW THE BLOW is what it sounds like — the same rule the visual
+    // effect follows. Steel scrapes, a spell blooms.
+    const blows = await J(async () => {
+      const heard = [];
+      const real = window.K.SFX.play;
+      window.K.SFX.play = (n, k) => { heard.push({ n, k: Math.round(k * 100) / 100 }); return true; };
+      window.K.startCombat({ seed: 7 });
+      window.K.forceHand(['cleave', 'lcascade', 'serrate', 'guardcut', 'mend']);
+      await new Promise(r => setTimeout(r, 320));
+      window.K.playCard('cleave');
+      await new Promise(r => setTimeout(r, 700));
+      const steel = heard.slice();
+      heard.length = 0;
+      window.K._fxHitResolved('ash', 9, false, false);
+      await new Promise(r => setTimeout(r, 120));
+      const took = heard.slice();
+      heard.length = 0;
+      window.K._fxHitResolved('ash', 0, true, true);
+      await new Promise(r => setTimeout(r, 120));
+      const warded = heard.slice();
+      heard.length = 0;
+      window.K._fxInterrupt();
+      await new Promise(r => setTimeout(r, 120));
+      const broke = heard.slice();
+      window.K.SFX.play = real;
+      return { steel: steel.map(x => x.n), took: took.map(x => x.n),
+               warded: warded.map(x => x.n), broke: broke.map(x => x.n),
+               steelK: steel.map(x => x.k) };
+    });
+    check('SFX: a blade landing on the foe is heard as steel',
+      blows.steel.indexOf('slash') >= 0 || blows.steel.indexOf('heavy') >= 0,
+      JSON.stringify(blows.steel));
+    check('SFX: a hero taking it and a hero warding it are different sounds',
+      blows.took.indexOf('hurt') >= 0 && blows.warded.indexOf('guard') >= 0
+      && blows.took.indexOf('guard') < 0, JSON.stringify(blows));
+    check('SFX: poise giving way has its own voice',
+      blows.broke.indexOf('brk') >= 0, JSON.stringify(blows.broke));
+    // …and the blow SCALES with the number, so a 4 and a 24 are not the same
+    // sound at the same loudness
+    check('SFX: the blow is scaled by how hard it landed',
+      blows.steelK.length > 0 && blows.steelK.every(k => k > 0 && k <= 1.6),
+      JSON.stringify(blows.steelK));
+
+    // The repeat-thinning and the audio graph itself are checked in the MUSIC
+    // suite, not here. A version of that check lived at this spot and passed
+    // for entirely the wrong reason: audio is off under ?test=1, so every call
+    // returned false and "at most two got through" was true of a system that
+    // played nothing at all. It needs a page where the sound is really on.
+
+    await J(() => { window.K.startCombat({ seed: 7 }); });
+    await H.sleep(300);
+  }
+
+
   const summary = report();
   await H.browser.close();
   process.exit(summary.passed === summary.total && summary.errs === 0 ? 0 : 1);
