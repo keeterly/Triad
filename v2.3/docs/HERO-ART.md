@@ -93,10 +93,44 @@ so anything enclosed by the figure survives however white it is. The soft edge i
 applied only in a narrow band along the boundary the fill found — a brightness
 ramp applied everywhere fades the robes back out.
 
-**Check the result by looking at the alpha, not the histogram.** The first
-attempt's aggregate alpha statistics matched the originals almost exactly and the
-cutouts were still wrong. Composite on magenta and render the alpha channel; a
-halo or a left-behind wash is obvious there and invisible in a number.
+### …and the connected fill leaves the pockets
+
+That is only half of it, and the half that shipped broken once. Backdrop showing
+through the holes in a filigree staff head, between a cloak and a body, around a
+raised blade, is **never reachable from the border** — so it survives as solid
+opaque white. Six to eight THOUSAND pixels of it per hero, in patches large
+enough to see immediately on a dark battlefield.
+
+Those pockets are identifiable without any appeal to size or position: the
+backdrop is FLAT and paint is not. Every enclosed pocket measured here came in at
+mean 250–254 with a standard deviation under 2.6, where painted highlights vary
+far more. So after the border fill, any enclosed bright component that is also
+uniform is backdrop too. That took Ash from 5881 stray white pixels to 39 and
+Mira from 5822 to 27. (Elin keeps ~2000, and should: hers are her actual robes.)
+
+### And a feathered edge keeps the white
+
+A boundary pixel is a blend of the figure over a white page. Give it partial
+alpha and leave its colour alone and the white is still in there — over a dark
+background the whole silhouette wears a pale halo. The backdrop colour is known,
+so the true colour comes back exactly: `F = (C - (1-a)·bg) / a`. Un-premultiply
+every partially transparent pixel.
+
+A final bounded grow takes the anti-aliasing the strict threshold leaves at
+240–247. It is **bounded on purpose**: simply lowering the strict threshold would
+reintroduce the original hazard, since the oracle's robes reach those values and
+a free-running fill could enter at the silhouette and keep going. Seeded from a
+mask already known good and limited to two steps, the worst case is a two-pixel
+bite out of an edge rather than a hole through a garment.
+
+### How to check it
+
+**Look at the alpha, not the histogram.** The first attempt's aggregate alpha
+statistics matched the hand-made originals almost exactly — 47.7% transparent
+against 52.2% — and the cutouts were still visibly wrong. The number cannot see
+*where* the opacity is. Composite on magenta, and map every pixel that is both
+near-white and not transparent; the pockets show up as solid patches and the
+halo as a dotted outline tracing the whole figure.
 
 ## Open
 
