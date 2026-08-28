@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 45;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 46;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -516,12 +516,26 @@ function setPhase(p) {
     // layer is unhandled and silent.
     const cb = C.onEnd;
     C.onEnd = null;
+    // `onEnd` is cleared the instant the transition happens, so it cannot also
+    // stand for "the road is still coming" — reading it that way made the
+    // fallback outcome card appear in the same paint as the victory, beating
+    // the road to its own screen. This flag is the honest signal: it is true
+    // from the moment the hand-off is scheduled until the callback has actually
+    // been given its turn.
+    C._handoff = true;
     let snap = null;
     try { snap = combatSummary(p); }
     catch (e) { snap = { outcome: p === 'VICTORY' ? 'victory' : 'defeat',
                          foe: C.foe ? C.foe.id : null, turns: C.turn,
                          partyHp: null, pairBond: {}, kizuna: 0, cleanliness: 0 }; }
-    setTimeout(() => { try { cb(snap); } catch (e) { console.error('onEnd failed', e); } }, 620);
+    setTimeout(() => {
+      try { cb(snap); } catch (e) { console.error('onEnd failed', e); }
+      if (C) C._handoff = false;
+    }, 620);
+    // …and one more paint after the hand-off window has passed. Nothing else
+    // repaints combat once the turn has ended, so without this the fallback
+    // outcome card above would have no moment at which to appear.
+    setTimeout(() => { try { renderOutcome(); } catch (e) {} }, 1500);
   }
 }
 // What a finished fight is worth, in the only terms the run layer cares about.
@@ -3526,15 +3540,45 @@ function renderHeroes() {
     h.querySelector('.k-hero-row b').textContent = C.heroes[id].row.toUpperCase();
   });
 }
+// COMBAT MUST NEVER BE A DEAD END. Inside a run this used to draw nothing at
+// all — the road owns the outcome card — which was right in principle and left
+// exactly one thing between a won fight and a board with nothing on it to
+// press: a single `setTimeout(cb, 620)`. A player has now been stranded on a
+// finished fight twice, and I could not reproduce the trigger across roughly a
+// hundred scripted fights, real volleys and the full run layer included.
+//
+// So the rule is narrowed rather than the cause guessed at again. The road owns
+// the outcome card only while the road is actually COMING — that is, while the
+// hand-off is still pending. Once it has been spent, if the stage is still the
+// screen the player is looking at, then whatever was supposed to happen did
+// not, and combat draws its own way out.
+//
+// The button is deliberately the road's own `screen('map')` rather than a
+// reload: the fight's result was already banked by onFightEnd if it ran, and
+// re-running it would pay the embers twice.
 function renderOutcome() {
   const ov = el('k-overlay');
   if (!ov) return;
-  // Inside a run the outcome card is the RUN's to draw — it has to offer the
-  // road onward, which combat knows nothing about.
-  if (C.onEnd || (window.R && window.R.active && window.R.active())) { ov.className = 'k-ov k-hidden'; return; }
-  if (C.phase === 'VICTORY') { ov.className = 'k-ov'; ov.innerHTML = '<div class="k-ov-title">THE REGENT FALLS</div><div class="k-ov-sub">turn ' + C.turn + '</div>'; }
-  else if (C.phase === 'DEFEAT') { ov.className = 'k-ov'; ov.innerHTML = '<div class="k-ov-title k-ov-loss">THE PARTY FALLS</div><div class="k-ov-sub">turn ' + C.turn + '</div>'; }
-  else ov.className = 'k-ov k-hidden';
+  const terminal = C.phase === 'VICTORY' || C.phase === 'DEFEAT';
+  const inRun = !!(window.R && window.R.active && window.R.active());
+  // still playing, or the road's hand-off is still in flight → nothing to draw
+  if (!terminal || C.onEnd || C._handoff) { ov.className = 'k-ov k-hidden'; return; }
+  const stage = el('k-stage');
+  const stageUp = !!stage && !stage.classList.contains('k-hidden');
+  if (inRun && !stageUp) { ov.className = 'k-ov k-hidden'; return; }   // the road took over
+  const won = C.phase === 'VICTORY';
+  const title = won ? ((C.foe && C.foe.name ? C.foe.name.toUpperCase() : 'THE REGENT') + ' FALLS')
+                    : 'THE PARTY FALLS';
+  ov.className = 'k-ov';
+  ov.innerHTML = '<div class="k-ov-title' + (won ? '' : ' k-ov-loss') + '">' + title + '</div>'
+    + '<div class="k-ov-sub">turn ' + C.turn + '</div>'
+    + (inRun ? '<button type="button" id="k-ov-go">CONTINUE</button>' : '');
+  const go = el('k-ov-go');
+  if (go) go.onclick = () => {
+    try { window.R.screen('map'); window.R.render(); } catch (e) { console.error(e); }
+  };
+  if (inRun) console.warn('KIZUNA: the road did not take over a finished fight — '
+    + 'outcome drawn by combat as a fallback', { phase: C.phase, foe: C.foe && C.foe.id });
 }
 
 // ── input: tap-select → tap target; drag to target; hold → Character Focus ──

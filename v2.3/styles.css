@@ -772,6 +772,12 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
 .k-ov-title { font-size: 34px; font-weight: 700; letter-spacing: 0.3em; color: #e0c084; }
 .k-ov-loss { color: #b8574a; }
+/* the way out, when the road did not take over a finished fight */
+#k-ov-go { margin-top: 18px; padding: 10px 26px; background: rgba(224,192,132,0.1);
+  border: 1px solid rgba(224,192,132,0.6); border-radius: 3px; color: #f0d9a0;
+  font: 600 12px/1 var(--serif, Georgia, serif); letter-spacing: 0.24em;
+  text-transform: uppercase; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+#k-ov-go:hover { background: rgba(224,192,132,0.2); color: #fff3d0; }
 .k-ov-sub { font-size: 12px; letter-spacing: 0.2em; color: #9a9080; text-transform: uppercase; }
 .k-hidden { display: none !important; }
 

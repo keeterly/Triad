@@ -2849,6 +2849,36 @@ const { boot } = require('./harness.cjs');
     check('FOE: a foe at zero — or at NaN — ends the fight on the next paint',
       net.zero === 'VICTORY' && net.nan === 'VICTORY', JSON.stringify(net));
 
+    // COMBAT MUST NEVER BE A DEAD END. A player has been stranded twice on a
+    // finished fight: foe at zero, no outcome card, nothing to press. Inside a
+    // run combat draws no outcome card by design — the road owns it — so the
+    // only thing between a won fight and a dead board was one setTimeout. This
+    // simulates exactly that failure (the hand-off is consumed and the road
+    // never moves) and asserts the player is still given a door.
+    const deadend = await J(async () => {
+      window.K.startCombat({ seed: 7, onEnd: () => {} });   // a run-shaped fight
+      const stage = document.getElementById('k-stage');
+      stage.classList.remove('k-hidden');
+      // pretend a run is live, and that its hand-off did nothing at all
+      const realActive = window.R && window.R.active;
+      if (window.R) window.R.active = () => true;
+      window.K.state().boss.hp = 0;
+      window.K.render();                                    // the net fires VICTORY
+      const duringHandoff = document.getElementById('k-overlay').className;
+      await new Promise(r => setTimeout(r, 1800));           // past 620ms + the repaint
+      const ov = document.getElementById('k-overlay');
+      const out = { phase: window.K.state().phase, duringHandoff,
+                    after: ov.className, hasDoor: !!document.getElementById('k-ov-go'),
+                    title: (ov.querySelector('.k-ov-title') || {}).textContent };
+      if (window.R) window.R.active = realActive;
+      return out;
+    });
+    check('END: a finished fight the road never collects still gives the player a door',
+      deadend.phase === 'VICTORY'
+      && /k-hidden/.test(deadend.duringHandoff)          // silent while the road may still come
+      && !/k-hidden/.test(deadend.after) && deadend.hasDoor,
+      JSON.stringify(deadend));
+
     // the iOS long-press callout must be suppressed on cards
     const ios = await J(async () => {
       // EVERY figure on the board, not just the cards. A long press on a hero

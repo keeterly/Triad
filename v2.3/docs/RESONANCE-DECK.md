@@ -2290,6 +2290,61 @@ gate, and TRAILHEAD still shows a competent party never wiping at stop 1.
 
 ---
 
+## Build 46 — combat is never a dead end
+
+The stranded fight came back. Second report, same shape, more detail: the Choir
+at **0/76 and BROKEN**, two bleed on it, and the player holding three cards with
+1 AP in a perfectly ordinary player turn. So the turn *completed* — this is not
+a hang mid-resolution. The fight is simply over and nothing said so.
+
+Build 45's net (a downed foe forces VICTORY on every paint) does not help here,
+because by every sign the phase already **was** terminal. What failed is the
+step after: the road never collected the result.
+
+### Why that leaves nothing on screen
+
+`renderOutcome` returns early inside a run — the road owns the victory card,
+because it has to offer the way onward and combat knows nothing about roads.
+That is right in principle, and it means the entire distance between a won
+fight and a board with nothing on it to press is **one `setTimeout(cb, 620)`**.
+
+I still cannot reproduce the trigger. This build added the one configuration
+never tested before — a real fight entered through the real run layer, killed
+through the real code path, with the road's own `onFightEnd` wired by run.js
+rather than by a probe — across every foe. It ends correctly every time.
+
+### So the rule is narrowed instead of the cause guessed at again
+
+The road owns the outcome card **only while the road is actually coming.**
+
+`C.onEnd` cannot express that: it is cleared the instant the transition
+happens, so reading it as "the hand-off is pending" made the fallback card
+appear in the same paint as the victory and beat the road to its own screen —
+which the check caught on the first run. `C._handoff` is the honest signal,
+true from the moment the callback is scheduled until it has actually been given
+its turn.
+
+Once the hand-off has been spent, if the combat stage is still the screen the
+player is looking at, then whatever was supposed to happen did not, and combat
+draws its own outcome card with a **CONTINUE** button. Nothing else repaints
+combat after a turn ends, so the transition also schedules one more paint at
+1.5s to give that card a moment to appear.
+
+The button calls the road's own `screen('map')` rather than reloading, because
+`onFightEnd` may already have banked the embers and re-running it would pay
+them twice. And when the fallback fires it logs a warning naming the phase and
+the foe — so if this happens a third time, the console says which invariant
+broke rather than leaving me to infer it from a screenshot.
+
+`END: a finished fight the road never collects still gives the player a door`
+simulates exactly that failure — hand-off consumed, road never moves — and
+asserts both halves: silent while the road may still be coming, and a door
+afterwards.
+
+This is a guardrail, not a diagnosis, and it is recorded as one.
+
+---
+
 ## Errata — three records the code had outgrown
 
 A playthrough audit read these sections against the code and found them stale.
