@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 53;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 54;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -4276,9 +4276,9 @@ function attachCardInput(btn) {
     }
     // A tap that arrives while the hand is still settling from the last play
     // is a tap aimed at a card that has since moved. It selects, never commits.
-    if (handLocked()) { _sel = id; renderHand(); showTargetRing(id); return; }
+    if (handLocked()) { _sel = id; renderHand(); showPick(id); return; }
     if (_sel === id) { commitCard(id); }
-    else { _sel = id; renderHand(); showTargetRing(id); }
+    else { _sel = id; renderHand(); showPick(id); }
   });
   btn.addEventListener('pointercancel', () => { clearTimeout(holdT); armed = false; dragging = false;
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
@@ -4301,28 +4301,150 @@ function attachCardInput(btn) {
 function clearSelection(quiet) {
   if (!_sel) return;
   _sel = null;
-  const ring = el('k-target-ring');
-  if (ring) ring.classList.add('k-hidden');
+  pickClear();
   if (!quiet) renderHand();
 }
-function showTargetRing(cardId) {
-  const c = cardDef(cardId);
-  const ring = el('k-target-ring'); if (!ring) return;
-  const at = c.target === 'enemy' ? el('k-boss-art') : el('k-party-hud');
-  if (!at) return;
-  const stage = el('k-stage');
-  const sr = stage.getBoundingClientRect(), r = at.getBoundingClientRect();
-  const scale = sr.width / stage.offsetWidth || 1;
-  ring.style.left = ((r.left + r.width / 2 - sr.left) / scale) + 'px';
-  ring.style.top = ((r.top + r.height / 2 - sr.top) / scale) + 'px';
-  ring.classList.remove('k-hidden');
-  ring.onclick = () => commitCard(cardId);
+// ═════════════════════════════════════════════════════════════════════════════
+// TAP TO AIM — the same arcs a drag casts, on the people themselves
+// ═════════════════════════════════════════════════════════════════════════════
+// Tapping a card used to raise a spinning dashed circle: a shape that appeared
+// nowhere else in this interface, and which for an ally card sat on the party
+// HUD — on the PORTRAITS rather than on the characters standing in the scene.
+// It also said nothing about who the card could reach.
+//
+// Tap now casts what a drag casts: one bowed dotted ribbon per figure the card
+// can legally land on, each ending in the same corner-bracket reticle the drag
+// path uses, all of it drawn on the battlefield. The reticles are the buttons —
+// tapping one plays the card AT that specific ally, which the ring could never
+// express because it only ever had one position.
+let _pick = null;
+
+function pickLayer() {
+  let svg = document.getElementById('k-pick');
+  if (!svg) {
+    svg = document.createElementNS(AIMNS, 'svg');
+    svg.id = 'k-pick';
+    svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;'
+      + 'pointer-events:none;z-index:25;overflow:visible';
+    el('k-stage').appendChild(svg);
+  }
+  svg.setAttribute('viewBox', '0 0 932 430');
+  return svg;
 }
-function commitCard(cardId) {
+function pickClear() {
+  if (_pick && _pick.raf) cancelAnimationFrame(_pick.raf);
+  _pick = null;
+  const s = document.getElementById('k-pick');
+  if (s) s.innerHTML = '';
+  document.querySelectorAll('.k-pick-valid')
+    .forEach(n => n.classList.remove('k-pick-valid'));
+}
+// WHERE THE CARD ACTUALLY LANDS — which is not always a choice.
+// The first pass drew an arc to every living ally for anything that was not an
+// enemy card, and that was a LIE of exactly the kind the card faces are held to
+// avoid: `heal` has no ally argument at all, it finds the most wounded on its
+// own, so three arcs offered a pick the rules do not have. Pressing the one
+// over Elin healed Ash, and the check caught it.
+//
+// So there are three cases, and only the middle one is a decision:
+//   enemy  — one answer, the foe
+//   ally   — the player names the ally, and every living one is offered
+//   party  — the card's own rule picks, and the arcs SHOW that pick: the most
+//            wounded for a heal, the lowest for a ward, everyone for an all
+function pickTargets(cardId) {
+  const ev = evaluateCard(cardId);
+  const c = ev.card;
+  const out = [];
+  const fig = (id) => document.querySelector('.k-hero[data-hero="' + id + '"]');
+  if (c.target === 'enemy') {
+    const b = el('k-boss-art');
+    if (b) out.push({ node: b, hero: null, yf: 0.42 });
+    return out;
+  }
+  const live = livingHeroes();
+  if (c.target === 'ally') {
+    live.forEach(id => { const n = fig(id); if (n) out.push({ node: n, hero: id, yf: 0.4 }); });
+    return out;
+  }
+  const set = [];
+  const add = (id) => {
+    if (id && set.indexOf(id) < 0 && live.indexOf(id) >= 0) set.push(id);
+  };
+  for (const fx of (ev.resolvedEffects || c.base || [])) {
+    if (fx.guardAll || fx.healAll) live.forEach(add);
+    // the same sorts the resolver runs, so the arc cannot disagree with it
+    if (fx.heal) add(live.slice().sort((a, b) =>
+      (C.heroes[b].max - C.heroes[b].hp) - (C.heroes[a].max - C.heroes[a].hp))[0]);
+    if (fx.guardLowest) add(live.slice().sort((a, b) => C.heroes[a].hp - C.heroes[b].hp)[0]);
+    if (fx.guardSelf || fx.counterstance || fx.intercede) add(primaryHero(c));
+  }
+  if (!set.length) add(primaryHero(c));
+  set.forEach(id => { const n = fig(id); if (n) out.push({ node: n, hero: null, yf: 0.4 }); });
+  return out;
+}
+function showPick(cardId) {
+  pickClear();
+  const stage = el('k-stage'); if (!stage) return;
+  const targets = pickTargets(cardId);
+  if (!targets.length) return;
+  const sr = stage.getBoundingClientRect();
+  const scale = sr.width / stage.offsetWidth || 1;
+  const pt = (node, yf) => {
+    const r = node.getBoundingClientRect();
+    return { x: (r.left + r.width / 2 - sr.left) / scale,
+             y: (r.top + r.height * yf - sr.top) / scale };
+  };
+  const btn = document.querySelector('.k-card[data-card="' + cardId + '"]');
+  const from = btn ? pt(btn, 0.12) : { x: 466, y: 402 };
+  const col = aimColor(cardId);
+  const svg = pickLayer();
+  let html = '';
+  targets.forEach((t, i) => {
+    const p = pt(t.node, t.yf);
+    const bow = Math.min(60, Math.max(22, Math.abs(p.x - from.x) * 0.11));
+    const d = 'M ' + from.x + ' ' + from.y + ' Q ' + ((from.x + p.x) / 2) + ' '
+            + Math.max(10, Math.min(from.y, p.y) - bow) + ' ' + p.x + ' ' + p.y;
+    html += '<path class="k-pk-glow" d="' + d + '" fill="none" stroke="' + col
+         +  '" stroke-width="9" stroke-linecap="round" opacity="0.14"/>'
+         +  '<path class="k-pk-dash" d="' + d + '" fill="none" stroke="' + col
+         +  '" stroke-width="3.4" stroke-linecap="round" stroke-dasharray="3 9"/>'
+         +  '<g class="k-pk-ret" data-i="' + i + '" transform="translate(' + p.x + ' ' + p.y + ')">'
+         // an invisible disc under the brackets: the reticle is the button, and
+         // a 16px bracket is not a thumb-sized target
+         +  '<circle class="k-pk-hit" r="30" fill="rgba(0,0,0,0.001)"/>'
+         +  '<g class="k-pk-r1"><path d="' + cornerPath(16) + '" fill="none" stroke="' + col
+         +  '" stroke-width="2.6" stroke-linecap="round"/></g>'
+         +  '<circle r="3.4" fill="#fff2ea"/></g>';
+    t.node.classList.add('k-pick-valid');
+  });
+  svg.innerHTML = html;
+  _pick = { cardId, targets, t0: performance.now(), raf: 0,
+            dashes: [].slice.call(svg.querySelectorAll('.k-pk-dash')),
+            rings: [].slice.call(svg.querySelectorAll('.k-pk-r1')) };
+  [].slice.call(svg.querySelectorAll('.k-pk-ret')).forEach((g) => {
+    g.style.pointerEvents = 'auto';
+    g.style.cursor = 'pointer';
+    g.addEventListener('pointerdown', (e) => {
+      e.stopPropagation(); e.preventDefault();
+      const t = targets[+g.dataset.i];
+      commitCard(cardId, t && t.hero);
+    });
+  });
+  const step = () => {
+    if (!_pick) return;
+    const ph = (performance.now() - _pick.t0) * 0.05;
+    for (const d of _pick.dashes) d.setAttribute('stroke-dashoffset', -ph);
+    const k = (1 + Math.sin(ph / 26) * 0.07).toFixed(3);
+    for (const r of _pick.rings) r.setAttribute('transform', 'scale(' + k + ')');
+    _pick.raf = requestAnimationFrame(step);
+  };
+  _pick.raf = requestAnimationFrame(step);
+}
+function commitCard(cardId, allyId) {
   lockHand();
   _sel = null;
-  el('k-target-ring').classList.add('k-hidden');
-  playCard(cardId);
+  pickClear();
+  playCard(cardId, allyId);
 }
 // MTG ARENA INSPECT — hold a card and it blows up, centred and legible, over a
 // dimmed board. Release to put it back. It never commits the card: playing is
@@ -4396,7 +4518,7 @@ function bindChrome() {
       return;
     }
     disarmEndTurn();
-    _sel = null; el('k-target-ring').classList.add('k-hidden'); endTurn();
+    _sel = null; pickClear(); endTurn();
   };
   const pileBtn = (id, which) => {
     const n = el(id); if (!n) return;
@@ -4472,8 +4594,17 @@ function bindChrome() {
   el('k-stage').addEventListener('dragstart', (e) => e.preventDefault());
   el('k-stage').addEventListener('pointerdown', (e) => {
     if (_focus) { closeInspect(); return; }
-    if (_sel && !e.target.closest('.k-card') && !e.target.closest('#k-target-ring')) {
-      _sel = null; el('k-target-ring').classList.add('k-hidden'); renderHand();
+    // TAPPING THE PERSON IS TAPPING THE RETICLE. The brackets are the button,
+    // but nobody aims at a bracket when a character is standing under it.
+    if (_sel && _pick) {
+      const fig = e.target.closest && e.target.closest('.k-pick-valid');
+      if (fig) {
+        const t = _pick.targets.filter(x => x.node === fig)[0];
+        if (t) { e.preventDefault(); commitCard(_sel, t.hero); return; }
+      }
+    }
+    if (_sel && !e.target.closest('.k-card') && !e.target.closest('#k-pick')) {
+      _sel = null; pickClear(); renderHand();
     }
   });
 }

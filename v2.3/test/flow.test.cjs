@@ -3336,6 +3336,189 @@ const { boot } = require('./harness.cjs');
   }
 
 
+  // ── TAP TO AIM (Build 54) ───────────────────────────────────────────────────
+  // Tapping a card used to raise a spinning dashed circle over the party HUD.
+  // It said nothing about who the card could reach, it sat on the PORTRAITS
+  // rather than on the people, and its shape belonged to no other part of this
+  // interface. Tap now casts the drag path's own arcs onto the figures.
+  {
+    await J(() => { window.K.startCombat({ seed: 7 }); });
+    await H.sleep(600);
+    const enemyPick = await J(() => {
+      // an enemy card: one target, and it is the foe
+      const ids = window.K.state().hand.slice();
+      const eid = ids.filter(i => window.K.cardDef(i).target === 'enemy')[0];
+      const btn = document.querySelector('.k-card[data-card="' + eid + '"]');
+      btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 3,
+        clientX: btn.getBoundingClientRect().left + 10, clientY: btn.getBoundingClientRect().top + 10 }));
+      btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 3,
+        clientX: btn.getBoundingClientRect().left + 10, clientY: btn.getBoundingClientRect().top + 10 }));
+      const svg = document.getElementById('k-pick');
+      const lit = [...document.querySelectorAll('.k-pick-valid')].map(n => n.id || n.dataset.hero);
+      return { card: eid, ring: !!document.getElementById('k-target-ring'),
+               arcs: svg ? svg.querySelectorAll('.k-pk-dash').length : 0,
+               rets: svg ? svg.querySelectorAll('.k-pk-ret').length : 0, lit };
+    });
+    // THE RING IS GONE, not merely hidden — the shape itself was the problem.
+    check('AIM: the spinning target ring is retired outright',
+      enemyPick.ring === false, JSON.stringify({ stillInDom: enemyPick.ring }));
+    check('AIM: tapping an enemy card draws one dotted arc, onto the foe',
+      enemyPick.arcs === 1 && enemyPick.rets === 1
+      && enemyPick.lit.join() === 'k-boss-art', JSON.stringify(enemyPick));
+
+    // …and a card that tends the party draws one arc PER LIVING ALLY, onto the
+    // characters standing in the scene rather than onto the HUD portraits.
+    const allyPick = await J(async () => {
+      // the hand rebuilds with a flight, so the element is not there on the
+      // same tick the state changes — wait for the card rather than assume it
+      const waitFor = async (sel) => {
+        for (let i = 0; i < 60; i++) {
+          const n = document.querySelector(sel);
+          if (n) return n;
+          await new Promise(r => setTimeout(r, 25));
+        }
+        return null;
+      };
+      window.K.startCombat({ seed: 7 });
+      const s0 = window.K.state();
+      s0.heroes.elin.hp = 12; s0.heroes.ash.hp = 40; s0.heroes.mira.hp = 33;
+      window.K.forceHand(['mend', 'cleave', 'serrate', 'guardcut', 'lcascade']);
+      const btn = await waitFor('.k-card[data-card="mend"]');
+      const r = btn.getBoundingClientRect();
+      btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 4,
+        clientX: r.left + 10, clientY: r.top + 10 }));
+      btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 4,
+        clientX: r.left + 10, clientY: r.top + 10 }));
+      const svg = document.getElementById('k-pick');
+      const lit = [...document.querySelectorAll('.k-pick-valid')];
+      const hud = document.getElementById('k-party-hud');
+      return { arcs: svg ? svg.querySelectorAll('.k-pk-dash').length : 0,
+               heroes: lit.map(n => n.dataset.hero).filter(Boolean).sort(),
+               onHud: lit.some(n => n === hud || hud.contains(n)),
+               allHero: lit.every(n => n.classList.contains('k-hero')) };
+    });
+    // THE RULE MOVED, AND THIS CHECK MOVED WITH IT. It first asked that any
+    // non-enemy card reach all three, and that was wrong in a way worth keeping
+    // written down: `mend` has no ally argument, it finds the most wounded by
+    // itself, so three arcs promised a pick the rules do not offer — and the
+    // next check proved it by healing the wrong hero. A party card now draws
+    // arcs to whoever it will ACTUALLY reach. Elin is the most hurt here, so
+    // Mend has exactly one answer and it is her.
+    check('AIM: a party card points only where its own rule will send it',
+      allyPick.arcs === 1 && allyPick.heroes.join() === 'elin',
+      JSON.stringify(allyPick));
+    check('AIM: it lights the CHARACTERS on the field, never the HUD portraits',
+      allyPick.allHero === true && allyPick.onHud === false, JSON.stringify(allyPick));
+
+    // THE ARC MOVES. A static dotted line is a diagram; the travelling dash is
+    // what reads as a thing being thrown.
+    const moving = await J(async () => {
+      const d = document.querySelector('#k-pick .k-pk-dash');
+      const a = d.getAttribute('stroke-dashoffset');
+      await new Promise(r => setTimeout(r, 180));
+      return { a, b: d.getAttribute('stroke-dashoffset') };
+    });
+    check('AIM: the dashes travel along the arc rather than sitting still',
+      moving.a !== moving.b, JSON.stringify(moving));
+
+    // AND THE RETICLE IS THE BUTTON — pressing the one over ELIN heals ELIN,
+    // which is the thing a single ring pinned to the HUD could never express.
+    const aimed = await J(async () => {
+      const waitFor = async (sel) => {
+        for (let i = 0; i < 60; i++) {
+          const n = document.querySelector(sel);
+          if (n) return n;
+          await new Promise(r => setTimeout(r, 25));
+        }
+        return null;
+      };
+      window.K.startCombat({ seed: 7 });
+      // DROP ANY STANDING SELECTION FIRST. The previous check left `mend`
+      // selected, and tapping an already-selected card COMMITS it — so the tap
+      // below played the card instead of opening a pick, and there was no
+      // reticle to press. A tap on bare stage is how a player clears one.
+      document.getElementById('k-stage')
+        .dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 91 }));
+      window.K.forceHand(['mend', 'cleave', 'serrate', 'guardcut', 'lcascade']);
+      const st = window.K.state();
+      st.heroes.elin.hp = 12; st.heroes.ash.hp = 40; st.heroes.mira.hp = 33;
+      const btn = await waitFor('.k-card[data-card="mend"]');
+      if (!btn) return { err: 'no mend card in hand' };
+      const r = btn.getBoundingClientRect();
+      btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 5,
+        clientX: r.left + 10, clientY: r.top + 10 }));
+      btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 5,
+        clientX: r.left + 10, clientY: r.top + 10 }));
+      const rets = [...document.querySelectorAll('#k-pick .k-pk-ret')];
+      const elinFig = document.querySelector('.k-hero[data-hero="elin"]');
+      const er = elinFig.getBoundingClientRect();
+      const ex = er.left + er.width / 2;
+      // the reticle nearest Elin is the one drawn on her
+      let best = null, bd = 1e9;
+      for (const g of rets) {
+        const gr = g.getBoundingClientRect();
+        const d = Math.abs(gr.left + gr.width / 2 - ex);
+        if (d < bd) { bd = d; best = g; }
+      }
+      if (!best) return { err: 'no reticles were drawn', rets: rets.length };
+      best.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 6 }));
+      await new Promise(r => setTimeout(r, 260));
+      const s2 = window.K.state();
+      return { elin: s2.heroes.elin.hp, ash: s2.heroes.ash.hp, mira: s2.heroes.mira.hp,
+               gone: !document.querySelector('#k-pick .k-pk-ret') };
+    });
+    check('AIM: the arc lands the card where it said it would',
+      aimed.elin > 12 && aimed.ash === 40 && aimed.mira === 33, JSON.stringify(aimed));
+    check('AIM: committing clears the arcs behind it',
+      aimed.gone === true, JSON.stringify({ gone: aimed.gone }));
+
+    // AN 'ALLY' CARD IS THE ONE REAL CHOICE, and there the pick must be honoured.
+    const chose = await J(async () => {
+      const waitFor = async (sel) => {
+        for (let i = 0; i < 60; i++) {
+          const n = document.querySelector(sel);
+          if (n) return n;
+          await new Promise(r => setTimeout(r, 25));
+        }
+        return null;
+      };
+      window.K.startCombat({ seed: 7 });
+      document.getElementById('k-stage')
+        .dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 92 }));
+      window.K.forceHand(['intercession', 'cleave', 'serrate', 'guardcut', 'lcascade']);
+      const btn = await waitFor('.k-card[data-card="intercession"]');
+      if (!btn) return { err: 'no intercession in hand' };
+      const r = btn.getBoundingClientRect();
+      btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 7,
+        clientX: r.left + 10, clientY: r.top + 10 }));
+      btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 7,
+        clientX: r.left + 10, clientY: r.top + 10 }));
+      const rets = [...document.querySelectorAll('#k-pick .k-pk-ret')];
+      const n = rets.length;
+      const mira = document.querySelector('.k-hero[data-hero="mira"]');
+      const mx = mira.getBoundingClientRect();
+      const cx = mx.left + mx.width / 2;
+      let best = null, bd = 1e9;
+      for (const g of rets) {
+        const gr = g.getBoundingClientRect();
+        const d = Math.abs(gr.left + gr.width / 2 - cx);
+        if (d < bd) { bd = d; best = g; }
+      }
+      if (!best) return { err: 'no reticles', n };
+      best.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 8 }));
+      await new Promise(r => setTimeout(r, 260));
+      const s2 = window.K.state();
+      return { n, guard: { ash: s2.heroes.ash.guard, elin: s2.heroes.elin.guard,
+                           mira: s2.heroes.mira.guard } };
+    });
+    check('AIM: an ALLY card offers every living ally, and wards the one chosen',
+      chose.n === 3 && chose.guard && chose.guard.mira > 0, JSON.stringify(chose));
+
+    await J(() => { window.K.startCombat({ seed: 7 }); });
+    await H.sleep(300);
+  }
+
+
   const summary = report();
   await H.browser.close();
   process.exit(summary.passed === summary.total && summary.errs === 0 ? 0 : 1);

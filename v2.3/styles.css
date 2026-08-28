@@ -792,10 +792,15 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   70%  { transform: translateX(-50%) translate(var(--pop-dx,0), -8px) scale(1); opacity: 1; }
   100% { transform: translateX(-50%) translate(var(--pop-dx,0), -40px) scale(0.94); opacity: 0; } }
 
-/* ── target ring / focus / outcome ── */
-#k-target-ring { position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; z-index: 22;
-  border: 1.5px dashed #c9a45c; border-radius: 50%; cursor: pointer; animation: k-ringspin 6s linear infinite; }
-@keyframes k-ringspin { to { transform: rotate(360deg); } }
+/* ── tap-to-aim / focus / outcome ── */
+/* The spinning dashed circle that used to live here is gone (Build 54). It was
+   a shape this interface used nowhere else, and for an ally card it sat on the
+   party HUD — on the portraits rather than on the people. Tapping a card now
+   casts the drag path's own arcs and corner-bracket reticles onto the figures
+   themselves, drawn into #k-pick; the only thing left to say in CSS is which
+   figures are lit while a choice is open. */
+#k-pick { pointer-events: none; }
+.k-pick-valid { filter: drop-shadow(0 0 12px rgba(240,212,136,0.34)); cursor: pointer; }
 /* (the old side-panel focus card is gone — hold-to-inspect replaced it) */
 .k-ov { position: absolute; inset: 0; z-index: 50; background: rgba(8,7,10,0.72);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
