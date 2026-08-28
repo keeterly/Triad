@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 43;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 44;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -3098,24 +3098,49 @@ function cardArt(cardId) {
   return CARD_ART[cardId] ? '../art/cards/' + cardId + '.webp' : null;
 }
 
+// THREE OF THESE DID NOT READ, and they were the three that appear most.
+//
+//   · `atk` was a diagonal stroke with a small head on it, which at 10px is an
+//     ARROW — the same shape the game uses for "step to the front" — so the
+//     commonest clause in the deck was marked with the icon for movement. It is
+//     a sword now: blade, crossguard, grip. Vertical, so it cannot be confused
+//     with any of the horizontal arrows.
+//   · `brk` was a four-pointed star and `finale` is a five-pointed one. Two
+//     stars, side by side on Cross Sever, for two unrelated things. Break is
+//     splitting something open, so it is a diamond cracked down the middle and
+//     pulled apart — which also says what the mechanic does.
+//   · `draw` was two overlapping rectangles, and at the 8px the crowded cards
+//     set it at, two overlapping rectangles are a smudge. One card with an
+//     arrow rising out of it survives the size.
+//   · `follow` was an arc doubling back with an arrowhead on the end, and the
+//     head — the only part that said which WAY it ran — was gone by 10px,
+//     leaving a squiggle. Two chevrons say "then, and then" at any size, which
+//     is what After an Ally means.
+//
+// Judged on a proof sheet at 10, 15 and 44px rather than in the editor: the
+// first sword had a pommel bar and a short guard, which at 44px read as an
+// ankh and at 10px as a blob on a stick.
+//
+// The rest were tested at size and left alone: a shield, a drop, a flake, a
+// cross, an arrow and a five-point star all still read.
 const ICON_PATHS = {
-  atk:   'M2 14 L11 5 M9 3 L13 1 L11 5 M4 12 L2 14 L1 12',            // a blade
+  atk:   'M8 1 L9.8 5.6 V9.2 H6.2 V5.6 Z M2.6 9.7 H13.4 M8 9.7 V14.6',           // a sword
   guard: 'M8 1 L14 4 V8 Q14 12 8 15 Q2 12 2 8 V4 Z',                  // a shield
   heal:  'M8 3 V13 M3 8 H13',                                          // a cross
   bleed: 'M8 2 Q12 8 12 10 A4 4 0 0 1 4 10 Q4 8 8 2 Z',                // a drop
   chill: 'M8 2 V14 M3 5 L13 11 M13 5 L3 11',                           // a flake
-  brk:   'M8 1 L11 6 L15 8 L11 10 L8 15 L5 10 L1 8 L5 6 Z',            // a shard
-  follow:'M3 8 A3 3 0 0 1 8 8 A3 3 0 0 0 13 8 M11 6 L13 8 L11 10',     // a linked arc
+  brk:   'M6.2 1.5 L1.5 8 L6.2 14.5 Z M9.8 1.5 L14.5 8 L9.8 14.5 Z',   // split apart
+  follow:'M3 3.5 L7.5 8 L3 12.5 M8.5 3.5 L13 8 L8.5 12.5',             // then, and then
   finale:'M8 1 L10 6 L15 6.5 L11.5 10 L12.5 15 L8 12.5 L3.5 15 L4.5 10 L1 6.5 L6 6 Z',
   broken:'M6 1 L9 7 L5 8 L10 15 L8 9 L12 8 Z',                         // a crack
-  draw:  'M3 5 H10 V13 H3 Z M6 3 H13 V11',                             // two cards
+  draw:  'M4.4 2.4 H11.6 V14 H4.4 Z M8 11.5 V5.4 M5.5 7.9 L8 5.2 L10.5 7.9', // a card, taken
   move:  'M2 8 H14 M11 5 L14 8 L11 11',                                // a step
 };
 function icon(name, cls) {
   const d = ICON_PATHS[name]; if (!d) return '';
   const fill = (name === 'guard' || name === 'bleed' || name === 'brk' || name === 'finale' || name === 'broken');
   return '<svg class="k-ico ' + (cls || '') + '" viewBox="0 0 16 16" aria-hidden="true">'
-    + '<path d="' + d + '" ' + (fill ? 'fill="currentColor" stroke="none"' : 'fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"')
+    + '<path d="' + d + '" ' + (fill ? 'fill="currentColor" stroke="none"' : 'fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"')
     + '/></svg>';
 }
 const COND_ICON = { FOLLOW_UP: 'follow', FINALE: 'finale', BROKEN: 'broken',
@@ -3168,7 +3193,12 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
   // as a three-row card clipped. Each row is costed at the lines it will
   // actually take: roughly 18 uppercase characters fit the 106px of usable
   // width at the base size, and an icon costs about two characters of it.
-  const LINE_CHARS = 18;
+  // Re-derived for the 104px card: the usable row is ~94px, and a clause of
+  // "Step to the back" — sixteen characters plus a mark — is already two lines
+  // there. Measured against the real deck rather than estimated from the type
+  // size, because the bold numbers set their own taller line and a row with one
+  // in it costs more than its character count suggests.
+  const LINE_CHARS = 15;
   const rowLines = (html) => (html.match(/<i class="k-crow">[\s\S]*?<\/i>/g) || [])
     .reduce((n, r) => n + Math.max(1, Math.ceil(
       (r.replace(/<svg[\s\S]*?<\/svg>/g, '~~').replace(/<[^>]+>/g, '').trim().length)
@@ -3206,7 +3236,7 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
     // Steel" needs 106px of a 94px line at the deck's title size, and a card
     // whose name is cut off is a card the player cannot look up.
     + '<span class="k-cwho">' + who + '</span>'
-    + '<span class="k-cname' + (c.name.length > 16 ? ' k-cname-vlong' : c.name.length > 11 ? ' k-cname-long' : '') + '">' + c.name + '</span>'
+    + '<span class="k-cname' + (c.name.length > 15 ? ' k-cname-vlong' : c.name.length > 10 ? ' k-cname-long' : '') + '">' + c.name + '</span>'
     // THE MARK IS ON THE FACE. A sigil that changed how a card played and did
     // not appear on it would be a rule the player had to remember per card.
     + (ev.sigil && SIGILS[ev.sigil]
@@ -3589,6 +3619,12 @@ function attachCardInput(btn) {
     dragging = false; armed = false; held = false; lastPt = null;
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
     aimClear();
+    // …and PUT THE CARD BACK. This reset the flags but left the lift in place,
+    // so a card abandoned while still attached — the hand hidden behind a
+    // parry, a screen change mid-drag — stayed sitting wherever the finger had
+    // last been, out of the fan, until something else rebuilt the hand.
+    btn.classList.remove('k-dragging', 'k-aiming', 'k-drop-ok');
+    btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy');
   };
   const spin = () => {
     if (!dragging) { raf = 0; return; }
@@ -3623,9 +3659,28 @@ function attachCardInput(btn) {
     try { btn.setPointerCapture(e.pointerId); } catch (_) {}
   });
   btn.addEventListener('pointermove', (e) => {
-    if (!armed || held) return;
+    if (!armed) return;
     const dx = e.clientX - sx, dy = e.clientY - sy;
-    if (!dragging && Math.hypot(dx, dy) > 14) {
+    const far = Math.hypot(dx, dy) > 14;
+    // A HOLD THAT TURNS INTO A MOVE IS A DRAG. This is the single worst bug in
+    // the build and it is entirely a phone bug: a thumb does not move 14px in
+    // the first 420ms of a deliberate drag, so the hold timer fired first,
+    // `held` latched, and this handler returned early FOREVER. The player then
+    // swept the card all the way onto the Regent and let go, and nothing
+    // happened — no beam, no play, no feedback of any kind. On a mouse the
+    // pointer clears 14px almost instantly, which is why every check and every
+    // desktop playtest missed it.
+    //
+    // The inspect panel has been printing "release to close · drag the card to
+    // play it" since Build 28. The card was telling the truth about what it
+    // should do; nothing implemented it.
+    //
+    // Closing the inspect is safe to do inside this same event: `.k-inspecting`
+    // only transitions a brightness filter, so the fan's geometry is untouched
+    // and the `home` measurement below is still correct.
+    if (held && far) { closeInspect(); held = false; }
+    if (held) return;
+    if (!dragging && far) {
       clearTimeout(holdT); dragging = true;
       // A DRAG RETIRES ANY STANDING SELECTION. Otherwise the previously
       // tapped card stays raised with its gold ring on the target while the
@@ -3681,12 +3736,24 @@ function attachCardInput(btn) {
     armed = false;
     if (held) { closeInspect(); return; }        // inspect ends when you let go
     const id = btn.dataset.card;
-    if (C.pendingDiscard) { pickDiscard(id); return; }   // Quick Throw's second half
+    // PUT THE CARD DOWN BEFORE DECIDING WHAT THE GESTURE MEANT. Every early
+    // return below used to skip this, so a drag that ended on a branch other
+    // than the drop branch left the card lifted out of the fan with its aiming
+    // transform and an orphaned beam still on screen — recoverable only if
+    // something else happened to rebuild the hand. Releasing the gesture and
+    // interpreting it are two different jobs.
+    const wasDragging = dragging;
     if (dragging) {
       dragging = false; if (raf) { cancelAnimationFrame(raf); raf = 0; }
       aimClear();
       btn.classList.remove('k-dragging', 'k-aiming', 'k-drop-ok');
       btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy');
+    }
+    if (C.pendingDiscard) {                      // Quick Throw's second half
+      if (!pickDiscard(id)) renderHand();
+      return;
+    }
+    if (wasDragging) {
       const over = dropTargetAt(e.clientX, e.clientY, id);
       if (!dropCommit(id, over)) renderHand();
       else { lockHand(); clearSelection(); }
@@ -3929,7 +3996,7 @@ window.K = {
   },
   parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
   actionKind, castTone, cardArt,
-  MUSIC, MUSIC_SRC, musicOn, musicPref, musicSet, gridStart,
+  MUSIC, MUSIC_SRC, musicOn, musicPref, musicSet, gridStart, ICON_PATHS, icon,
   intentByTarget,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, staticCardHTML,
   cam, bgParallax, SIGILS, sigilOf, brighten,

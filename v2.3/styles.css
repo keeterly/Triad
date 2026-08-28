@@ -280,14 +280,21 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* THE HAND IS A FAN, NOT A ROW. v2.2 put the hand in its own perspective and
    let the cards tilt in it, which is why they felt loose in the fingers; this
    was a flat strip that snapped to a new layout every time a card arrived. */
-#k-hand { position: absolute; left: 50%; bottom: 15px; transform: translateX(-50%);
-  display: flex; gap: 6px; align-items: flex-end; z-index: 14;
+#k-hand { position: absolute; left: 50%; bottom: 13px; transform: translateX(-50%);
+  display: flex; gap: 5px; align-items: flex-end; z-index: 14;
   perspective: 760px; perspective-origin: 50% 130%; }
 #k-hand .k-card-active { margin-bottom: 0; }
 #k-hand.k-discarding .k-card { transform: translateY(140px) rotate(4deg); opacity: 0; transition: all 0.3s ease-in; }
 .k-card { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
   touch-action: none; -webkit-tap-highlight-color: transparent;
-  position: relative; width: 118px; height: 186px; border-radius: 7px; cursor: pointer;
+  /* A SMALLER CARD, AND DELIBERATELY NOT A SMALLER FACE. Five cards at 118
+     wide took over half the board's width and 43% of its height — the hand was
+     reading as the game and the fight as its background. At 104x164 the same
+     five leave the diorama room to be looked at. The RULES do not scale with
+     the card: the type holds its size and simply takes a larger share of a
+     smaller face, which is the only way "smaller" and "more legible" are the
+     same change rather than opposite ones. Ratio held at 0.634. */
+  position: relative; width: 104px; height: 164px; border-radius: 6px; cursor: pointer;
   font-family: inherit; padding: 0; display: flex; flex-direction: column; text-align: center;
   overflow: hidden;
   /* A CARD IS A WINDOW, NOT A SLIP OF PAPER. This was a parchment rectangle —
@@ -363,24 +370,24 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* A RING, NOT A COIN. The filled bronze medallion was the heaviest object on
    a card whose whole design is hairlines; an outlined ring reads the number
    just as fast and stops competing with the art. */
-.k-cgem { position: absolute; left: 7px; top: 7px; z-index: 3;
-  width: 22px; height: 22px; padding: 0; border-radius: 50%;
+.k-cgem { position: absolute; left: 6px; top: 6px; z-index: 3;
+  width: 20px; height: 20px; padding: 0; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; gap: 2px;
   background: rgba(8,7,6,0.5);
   border: 1px solid rgba(201,164,92,0.75); color: #f4e6c4;
-  font-size: 12.5px; font-weight: 600; line-height: 1;
+  font-size: 12px; font-weight: 600; line-height: 1;
   text-shadow: 0 1px 3px rgba(0,0,0,0.9); box-shadow: 0 1px 5px rgba(0,0,0,0.75); }
 .k-cgem.on { border-color: #f0d488; color: #fff3d0; box-shadow: 0 0 11px rgba(240,212,136,0.7); }
 .k-cgem s { font-size: 9px; font-weight: 400; color: #9a9080; }
 /* THE TITLE SITS ON THE ART, at the point where the scrim has gone dark — the
    composition every painted card uses, and the reason the top two thirds can
    be picture without costing the words anything. */
-.k-cwho { position: relative; z-index: 1; margin: 80px 6px 0; display: block;
+.k-cwho { position: relative; z-index: 1; margin: 61px 5px 0; display: block;
   font-size: 7px; font-weight: 600; letter-spacing: 0.26em; text-transform: uppercase;
   color: #9a8a68; line-height: 10px;
   text-shadow: 0 1px 4px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.85); }
-.k-cname { position: relative; z-index: 1; margin: 0 6px 0;
-  font-size: 10.6px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase;
+.k-cname { position: relative; z-index: 1; margin: 0 5px 0;
+  font-size: 10.2px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase;
   color: #f4ecdc; padding: 0 1px 5px; line-height: 1.1; min-height: 0; overflow-wrap: anywhere;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   border-bottom: 1px solid rgba(201,164,92,0.34);
@@ -391,11 +398,14 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
      cut off too. As a block the ellipsis works and the trim happens at one
      end, where a reader expects it. */
   display: block; line-height: 15px; text-align: center; }
-.k-cname-long { font-size: 9.2px; letter-spacing: 0.03em; }
+.k-cname-long { font-size: 8.8px; letter-spacing: 0.02em; }
 /* "Light Through Steel" is nineteen characters and needs its own step down
    again — one card in twenty-eight, rather than setting the whole deck at
    the size its longest title would like */
-.k-cname-vlong { font-size: 7.8px; letter-spacing: 0.01em; }
+/* "Light Through Steel" is nineteen characters against 94px of line, and at
+   7.4px it was still being trimmed to "LIGHT THROUGH STE…" — a card whose name
+   is cut off is a card the player cannot look up. */
+.k-cname-vlong { font-size: 6.9px; letter-spacing: -0.005em; }
 /* THE ART BLEEDS THE WHOLE CARD, and a scrim takes the bottom two thirds to
    near-black so the words never fight it. Build 29 removed the portrait
    because it was the card's CONTENT — five cards of one hero were five copies
@@ -461,7 +471,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    always does, and what the COMBO pays. They must not look like one paragraph. */
 /* the box is more opaque than it was: at 0.72 the painted card ground showed
    through the letters and cost the text most of its contrast */
-.k-ctext { position: relative; z-index: 1; flex-grow: 1; margin: 0 5px 7px; padding: 0;
+.k-ctext { position: relative; z-index: 1; flex-grow: 1; margin: 0 4px 6px; padding: 0;
   min-height: 0; overflow: hidden;
   background: none; border: 0; border-radius: 0;
   display: flex; flex-direction: column; text-align: center; }
@@ -478,7 +488,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* A LIST OF THINGS, RULED. Stacked with <br> the clauses read as a paragraph
    that happens to break; each in its own hairlined row they read as what they
    are — the two or three things this card does. */
-.k-cprose { padding: 0 5px; flex-grow: 1; font-size: 8.4px; color: #cabfa8;
+.k-cprose { padding: 0 2px; flex-grow: 1; font-size: 8.4px; color: #ded3b8;
   display: flex; flex-direction: column; justify-content: center; }
 /* A ROW WRAPS RATHER THAN RUNNING OFF THE EDGE. A flex row does not wrap by
    default, so a clause longer than the card simply overflowed sideways and the
@@ -486,20 +496,27 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    for many builds, losing the word that says what it discards. The suite only
    ever measured VERTICAL overflow, so nothing saw it. Wrapping costs a line of
    height, which the row-count tightening above already budgets for. */
-.k-crow { display: flex; align-items: center; justify-content: center; gap: 5px;
+/* TWO CHANGES, ONE REASON. At 8.4px, 0.07em of tracking is roughly six percent
+   of every line's width spent on air between letters that are already too
+   small to need separating — it buys nothing and it is what pushed clauses
+   onto second lines, which then cost a whole tier of type size. Cutting it to
+   0.035em is a legibility gain AND a width gain, which is how the card gets
+   smaller without the rules getting harder to read. And the ink was #cabfa8 on
+   near-black: fine on a desk, thin on a phone at arm's length. */
+.k-crow { display: flex; align-items: center; justify-content: center; gap: 4.5px;
   flex-wrap: wrap; row-gap: 0;
-  font-size: 8.4px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
-  font-style: normal; color: #cabfa8; line-height: 1.15; padding: 3.5px 0;
+  font-size: 8.4px; font-weight: 600; letter-spacing: 0.035em; text-transform: uppercase;
+  font-style: normal; color: #ded3b8; line-height: 1.15; padding: 3.5px 0;
   border-top: 1px solid rgba(201,164,92,0.13);
   text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
 .k-crow:first-child { border-top: 0; }
 /* a three- or four-clause card tightens rather than clips; the two-clause
    card the deck mostly deals keeps the generous setting */
-.k-rows-3 .k-crow { font-size: 7.9px; padding: 2.5px 0; gap: 4px; }
+.k-rows-3 .k-crow { font-size: 7.9px; padding: 2px 0; gap: 3.5px; }
 .k-rows-3 .k-cprose b { font-size: 1.42em; }
 .k-rows-3 .k-combo { padding-top: 3px; }
 .k-rows-3 .k-combo-pay { font-size: 7.9px; }
-.k-rows-4 .k-crow { font-size: 7.3px; padding: 1.5px 0; gap: 3.5px; line-height: 1.1; }
+.k-rows-4 .k-crow { font-size: 7.3px; padding: 1px 0; gap: 3px; line-height: 1.05; }
 .k-rows-4 .k-cprose b { font-size: 1.36em; }
 .k-rows-4 .k-cprose .k-ico { width: 8.5px; height: 8.5px; }
 .k-rows-4 .k-combo { padding-top: 2px; }
@@ -514,7 +531,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    guards an ally, and takes their parry window — and at the four-line setting
    it clipped its last row by 2px. One more step rather than cutting the words:
    a rule the player cannot read is worse than a rule set small. */
-.k-rows-5 .k-crow { font-size: 6.9px; padding: 0.5px 0; gap: 3px; line-height: 1.06; }
+.k-rows-5 .k-crow { font-size: 6.9px; padding: 0.5px 0; gap: 2.5px; line-height: 1.02; }
 .k-rows-5 .k-cprose b { font-size: 1.3em; }
 .k-rows-5 .k-cprose .k-ico { width: 8px; height: 8px; }
 .k-rows-5 .k-combo { padding-top: 1px; }
@@ -535,12 +552,15 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   border-top: 1px solid rgba(201,164,92,0.26);
   display: flex; flex-direction: column; gap: 2px; }
 .k-combo-tag { display: flex; align-items: center; justify-content: center; gap: 2.5px;
-  font-size: 6.5px; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase;
-  color: #9a8a68; text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
+  /* the smallest, dimmest, most widely tracked type on the card was the line
+     that names the CONDITION — the one thing a player is scanning the fan for
+     when they are hunting a combo. */
+  font-size: 6.6px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+  color: #bbaa85; text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
 .k-combo-state { font-style: normal; font-size: 6px; letter-spacing: 0.1em;
   padding: 0 2.5px; border-radius: 2px; border: 1px solid rgba(201,164,92,0.45); color: #e0c084; }
-.k-combo-pay { font-size: 8.4px; line-height: 1.2; color: #b6ab94;
-  font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
+.k-combo-pay { font-size: 8.4px; line-height: 1.2; color: #cdc1a4;
+  font-weight: 600; letter-spacing: 0.035em; text-transform: uppercase;
   text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
 .k-combo-pay b { text-transform: none; }
 .k-combo-pay b { font-weight: 700; font-size: 1.35em; line-height: 0.9; color: #f6ecd6; }
@@ -858,7 +878,10 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-aim .k-aim-dot { filter: drop-shadow(0 0 6px rgba(255,120,100,0.9)); }
 
 /* ── the icon vocabulary ── */
-.k-ico { width: 9px; height: 9px; vertical-align: -1px; margin-right: 2px; opacity: 0.88; }
+/* FULL STRENGTH. The marks were held at 0.88 opacity when they sat on a bright
+   parchment card; against the dark plate that is 12% of the contrast of the
+   smallest thing on the face, given away for nothing. */
+.k-ico { width: 9px; height: 9px; vertical-align: -1px; margin-right: 2px; opacity: 1; }
 .k-combo-tag .k-ico { width: 7.5px; height: 7.5px; }
 .k-insp-now .k-ico { width: 12px; height: 12px; vertical-align: -1.5px; }
 
@@ -892,7 +915,13 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    now easier to connect than it looks. */
 /* IN THE FLOW, not absolutely placed. Pinned at a fixed offset it printed
    straight across the card's own prose — the numbers it exists to qualify. */
-.k-csig { display: block; margin: 1px 0 0; z-index: 3;
+/* THE BAND COSTS ART, NOT TEXT — which it now does literally rather than by
+   having slack to spare. As a block in normal flow it pushed the rules down by
+   its own height, and that was affordable on the 118px card and is not on the
+   104px one: seven marked cards began clipping their last clause the moment the
+   face got shorter. Lifted out of flow it sits across the dark end of the
+   painting, above the owner's name, and takes nothing from the words at all. */
+.k-csig { position: absolute; left: 0; right: 0; top: 45px; z-index: 3;
   font: 700 7.5px/1.5 var(--serif, Georgia, serif); letter-spacing: 0.2em;
   text-transform: uppercase; text-align: center; color: #241a10;
   background: linear-gradient(90deg, transparent, var(--sig, #e0c084) 14%,
@@ -905,14 +934,15 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* the edge is tinted too, so a marked card is findable in a fan without
    reading five strips */
 .k-card-sig { box-shadow: 0 0 0 1.5px var(--sig, #e0c084), 0 6px 16px rgba(0,0,0,0.55); }
-/* THE BAND'S HEIGHT COMES OUT OF THE ART. The card is a fixed 150px and
-   .k-ctext is the flex-grow child with overflow:hidden, so a new row in the
-   flow is paid for by CLIPPING the combo strip — the one part of the face the
-   mark most often changes. The art zone gives up twelve pixels instead. Once
-   the art went full-bleed it had no height of its own to give, so the twelve
-   pixels come off the title's top margin, which is the same thing: less
-   picture above the name. */
-.k-card-sig .k-cwho { margin-top: 68px; }
+/* THE BAND'S HEIGHT COMES OUT OF THE ART — and now it does so by not having a
+   height in the flow at all. The old arrangement kept the band as a block and
+   bought its room by pushing the title down, which was the same trade dressed
+   differently and left a marked card with a shorter text box than an unmarked
+   one. The band is absolutely positioned over the painting now, so the title
+   does not move and a mark costs the rules nothing. The rule that pushed it
+   used to live here; removing it is the second half of that change, and
+   forgetting it left exactly one card — Counterstance — still clipping by a
+   pixel with a mark on it and not without. */
 .k-card-static { pointer-events: none; transform: none !important; }
 .k-pile-empty { font-size: 12px; color: #8e8574; letter-spacing: 0.14em; padding: 30px; }
 .k-pile-hint { font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #6d6450; text-align: center; }

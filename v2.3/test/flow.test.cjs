@@ -2726,6 +2726,50 @@ const { boot } = require('./harness.cjs');
       insp.open && insp.big && insp.dimmed && insp.noCommit, JSON.stringify(insp));
     check('INSPECT: releasing dismisses it and never plays the card',
       insp.closed && insp.unplayed, JSON.stringify({ closed: insp.closed, unplayed: insp.unplayed }));
+    // A THUMB IS NOT A MOUSE. This is the check that was missing, and its
+    // absence hid the worst bug in the build for six builds. A deliberate drag
+    // on a phone does not clear the 14px threshold inside the hold timer's
+    // 420ms, so the hold latched first and pointermove returned early FOREVER:
+    // the player swept the card onto the Regent, let go, and nothing happened.
+    // A mouse crosses 14px almost instantly, so every desktop-shaped gesture in
+    // this suite — including the two checks directly above — sailed past it.
+    // The rule is that a hold which turns into a move becomes a drag, which is
+    // what the inspect panel has been promising in words since Build 28.
+    await fresh(7);
+    {
+      const slow = await J(async () => {
+        window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'execute']);
+        const card = document.querySelector('#k-hand .k-card[data-card="cleave"]');
+        const id = card.dataset.card, r = card.getBoundingClientRect();
+        const x0 = r.left + r.width / 2, y0 = r.top + r.height / 2;
+        const at = (t, x, y) => card.dispatchEvent(new PointerEvent(t, {
+          bubbles: true, clientX: x, clientY: y, pointerId: 1 }));
+        const wait = (ms) => new Promise(res => setTimeout(res, ms));
+        const before = window.K.state().hand.length;
+        at('pointerdown', x0, y0);
+        // creep: six tiny moves over ~540ms, never clearing the threshold
+        for (let i = 0; i < 6; i++) { at('pointermove', x0 + i, y0 - i); await wait(90); }
+        const inspected = !document.getElementById('k-focus').classList.contains('k-hidden');
+        // then a real sweep to the Regent
+        const boss = document.getElementById('k-boss-art').getBoundingClientRect();
+        for (let i = 1; i <= 10; i++)
+          at('pointermove', x0 + (boss.left + boss.width / 2 - x0) * i / 10,
+                            y0 + (boss.top + boss.height / 2 - y0) * i / 10);
+        const drags = card.classList.contains('k-aiming')
+          && ((document.getElementById('k-aim') || {}).innerHTML || '').length > 0;
+        at('pointerup', boss.left + boss.width / 2, boss.top + boss.height / 2);
+        await wait(240);
+        return { inspected, drags, played: window.K.state().hand.length < before,
+                 closed: document.getElementById('k-focus').classList.contains('k-hidden'),
+                 lifted: [...document.querySelectorAll('#k-hand .k-card')]
+                   .some(c => c.classList.contains('k-aiming')
+                              || c.style.getPropertyValue('--dragx')) };
+      });
+      check('DRAG: a slow thumb-speed drag becomes a drag, not a dead inspect',
+        slow.inspected && slow.drags && slow.played && slow.closed && !slow.lifted,
+        JSON.stringify(slow));
+    }
+
     // the iOS long-press callout must be suppressed on cards
     const ios = await J(async () => {
       // EVERY figure on the board, not just the cards. A long press on a hero

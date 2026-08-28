@@ -2073,6 +2073,106 @@ can have lives in the browser's audio object rather than in our state.
 
 ---
 
+## Build 44 — a smaller card, and the drag that a thumb could not start
+
+### The worst bug in the build was a phone bug
+
+"Sometimes dragging a card out gets stuck with no way to proceed."
+
+A press starts a 420ms timer that opens the inspect panel. A drag starts when
+the finger clears 14px. **A thumb does not move 14px in 420ms** on a deliberate
+drag — so the hold fired first, `held` latched, and `pointermove` returned early
+from then on. The player then swept the card the whole way onto the Regent and
+let go, and *nothing happened*: no beam, no play, no feedback of any kind. Doing
+it again did the same thing.
+
+A mouse crosses 14px almost instantly, which is why nothing caught it. Two
+checks sat directly on this code — one holds and releases, one presses and drags
+— and both used mouse-shaped gestures with instant travel. A battery of eight
+drag scenarios run through real CDP touch events did not catch it either,
+because synthesised touch moves are also instant. The gesture that fails is
+specifically the *slow* one.
+
+The rule now is that **a hold which turns into a move becomes a drag**: past the
+threshold the inspect closes and the drag takes over. This is what the inspect
+panel has been printing in words — "release to close · drag the card to play it"
+— since Build 28. The card was telling the truth about what it should do and
+nothing implemented it. Closing the panel mid-gesture is safe because
+`.k-inspecting` only transitions a brightness filter, so the fan's geometry
+never moves and the drag's anchor measurement stays correct.
+
+Two smaller stranding bugs were fixed alongside it, both of the same shape —
+*a branch that ended the gesture without putting the card down*:
+
+- `pointerup` interpreted the gesture before releasing it, so the
+  `pendingDiscard` branch returned with the card still lifted, still carrying
+  its aiming transform, and the beam still on screen. Releasing and
+  interpreting are two different jobs and now happen in that order.
+- `abandon()` — the path taken when a drag outlives its own card — reset every
+  flag but left the lift in place, so a card abandoned while still attached
+  (the hand hidden behind a parry, a screen change mid-drag) sat wherever the
+  finger had last been until something else rebuilt the hand.
+
+`DRAG: a slow thumb-speed drag becomes a drag, not a dead inspect` creeps six
+times over 540ms, confirms the inspect opened, then sweeps to the Regent and
+asserts the card actually plays. Proved by reverting the fix and watching it
+fail.
+
+### The card is smaller and the face is not
+
+118×186 was taking over half the board's width and 43% of its height — the hand
+read as the game and the fight as its background. The card is 104×164 now, the
+same 0.634 proportion.
+
+The rules **did not scale with it**. The type holds its size and takes a larger
+share of a smaller face, which is the only way "smaller" and "more legible" are
+the same change rather than opposite ones. What paid for it:
+
+- **Tracking.** At 8.4px, 0.07em is roughly six percent of every line spent on
+  air between letters already too small to need separating. At 0.035em the
+  rules read better *and* fit better — which is what stopped clauses wrapping
+  onto second lines, and a second line costs a whole tier of type size.
+- **Ink.** The rules were `#cabfa8` and the combo tag `#9a8a68` at 6.5px with
+  0.13em of tracking — the smallest, dimmest, most widely spaced type on the
+  card was the line that names the *condition*, which is the thing a player
+  scans a fan for. Both are brighter and tighter now, and `.k-ico` no longer
+  gives away 12% of its contrast to an opacity left over from the parchment
+  card.
+- **The line budget re-derived.** Usable row width fell from 106px to ~94px, so
+  `LINE_CHARS` drops 18 → 15, measured against the real deck rather than
+  estimated: "Step to the back" is sixteen characters plus a mark and is
+  already two lines there.
+
+And one rule had to be found rather than reasoned about: `.k-card-sig .k-cwho
+{ margin-top: 68px }` still pushed the title down to make room for the sigil
+band. The band is absolutely positioned over the painting now, so it costs the
+rules nothing — but that push survived it, and left exactly one card,
+Counterstance, clipping by a pixel *with* a mark and not without.
+
+### Icons judged at size, on a proof sheet
+
+Rendered at 10, 15 and 44px side by side, three of the eleven did not survive
+the small end, and they were three of the most common:
+
+- **`atk`** was a diagonal stroke with a small head — at 10px an *arrow*, the
+  same shape the game uses for "step to the front". The commonest clause in the
+  deck was wearing the icon for movement. It is a sword now, vertical, so it
+  cannot be confused with any of the horizontal arrows. (The first attempt had
+  a pommel bar and a short crossguard and read as an ankh at 44px; the sheet is
+  what showed that.)
+- **`brk`** was a four-pointed star and `finale` is a five-pointed one — two
+  stars for two unrelated things, sitting side by side on Cross Sever. Break is
+  a diamond cracked down the middle and pulled apart, which also says what the
+  mechanic does.
+- **`draw`** was two overlapping rectangles, which at 8px is a smudge. One card
+  with an arrow rising out of it survives.
+- **`follow`** kept its meaning in an arrowhead that was gone by 10px, leaving a
+  squiggle. Two chevrons say "then, and then" at any size.
+
+The other seven were checked at size and deliberately left alone.
+
+---
+
 ## Errata — three records the code had outgrown
 
 A playthrough audit read these sections against the code and found them stale.
