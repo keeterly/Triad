@@ -46,14 +46,6 @@ black-armoured swordsman from the reference image, same face, same ragged
 black-and-violet plate" — because without that the model drifts off-model by the
 third image in a batch.
 
-**Those three portraits were repainted in Build 53** to match the bestiary's
-rendering (see `HERO-ART.md`). The characters are the same and the accent hues
-are unchanged, so the twenty-eight paintings still read as the same cast; but
-they were generated against the OLD portraits, and a card set regenerated today
-would sit a little closer to the new ones. That is a deliberate open question,
-not an oversight — 28 credits to close it, and worth doing only if the gap
-starts to show.
-
 Output goes to `art/cards/<cardId>.webp`. `CARD_ART` in `game.js` is the switch:
 an id listed there gets its painting, an id not listed falls back to the owner's
 portrait framed as a bust. Adding art is two steps — drop the file in, add the
