@@ -2173,6 +2173,123 @@ The other seven were checked at size and deliberately left alone.
 
 ---
 
+## Build 45 — the enemy acts, and five foes stop being one foe
+
+### The fight that would not end — what I did and did not find
+
+A player sent a board sitting at **0/76 with the fight still running**: hand
+empty, AP 0, no outcome card, nothing to press. I had seen the same frame once
+before and concluded it was the killing blow inside its 620ms hand-off. **That
+was wrong** — it is a real hang, and it is worth recording that the earlier
+reading was a guess dressed as a finding.
+
+What makes it invisible: **inside a run, combat draws no outcome card at all.**
+`renderOutcome` returns early when `C.onEnd` is set, because the road owns the
+victory screen. So the only thing standing between a won fight and a dead end
+is one `setTimeout(cb, 620)` — and if that callback never runs, the player is
+left on a finished board with no affordance whatsoever.
+
+I could not reproduce the trigger. Roughly a hundred scripted fights across all
+five foes, with and without the run's hand-off, with scripted grades and with
+real volleys played to timeout, and a hang detector on every turn: nothing. So
+rather than claim a fix, the **shape** of the failure is closed:
+
+- **A net under victory.** `dealToBoss` is still the one place that decides the
+  fight is over; `renderAll` now asserts it on every paint. Written as
+  `!(hp > 0)` rather than `hp <= 0` deliberately — that also catches NaN, which
+  compares false against everything and would otherwise make a foe immortal
+  *and* keep it off the net.
+- **A hand-off that cannot be lost.** The summary used to be built in the same
+  declaration that captured the callback, so a throw there left `C.onEnd`
+  uncleared, the timer unset, and the exception propagating back through
+  whatever dealt the killing blow — aborting the turn mid-flight, which is
+  exactly the state in the screenshot. The summary is now built in a try/catch
+  with a minimal fallback, and the callback runs inside one too.
+
+`FOE: a foe at zero — or at NaN — ends the fight on the next paint` holds both.
+
+### The enemy was a still picture
+
+No wind-up, no swing, no recovery. A three-hit barrage played out as rings
+appearing over the party while the thing throwing them stood perfectly still —
+which is most of why the attacks "don't feel like anything special". There was
+no attacker in them.
+
+Three concerns now move on **three different CSS properties**, on purpose:
+
+| what | where | property |
+|---|---|---|
+| the POSE — what it is doing | `#k-boss-art` | `translate` + `scale` |
+| the BLOW — each note it throws | `#k-boss-art` | `transform` |
+| the IDLE — what it does at rest | `.k-fig` | `animation` |
+| the REACTION — struck, broken | `img` | `animation` |
+
+CSS applies `translate`, then `rotate`, then `scale`, then `transform`, so a
+pose and a blow compose instead of clobbering each other. This matters twice
+over: Build 36 learned that anything setting `animation` on the layer carrying
+the idle *replaces* the idle and the figure stops breathing for the rest of the
+fight — and the first version of this pass cleared poses and swings from one
+list, so every note stripped the posture off the foe and all four intents
+looked identical again. Two slots, not one.
+
+**The pose** is one per intent: the Toll rears back and up, the Sweep lunges
+thirty pixels toward the party, the Rain rises, the Benediction draws inward
+and brightens. It is held from launch until the turn returns.
+
+**The blow** is one per note kind, because the hand is already being asked to
+tell these apart by their rings and the body throwing them should agree: a tap
+is a jab, a slide is a wide arc, a hold is a press that leans in and stays, a
+burst is a flurry of three, and the two fakes — feint and bait — start the
+motion and pull it back without committing.
+
+The swing fires at the moment the blow is *thrown*, not when it lands, so the
+note's runway is the foe's follow-through.
+
+And the foe stands down in `setPhase` rather than only at the bottom of
+`endTurn` — the enemy phase has five early returns, and a posture held past its
+act is a foe frozen mid-lunge for the rest of the fight.
+
+### Five opponents, five idles, five hands
+
+The bestiary's own comment promised that "each foe draws from the same
+vocabulary but is handed a different subset, so its handwriting is legible
+after one turn." **Both halves of that were false.** All five shared the party's
+breathe, and four intents split five ways meant every foe opened with the Hymn
+and the elite and the Regent had *identical* sets.
+
+The Husk lists, the Choir swells like a held note, the Wraith never touches the
+ground, the Revenant is heavy and moves as little as it can, and the Regent
+barely acknowledges the room — each on its own clock, so two of them would
+never sync up.
+
+Three new intents give each foe a hand nobody else plays. They are different
+**shapes of bar**, not different amounts of damage:
+
+- **The Long Toll** — two blows, no filler, the whole hit riding on one hold
+  each. Sparse on purpose: a hold is the note that asks the hand to commit and
+  wait.
+- **Grief in Threes** — the opposite. Light hits, many reads, three taps on the
+  half-beat, and it tightens in the second phase.
+- **The Rising Dirge** — the Regent's own, and the only intent whose hits get
+  *bigger* as the bar goes on. The last blow is the one worth reading and it is
+  the one guarded by a feint.
+
+Sets are now husk `toll/scythe`, cultist `hymn/benediction/rain`, wraith
+`flurry/scythe/rain`, revenant `toll/flurry/scythe/benediction`, mourner
+`hymn/scythe/crescendo/benediction/rain`.
+
+### What it cost, measured
+
+Both sims still gate, and one number moved enough to name: **the Regent fight
+at half parries falls from 34.1% to 26.4%** (gate 25–55%, 220 runs). That is
+the Rising Dirge being added to her hand, and it is the intended direction —
+the complaint was that her attacks were sparse and unthreatening. Monotone
+holds, round length holds inside the 7–9 target. The road is barely moved:
+36.7% completed at half parries against 38.3% before, well inside its 8–45%
+gate, and TRAILHEAD still shows a competent party never wiping at stop 1.
+
+---
+
 ## Errata — three records the code had outgrown
 
 A playthrough audit read these sections against the code and found them stale.

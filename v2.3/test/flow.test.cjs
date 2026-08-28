@@ -2770,6 +2770,85 @@ const { boot } = require('./harness.cjs');
         JSON.stringify(slow));
     }
 
+    // ── THE FOE ACTS ────────────────────────────────────────────────────
+    // It used to be a still picture with a breathe on it: no wind-up, no swing,
+    // no recovery, so a whole barrage played out as rings appearing over the
+    // party while the thing throwing them stood perfectly still.
+    await fresh(7);
+    {
+      const act = await J(async () => {
+        const b = document.getElementById('k-boss-art');
+        const seen = new Set();
+        const poses = new Set(), swings = new Set(), both = [];
+        const tick = setInterval(() => {
+          seen.add(b.className);
+          const cls = b.className.split(/\s+/).filter(Boolean);
+          const p = cls.filter(c => /^k-foe-/.test(c));
+          const w = cls.filter(c => /^k-fs-/.test(c));
+          p.forEach(c => poses.add(c)); w.forEach(c => swings.add(c));
+          if (p.length && w.length) both.push(1);
+        }, 60);
+        await window.K.endTurn();
+        clearInterval(tick);
+        return { poses: [...poses], swings: [...swings], both: both.length,
+                 rest: b.className, restPose: /k-foe-|k-fs-/.test(b.className),
+                 idle: getComputedStyle(b.querySelector('.k-fig')).animationName,
+                 phase: window.K.state().phase };
+      });
+      // A POSE AND A BLOW MUST RUN TOGETHER. They are on different CSS
+      // properties (translate/scale vs transform) precisely so they compose —
+      // and the first version cleared both from one list, so every note
+      // stripped the posture off the foe and all four intents looked alike.
+      check('FOE: it takes a posture for its intent and swings on every note, at once',
+        act.poses.length >= 1 && act.swings.length >= 1 && act.both > 0,
+        JSON.stringify({ poses: act.poses, swings: act.swings, overlapping: act.both }));
+      // …and stands down when the turn comes back. A posture held past its act
+      // is a foe frozen mid-lunge for the rest of the fight.
+      check('FOE: it stands down when the turn returns to the player',
+        act.restPose === false && act.phase === 'PLAYER_READY',
+        JSON.stringify({ rest: act.rest, phase: act.phase }));
+    }
+
+    // FIVE OPPONENTS, FIVE IDLES — and five different hands. The bestiary's
+    // stated promise is that each foe's handwriting is legible after one turn;
+    // it was false in both halves at once, because all five shared the party's
+    // breathe and every one of them opened with the Hymn.
+    const bestiary = await J(() => {
+      const ids = ['husk', 'cultist', 'wraith', 'revenant', 'mourner'];
+      const idles = {}, hands = {};
+      for (const id of ids) {
+        window.K.startCombat({ seed: 4, foe: window.K.FOES[id] });
+        const b = document.getElementById('k-boss-art');
+        idles[id] = getComputedStyle(b.querySelector('.k-fig')).animationName;
+        hands[id] = window.K.FOES[id].intents.slice().sort().join(',');
+      }
+      return { idles, hands };
+    });
+    check('FOE: every opponent has its own idle — five figures, five ways of standing',
+      new Set(Object.values(bestiary.idles)).size === 5
+      && !Object.values(bestiary.idles).some(n => !n || n === 'none' || n === 'k-breathe'),
+      JSON.stringify(bestiary.idles));
+    check('FOE: no two opponents play the same hand of intents',
+      new Set(Object.values(bestiary.hands)).size === 5,
+      JSON.stringify(bestiary.hands));
+
+    // A DEAD FOE ENDS THE FIGHT, asserted on the paint rather than only where
+    // the damage is dealt. Inside a run combat draws no outcome card — the road
+    // owns it — so a board left playable at 0 HP has nothing on it to press.
+    const net = await J(() => {
+      window.K.startCombat({ seed: 7 });
+      const s = window.K.state();
+      s.boss.hp = 0;                       // by some route other than dealToBoss
+      window.K.render();
+      const zero = window.K.state().phase;
+      window.K.startCombat({ seed: 7 });
+      window.K.state().boss.hp = NaN;      // …and the one that compares false
+      window.K.render();
+      return { zero, nan: window.K.state().phase };
+    });
+    check('FOE: a foe at zero — or at NaN — ends the fight on the next paint',
+      net.zero === 'VICTORY' && net.nan === 'VICTORY', JSON.stringify(net));
+
     // the iOS long-press callout must be suppressed on cards
     const ios = await J(async () => {
       // EVERY figure on the board, not just the cards. A long press on a hero

@@ -109,6 +109,62 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 @keyframes k-act { 30% { transform: translateX(-50%) translateY(-7px) scale(1.03); } }
 .k-hero.k-dim { opacity: 0.3; filter: grayscale(0.6); }
 .k-hero.k-fwd { transform: scale(1.14); z-index: 5; filter: drop-shadow(0 0 20px rgba(214,201,164,0.3)); }
+/* ═══ THE FOE ACTS ═══════════════════════════════════════════════════════
+   Three concerns, three CSS properties, on purpose — they COMPOSE instead of
+   overwriting one another, which is the trap this build fell into once before
+   (Build 36: a transient state set `animation` on the layer carrying the idle
+   and the figure stopped breathing for the rest of the fight).
+
+     translate + scale  on #k-boss-art  → the POSE   (what it is doing)
+     transform          on #k-boss-art  → the BLOW   (each note it throws)
+     animation          on .k-fig       → the IDLE   (what it does at rest)
+     animation          on img          → the REACTION (struck, broken)
+
+   CSS applies translate, then rotate, then scale, then transform, so a pose
+   and a blow can run at once without either one clobbering the other. */
+#k-boss-art { transition: translate 420ms cubic-bezier(.25,.85,.3,1),
+                          scale 420ms cubic-bezier(.25,.85,.3,1),
+                          filter 300ms ease; }
+/* THE BREATH BEFORE THE BLOW — drawn back and away, dimmed, coiled. Held
+   rather than timed: it ends when the act begins, however long that takes. */
+#k-boss-art.k-foe-wind  { translate: 12px -4px; scale: 1.015;
+  filter: brightness(0.88) saturate(1.15) contrast(1.05); }
+/* …and one posture per intent, because the four things it can do should not
+   all look like the same thing happening. */
+#k-boss-art.k-foe-toll   { translate: -6px -11px; scale: 1.05;  filter: brightness(1.12); }
+#k-boss-art.k-foe-sweep  { translate: -32px 5px;  scale: 1.07;  filter: brightness(1.06); }
+#k-boss-art.k-foe-rain   { translate: 0 -22px;    scale: 1.055; filter: brightness(1.1) saturate(1.2); }
+#k-boss-art.k-foe-gather { translate: 5px 3px;    scale: 0.97;
+  filter: brightness(1.35) saturate(0.75); }
+/* THE BLOW ITSELF, one per note kind. The hand is already being asked to tell
+   these apart by their rings; the body throwing them should agree. Negative X
+   is toward the party — the foe stands on the right. */
+#k-boss-art.k-fs-jab    { animation: k-fs-jab 0.42s cubic-bezier(.3,.9,.4,1); }
+#k-boss-art.k-fs-arc    { animation: k-fs-arc 0.46s cubic-bezier(.35,.8,.35,1); }
+#k-boss-art.k-fs-press  { animation: k-fs-press 0.5s ease-out; }
+#k-boss-art.k-fs-flurry { animation: k-fs-flurry 0.44s linear; }
+#k-boss-art.k-fs-fake   { animation: k-fs-fake 0.4s ease-in-out; }
+@keyframes k-fs-jab {
+  22%  { transform: translateX(-30px) scaleX(1.04); }
+  55%  { transform: translateX(6px); }
+  100% { transform: none; } }
+@keyframes k-fs-arc {
+  25%  { transform: translateX(14px) rotate(6deg); }
+  62%  { transform: translateX(-30px) rotate(-9deg); }
+  100% { transform: none; } }
+@keyframes k-fs-press {
+  35%  { transform: translateX(-18px) scaleY(0.96); }
+  78%  { transform: translateX(-14px) scaleY(0.97); }
+  100% { transform: none; } }
+@keyframes k-fs-flurry {
+  14% { transform: translateX(-19px); } 28% { transform: translateX(2px); }
+  42% { transform: translateX(-19px); } 56% { transform: translateX(2px); }
+  70% { transform: translateX(-19px); } 100% { transform: none; } }
+/* a fake does not commit — it starts the motion and pulls it back */
+@keyframes k-fs-fake {
+  30%  { transform: translateX(-11px) rotate(-2deg); }
+  55%  { transform: translateX(9px) rotate(1.5deg); }
+  100% { transform: none; } }
 #k-boss-art.k-recoil img { animation: k-recoil 0.34s ease; }
 @keyframes k-recoil { 30% { transform: translateX(-46%) skewX(1.5deg); filter: brightness(1.5); } }
 #k-boss-art.k-broken img { animation: k-brokenreel 0.7s ease; }
@@ -1239,7 +1295,38 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-hero[data-hero="ash"]  .k-fig { animation-duration: 4.6s; animation-delay: -0.4s; }
 .k-hero[data-hero="elin"] .k-fig { animation-duration: 5.2s; animation-delay: -2.1s; }
 .k-hero[data-hero="mira"] .k-fig { animation-duration: 4.1s; animation-delay: -1.3s; }
-#k-boss-art .k-fig { animation-duration: 6.4s; animation-delay: -3s; }
+/* FIVE OPPONENTS, FIVE IDLES. They shared the party's slow breathe, so a
+   bestiary built to have five different HANDWRITINGS stood five identical
+   ways. Each one is now doing something at rest that says what it is, and each
+   runs on its own clock so two of them on screen would never sync up. */
+#k-boss-art .k-fig { animation: k-idle-loom 6.4s ease-in-out infinite; animation-delay: -3s; }
+/* the Husk lists — dead weight barely holding itself up */
+#k-boss-art[data-foe="husk"] .k-fig { animation: k-idle-loom 5.6s ease-in-out infinite; }
+/* the Choir SINGS: a slow swell in and out, the shape of a held note */
+#k-boss-art[data-foe="cultist"] .k-fig { animation: k-idle-sing 3.9s ease-in-out infinite; }
+/* the Wraith never touches the ground */
+#k-boss-art[data-foe="wraith"] .k-fig { animation: k-idle-drift 5.1s ease-in-out infinite; }
+/* the Revenant is heavy and low, and moves as little as it can */
+#k-boss-art[data-foe="revenant"] .k-fig { animation: k-idle-heavy 7.2s ease-in-out infinite; }
+/* the Regent barely acknowledges the room */
+#k-boss-art[data-foe="mourner"] .k-fig { animation: k-idle-regent 8.4s ease-in-out infinite; }
+@keyframes k-idle-loom {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-3px) rotate(0.7deg); } }
+@keyframes k-idle-sing {
+  0%, 100% { transform: translateY(0) scale(1); }
+  45%      { transform: translateY(-5px) scale(1.022); }
+  70%      { transform: translateY(-1px) scale(1.004); } }
+@keyframes k-idle-drift {
+  0%, 100% { transform: translate(0, 0) rotate(-0.6deg); }
+  35%      { transform: translate(4px, -7px) rotate(0.5deg); }
+  70%      { transform: translate(-3px, -3px) rotate(-0.2deg); } }
+@keyframes k-idle-heavy {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50%      { transform: translateY(1.5px) scaleY(0.994); } }
+@keyframes k-idle-regent {
+  0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+  50%      { transform: translateY(-3.5px) rotate(0.35deg) scale(1.006); } }
 @keyframes k-breathe {
   0%, 100% { transform: translateY(0) scaleY(1); }
   50%      { transform: translateY(-2.5px) scaleY(1.008); } }

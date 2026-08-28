@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 44;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 45;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -347,6 +347,43 @@ const REGENT_INTENTS = [
       { dmg: [9, 13], target: 'elin', notes: ['burst'] },
       { dmg: [9, 13], target: 'mira', notes: ['tap', 'slide:D'], beats: [0, 1.5] },
     ] },
+  // THREE MORE HANDS, so that no two opponents play the same one. Four intents
+  // shared five ways meant the bestiary's whole promise — "each foe draws from
+  // the same vocabulary but is handed a different subset, so its handwriting is
+  // legible after one turn" — was false: every foe opened with the Hymn, and
+  // the elite and the Regent had identical sets.
+  //
+  // Each of these is a different SHAPE of bar rather than a different amount of
+  // damage. Totals sit inside the band the existing four already occupy, so the
+  // ladder from fodder to boss is still the one multiplier it was designed to
+  // be, and the sims still gate it.
+  //
+  // THE LONG TOLL — two blows, no filler, and the whole hit rides on one note
+  // each. Sparse on purpose: it is the weight intent, and a hold is the note
+  // that asks the hand to commit and wait.
+  { id: 'toll', name: 'The Long Toll', kind: 'attack',
+    hits: [
+      { dmg: [14, 19], target: 'ash',  notes: ['hold'] },
+      { dmg: [14, 19], target: 'mira', notes: ['hold'] },
+    ] },
+  // GRIEF IN THREES — the opposite: light hits, many reads, and it tightens in
+  // the second phase. Three taps on the half-beat is the closest thing in the
+  // vocabulary to a drum fill.
+  { id: 'flurry', name: 'Grief in Threes', kind: 'attack', sub: [1, 0.75],
+    hits: [
+      { dmg: [7, 10], target: 'mira', notes: ['tap', 'tap', 'tap'], beats: [0, 0.5, 1] },
+      { dmg: [7, 10], target: 'elin', notes: ['tap', 'slide:U'], beats: [0, 1] },
+      { dmg: [7, 10], target: 'ash',  notes: ['burst'] },
+    ] },
+  // THE RISING DIRGE — the Regent's own, and the only intent whose hits get
+  // BIGGER as the bar goes on. The last blow is the one worth reading, and it
+  // is the one guarded by a feint.
+  { id: 'crescendo', name: 'The Rising Dirge', kind: 'attack',
+    hits: [
+      { dmg: [8, 11],  target: 'elin', notes: ['tap', 'tap'], beats: [0, 2] },
+      { dmg: [10, 14], target: 'ash',  notes: ['slide:R', 'tap', 'tap'], beats: [0, 1.5, 2.5] },
+      { dmg: [12, 16], target: 'mira', notes: ['feint', 'hold'], beats: [0, 1.5] },
+    ] },
 ];
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -362,13 +399,13 @@ const REGENT_INTENTS = [
 const FOES = {
   husk:     { id: 'husk', name: 'The Hollow Husk', art: 'foe-husk', tier: 'fight',
               hp: 62, brk: 8, dmgMul: 0.70, dirge: 2, phases: 1, embers: 2,
-              intents: ['hymn', 'scythe'] },
+              intents: ['toll', 'scythe'] },
   cultist:  { id: 'cultist', name: 'The Choir of One', art: 'foe-cultist', tier: 'fight',
               hp: 76, brk: 9, dmgMul: 0.80, dirge: 2, phases: 1, embers: 2,
               intents: ['hymn', 'benediction', 'rain'] },
   wraith:   { id: 'wraith', name: 'The Grief-Wraith', art: 'foe-wraith', tier: 'fight',
               hp: 84, brk: 10, dmgMul: 0.86, dirge: 3, phases: 1, embers: 3,
-              intents: ['scythe', 'rain', 'hymn'] },
+              intents: ['flurry', 'scythe', 'rain'] },
   // THE ELITE IS A GAMBLE, NOT A SECOND BOSS. At 116 HP / 0.96 / dirge 3 the
   // run sim measured it costing a ~half-parry party 72 of their 112 health —
   // more than the Regent herself — so the road was decided at stop 3 and the
@@ -377,10 +414,10 @@ const FOES = {
   // the attrition that made it the end of the run.
   revenant: { id: 'revenant', name: 'The Kneeling Revenant', art: 'foe-revenant', tier: 'elite',
               hp: 98, brk: 11, dmgMul: 0.88, dirge: 2, phases: 2, embers: 5,
-              intents: ['hymn', 'scythe', 'rain', 'benediction'] },
+              intents: ['toll', 'flurry', 'scythe', 'benediction'] },
   mourner:  { id: 'mourner', name: 'The Mourning Regent', art: 'foe-mourner', tier: 'boss',
               hp: null, brk: 12, dmgMul: 1, dirge: null, phases: 2, embers: 8,
-              intents: ['hymn', 'scythe', 'benediction', 'rain'] },
+              intents: ['hymn', 'scythe', 'crescendo', 'benediction', 'rain'] },
 };
 // `hp: null` and `dirge: null` mean "whatever TUNE says" — the boss stays the
 // one encounter the balance sim tunes directly, and the rest are scaled off it.
@@ -457,12 +494,34 @@ function setPhase(p) {
   // the lens hangs toward the party; on the Regent's it swings to feature her.
   if (p === 'PLAYER_READY') camPose(CAM_POSE_PLAYER);
   else if (p === 'ENEMY_TELEGRAPH') camPose(CAM_POSE_ENEMY);
+  // THE FOE STANDS DOWN whenever the turn leaves its hands — including on the
+  // early returns out of the enemy phase, which is why this lives here rather
+  // than only at the bottom of endTurn. A posture held past its act is a foe
+  // frozen mid-lunge for the rest of the fight.
+  if (p === 'PLAYER_READY' || p === 'VICTORY' || p === 'DEFEAT') {
+    if (typeof fxFoeSettle === 'function') fxFoeSettle();
+  }
   // A fight that was started BY something reports back to it. Combat itself
   // still knows nothing about runs, maps or embers — it only knows it is over.
   if ((p === 'VICTORY' || p === 'DEFEAT') && C.onEnd) {
-    const cb = C.onEnd, snap = combatSummary(p);
+    // THE HAND-OFF IS THE ONLY WAY OUT OF A FIGHT INSIDE A RUN — combat draws
+    // no outcome card there, because the road owns it. So every way this can
+    // fail strands the player on a finished board with nothing to press.
+    //
+    // Two of them are closed here. The summary used to be built in the same
+    // declaration that captured the callback, so if it threw, `C.onEnd` was
+    // never cleared, the timer was never set, and the throw propagated back up
+    // through whatever dealt the killing blow — aborting the turn mid-flight.
+    // And the callback ran naked inside a setTimeout, where a throw in the run
+    // layer is unhandled and silent.
+    const cb = C.onEnd;
     C.onEnd = null;
-    setTimeout(() => cb(snap), 620);
+    let snap = null;
+    try { snap = combatSummary(p); }
+    catch (e) { snap = { outcome: p === 'VICTORY' ? 'victory' : 'defeat',
+                         foe: C.foe ? C.foe.id : null, turns: C.turn,
+                         partyHp: null, pairBond: {}, kizuna: 0, cleanliness: 0 }; }
+    setTimeout(() => { try { cb(snap); } catch (e) { console.error('onEnd failed', e); } }, 620);
   }
 }
 // What a finished fight is worth, in the only terms the run layer cares about.
@@ -570,6 +629,10 @@ function startCombat(opts) {
 function dressEncounter(foe) {
   const art = document.querySelector('#k-boss-art img');
   if (art) { art.src = '../art/' + foe.art + '.webp'; art.alt = foe.name; }
+  // WHICH FOE THIS IS, on the element, so the stylesheet can give each one its
+  // own idle. Five opponents sharing a single slow breathe made them five
+  // pictures at different HP totals.
+  const b = el('k-boss-art'); if (b) b.dataset.foe = foe.id;
   const nm = document.querySelector('#k-boss-hud .k-bname');
   if (nm && nm.childNodes[0]) nm.childNodes[0].nodeValue = foe.name + ' ';
   const st = el('k-stage');
@@ -1116,6 +1179,7 @@ async function endTurn(opts) {
 
   // ENEMY PHASE — Bleed triggers first, then decays (deck §6).
   setPhase('ENEMY_TELEGRAPH');
+  fxFoeWind();
   if (C.boss.bleed > 0) {
     dealToBoss(C.boss.bleed, 'bleed');
     C.boss.bleed = Math.max(0, C.boss.bleed - 1);
@@ -1139,6 +1203,7 @@ async function endTurn(opts) {
     }
     // THE BARRAGE — every hit is launched and answered on its own string.
     setPhase('ENEMY_ATTACK_LAUNCH');
+    fxFoeAct(it.id);
     result.targetId = intentTargetId();
     const negatedThisAction = {};      // one full negate per hero per ACTION
     // Who answers each hit, decided BEFORE the bar so the rhythm can be played
@@ -1250,6 +1315,7 @@ async function endTurn(opts) {
     if (!livingHeroes().length) { setPhase('DEFEAT'); renderAll(); return report('defeat', result); }
   }
 
+  fxFoeSettle();
   C.intercession = null;                        // one enemy action, then it lapses
 
   // NEXT PLAYER PHASE — Guard expires now (deck §6); the stance lapses;
@@ -1281,6 +1347,53 @@ function report(outcome, result) { return { outcome, ...(result || {}) }; }
 // receipt over the hero and the numbers on the figures already say everything
 // it used to, and this keeps the fight narrated for a screen reader.
 function logLine(t) { C.log.push(t); const el = document.getElementById('k-log'); if (el) el.textContent = t; }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE FOE ACTS — idle, wind-up, the blow, the recovery
+// ═════════════════════════════════════════════════════════════════════════════
+// Until now the enemy was a still picture with a slow breathe on it. It did not
+// wind up, it did not swing, and it did not recover — the whole barrage played
+// out as rings appearing over the party while the thing throwing them stood
+// perfectly still. That is most of why the attacks "don't feel like anything":
+// there was no attacker in them.
+//
+// Three layers move independently and must not be given the same property:
+//   · #k-boss-art  — the ACT. Wind-up, lunge, cast, recover.
+//   · .k-fig       — the IDLE. Paused for the duration of an act.
+//   · img          — the REACTIONS. Recoil when struck, reel when broken.
+// Build 36 learned this the hard way on the heroes: anything that sets
+// `animation` on the layer carrying the idle REPLACES the idle rather than
+// layering over it, and the figure stops breathing for the rest of the fight.
+const FOE_ACT = { hymn: 'k-foe-toll', scythe: 'k-foe-sweep',
+                  rain: 'k-foe-rain', benediction: 'k-foe-gather',
+                  toll: 'k-foe-toll', flurry: 'k-foe-sweep', crescendo: 'k-foe-rain' };
+// Every note kind gets its own swing, because the note is the blow: a tap is a
+// jab, a slide is a wide arc, a hold is a press that leans in and stays, a
+// burst is a flurry, and the two fakes — feint and bait — are a twitch that
+// does not commit. The hand is already being asked to read these apart; the
+// body throwing them should agree.
+const FOE_SWING = { tap: 'k-fs-jab', slide: 'k-fs-arc', hold: 'k-fs-press',
+                    burst: 'k-fs-flurry', feint: 'k-fs-fake', bait: 'k-fs-fake' };
+// TWO SLOTS, NOT ONE. The pose and the blow are meant to run together — that
+// is the entire reason they were put on different CSS properties — so clearing
+// them from one list meant every note stripped the posture off the foe the
+// instant it swung, and the four intents all looked the same again.
+const FOE_POSES = Object.values(FOE_ACT).concat(['k-foe-wind']);
+const FOE_SWINGS = Object.values(FOE_SWING);
+function foeSet(slot, cls, ms) {
+  const b = el('k-boss-art'); if (!b) return;
+  slot.forEach(c => b.classList.remove(c));
+  if (!cls) return;
+  void b.offsetWidth;                       // restart even if the class repeats
+  b.classList.add(cls);
+  if (ms) setTimeout(() => b.classList.remove(cls), ms);
+}
+// THE BREATH BEFORE THE BLOW. Held rather than timed out: the wind-up ends when
+// the act begins, so however long the launch takes the foe stays coiled.
+function fxFoeWind() { foeSet(FOE_POSES, 'k-foe-wind'); }
+function fxFoeAct(intentId) { foeSet(FOE_POSES, FOE_ACT[intentId] || 'k-foe-toll'); }
+function fxFoeSwing(kind) { foeSet(FOE_SWINGS, FOE_SWING[kind] || 'k-fs-jab', 420); }
+function fxFoeSettle() { foeSet(FOE_POSES, null); foeSet(FOE_SWINGS, null); }
 
 // ═════════════════════════════════════════════════════════════════════════════
 // RHYTHM DEFENSE UI — notes launch from the Regent and travel to the target
@@ -2056,6 +2169,8 @@ async function runVolleyRhythm(hits, answerers, sub) {
         document.querySelectorAll('.k-hero').forEach(h =>
           h.classList.toggle('k-parrying', h.dataset.hero === who));
         const dur = Math.max(180, Math.round(land - performance.now()));
+        // THE BLOW IS THROWN HERE, so this is where the thing throwing it moves.
+        fxFoeSwing(parseNote(type).kind);
         const g = await runParryNote(type, pos.x + ox, pos.y + oy, idx + 1, kinds.length, dur,
                                      who, ox, oy);
         if (track) {
@@ -2843,8 +2958,23 @@ let _focus = null;       // focus-mode card id (press-and-hold)
 
 function el(id) { return document.getElementById(id); }
 
+// A DEAD FOE ENDS THE FIGHT — asserted on every paint, not only where the
+// damage was dealt. A player reported a board sitting at 0 HP with the fight
+// still running, and roughly a hundred scripted fights across every foe, with
+// and without the run's hand-off, would not reproduce the trigger. What can be
+// fixed without knowing the trigger is the SHAPE of the failure: `dealToBoss`
+// is still the one place that decides victory, and this is a net under it, so
+// no route to zero — present or future — can leave the board playable.
+//
+// `!(hp > 0)` rather than `hp <= 0` deliberately: it also catches NaN, which
+// compares false against everything and would otherwise make a foe immortal
+// AND keep it off this net.
+function bossIsDown() {
+  return !!(C && C.boss && !(C.boss.hp > 0));
+}
 function renderAll() {
   if (!C || !el('k-stage')) return;
+  if (bossIsDown() && C.phase !== 'VICTORY' && C.phase !== 'DEFEAT') setPhase('VICTORY');
   renderPartyHud(); renderBossHud(); renderIntent(); renderHand();
   renderApDial(); renderPiles(); renderHeroes(); renderOutcome();
 }
