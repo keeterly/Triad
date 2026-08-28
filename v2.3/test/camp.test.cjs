@@ -378,6 +378,35 @@ const { boot } = require('./harness.cjs');
 
   }
 
+  // THE TILE IS THE CARD. Nine upgrade nodes described themselves as
+  // "Cleave+ / 7 damage. -> 10 damage." and nothing else — text about a card
+  // you could not see, on the one screen whose entire purpose is deciding which
+  // card to make better. Every tree node names a real card and every one of
+  // those has a painting.
+  const tiles = await J(() => {
+    window.R.screen('camp'); window.R.renderCamp();
+    const all = [...document.querySelectorAll('.k-tnode')];
+    const carded = all.filter(b => b.querySelector('.k-tn-bg'));
+    const srcs = carded.map(b => b.querySelector('.k-tn-bg').getAttribute('src'));
+    const one = carded[0] && carded[0].querySelector('.k-tn-bg');
+    const cs = one ? getComputedStyle(one) : null;
+    return { total: all.length, carded: carded.length,
+             distinct: new Set(srcs).size,
+             painted: srcs.every(x => /\/cards\//.test(x)),
+             // the words must still outrank the picture: the art is dimmed and
+             // sits under a scrim, and every text span is above it
+             dimmed: cs ? parseFloat(cs.opacity) < 0.8 : false,
+             under: carded.every(b => {
+               const z = (el) => { const v = getComputedStyle(el).zIndex;
+                 return v === 'auto' ? 0 : +v; };
+               const bg = z(b.querySelector('.k-tn-bg'));
+               return [...b.querySelectorAll('span')].every(sp => z(sp) > bg); }) };
+  });
+  check('FIRE: every upgrade node wears the card it upgrades, under the words',
+    tiles.carded === 9 && tiles.distinct === 9 && tiles.painted
+    && tiles.dimmed && tiles.under,
+    JSON.stringify(tiles));
+
   const r = report();
   await H.browser.close();
   process.exit(r.passed === r.total && r.errs === 0 ? 0 : 1);

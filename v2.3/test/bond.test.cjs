@@ -192,6 +192,32 @@ const { boot } = require('./harness.cjs');
       took.onSwap && !!took.pending && took.cols === 2 && took.offered === 10 && took.go === true,
       JSON.stringify(took));
 
+    // THIS, FOR THAT — as two faces rather than two sentences. The single most
+    // consequential decision the road asks ("which of these fifteen leaves
+    // forever?") was made with the arriving card as a one-line chip in the top
+    // corner and the departing one as a text row in a list of ten. Neither card
+    // was ever SEEN. The panel shows both at the size they are in the hand.
+    const panel = await J(() => {
+      const p = document.querySelector('.k-sw-trade');
+      const face = () => document.querySelectorAll('.k-swt-face .k-card').length;
+      const before = { panel: !!p, faces: face(),
+                       empty: !!document.querySelector('.k-swt-empty'),
+                       chip: (document.getElementById('k-swap-new') || {}).innerHTML };
+      document.querySelector('#k-swap-cols .k-swapcard').click();
+      const box = document.querySelector('.k-swt-face .k-card').getBoundingClientRect();
+      return { before, afterFaces: face(),
+               afterEmpty: !!document.querySelector('.k-swt-empty'),
+               w: Math.round(box.width), h: Math.round(box.height),
+               names: [...document.querySelectorAll('.k-swt-face .k-cname')]
+                 .map(n => n.textContent) };
+    });
+    check('TRADE: the panel shows the card that leaves and the card that joins, as real faces',
+      panel.before.panel && panel.before.faces === 1 && panel.before.empty
+      && panel.before.chip === '' && panel.afterFaces === 2 && !panel.afterEmpty
+      && panel.w > 90 && panel.h > 140 && panel.names.length === 2
+      && panel.names[0] !== panel.names[1],
+      JSON.stringify(panel));
+
     const done = await J(() => {
       const first = document.querySelector('#k-swap-cols .k-swapcard');
       const dropped = first.dataset.id, hero = first.dataset.hero;

@@ -917,8 +917,17 @@
     if (sealed) cls.push('k-tn-sealed');
     if (poor) cls.push('k-tn-poor');
     if (wide) cls.push('k-tn-wide');
-    return '<button type="button" class="' + cls.join(' ') + '" data-node="' + n.id + '"'
+    // THE TILE IS THE CARD. Nine upgrade nodes described themselves as
+    // "Cleave+ / 7 damage. -> 10 damage." and nothing else — text about a card
+    // you could not see, on a screen whose whole purpose is deciding which card
+    // to make better. Every tree node names a real card and every one of those
+    // has a painting now, so the tile wears it: the same picture that will be
+    // in your hand next fight, behind the same kind of scrim the card uses.
+    const art = n.card && window.K.cardArt ? window.K.cardArt(n.card) : null;
+    return '<button type="button" class="' + cls.join(' ') + (art ? ' k-tn-art' : '')
+      + '" data-node="' + n.id + '"'
       + (own || sealed || poor ? ' tabindex="-1"' : '') + '>'
+      + (art ? '<img class="k-tn-bg" src="' + art + '" alt="" aria-hidden="true">' : '')
       + '<span class="k-tn-top"><b>' + f.name + '</b>'
       + '<em class="k-tn-cost">' + (own ? 'KINDLED' : sealed ? 'TIER ' + n.tier : n.cost) + '</em></span>'
       + '<span class="k-tn-what">' + (f.from ? '<i>' + f.from + '</i> → ' : '') + f.to + '</span>'
@@ -1148,13 +1157,17 @@
     // straight into a flex container made `#k-swap-new > span` match all three
     // — so the cost, the body and the owners each got the card's own styling
     // and the whole thing spilled off the right edge of the screen.
-    // THE SWAP KEEPS ITS COMPACT CHIP. A full 150px face was tried here and
-    // hung off the top of the screen — the header has 90px — and it would have
-    // been competing with ten card rows for the eye anyway. The place a card
-    // has to be SEEN is the fork, where it is chosen before it is owned; here
-    // it is being weighed against ten others in the same grammar they use.
-    $('k-swap-new').innerHTML = '<span class="k-sw-newcard">' + swapCardHTML(_pendingCard, true) + '</span>';
+    // THE CHIP IS GONE, and the header with it. A card arriving into the deck
+    // was described by a one-line chip in the top corner while the thing it
+    // would replace was a text row in a list of ten — so the single most
+    // consequential decision the road asks ("which of these fifteen leaves
+    // forever?") was made without seeing either card. The trade panel below
+    // shows both, full size. Nothing else on this screen needs to say it twice.
+    $('k-swap-new').innerHTML = '';
     $('k-swap-ask').textContent = 'FIVE SLOTS EACH — WHAT LEAVES?';
+    // TWO LISTS AND THE TRADE. The lists stay compact rows, because ten cards
+    // have to be SCANNABLE and ten faces would be a wall; the panel is where
+    // the two cards that actually matter are looked at.
     $('k-swap-cols').innerHTML = pair.map(h => {
       const art = ({ ash: 'kai', elin: 'elin', mira: 'mira' })[h];
       const rows = (RUN.roster[h] || []).map(id =>
@@ -1162,7 +1175,7 @@
         + '" data-hero="' + h + '" data-id="' + id + '">' + swapCardHTML(id, false) + '</button>').join('');
       return '<div class="k-sw-col"><header><img src="../art/' + art + '.webp" alt="">'
         + '<b>' + h.toUpperCase() + '</b><em>' + (RUN.roster[h] || []).length + '/5</em></header>' + rows + '</div>';
-    }).join('');
+    }).join('') + tradePanelHTML(card);
     $('k-swap-cols').querySelectorAll('.k-swapcard').forEach(b =>
       b.addEventListener('click', (e) => { e.stopPropagation();
         _swapPick = { hero: b.dataset.hero, id: b.dataset.id }; renderSwap(); }));
@@ -1171,6 +1184,27 @@
     go.textContent = _swapPick
       ? 'TRADE ' + K.CARD_DEFS[_swapPick.id].name.toUpperCase() + ' FOR ' + card.name.toUpperCase()
       : 'CHOOSE A CARD TO GIVE UP';
+  }
+  // THIS, FOR THAT. The card leaving on the left, the card arriving on the
+  // right, both as the faces they will be in the hand — same painting, same
+  // rules, same size. Until a card is chosen the left slot is an empty frame
+  // that says what goes in it, so the panel reads as a question rather than as
+  // a picture of the prize.
+  function tradePanelHTML(incoming) {
+    const K = window.K;
+    const out = _swapPick
+      ? '<div class="k-swt-face">' + K.staticCardHTML(_swapPick.id, { cls: 'k-card-swt' }) + '</div>'
+      : '<div class="k-swt-empty"><span>CHOOSE<br>A CARD</span></div>';
+    return '<div class="k-sw-trade">'
+      + '<div class="k-swt-pair">'
+      +   '<div class="k-swt-slot"><em>LEAVES</em>' + out + '</div>'
+      +   '<span class="k-swt-arrow" aria-hidden="true">'
+      +     '<svg viewBox="0 0 24 24"><path d="M3 12 H19 M15 7 L20 12 L15 17"'
+      +     ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"'
+      +     ' stroke-linejoin="round"/></svg></span>'
+      +   '<div class="k-swt-slot"><em>JOINS</em><div class="k-swt-face">'
+      +     K.staticCardHTML(_pendingCard, { cls: 'k-card-swt' }) + '</div></div>'
+      + '</div></div>';
   }
   function swapCardHTML(id, big) {
     const K = window.K, c = K.CARD_DEFS[id];

@@ -901,3 +901,61 @@ can afford, and it is *convenient* to then quote those 120-road numbers as
 measurements. They are not deep enough to be. `SIM_BAND=HALF SIM_RUNS=400`
 measures one tier properly, and the first thing it did was overturn a finding
 this build had already written down.
+
+
+---
+
+## Build 48 — the screens about cards start showing cards
+
+"A lot of the memory and upgrade parts need visuals. Cards would be much easier
+to understand the changes being made or added."
+
+Two screens whose entire subject is a card were describing that card in prose
+while the game had a painting for it sitting in `/art/cards/`.
+
+### The fire wears the cards it upgrades
+
+Nine tree nodes read "Cleave+ / 7 damage. → 10 damage." and nothing else: text
+about a card you could not see, on the one screen whose whole purpose is
+deciding which card to make better.
+
+Every tree node names a real card and every one of those has a painting, so the
+tile now wears it — the same grammar as the card face, with the picture bled
+through the plate and a scrim taking it down so the words never fight it. The
+art sits further back than it does in the hand, because a tile is a decision
+ABOUT a card rather than a card, and the text stays the loudest thing on it. A
+node already kindled or still sealed keeps its picture and loses its colour,
+which is the same read the poor and dead cards get in the hand.
+
+### The trade shows both cards
+
+The swap screen asks the most consequential question on the road — which of
+these fifteen leaves forever — and answered it with the arriving card as a
+one-line chip in the top corner and the departing one as a text row in a list of
+ten. **Neither card was ever seen.**
+
+There is a third column now: LEAVES on the left, JOINS on the right, both as the
+faces they will be in the hand — same painting, same rules, same 104×164. Until
+a card is picked the left slot is a dashed frame that says CHOOSE A CARD, so the
+panel reads as a trade waiting to be made rather than a picture of the prize.
+The lists keep their compact rows, because ten cards have to be scannable and
+ten faces would be a wall; the panel is where the two that matter get looked at.
+
+The old header chip is gone. Nothing on this screen needs to say it twice.
+
+An earlier note in the code said a full face was tried here and "hung off the
+top of the screen — the header has 90px". That was true when a card was 186px
+tall and the panel was imagined inside the header. At 164px, in a column of its
+own, two of them fit with room to spare.
+
+### The portrait fallback had drifted
+
+The twelve bond cards have no painting yet and fall back to the owner's
+portrait, framed as a bust. That anchor was tuned at `-20%` against the **186px**
+card; on the 164px card the same percentage lifts the head clean out of frame,
+so every bond card was showing a chest and a fistful of fabric. Swept against
+all three portraits at the current size and set at `-2%`, where the faces
+actually are.
+
+That is a patch on a gap, not a fix for it. The twelve bond cards want their own
+paintings the way the sixteen roster cards got theirs.

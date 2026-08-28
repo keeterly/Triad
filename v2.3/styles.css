@@ -502,7 +502,12 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   /* The portraits are full-body figures on a tall canvas with the head at
      roughly 18-28% of its height, so the anchor has to lift the frame well
      above the top edge — at -7% the plate filled with torso and staff. */
-  height: 172%; width: auto; left: 50%; top: -20%; transform: translateX(-50%);
+  /* THE ANCHOR WAS TUNED FOR A TALLER CARD. At -20% on the 186px face the head
+     landed in frame; on the 164px face the same percentage lifts it clean out
+     of the top, so every card still on the portrait fallback — the twelve bond
+     cards — showed a chest and a fistful of fabric. Swept at 164px against the
+     three portraits and set where the faces actually sit. */
+  height: 172%; width: auto; left: 50%; top: -2%; transform: translateX(-50%);
   object-position: 50% 50%;
   /* PALE FIGURES AND DARK ONES HAVE TO SIT AT THE SAME LEVEL. Elin is white
      and gold; Ash and Mira are near-black. At a brightness that flattered the
@@ -1597,6 +1602,24 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   border: 1px solid rgba(201,164,92,0.34);
   transition: transform 140ms ease, border-color 200ms ease, opacity 200ms ease; }
 .k-tnode:active { transform: translateY(1px); }
+/* THE TILE WEARS THE CARD IT UPGRADES. Same grammar as the card face: the
+   painting bled through the plate, a scrim taking it down to near-black so the
+   words never fight it, and the picture anchored high because the subject of
+   every one of these paintings is in its upper third. The tile is not trying to
+   BE a card — it is a decision about one — so the art sits further back than it
+   does in the hand and the text stays the loudest thing on it. */
+.k-tnode.k-tn-art { position: relative; overflow: hidden; }
+.k-tn-bg { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0;
+  object-fit: cover; object-position: 50% 16%; pointer-events: none;
+  filter: grayscale(0.3) contrast(1.05) brightness(0.62) saturate(0.9); opacity: 0.62; }
+.k-tnode.k-tn-art::after { content: ''; position: absolute; inset: 0; z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(100deg, rgba(16,13,20,0.95) 30%, rgba(16,13,20,0.66) 62%,
+    rgba(16,13,20,0.42) 100%); }
+.k-tnode.k-tn-art > span { position: relative; z-index: 2; }
+/* a node already taken, or one still sealed, keeps its picture but loses its
+   colour — the same read the poor and dead cards get in the hand */
+.k-tn-own .k-tn-bg, .k-tn-sealed .k-tn-bg { filter: grayscale(0.9) brightness(0.45); opacity: 0.4; }
 .k-tn-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .k-tn-top b { font-size: 13px; color: #efe6d4; letter-spacing: 0.03em; }
 .k-tn-cost { font-style: normal; font-size: 13px; font-weight: 700; color: #e0a85c; flex: none; }
@@ -2087,8 +2110,32 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-swap-new { flex: 1; display: flex; justify-content: flex-end; }
 #k-swap-line { position: absolute; left: 20px; right: 20px; top: 62px; z-index: 3; margin: 0;
   font-size: 12px; font-style: italic; color: #9a9080; }
+/* TWO LISTS AND THE TRADE. The lists keep their compact rows — ten cards have
+   to be scannable and ten faces would be a wall — and the panel on the right is
+   where the two cards that actually matter are looked at, full size, in the
+   same grammar they will have in the hand. 250px is exactly two 104px faces,
+   the arrow between them, and their gaps. */
+.k-sw-trade { display: flex; flex-direction: column; justify-content: center;
+  padding-left: 14px; border-left: 1px solid rgba(201,164,92,0.16); }
+.k-swt-pair { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.k-swt-slot { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.k-swt-slot em { font-style: normal; font-size: 7.5px; letter-spacing: 0.24em;
+  text-transform: uppercase; color: #8d8474; }
+.k-swt-slot:first-child em { color: #c08878; }
+.k-swt-slot:last-child em { color: #c9a45c; }
+.k-swt-face { width: 104px; height: 164px; }
+.k-swt-face .k-card { pointer-events: none; }
+/* the empty half is a frame with a question in it, so the panel reads as a
+   trade waiting to be made rather than a picture of the prize */
+.k-swt-empty { width: 104px; height: 164px; border-radius: 6px;
+  border: 1px dashed rgba(201,164,92,0.34); display: grid; place-items: center;
+  background: rgba(20,17,25,0.5); }
+.k-swt-empty span { font-size: 8px; letter-spacing: 0.2em; color: #7d7466;
+  text-align: center; line-height: 1.7; }
+.k-swt-arrow { flex: none; color: #8d8474; }
+.k-swt-arrow svg { width: 18px; height: 18px; display: block; }
 #k-swap-cols { position: absolute; left: 20px; right: 20px; top: 92px; bottom: 60px; z-index: 3;
-  display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  display: grid; grid-template-columns: 1fr 1fr 250px; gap: 16px; }
 .k-sw-col { display: flex; flex-direction: column; gap: 5px; }
 .k-sw-col > header { display: flex; align-items: center; gap: 7px; padding-bottom: 2px; }
 .k-sw-col > header img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover;
