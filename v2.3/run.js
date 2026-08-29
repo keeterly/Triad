@@ -702,6 +702,15 @@
       flash: null,                                // the receipt from the last stop
       pending: null,                              // a stop entered but not finished
       camped: 0, campDone: null,                  // the fire only mends once per visit
+      // A CARD WON AND NOT YET PLACED. The mark has been re-asked on boot since
+      // Build 28; the card it arrives with never was, because it lived in a
+      // module variable instead of in the run. Closing the tab on the swap
+      // screen therefore threw the card away — the whole payout of an
+      // awakening or a bond arc — and dropped the player on the road with no
+      // way to get it back. The soak found it on its third random run.
+      pendingCard: null,                          // the card waiting for a slot
+      pendingAfter: '',                           // the line it arrived with
+      swapBack: null,                             // 'map' | null — where the swap returns to
       sigils: {},                                 // cardId → the mark it wears
       pendingSigil: null,                         // a mark earned, not yet placed
       markPair: null,                             // whose cards it may land on
@@ -1184,14 +1193,11 @@
     if (!heard(_scene.id)) { PROFILE.heard.push(_scene.id); }
     if (!won(pick.card)) { PROFILE.won.push(pick.card); }
     saveProfile();
-    _pendingCard = pick.card;
-    _pendingAfter = pick.after;
     // The level also teaches them something about what they already carry.
     RUN.pendingSigil = sigilFor(_scene.pair, _scene.lv);
+    const card = pick.card, after = pick.after;
     _scene = null; _beat = 0;
-    save();
-    screen('swap');
-    renderSwap();
+    openSwap(card, after, null);
   }
 
   // ── the fire ─────────────────────────────────────────────────────────────
@@ -1639,11 +1645,7 @@
       if (!won.length) { RUN.woke = null; return; }
       // Straight into the swap screen the rest of the game already uses, so
       // the five-slot rule is enforced by the one piece of code that knows it.
-      _pendingCard = won[0];
-      _pendingAfter = 'The hands remember it. Something has to make room.';
-      _swapPick = null; _swapBack = 'map';
-      save();
-      screen('swap'); renderSwap();
+      openSwap(won[0], 'The hands remember it. Something has to make room.', 'map');
       return;
     }
     w.apply(RUN);
@@ -1652,6 +1654,19 @@
   }
 
   // ── the swap ─────────────────────────────────────────────────────────────
+  // ONE DOOR IN, and it writes the run before it shows the screen. Every path
+  // that hands the party a card goes through here, so there is exactly one
+  // place that has to remember what is owed.
+  function openSwap(card, after, back) {
+    RUN.pendingCard = card;
+    RUN.pendingAfter = after || '';
+    RUN.swapBack = back || null;
+    _pendingCard = card; _pendingAfter = after || ''; _swapPick = null; _swapBack = back || null;
+    save();
+    screen('swap');
+    renderSwap();
+  }
+
   function renderSwap() {
     const K = window.K;
     const card = K.CARD_DEFS[_pendingCard]; if (!card) return toMap();
@@ -1729,7 +1744,11 @@
       gain: '5/5/5', gainSub: 'the deck never grows' };
     const _wasCard = _pendingCard;
     _pendingCard = null; _swapPick = null; _pendingAfter = '';
-    const back = _swapBack; _swapBack = null;
+    // Read the destination from the RUN, not from a module variable: a stale
+    // `_swapBack` left over from the awakening's card was what sent a bond
+    // swap at a campfire back to the road instead of to the fire.
+    const back = RUN.swapBack; _swapBack = null;
+    RUN.pendingCard = null; RUN.pendingAfter = ''; RUN.swapBack = null;
     const pair = window.K.pairOf(_wasCard) || (_wasCard ? null : null);
     save();
     // A BOND LEVEL PAYS TWICE: a card, and a mark on one they already carry.
@@ -1876,6 +1895,13 @@
     // AN AWAKENING LEFT UNANSWERED IS RE-ASKED. Closing the tab on the offer
     // used to be the one way to start a run with no memory at all.
     if (!RUN.over && !RUN.woke && !RUN.pending && !RUN.path.length) return toWake();
+    // A CARD WON AND NOT PLACED IS RE-ASKED FIRST, because the mark that comes
+    // with a bond level is the SECOND half of that payout and asking for it
+    // before the card would place a mark on a deck the card has not joined yet.
+    if (!RUN.over && RUN.pendingCard && window.K.CARD_DEFS[RUN.pendingCard]) {
+      openSwap(RUN.pendingCard, RUN.pendingAfter, RUN.swapBack);
+      return;
+    }
     // A MARK EARNED AND NOT PLACED IS RE-ASKED, for the same reason: closing
     // the tab on it was the one way to lose a reward the road had paid for.
     if (!RUN.over && RUN.pendingSigil && RUN.markPair && openMark(RUN.markPair)) return;

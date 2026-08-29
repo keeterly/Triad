@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 59;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 60;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -4804,7 +4804,14 @@ window.addEventListener('DOMContentLoaded', () => {
   // have rewritten all of them to say the same things one click later, which
   // buys nothing. ?test=1&road=1 boots the run instead, for the road's own checks.
   const road = /[?&]road=1/.test(location.search);
-  if (window.R && window.R.boot && (!testMode() || road)) window.R.boot({ seed, fresh: testMode() });
+  // ?resume=1 — boot the way a PLAYER's reload boots: from the stored run.
+  // Test mode is otherwise deliberately `fresh`, so every suite starts clean —
+  // which also means the resume path, where a run-based game hides its worst
+  // bugs, was the one path no suite could reach.
+  const resume = /[?&]resume=1/.test(location.search);
+  if (window.R && window.R.boot && (!testMode() || road)) {
+    window.R.boot({ seed, fresh: testMode() && !resume });
+  }
   else startCombat({ seed });
   window.__ready = true;
 });
