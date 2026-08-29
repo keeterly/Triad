@@ -705,68 +705,107 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       && picked.bare && picked.bare.id === 'down',
       JSON.stringify({ oneStitch: picked.oneStitch, bare: picked.bare }));
 
-    // THE TWO IN THE SHOT ARE THE TWO THE DEED NAMES. A reflection between the
-    // wrong people is worse than no reflection: it says the game was not
-    // watching.
+    // THE TWO IN THE SHOT ARE THE TWO THE DEED NAMES — and the shot is the
+    // BOARD. Build 66 moved the reckoning onto the stage: the foe on the
+    // ground where it fell, the party in the lanes it fought from, the hand
+    // and the HUD standing down. Cutting to a letterboxed set meant that the
+    // instant you killed something you were somewhere else.
     const shot = await J(() => {
       window.R.resetProfile();
       window.R.newRun(41);
+      window.K.startCombat({ seed: 3 });          // a board to stand on
+      window.R.screen('combat');
       const opened = window.R.openReckoning({ foe: 'husk', deeds: {
         finisher: 'mira', lastHit: 'mira', shields: [{ by: 'elin', for: 'ash' }],
         stitches: {}, brink: [], fell: [], asOne: 0, untouched: false } });
-      const sc = window.R.scene();
-      let n = 0;
-      while (n++ < 20 && window.R.scene() && !document.querySelector('.k-fork-reck')) window.R.sceneNext();
-      return { opened, id: sc && sc.id, cast: sc && sc.cast,
-               figs: [...document.querySelectorAll('.k-sc-fig')].map(f => f.dataset.hero),
-               title: (document.getElementById('k-scene-title').textContent || '').trim(),
-               fallen: !document.getElementById('k-scene-fallen').classList.contains('k-hidden'),
-               fallenSrc: document.getElementById('k-scene-fallen').getAttribute('src'),
-               opts: [...document.querySelectorAll('.k-fork-reck')].map(o => ({
-                 label: o.querySelector('.k-fo-lbl').textContent,
-                 fx: o.querySelector('.k-fo-fx').textContent })) };
+      const rk = window.R.reckoning();
+      const stage = document.getElementById('k-stage');
+      const dim = (id) => +getComputedStyle(document.getElementById(id)).opacity;
+      return { opened, id: rk && rk.id, cast: rk && rk.cast,
+               onStage: stage.classList.contains('k-reckoning'),
+               stageUp: !stage.classList.contains('k-hidden'),
+               sceneUp: !document.getElementById('k-scene').classList.contains('k-hidden'),
+               lit: [...document.querySelectorAll('.k-hero.k-reck-in')].map(f => f.dataset.hero).sort(),
+               dark: [...document.querySelectorAll('.k-hero.k-reck-out')].map(f => f.dataset.hero),
+               plate: !document.getElementById('k-reck-plate').classList.contains('k-hidden'),
+               line: (document.getElementById('k-reck-line').textContent || '').length,
+               hand: dim('k-hand'), hud: dim('k-boss-hud'), ap: dim('k-ap') };
     });
-    check('RECK: the two who are talking are the two the deed names, over the thing that fell',
-      shot.opened && shot.id === 'infront' && shot.cast.join() === 'elin,ash'
-      && shot.figs.length === 2 && shot.figs.slice().sort().join() === 'ash,elin'
-      && shot.fallen && /foe-husk/.test(shot.fallenSrc || '') && shot.opts.length === 2,
-      JSON.stringify({ id: shot.id, cast: shot.cast, figs: shot.figs, fallen: shot.fallenSrc }));
+    check('RECK: it happens on the BOARD — the party in their lanes, the hand and the HUD stood down',
+      shot.opened && shot.onStage && shot.stageUp && !shot.sceneUp
+      && shot.lit.join() === 'ash,elin' && shot.dark.join() === 'mira'
+      && shot.plate && shot.line > 20
+      && shot.hand === 0 && shot.hud === 0 && shot.ap === 0,
+      JSON.stringify(shot));
+
+    // …and the thing it is standing over is on the ground — DRIVEN, not
+    // assumed. Reading the foe without running the fall first reported
+    // opacity 1 and passed for the wrong reason.
+    const body = await J(async () => {
+      window.K.fxFoeDown();
+      const b = document.getElementById('k-boss-art');
+      const mid = +getComputedStyle(b).opacity;
+      await new Promise(r => setTimeout(r, 1700));      // let the fall finish
+      const cs = getComputedStyle(b);
+      const r2 = b.getBoundingClientRect();
+      return { down: b.classList.contains('k-foe-down'), mid,
+               shown: cs.display !== 'none' && cs.visibility !== 'hidden',
+               // it was measurably present at 0.42 — box, display and
+               // visibility all fine — and completely invisible against this
+               // backdrop's pale sky, which is the one thing the whole beat
+               // stands over. Presence is not the same as being seen.
+               op: +cs.opacity, w: Math.round(r2.width), h: Math.round(r2.height) };
+    });
+    check('RECK: …over a body that is still visibly there, not a faded-out sprite',
+      body.down && body.shown && body.op >= 0.6 && body.w > 40 && body.h > 40,
+      JSON.stringify(body));
 
     // THE FORK IS THE EXIT, and it pays exactly what its chip says.
     const held = await J(() => {
-      for (let i = 0; i < 12; i++) window.R.sceneNext();
-      return { still: !!window.R.scene(), forks: document.querySelectorAll('.k-fork-reck').length };
+      for (let i = 0; i < 12; i++) window.R.reckNext();
+      return { still: !!window.R.reckoning(),
+               forks: document.querySelectorAll('.k-rk-opt').length,
+               plateGone: document.getElementById('k-reck-plate').classList.contains('k-hidden') };
     });
     check('RECK: it ends on its fork and waits there — no amount of tapping answers it for you',
-      held.still && held.forks === 2, JSON.stringify(held));
+      held.still && held.forks === 2 && held.plateGone, JSON.stringify(held));
 
     const paidBond = await J(() => {
       const b = JSON.parse(JSON.stringify(window.R.state().bonds));
       const kz = window.R.state().kizuna;
-      document.querySelectorAll('.k-fork-reck')[0].click();
+      document.querySelectorAll('.k-rk-opt')[0].click();
       const a = window.R.state();
       const moved = Object.keys(a.bonds).filter(k => a.bonds[k] !== b[k])
         .map(k => k + ':+' + (a.bonds[k] - b[k]));
-      return { moved, kz: [kz, a.kizuna], onMap: !document.getElementById('k-map').classList.contains('k-hidden'),
+      return { moved, kz: [kz, a.kizuna],
+               onMap: !document.getElementById('k-map').classList.contains('k-hidden'),
+               // the board is handed back clean: no lit heroes, no fallen foe,
+               // no reckoning class left behind for the next fight to inherit
+               stageClean: !document.getElementById('k-stage').classList.contains('k-reckoning'),
+               litLeft: document.querySelectorAll('.k-hero.k-reck-in, .k-hero.k-reck-out').length,
+               bodyLeft: document.getElementById('k-boss-art').classList.contains('k-foe-down'),
+               reckGone: !window.R.reckoning(),
                flash: a.flash };
     });
-    check('RECK: the answer that deepens a pair deepens THAT pair, and only it',
+    check('RECK: the answer that deepens a pair deepens THAT pair, and hands the board back clean',
       paidBond.moved.length === 1 && paidBond.moved[0] === 'ash|elin:+6'
       && paidBond.kz[0] === paidBond.kz[1] && paidBond.onMap
-      && !!paidBond.flash && (paidBond.flash.gainSub || '').length > 3,
+      && paidBond.stageClean && paidBond.litLeft === 0 && !paidBond.bodyLeft
+      && paidBond.reckGone && !!paidBond.flash,
       JSON.stringify(paidBond));
 
     const paidKz = await J(() => {
       window.R.newRun(41);
+      window.K.startCombat({ seed: 3 });
+      window.R.screen('combat');
       window.R._set({ kizuna: 10 });
       window.R.openReckoning({ foe: 'wraith', deeds: {
         finisher: 'ash', lastHit: 'ash', shields: [], stitches: {},
         brink: ['elin'], fell: [], asOne: 0, untouched: false } });
-      let n = 0;
-      while (n++ < 20 && window.R.scene() && !document.querySelector('.k-fork-reck')) window.R.sceneNext();
+      for (let i = 0; i < 12; i++) window.R.reckNext();
       const b = JSON.parse(JSON.stringify(window.R.state().bonds));
       const kz = window.R.state().kizuna;
-      document.querySelectorAll('.k-fork-reck')[1].click();
+      document.querySelectorAll('.k-rk-opt')[1].click();
       const a = window.R.state();
       return { bondsMoved: Object.keys(a.bonds).filter(k => a.bonds[k] !== b[k]).length,
                kz: [kz, a.kizuna] };
@@ -779,14 +818,29 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     // conversation over her body would step on it.
     const regent = await J(() => {
       window.R.newRun(41);
+      window.K.startCombat({ seed: 3 });
+      window.R.screen('combat');
       window.R._set({ over: 'win' });
       const opened = window.R.openReckoning({ foe: 'mourner', deeds: {
         finisher: 'ash', lastHit: 'ash', shields: [{ by: 'elin', for: 'mira' }],
         stitches: {}, brink: [], fell: [], asOne: 2, untouched: false } });
-      return { opened, scene: !!window.R.scene() };
+      return { opened, up: !!window.R.reckoning() };
     });
     check('RECK: the Regent gets no reckoning — the end of the descent is its own beat',
-      regent.opened === false && regent.scene === false, JSON.stringify(regent));
+      regent.opened === false && regent.up === false, JSON.stringify(regent));
+
+    // …and with no board to stand on there is no reckoning either, rather than
+    // a conversation floating over whatever screen happens to be up.
+    const noBoard = await J(() => {
+      window.R.newRun(41);
+      window.R.screen('map');
+      const opened = window.R.openReckoning({ foe: 'husk', deeds: {
+        finisher: 'mira', lastHit: 'mira', shields: [{ by: 'elin', for: 'ash' }],
+        stitches: {}, brink: [], fell: [], asOne: 0, untouched: false } });
+      return { opened, up: !!window.R.reckoning() };
+    });
+    check('RECK: with no board to stand on, it does not open at all',
+      noBoard.opened === false && noBoard.up === false, JSON.stringify(noBoard));
   }
 
   const r = report();

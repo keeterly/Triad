@@ -533,57 +533,55 @@ const { boot } = require('./harness.cjs');
   }
 
   // A SCENE THAT IS NOT ASKING A QUESTION HAS NO ANSWERS LYING AROUND.
-  // Three kinds of scene share this screen and two of them end on a fork.
-  // Hiding the fork used to leave its buttons in the DOM, so the next scene
-  // opened with the last one's answers behind it — invisible, but present and
-  // still matching every selector that looks for a fork. The soak stalled on
-  // it; a player never could have, which is why it needed a random walk.
+  // Two kinds of scene share this screen and both end on a fork. Hiding the
+  // fork used to leave its buttons in the DOM, so the next scene opened with
+  // the last one's answers behind it — invisible, but present and still
+  // matching every selector that looks for a fork. The soak stalled on it; a
+  // player never could have, which is why it needed a random walk.
+  //
+  // REWRITTEN at Build 66: the reckoning that first exposed this has moved off
+  // this screen and onto the battlefield, so the pair that demonstrates the
+  // rule is now a bond scene and a crossroads. The rule itself is unchanged.
   console.log('\n── no ghosts on the fork ──');
   {
     const ghosts = await J(() => {
-      const out = {};
       const forks = () => document.querySelectorAll('#k-scene-fork .k-fork').length;
+      const out = {};
       window.R.resetProfile(); window.R.newRun(41);
-      // a reckoning, answered
-      window.R.openReckoning({ foe: 'husk', deeds: { finisher: 'mira', lastHit: 'mira',
-        shields: [{ by: 'elin', for: 'ash' }], stitches: {}, brink: [], fell: [],
-        asOne: 0, untouched: false } });
-      let n = 0;
-      while (n++ < 20 && window.R.scene() && !document.querySelector('.k-fork-reck')) window.R.sceneNext();
-      out.reckFork = forks();
-      document.querySelectorAll('.k-fork-reck')[0].click();
+      window.R._set({ bonds: { 'ash|elin': 99, 'ash|mira': 0, 'elin|mira': 0 } });
+      window.R.openBondScene();
+      window.R.sceneSkip();
+      out.bondFork = forks();
+      window.R.takeBond(0);                       // answered — it hands on to the swap
       out.afterAnswer = forks();
       out.sceneGone = !window.R.scene();
       return out;
     });
     check('GHOSTS: answering a fork clears it the moment it is answered, not whenever something else redraws',
-      ghosts.reckFork === 2 && ghosts.afterAnswer === 0 && ghosts.sceneGone,
+      ghosts.bondFork === 2 && ghosts.afterAnswer === 0 && ghosts.sceneGone,
       JSON.stringify(ghosts));
 
-    // …and the real path: a mystery entered straight after a reckoning shows
-    // ITS OWN two answers, not the last fight's.
+    // …and the real path: a crossroads entered after a scene that had a fork
+    // shows ITS OWN two answers, sharing none of them.
     const own = await J(() => {
-      window.R.newRun(41);
-      window.R.openReckoning({ foe: 'husk', deeds: { finisher: 'mira', lastHit: 'mira',
-        shields: [{ by: 'elin', for: 'ash' }], stitches: {}, brink: [], fell: [],
-        asOne: 0, untouched: false } });
-      let n = 0;
-      while (n++ < 20 && window.R.scene() && !document.querySelector('.k-fork-reck')) window.R.sceneNext();
-      const reckLabels = [...document.querySelectorAll('.k-fo-lbl')].map(e => e.textContent);
-      document.querySelectorAll('.k-fork-reck')[0].click();
-      // now a crossroads, from its first line
+      window.R.resetProfile(); window.R.newRun(41);
+      window.R._set({ bonds: { 'ash|elin': 99, 'ash|mira': 0, 'elin|mira': 0 } });
+      window.R.openBondScene();
+      window.R.sceneSkip();
+      const bondLabels = [...document.querySelectorAll('#k-scene-fork .k-fork-line')]
+        .map(e => e.textContent);
+      window.R.takeBond(0);
       const def = window.R.EVENTS[0];
       window.R._setScene(null);
-      const node = { kind: 'event', event: def.id, id: 'e' };
-      window.R.enterEvent ? window.R.enterEvent(node) : null;
+      window.R.enterEvent({ kind: 'event', event: def.id, id: 'e' });
       const atFirstBeat = document.querySelectorAll('#k-scene-fork .k-fork').length;
       let m = 0;
       while (m++ < 20 && window.R.scene() && !document.querySelector('.k-fork-opt')) window.R.sceneNext();
       const evLabels = [...document.querySelectorAll('.k-fo-lbl')].map(e => e.textContent);
-      return { reckLabels, atFirstBeat, evLabels,
-               shared: evLabels.filter(x => reckLabels.indexOf(x) >= 0) };
+      return { bondLabels, atFirstBeat, evLabels,
+               shared: evLabels.filter(x => bondLabels.indexOf(x) >= 0) };
     });
-    check('GHOSTS: a crossroads after a fight offers its own answers, never the last fight\u2019s',
+    check('GHOSTS: a crossroads after a scene with a fork offers its own answers, never the last one\u2019s',
       own.atFirstBeat === 0 && own.evLabels.length === 2 && own.shared.length === 0,
       JSON.stringify(own));
   }

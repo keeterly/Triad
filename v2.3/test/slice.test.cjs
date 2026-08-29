@@ -332,7 +332,25 @@ const MAX_TURNS = 30;
         try { return eval(src)(sd, p, mt, {}); } finally { K.startCombat = orig; }
       }, [BOT, 900 + col * 17, 0.86, MAX_TURNS]);
       log.push(`stop ${col}: ${kind}, ${r.win ? 'won' : 'LOST'} in ${r.turns} rounds`);
-      await sleep(900);
+      // THE BOARD HOLDS AFTER A WIN. The foe goes down, then the reckoning
+      // stands on the stage — foe on the ground, party in their lanes — so
+      // the road does not come back until it has been answered.
+      await sleep(2100);
+      const said = await J(() => {
+        const rk = window.R.reckoning && window.R.reckoning();
+        if (!rk) return null;
+        for (let i = 0; i < 20 && window.R.reckoning(); i++) {
+          if (document.querySelector('.k-rk-opt')) break;
+          window.R.reckNext();
+        }
+        const o = [...document.querySelectorAll('.k-rk-opt')];
+        if (!o.length) return { id: rk.id, stuck: true };
+        o[0].click();
+        return { id: rk.id };
+      });
+      if (said && said.stuck) breaches.push(`stop ${col}: the reckoning never offered its fork`);
+      if (said) log.push(`stop ${col}: reckoning — ${said.id}`);
+      await sleep(400);
       check(`SLICE: the ${kind} at stop ${col} resolves and hands the run back`,
         !!r && (r.win || r.died), JSON.stringify({ win: r && r.win, turns: r && r.turns }));
       const after = await R();

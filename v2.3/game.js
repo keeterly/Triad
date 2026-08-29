@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 65;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 66;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -526,6 +526,11 @@ function setPhase(p) {
   if (p === 'PLAYER_READY' || p === 'VICTORY' || p === 'DEFEAT') {
     if (typeof fxFoeSettle === 'function') fxFoeSettle();
   }
+  // …AND A FOE THAT HAS ACTUALLY DIED GOES DOWN, whether or not a run is
+  // waiting to collect the fight. This lived inside the `onEnd` block, so a
+  // foe killed outside a run — the suite's own fights, a bare board — simply
+  // stood there dead.
+  if (p === 'VICTORY') { try { fxFoeDown(); } catch (e) {} }
   // A fight that was started BY something reports back to it. Combat itself
   // still knows nothing about runs, maps or embers — it only knows it is over.
   if ((p === 'VICTORY' || p === 'DEFEAT') && C.onEnd) {
@@ -553,14 +558,21 @@ function setPhase(p) {
     catch (e) { snap = { outcome: p === 'VICTORY' ? 'victory' : 'defeat',
                          foe: C.foe ? C.foe.id : null, turns: C.turn,
                          partyHp: null, pairBond: {}, kizuna: 0, cleanliness: 0, deeds: null }; }
+    // LET THE KILL LAND. 620ms was enough to see a number and not enough to
+    // see a death: the foe was still mid-recoil when the next screen arrived.
+    // On a win the board now holds while it goes down.
+    const handoffMs = p === 'VICTORY' ? 1750 : 900;
     setTimeout(() => {
       try { cb(snap); } catch (e) { console.error('onEnd failed', e); }
       if (C) C._handoff = false;
-    }, 620);
-    // …and one more paint after the hand-off window has passed. Nothing else
+    }, handoffMs);
+    // …and one more paint AFTER the hand-off window has passed. Nothing else
     // repaints combat once the turn has ended, so without this the fallback
-    // outcome card above would have no moment at which to appear.
-    setTimeout(() => { try { renderOutcome(); } catch (e) {} }, 1500);
+    // outcome card would have no moment at which to appear — and it has to be
+    // measured from the hand-off rather than fixed at 1500ms, because the
+    // moment the win got its death beat the repaint started landing while
+    // `_handoff` was still true and drew nothing at all.
+    setTimeout(() => { try { renderOutcome(); } catch (e) {} }, handoffMs + 880);
   }
 }
 // What a finished fight is worth, in the only terms the run layer cares about.
@@ -635,6 +647,13 @@ function startCombat(opts) {
   TUNE.alloutDmg = ALLOUT_BASE.dmg; TUNE.alloutBrk = ALLOUT_BASE.brk;
   if (opts.allout) { TUNE.alloutDmg = opts.allout.dmg; TUNE.alloutBrk = opts.allout.brk; }
   _camPoseCur = null; camHome();          // a fresh fight re-composes the shot
+  // …AND A FRESH FOE IS NOT ALREADY DEAD. `k-foe-down` is a terminal pose and
+  // nothing was clearing it, so the fight after a win opened with the new foe
+  // lying on the floor at 27 degrees. Two checks caught it on the same run the
+  // pose was written — the one that asserts a foe stands down for the player's
+  // turn, and the one that asserts a fresh board has no corpse on it.
+  const _bossBox = el('k-boss-art');
+  if (_bossBox) _bossBox.classList.remove('k-foe-down');
   const foe = opts.foe || FOES.mourner;
   const carry = opts.partyHp || null;     // a run carries its wounds between fights
   // TWO THINGS THE AWAKENING CAN CHANGE. The run→engine seam is deliberately
@@ -1022,6 +1041,19 @@ async function allOut() {
   renderAll();
   return true;
 }
+// WHAT DYING LOOKS LIKE. The foe reels on its broken frames — the ones that
+// already exist for a stagger — and then goes over and stays there. Two
+// separate things on purpose: the reel is the hit registering, the fall is the
+// fight ending, and running them together read as a glitch rather than a death.
+function fxFoeDown() {
+  const box = el('k-boss-art');
+  if (!box) return;
+  if (typeof foeAnimState === 'function') { try { foeAnimState('broken'); } catch (e) {} }
+  box.classList.remove('k-foe-down');
+  void box.offsetWidth;
+  box.classList.add('k-foe-down');
+}
+
 function checkBossPhase() {
   if (C.foe && C.foe.phases < 2) return;
   if (C.boss.phase === 1 && C.boss.hp <= C.boss.max / 2 && C.boss.hp > 0) {
@@ -4175,6 +4207,11 @@ function renderOutcome() {
   if (!terminal || C.onEnd || C._handoff) { ov.className = 'k-ov k-hidden'; return; }
   const stage = el('k-stage');
   const stageUp = !!stage && !stage.classList.contains('k-hidden');
+  // SOMETHING ELSE IS USING THE BOARD. The reckoning holds the stage after a
+  // win — the foe on the ground, the party still in their lanes — so combat's
+  // own outcome card would print straight through a conversation. Combat still
+  // knows nothing about runs here: only that the stage has been claimed.
+  if (stage && stage.classList.contains('k-reckoning')) { ov.className = 'k-ov k-hidden'; return; }
   if (inRun && !stageUp) { ov.className = 'k-ov k-hidden'; return; }   // the road took over
   const won = C.phase === 'VICTORY';
   const title = won ? ((C.foe && C.foe.name ? C.foe.name.toUpperCase() : 'THE REGENT') + ' FALLS')
@@ -4955,7 +4992,7 @@ window.K = {
   // the ladder is drivable from a sim and the change can be A/B'd.
   _parryWeights: () => ({ ...PARRY_WEIGHT }),
   _setParryWeights: (o) => { Object.assign(PARRY_WEIGHT, o || {}); },
-  actionKind, castTone, cardArt, overHand, FOE_SHEETS,
+  actionKind, castTone, cardArt, overHand, FOE_SHEETS, fxFoeDown,
   // test-only: drive the foe's performance directly, through the same hooks the
   // fight drives, so a check can ask what each intent actually pulls
   _fxFoeWind: () => fxFoeWind(), _fxFoeAct: (i) => fxFoeAct(i),

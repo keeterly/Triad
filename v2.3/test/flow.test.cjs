@@ -1235,6 +1235,25 @@ const { boot } = require('./harness.cjs');
       && ledger.fresh.stitches === 0 && ledger.fresh.brink === 0
       && ledger.fresh.fell === 0 && ledger.fresh.asOne === 0 && ledger.fresh.untouched === true,
       JSON.stringify(ledger.fresh));
+    // THE KILL NEEDS TIME TO LAND. The hand-off used to fire 620ms after
+    // VICTORY, which is enough to see a number and not enough to see a death —
+    // the foe was still mid-recoil when the next screen arrived. On a win the
+    // board now holds while it goes down, on the `broken` frames that already
+    // existed and were only ever used for a stagger.
+    const dying = await J(async () => {
+      window.K.startCombat({ seed: 3 });
+      const box = document.getElementById('k-boss-art');
+      const before = box.className;
+      window.K.state().boss.hp = 1;
+      window.K._dealToBoss(40, 'hit', 'ash');
+      await new Promise(r => setTimeout(r, 60));
+      return { phase: window.K.state().phase, before,
+               falling: box.classList.contains('k-foe-down') };
+    });
+    check('DYING: winning puts the foe on the ground before anything else happens',
+      dying.phase === 'VICTORY' && dying.falling && !/k-foe-down/.test(dying.before),
+      JSON.stringify(dying));
+
     check('DEEDS: striking as one, standing at a quarter, going down, and who swung last are all recorded',
       ledger.afterAllOut === 1
       && ledger.brinked.join() === 'mira' && ledger.fellen.join() === 'mira'
@@ -2994,7 +3013,13 @@ const { boot } = require('./harness.cjs');
       window.K.state().boss.hp = 0;
       window.K.render();                                    // the net fires VICTORY
       const duringHandoff = document.getElementById('k-overlay').className;
-      await new Promise(r => setTimeout(r, 1800));           // past 620ms + the repaint
+      // WAIT FOR THE DOOR, not for a number. This was `1800` — "past 620ms +
+      // the repaint" — and the moment the win got a death beat the hand-off
+      // moved to 1750ms and the fixed wait was measuring the wrong instant.
+      for (let i = 0; i < 60; i++) {
+        if (document.getElementById('k-ov-go')) break;
+        await new Promise(r => setTimeout(r, 80));
+      }
       const ov = document.getElementById('k-overlay');
       const out = { phase: window.K.state().phase, duringHandoff,
                     after: ov.className, hasDoor: !!document.getElementById('k-ov-go'),

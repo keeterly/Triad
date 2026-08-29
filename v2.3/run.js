@@ -1309,26 +1309,18 @@
     toMap();
   }
 
-  // WHERE THE RECKONING STANDS. The battlefield's own backdrop, and the foe
-  // face-down in it — desaturated, tipped over, sunk into the floor. Any other
-  // scene puts its own ground back, so the memory and the crossroads are
-  // unaffected by having been preceded by a fight.
-  function paintFallen() {
-    // NOT `k-scene-plate` — that id already belongs to the dialogue box, and
-    // giving the backdrop the same one made the memory's plate 430px tall.
-    // The camp suite caught it on the same run it was written.
-    const plate = $('k-scene-ground'), fallen = $('k-scene-fallen');
-    if (!plate || !fallen) return;
-    const reck = _scene && _scene.kind === 'reck';
-    const bg = reck ? '../art/bg23-plaza.webp' : '../art/bg-descent.webp';
-    if (plate.getAttribute('src') !== bg) plate.setAttribute('src', bg);
-    fallen.classList.toggle('k-hidden', !reck);
-    if (!reck) return;
-    const src = '../art/foe-' + (_scene.foe || 'husk') + '.webp';
-    if (fallen.getAttribute('src') !== src) fallen.setAttribute('src', src);
-  }
-
   // ── the reckoning ────────────────────────────────────────────────────────
+  // IT HAPPENS WHERE THE FIGHT HAPPENED.
+  //
+  // The first version of this cut to the memory screen — its own letterbox, its
+  // own backdrop, the three of them re-staged as cut-outs. Which meant that the
+  // instant you killed something you were somewhere else: the body, the room
+  // and the people standing in it all replaced by a set dressed to look like
+  // them. The board simply holds now. The foe is on the ground where it fell,
+  // the party is in the lanes it fought from, the hand and the HUD stand down,
+  // and the two who did something talk about it over the wreck.
+  let _reck = null, _rbeat = 0;
+
   function openReckoning(sum) {
     // THE REGENT GETS NO RECKONING. The end of the descent is its own beat and
     // a conversation over her body would step on it. The rule lives HERE rather
@@ -1339,23 +1331,96 @@
       !(RUN.hp && RUN.hp[id] != null && RUN.hp[id] <= 0));
     const hit = pickReckoning(deeds, live);
     if (!hit) return false;
+    const stage = $('k-stage');
+    if (!stage || stage.classList.contains('k-hidden')) return false;   // no board to stand on
     const [aId, bId] = hit.cast;
     const A = { id: aId, n: CAST[aId].n }, B = { id: bId, n: CAST[bId].n };
     RUN.reckSeen = RUN.reckSeen || [];
     if (RUN.reckSeen.indexOf(hit.r.id) < 0) RUN.reckSeen.push(hit.r.id);
-    _scene = { id: hit.r.id, kind: 'reck', title: hit.r.title, eyebrow: hit.r.ask,
-               beats: hit.r.beats(A, B), picks: hit.r.picks(A, B),
-               foe: sum.foe, cast: [aId, bId] };
-    _beat = 0;
+    _reck = { id: hit.r.id, title: hit.r.title, ask: hit.r.ask,
+              beats: hit.r.beats(A, B), picks: hit.r.picks(A, B),
+              foe: sum.foe, cast: [aId, bId] };
+    _rbeat = 0;
     save();
-    screen('scene');
-    renderScene();
+    stage.classList.add('k-reckoning');
+    renderReck();
     return true;
   }
 
+  function renderReck() {
+    const box = $('k-reck'); if (!box || !_reck) return;
+    const done = _rbeat >= _reck.beats.length;
+    box.classList.remove('k-hidden');
+    box.classList.toggle('k-reck-asking', done);
+    $('k-reck-title').textContent = _reck.title;
+    // ONLY THE TWO WHO ARE TALKING ARE LIT. The third is still standing there —
+    // this is the same board — but the eye needs telling who this is between.
+    ['ash', 'elin', 'mira'].forEach(id => {
+      const fig = document.querySelector('.k-hero[data-hero="' + id + '"]');
+      if (!fig) return;
+      fig.classList.toggle('k-reck-in', _reck.cast.indexOf(id) >= 0);
+      fig.classList.toggle('k-reck-out', _reck.cast.indexOf(id) < 0);
+    });
+    const plate = $('k-reck-plate'), fork = $('k-reck-fork');
+    plate.classList.toggle('k-hidden', done);
+    fork.classList.toggle('k-hidden', !done);
+    if (!done) {
+      const b = _reck.beats[_rbeat];
+      $('k-reck-who').textContent = b.who ? CAST[b.who].n : '';
+      $('k-reck-who').classList.toggle('k-hidden', !b.who);
+      $('k-reck-line').className = b.who ? 'k-rk-line' : 'k-rk-line k-rk-narr';
+      $('k-reck-line').textContent = b.line;
+      $('k-reck-next').textContent = _rbeat === _reck.beats.length - 1 ? 'END' : 'NEXT';
+      // the speaker leans in, the other holds
+      ['ash', 'elin', 'mira'].forEach(id => {
+        const fig = document.querySelector('.k-hero[data-hero="' + id + '"]');
+        if (fig) fig.classList.toggle('k-reck-say', b.who === id);
+      });
+      $('k-reck-dots').innerHTML = _reck.beats
+        .map((_, i) => '<i class="' + (i < _rbeat ? 'on' : i === _rbeat ? 'now' : '') + '"></i>').join('');
+      fork.innerHTML = '';
+      return;
+    }
+    ['ash', 'elin', 'mira'].forEach(id => {
+      const fig = document.querySelector('.k-hero[data-hero="' + id + '"]');
+      if (fig) fig.classList.remove('k-reck-say');
+    });
+    fork.innerHTML = '<span class="k-rk-ask">' + (_reck.ask || '') + '</span>'
+      + '<div class="k-rk-row">'
+      + _reck.picks.map((p, i) =>
+          '<button type="button" class="k-rk-opt" data-ix="' + i + '">'
+          + '<b>' + p.label + '</b><span class="k-rk-say">' + p.say + '</span>'
+          + '<em class="k-rk-fx">'
+          + (p.bond ? '+' + RECK_BOND + ' \u2014 ' + CAST[p.bond[0]].n + ' &amp; ' + CAST[p.bond[1]].n
+                    : '+' + p.kizuna + '% kizuna, carried')
+          + '</em></button>').join('')
+      + '</div>';
+    fork.querySelectorAll('.k-rk-opt').forEach(b =>
+      b.addEventListener('click', (e) => { e.stopPropagation(); takeReckoning(+b.dataset.ix); }));
+  }
+
+  function reckNext() {
+    if (!_reck) return;
+    if (_rbeat < _reck.beats.length) { _rbeat++; renderReck(); }
+  }
+
+  function closeReck() {
+    _reck = null; _rbeat = 0;
+    const box = $('k-reck');
+    if (box) { box.classList.add('k-hidden'); const f = $('k-reck-fork'); if (f) f.innerHTML = ''; }
+    const stage = $('k-stage');
+    if (stage) stage.classList.remove('k-reckoning');
+    ['ash', 'elin', 'mira'].forEach(id => {
+      const fig = document.querySelector('.k-hero[data-hero="' + id + '"]');
+      if (fig) fig.classList.remove('k-reck-in', 'k-reck-out', 'k-reck-say');
+    });
+    const boss = $('k-boss-art');
+    if (boss) boss.classList.remove('k-foe-down');
+  }
+
   function takeReckoning(ix) {
-    if (!_scene || _scene.kind !== 'reck' || RUN.over) return;
-    const p = _scene.picks[ix]; if (!p) return;
+    if (!_reck || RUN.over) return;
+    const p = _reck.picks[ix]; if (!p) return;
     let gain = '', gainSub = '';
     if (p.bond) {
       const k = PAIRS.find(x => x === [p.bond[0], p.bond[1]].sort().join('|'));
@@ -1368,9 +1433,9 @@
       RUN.kizuna = Math.max(0, Math.min(100, (RUN.kizuna || 0) + p.kizuna));
       gain = '+' + p.kizuna + '%'; gainSub = 'kizuna carried on';
     }
-    RUN.flash = { icon: 'story', tone: 'gold', title: _scene.title,
+    RUN.flash = { icon: 'story', tone: 'gold', title: _reck.title,
                   sub: p.say, gain, gainSub };
-    closeScene();
+    closeReck();
     save();
     toMap();
   }
@@ -1671,10 +1736,7 @@
     const done = _beat >= beats.length;
     $('k-scene').classList.toggle('k-sc-done', done);
     $('k-scene').classList.toggle('k-sc-myst', _scene.kind === 'event');
-    $('k-scene').classList.toggle('k-sc-reck', _scene.kind === 'reck');
-    paintFallen();
-    const forking = done && (_scene.kind === 'bond' || _scene.kind === 'event'
-                          || _scene.kind === 'reck');
+    const forking = done && (_scene.kind === 'bond' || _scene.kind === 'event');
     $('k-scene').classList.toggle('k-sc-fork', forking);
     const forkBox = $('k-scene-fork');
     if (forkBox) {
@@ -1689,23 +1751,7 @@
       // this was never going to be seen — which is exactly why it needed a
       // random walk to find it.
       if (!forking) forkBox.innerHTML = '';
-      if (forking && _scene.kind === 'reck') {
-        // The reckoning's fork is the mystery's, with one difference: what it
-        // pays is a RELATIONSHIP or a head of steam, so the chips say which.
-        forkBox.innerHTML = '<span class="k-fork-ask">' + (_scene.eyebrow || '') + '</span>'
-          + '<div class="k-fork-row k-fork-myst">'
-          + _scene.picks.map((p, i) =>
-              '<button type="button" class="k-fork k-fork-opt k-fork-reck" data-ix="' + i + '">'
-              + '<b class="k-fo-lbl">' + p.label + '</b>'
-              + '<span class="k-fo-say">' + p.say + '</span>'
-              + '<span class="k-fo-fx"><em class="k-fo-up">'
-              + (p.bond ? '+' + RECK_BOND + ' \u2014 ' + CAST[p.bond[0]].n + ' &amp; ' + CAST[p.bond[1]].n
-                        : '+' + p.kizuna + '% kizuna, carried')
-              + '</em></span></button>').join('')
-          + '</div>';
-        forkBox.querySelectorAll('.k-fork').forEach(b =>
-          b.addEventListener('click', (e) => { e.stopPropagation(); takeReckoning(+b.dataset.ix); }));
-      } else if (forking && _scene.kind === 'event') {
+      if (forking && _scene.kind === 'event') {
         // BOTH SIDES OF THE TRADE, ON THE BUTTON. A crossroads that says only
         // what it gives is a crossroads with one obvious answer; the cost is
         // the decision, so it is set in the same row as the gain and coloured
@@ -1747,8 +1793,7 @@
       }
     }
     if (forking) {
-      who.textContent = (_scene.kind === 'event' || _scene.kind === 'reck')
-        ? '' : (PAIR_NAME[_scene.pair] || '');
+      who.textContent = _scene.kind === 'event' ? '' : (PAIR_NAME[_scene.pair] || '');
       who.classList.remove('k-hidden');
       box.className = 'k-sc-line k-sc-narr';
       box.textContent = '';
@@ -1803,9 +1848,7 @@
     const beats = sceneBeats();
     const done = _beat >= beats.length;
     const speaker = done ? null : (beats[_beat].who || null);
-    const inShot = _scene.kind === 'bond' ? _scene.pair.split('|')
-                 : _scene.kind === 'reck' ? _scene.cast
-                 : ['elin', 'ash', 'mira'];
+    const inShot = _scene.kind === 'bond' ? _scene.pair.split('|') : ['elin', 'ash', 'mira'];
     const order = ['elin', 'ash', 'mira'].filter(h => inShot.indexOf(h) >= 0);
     cast.innerHTML = order.map(id => {
       const c = CAST[id];
@@ -1822,8 +1865,7 @@
     // choice is the exit, and tapping past it would be a stop that resolved
     // itself. Named positively: an unrecognised kind must fall through to the
     // payout, never get stuck in front of a fork that is not there.
-    if ((_scene.kind === 'bond' || _scene.kind === 'event' || _scene.kind === 'reck')
-        && _beat >= n) return;
+    if ((_scene.kind === 'bond' || _scene.kind === 'event') && _beat >= n) return;
     if (_beat < n) { _beat++; renderScene(); return; }
     finishScene();
   }
@@ -2170,6 +2212,13 @@
       if (e.target.closest('#k-scene-skip')) return;
       e.stopPropagation(); sceneNext();
     });
+    // THE RECKONING TAKES A TAP ANYWHERE, like every other beat in this game —
+    // but never on the fork, which is the one thing on it that is a choice.
+    const rk = $('k-reck');
+    if (rk) rk.addEventListener('click', (e) => {
+      if (e.target.closest('#k-reck-fork')) return;
+      e.stopPropagation(); reckNext();
+    });
     const skip = $('k-scene-skip');
     if (skip) skip.addEventListener('click', (e) => { e.stopPropagation(); sceneSkip(); });
     const sw = $('k-swap-go');
@@ -2250,7 +2299,8 @@
     screen,
     render: renderMap,
     REGIONS, regionOf, EVENTS, eventDef, takeEvent, weakestPair,
-    RECKONINGS, pickReckoning, openReckoning, takeReckoning, enterEvent, TREE, treeNode, kindle, tapMemory, focusMemory, sitDown, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
+    RECKONINGS, pickReckoning, openReckoning, takeReckoning, enterEvent,
+    reckoning: () => _reck, reckNext, closeReck, TREE, treeNode, kindle, tapMemory, focusMemory, sitDown, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
     pendingBonds, openBondScene, takeBond, confirmSwap, renderSwap,
     WAKES, wakeOffer, takeWake, renderWake, wakeDef, wakePair,
     SIGIL_BY_PAIR, sigilFor, renderMark, placeSigil, openMark, leaveMark,

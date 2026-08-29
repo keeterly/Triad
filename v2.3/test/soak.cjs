@@ -276,16 +276,18 @@ const MAX_TURNS = 24;
         // THE RECKONING stands between the fight and the road now: the foe is
         // on the ground and the two of them who did something say so. Answer
         // it at random, the way this soak answers everything.
-        await sleep(500);
+        await sleep(1400);
         const said = await J(() => {
-          const sc = window.R.scene();
-          if (!sc || sc.kind !== 'reck') return null;
-          let n = 0;
-          while (n++ < 20 && window.R.scene() && !document.querySelector('.k-fork-reck')) window.R.sceneNext();
-          const o = [...document.querySelectorAll('.k-fork-reck')];
-          if (!o.length) return { id: sc.id, stuck: true };
+          const rk = window.R.reckoning && window.R.reckoning();
+          if (!rk) return null;
+          for (let i = 0; i < 20 && window.R.reckoning(); i++) {
+            if (document.querySelector('.k-rk-opt')) break;
+            window.R.reckNext();
+          }
+          const o = [...document.querySelectorAll('.k-rk-opt')];
+          if (!o.length) return { id: rk.id, stuck: true };
           o[Math.floor(Math.random() * o.length)].click();
-          return { id: sc.id };
+          return { id: rk.id };
         });
         if (said && said.stuck) fail('col ' + col + ': the reckoning never offered its fork');
         if (said) { recks++; note('reck:' + said.id); }

@@ -163,21 +163,22 @@ const SKILLS = process.env.PACE_SKILL
             const foe = await J((id) => (window.R.map().find(n => n.id === id) || {}).foe, target);
             tally.diedTo[foe || '?'] = (tally.diedTo[foe || '?'] || 0) + 1;
           }
-          await sleep(1100);
+          await sleep(2100);
           if (!r || !r.win) { dead = true; break; }
           // THE RECKONING stands between the fight and the road now. Answer it
           // the way a player would — half of them take the bond, half the
           // momentum — so the pacing table measures the beat as it is played.
           const reck = await J(() => {
-            const sc = window.R.scene();
-            if (!sc || sc.kind !== 'reck') return null;
-            let n = 0;
-            while (n++ < 20 && window.R.scene() && !document.querySelector('.k-fork-reck')) window.R.sceneNext();
-            const o = [...document.querySelectorAll('.k-fork-reck')];
+            const rk = window.R.reckoning && window.R.reckoning();
+            if (!rk) return null;
+            for (let i = 0; i < 20 && window.R.reckoning(); i++) {
+              if (document.querySelector('.k-rk-opt')) break;
+              window.R.reckNext();
+            }
+            const o = [...document.querySelectorAll('.k-rk-opt')];
             const ix = Math.random() < 0.5 ? 0 : 1;
-            const id = sc.id;
             if (o.length) o[Math.min(ix, o.length - 1)].click();
-            return { id, took: ix };
+            return { id: rk.id, took: ix };
           });
           if (reck) { tally.recks++; if (reck.took === 0) tally.reckBond++; }
           await sleep(320);
