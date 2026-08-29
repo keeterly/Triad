@@ -111,25 +111,32 @@ thin.
 And there is no room to simply add a second fire: five stops before the boss,
 already carrying two memories, an elite and the fights that pay for everything.
 
-### 3.1b The social layer rewards playing BADLY — and this is the real one
+### 3.1b The social layer rewarded playing BADLY — FIXED, Build 62
 
 ```
-  cards swapped in / marks per run:   clumsy 0.93   ordinary 0.50   sharp 0.29
+  cards won per run     clumsy   ordinary   sharp
+  before                  0.93       0.50    0.29     ← the wrong way
+  after                   0.50       1.00    1.36     ← the right way
+  all-outs per run        1.00       1.86    2.71     ← the mechanism
+  turns per run           17.4       19.6    18.1     ← flat: it is not length
 ```
 
-Monotonically down as skill goes up. The mechanism is not subtle once you look:
-bond points come from **stitches** (one hero acting straight after another, once
-per pair per turn) and from **interceding**. A sharp player wins fights in fewer
-turns, so takes fewer turns' worth of stitches, so levels fewer bonds, so sees
-fewer bond scenes, so wins fewer cards and places fewer marks.
+Bond points came from **stitches** (one hero acting straight after another,
+once per pair per turn) and from **interceding**. Both are paid for by fight
+LENGTH — and length is the one thing skill removes. A sharp player won in fewer
+turns, banked fewer stitches, levelled fewer bonds, saw fewer bond scenes, and
+so won fewer cards and placed fewer marks than a clumsy one. The game's whole
+thesis, three people becoming more capable *together*, was starved by playing
+well.
 
-The game's thesis — three people who become more capable *together* — is paid
-for by fight LENGTH, which is the one thing skill removes. Playing well starves
-the system the game is named after.
+**The all-out now pays every living pair.** It is the one thing on this board
+that skill makes MORE frequent — kizuna charges from turned strings, so a sharp
+parry is what brings it round — and it is literally all three of them landing
+at once. If any single moment in this game should deepen a bond, it is that one.
 
-This is the finding to act on, and the fix wants to point the other way: the
-parry is the thing this game intends to be best in the genre at, so skill at it
-should FEED the bond rather than shorten the window in which one can be earned.
+The `turns per run` column is what makes this a fix rather than a coincidence:
+it is flat across all three bots, so the improvement is not "fights got longer",
+it is "skill now buys the thing skill should buy".
 
 ### 3.1c The skill cliff is very steep
 

@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 61;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 62;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -911,6 +911,27 @@ async function allOut() {
   if (!living.length) return false;
   C.kizuna = 0;
   C.allOuts = (C.allOuts || 0) + 1;
+  // THREE AS ONE PAYS ALL THREE.
+  //
+  // The bond used to be paid for entirely by fight LENGTH: stitches accrue once
+  // per pair per turn, so a player who won in four turns banked two thirds of
+  // what a player who won in six did. pace.sim measured the result going
+  // exactly the wrong way — 0.93 / 0.50 / 0.29 cards won per run as the bot's
+  // parry rate rose from 45% to 92%. The game's whole thesis, three people
+  // becoming more capable together, was starved by playing well.
+  //
+  // The all-out is the fix because it is the one thing on this board that skill
+  // makes MORE frequent: kizuna charges from turned strings, so a sharp parry
+  // is what brings it round. And it is literally all three of them landing at
+  // once — if any single moment in this game should deepen a bond, it is this
+  // one. Every LIVING pair is paid, so a party down to two still earns, and a
+  // hero who is down does not bank a bond they were not present for.
+  for (let i = 0; i < living.length; i++) {
+    for (let j = i + 1; j < living.length; j++) {
+      const k = [living[i], living[j]].sort().join('|');
+      C.pairBond[k] = (C.pairBond[k] || 0) + BOND_PER_ALLOUT;
+    }
+  }
   sfx('allout', 1.5);
   setPhase('PLAYER_ACTION_RESOLVING');
   renderKizuna();
@@ -1124,6 +1145,9 @@ const AP_PER_TURN = 3;
 // things that merely happened near them.
 const BOND_PER_STITCH = 2;      // one hero acting straight after the other
 const BOND_PER_SHIELD = 3;      // Elin stepping into a blow meant for someone else
+// …and three of them striking as one, which is the only one of the three that
+// SKILL makes more frequent rather than less. See allOut().
+const BOND_PER_ALLOUT = 4;
 const KIZUNA_MAX = 100;
 // THE ALL-OUT HAS TO BE REACHABLE. A player reported it "broken and doesn't do
 // anything", and both paths into it — the API and a real touch on the bar —

@@ -34,7 +34,11 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
                     // full at the end can mean three different things — no fire
                     // to spend it at, no node open at your tier, or a price you
                     // cannot meet — and they have three different fixes.
-                    firesPerRun: [], atFire: [], earnedAfterLastFire: [] };
+                    firesPerRun: [], atFire: [], earnedAfterLastFire: [],
+                    // the mechanism, not just the outcome: an all-out is the
+                    // one bond source skill makes more frequent, so if the
+                    // curve inverts this is the column that says why
+                    allOuts: 0, turns: 0 };
 
     for (let i = 0; i < RUNS; i++) {
       const seed = 7000 + i * 313;
@@ -133,6 +137,7 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
             K.startCombat = () => K.state();
             try { return eval(src)(sd, p, mt, {}); } finally { K.startCombat = orig; }
           }, [BOT, seed + col * 41, pSkill, MAX_TURNS]);
+          if (r) { tally.allOuts += (r.allouts || 0); tally.turns += (r.turns || 0); }
           await sleep(700);
           if (!r || !r.win) { dead = true; break; }
         }
@@ -182,7 +187,8 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
       + ', open ' + avg(f.map(x => x.open))
       + ', affordable ' + avg(f.map(x => x.afford))
       + ', bought ' + avg(f.map(x => x.n))
-      + ' · embers earned AFTER the last fire ' + avg(r.earnedAfterLastFire));
+      + ' · all-outs/run ' + (+(r.allOuts / r.runs).toFixed(2))
+      + ' · turns/run ' + (+(r.turns / r.runs).toFixed(1)));
   });
   console.log('\n  fires are at columns: ' + JSON.stringify(rows[1].atFire.map(x => x.col)));
   console.log('\n  A run that changes fewer than ~4 things about the party between the');

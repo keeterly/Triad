@@ -1158,6 +1158,44 @@ const { boot } = require('./harness.cjs');
       && fired.dealt >= 24 && fired.broke === 4 && fired.spent === 0 && fired.ap === 3
       && fired.phase === 'PLAYER_READY' && fired.again === false,
       JSON.stringify(fired));
+
+    // …AND IT PAYS EVERY PAIR THAT THREW IT. The bond used to be bought with
+    // fight LENGTH — stitches accrue once per pair per turn — so pace.sim
+    // measured the social layer going the wrong way as skill rose: 0.93 / 0.50
+    // / 0.29 cards won per run from a 45% parry to a 92% one. The all-out is
+    // the one thing on this board that skill makes MORE frequent, because
+    // kizuna charges from turned strings. So it is what the bond is paid for.
+    const paid = await J(async () => {
+      const st = window.K.state();
+      const before = { ...st.pairBond };
+      st.kizuna = 100; st.boss.hp = 200;
+      const ok = await window.K.allOut();
+      const s2 = window.K.state();
+      const moved = Object.keys(s2.pairBond)
+        .filter(k => (s2.pairBond[k] || 0) > (before[k] || 0))
+        .map(k => k + ':+' + ((s2.pairBond[k] || 0) - (before[k] || 0)));
+      return { ok, moved, pairs: Object.keys(s2.pairBond).length };
+    });
+    check('KIZUNA: three as one deepens all three — the one bond source that skill makes MORE frequent',
+      paid.ok && paid.moved.length === 3 && paid.moved.every(m => /:\+4$/.test(m)),
+      JSON.stringify(paid));
+
+    // …and a party down to two pays the pair that is actually standing, not a
+    // bond with somebody who is on the floor.
+    const short = await J(async () => {
+      const st = window.K.state();
+      st.heroes.mira.downed = true; st.heroes.mira.hp = 0;
+      const before = { ...st.pairBond };
+      st.kizuna = 100; st.boss.hp = 200;
+      const ok = await window.K.allOut();
+      const s2 = window.K.state();
+      const moved = Object.keys(s2.pairBond).filter(k => (s2.pairBond[k] || 0) > (before[k] || 0));
+      st.heroes.mira.downed = false; st.heroes.mira.hp = 20;
+      return { ok, moved };
+    });
+    check('KIZUNA: …and only the pairs who were standing for it',
+      short.ok && short.moved.length === 1 && short.moved[0] === 'ash|elin',
+      JSON.stringify(short));
   }
   await settle();
 
