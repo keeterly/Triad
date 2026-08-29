@@ -71,23 +71,73 @@ fire mends, which is the same statement from the other end.
 
 ## 3 · Where this game is genuinely behind
 
-### 3.1 A run may not develop enough — MEASURED, see `pace.sim.cjs`
+### 3.1 A run develops about three times — MEASURED
 
-StS's core loop is *win a fight → pick one of three cards*. That beat fires
-eight to ten times a run and it is most of why a run feels like it is going
-somewhere.
+`test/pace.sim.cjs`, 14 runs at each of three levels of player skill. It is a
+**measurement, not a gate** — the moment it becomes a gate it stops being able
+to tell us something we did not already believe.
 
-This game deliberately does not have it — the deck does not grow — and the
-substitute is four other things that can change the party: a node kindled at a
-fire, a card swapped in at a bond level, a mark placed on a card, a tier opened
-by a memory. **The open question is whether those fire often enough.** If a
-typical run changes three things about the party between the trailhead and the
-Regent, the run is survivable and static, and "the deck never grows" stops
-being a distinctive design and starts being a reason nothing happens.
+```
+  skill      won   wiped   nodes kindled   cards swapped in   marks   tier   embers left
+  clumsy      2/14     12            1.79               0.93    0.93      2          6.43
+  ordinary    6/14      8            1.86               0.50    0.50      2         10.43
+  sharp      13/14      1            2.07               0.29    0.29      2         16.79
 
-`test/pace.sim.cjs` measures exactly this, at three levels of player skill, and
-prints the table. It is a **measurement, not a gate** — the moment it becomes a
-gate it stops being able to tell us something we did not already believe.
+  fires/run 1.0 · at a fire: purse ~8, tier ~1.5, sealed 5.5, open 4.1, bought ~1.9
+```
+
+StS's *win a fight → pick one of three cards* beat fires eight to ten times a
+run and is most of why a run feels like it is going somewhere. This game
+deliberately does not have it, and the substitute totals **about three things
+changed between the trailhead and the Regent**.
+
+Two theories died on contact with the numbers, and they are worth recording
+because both were plausible and both were wrong:
+
+- *"Embers pile up unspent."* They appear to — 16.8 left at sharp play — but
+  almost all of it is the **Regent's own payout**, earned in the last fight of
+  the run. There is nothing to fix there; it is an end screen showing a number.
+- *"The player is too poor at the fire to buy anything."* No: 3.5 of 4 open
+  nodes are affordable and the greedy bot buys until it cannot. `broke at a
+  fire` is 1 in 14.
+
+What is actually true is narrower and more useful: **a route visits exactly one
+campfire**, arrives at tier ~1.5, and finds five and a half of the ten nodes
+still SEALED. The tree is gated three ways at once — one fire, an early purse,
+and a tier lock that only memories open — and 1.9 nodes of 10 is the product of
+the three. Across runs that is arguably healthy variety. Within one run it is
+thin.
+
+And there is no room to simply add a second fire: five stops before the boss,
+already carrying two memories, an elite and the fights that pay for everything.
+
+### 3.1b The social layer rewards playing BADLY — and this is the real one
+
+```
+  cards swapped in / marks per run:   clumsy 0.93   ordinary 0.50   sharp 0.29
+```
+
+Monotonically down as skill goes up. The mechanism is not subtle once you look:
+bond points come from **stitches** (one hero acting straight after another, once
+per pair per turn) and from **interceding**. A sharp player wins fights in fewer
+turns, so takes fewer turns' worth of stitches, so levels fewer bonds, so sees
+fewer bond scenes, so wins fewer cards and places fewer marks.
+
+The game's thesis — three people who become more capable *together* — is paid
+for by fight LENGTH, which is the one thing skill removes. Playing well starves
+the system the game is named after.
+
+This is the finding to act on, and the fix wants to point the other way: the
+parry is the thing this game intends to be best in the genre at, so skill at it
+should FEED the bond rather than shorten the window in which one can be earned.
+
+### 3.1c The skill cliff is very steep
+
+14% / 43% / 93% win rate across the three bots. A new player, parrying at
+roughly 45%, wins about one run in seven — and a wipe costs them the tree, the
+bonds and the memories all at once, because a run that ends at column 2 has
+changed almost nothing. StS's Act 1 is far more forgiving than this, and it is
+the first thing a new player meets.
 
 ### 3.2 There is no ember sink but the tree
 

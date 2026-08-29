@@ -29,7 +29,12 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
 
   for (const [name, pSkill] of SKILLS) {
     const tally = { runs: 0, won: 0, wiped: 0, kindled: [], bonds: 0, marks: 0,
-                    tiers: [], embersLeft: [], brokeAtFire: 0, fires: 0, stops: {} };
+                    tiers: [], embersLeft: [], brokeAtFire: 0, fires: 0, stops: {},
+                    // WHY the tree goes unspent, not just THAT it does. A purse
+                    // full at the end can mean three different things — no fire
+                    // to spend it at, no node open at your tier, or a price you
+                    // cannot meet — and they have three different fixes.
+                    firesPerRun: [], atFire: [], earnedAfterLastFire: [] };
 
     for (let i = 0; i < RUNS; i++) {
       const seed = 7000 + i * 313;
@@ -52,6 +57,7 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
 
       tally.runs++;
       let dead = false;
+      let lastFireEmbers = null, fireCount = 0;
 
       for (let col = 0; col < 6; col++) {
         const open = await J(() => window.R.reachable());
@@ -84,11 +90,13 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
         }
 
         if (kind === 'camp') {
-          tally.fires++;
+          tally.fires++; fireCount++;
           const spent = await J(() => {
             const st = window.R.state();
-            const could = window.R.TREE.filter(t => st.nodes.indexOf(t.id) < 0 && t.tier <= st.tier);
-            const afford = could.filter(t => t.cost <= window.R.state().embers);
+            const purse = st.embers, tier = st.tier;
+            const unheld = window.R.TREE.filter(t => st.nodes.indexOf(t.id) < 0);
+            const open = unheld.filter(t => t.tier <= tier);           // your tier allows it
+            const afford = open.filter(t => t.cost <= purse);          // …and you can pay
             let n = 0, g = 0;
             while (g++ < 10) {
               const s2 = window.R.state();
@@ -96,13 +104,17 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
               if (!next) break;
               window.R.kindle(next.id); n++;
             }
+            const left = window.R.state().embers;
             window.R.leaveCamp();
-            return { n, could: could.length, afford: afford.length };
+            return { n, purse, tier, col: st.stop - 1, left,
+                     sealed: unheld.length - open.length, open: open.length, afford: afford.length };
           });
+          tally.atFire.push(spent);
           // THE FIRE MUST BE A CHOICE. StS2's live complaint is that its
           // campfires collapsed into "always rest"; this game mends for free,
           // so the equivalent failure is a fire you cannot afford ANYTHING at.
           if (spent.afford === 0) tally.brokeAtFire++;
+          lastFireEmbers = spent.left;
           await sleep(220);
         } else if (kind === 'story') {
           await J(() => { let n = 0; while (n++ < 30 && window.R.scene()) window.R.sceneNext(); });
@@ -132,6 +144,8 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
       if (end.over === 'win') tally.won++;
       if (dead || end.over === 'loss') tally.wiped++;
       tally.kindled.push((end.nodes || []).length);
+      tally.firesPerRun.push(fireCount);
+      if (lastFireEmbers != null) tally.earnedAfterLastFire.push(end.embers - lastFireEmbers);
       tally.tiers.push(end.tier);
       tally.embersLeft.push(end.embers);
     }
@@ -155,7 +169,22 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
       + String(r.avgEmbers).padStart(14)
       + String(r.brokeAtFire + '/' + r.fires).padStart(18));
   });
-  console.log('\n  stops walked: ' + JSON.stringify(rows[1].stops));
+  console.log('\n  stops walked (ordinary): ' + JSON.stringify(rows[1].stops));
+  console.log('\n── why the tree goes unspent ──');
+  rows.forEach(r => {
+    const f = r.atFire;
+    const avg = (a) => a.length ? +(a.reduce((s2, x) => s2 + x, 0) / a.length).toFixed(2) : 0;
+    console.log('  ' + r.name.padEnd(10)
+      + ' fires/run ' + avg(r.firesPerRun)
+      + ' · at a fire: purse ' + avg(f.map(x => x.purse))
+      + ', tier ' + avg(f.map(x => x.tier))
+      + ', sealed ' + avg(f.map(x => x.sealed))
+      + ', open ' + avg(f.map(x => x.open))
+      + ', affordable ' + avg(f.map(x => x.afford))
+      + ', bought ' + avg(f.map(x => x.n))
+      + ' · embers earned AFTER the last fire ' + avg(r.earnedAfterLastFire));
+  });
+  console.log('\n  fires are at columns: ' + JSON.stringify(rows[1].atFire.map(x => x.col)));
   console.log('\n  A run that changes fewer than ~4 things about the party between the');
   console.log('  trailhead and the Regent is a run that is survivable and static.');
 
