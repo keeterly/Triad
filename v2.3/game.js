@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 62;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 63;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -527,7 +527,7 @@ function setPhase(p) {
     try { snap = combatSummary(p); }
     catch (e) { snap = { outcome: p === 'VICTORY' ? 'victory' : 'defeat',
                          foe: C.foe ? C.foe.id : null, turns: C.turn,
-                         partyHp: null, pairBond: {}, kizuna: 0, cleanliness: 0 }; }
+                         partyHp: null, pairBond: {}, kizuna: 0, cleanliness: 0, deeds: null }; }
     setTimeout(() => {
       try { cb(snap); } catch (e) { console.error('onEnd failed', e); }
       if (C) C._handoff = false;
@@ -550,11 +550,46 @@ function combatSummary(p) {
     kizuna: C.kizuna,
     pairBond: { ...C.pairBond },
     partyHp: { ash: C.heroes.ash.hp, elin: C.heroes.elin.hp, mira: C.heroes.mira.hp },
+    deeds: C.deeds ? JSON.parse(JSON.stringify(C.deeds)) : null,
     turned: par.filter(r => r.turned).length,
     flawless: par.filter(r => r.flawless).length,
     strings: par.length,
     cleanliness: notes ? kept / notes : 0,
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THE DEEDS — what this fight actually did, so the reckoning can talk about it
+// ═══════════════════════════════════════════════════════════════════════════
+// A post-fight scene that says something generic is a loading screen with
+// dialogue on it. This ledger is the difference: every line the reckoning
+// speaks is drawn from a thing that MEASURABLY happened — who landed the last
+// blow, who was one hit from the floor when it did, who stepped in front of
+// whom, who moved straight off somebody else's opening, whether the three of
+// them ever struck as one. Nothing here is inferred and nothing is invented.
+function freshDeeds() {
+  return {
+    finisher: null,      // who landed the killing blow
+    lastHit: null,       // …tracked continuously, because the kill is not announced
+    shields: [],         // [{by, for}] — an intercession that actually took a blow
+    stitches: {},        // pairKey → how many times one moved off the other
+    brink: [],           // heroes who dropped to a quarter of their health or less
+    fell: [],            // heroes who went down, in a fight that was still won
+    asOne: 0,            // all-outs thrown
+    untouched: true,     // nobody took a single point of damage
+  };
+}
+const deedPair = (a, b) => [a, b].sort().join('|');
+// A QUARTER LEFT OR LESS, once, at any point — not "ended the fight low". A
+// hero who was one blow from the floor in turn two and got mended back up was
+// still one blow from the floor, and that is the thing worth talking about.
+function markBrink(id) {
+  if (!C || !C.deeds) return;
+  const h = C.heroes[id]; if (!h) return;
+  if (h.hp > 0 && h.hp <= Math.ceil(h.max * 0.25)) {
+    if (C.deeds.brink.indexOf(id) < 0) C.deeds.brink.push(id);
+  }
+  if (h.hp === 0 && C.deeds.fell.indexOf(id) < 0) C.deeds.fell.push(id);
 }
 
 function freshTurnState() {
@@ -608,6 +643,7 @@ function startCombat(opts) {
     // WHAT THE THREE OF THEM BUILT IN THIS FIGHT, per pair. Fed by the things
     // they actually did for each other — a follow-up, a blow taken for someone.
     pairBond: { 'ash|elin': 0, 'ash|mira': 0, 'elin|mira': 0 },
+    deeds: freshDeeds(),
     roster: opts.roster && rosterValid(opts.roster) ? JSON.parse(JSON.stringify(opts.roster)) : baseRoster(),
     deck: [], hand: [], discard: [], exhausted: [],
     ap: AP_PER_TURN, apMax: AP_PER_TURN,
@@ -882,15 +918,21 @@ function evaluateCard(cardId) {
 // ═════════════════════════════════════════════════════════════════════════════
 // RESOLUTION
 // ═════════════════════════════════════════════════════════════════════════════
-function dealToBoss(n, why) {
+function dealToBoss(n, why, who) {
   if (C.boss.broken) n = Math.round(n * 1.25);   // BROKEN: +25% damage taken
+  // WHO SWUNG LAST. Recorded on every blow rather than at the kill, because
+  // nothing tells this function that the blow it is applying is the last one.
+  if (C.deeds && who) C.deeds.lastHit = who;
   C.boss.hp = Math.max(0, C.boss.hp - n);
   if (why !== 'allout') kizunaGain(n * KIZUNA_PER_DAMAGE);   // the all-out cannot feed itself
   if (_dmgBatch) { _dmgBatch.n += n; if (why) _dmgBatch.why = why; fxStrikeBoss(n, why); }
   else fxDamageBoss(n, why);
   renderBossHud();          // the Regent's bar moves when she is hit, not later
   checkBossPhase();
-  if (C.boss.hp <= 0) setPhase('VICTORY');
+  if (C.boss.hp <= 0) {
+    if (C.deeds && !C.deeds.finisher) C.deeds.finisher = who || C.deeds.lastHit;
+    setPhase('VICTORY');
+  }
 }
 function kizunaGain(n) {
   if (!C || C.kizuna >= KIZUNA_MAX) return;
@@ -932,6 +974,7 @@ async function allOut() {
       C.pairBond[k] = (C.pairBond[k] || 0) + BOND_PER_ALLOUT;
     }
   }
+  if (C.deeds) C.deeds.asOne++;
   sfx('allout', 1.5);
   setPhase('PLAYER_ACTION_RESOLVING');
   renderKizuna();
@@ -939,7 +982,7 @@ async function allOut() {
   const each = Math.round(TUNE.alloutDmg / 3);
   for (const id of living) {
     if (C.phase === 'VICTORY') break;
-    dealToBoss(each, 'allout');
+    dealToBoss(each, 'allout', id);
     await sleep(150);
   }
   breakDamage(TUNE.alloutBrk);
@@ -991,7 +1034,7 @@ function resolveEffects(effects, ownerId, allyId) {
 }
 function resolveEffectsInner(effects, ownerId, allyId) {
   for (const fx of effects) {
-    if (fx.dmg)        dealToBoss(fx.dmg, 'hit');
+    if (fx.dmg)        dealToBoss(fx.dmg, 'hit', ownerId);
     if (fx.brk)        breakDamage(fx.brk);
     if (fx.guardSelf)  guardHero(ownerId, fx.guardSelf);
     if (fx.guardAlly && allyId) guardHero(allyId, fx.guardAlly);
@@ -1063,6 +1106,7 @@ function playCard(cardId, allyId) {
     // These points only leave the fight in the summary.
     if (!C.turnState.stitchedPairs.includes(pairKey)) {
       C.pairBond[pairKey] = (C.pairBond[pairKey] || 0) + BOND_PER_STITCH;
+      if (C.deeds) C.deeds.stitches[pairKey] = (C.deeds.stitches[pairKey] || 0) + 1;
     }
     if (pairKey === RESONANCE_PAIR.slice().sort().join('|')
         && !C.turnState.stitchedPairs.includes(pairKey)
@@ -1311,7 +1355,7 @@ async function endTurn(opts) {
           kizunaGain(KIZUNA_FLAWLESS - KIZUNA_TURNED);
           const rip = RIPOSTE_PER_NOTE * read.notes;
           result.riposte = (result.riposte || 0) + rip;
-          dealToBoss(rip, 'riposte');
+          dealToBoss(rip, 'riposte', parrierId);
           breakDamage(1);
           logLine('FLAWLESS — ' + fmtN(rip) + ' returned.');
           // A RIPOSTE CAN END THE FIGHT MID-VOLLEY. The bleed tick already
@@ -1330,12 +1374,18 @@ async function endTurn(opts) {
         // first, and nothing anywhere on screen teaches the response limit.
         fxParryReceipt(parrierId, spent ? { ...read, turned: false, flawless: false, spent: true } : read);
       }
+      // STEPPING IN FRONT OF SOMEONE COUNTS WHEN THE BLOW ARRIVES, not when
+      // the card is played. An intercession that was never tested is a card
+      // played, not a thing done for somebody.
+      if (C.deeds && parrierId !== tgtId) C.deeds.shields.push({ by: parrierId, for: tgtId });
       // Guard absorbs first, on the hero actually struck; then flesh.
       const struck = C.heroes[tgtId];
       if (dmg > 0) {
+        if (C.deeds) C.deeds.untouched = false;
         if (struck.guard > 0) { const g = Math.min(struck.guard, dmg); struck.guard -= g; dmg -= g; }
         if (dmg > 0) {
           struck.hp = Math.max(0, struck.hp - dmg);
+          markBrink(tgtId);
           if (struck.hp === 0) { struck.downed = true; struck.guard = 0; logLine(HEROES23[tgtId].name + ' falls.'); }
         }
       }
@@ -1360,7 +1410,9 @@ async function endTurn(opts) {
       let d = dirge;
       if (h.guard > 0) { const g = Math.min(h.guard, d); h.guard -= g; d -= g; }
       if (d > 0) {
+        if (C.deeds) C.deeds.untouched = false;
         h.hp = Math.max(0, h.hp - d);
+        markBrink(id);
         if (h.hp === 0) { h.downed = true; h.guard = 0; logLine(HEROES23[id].name + ' falls to the dirge.'); }
       }
     }
@@ -4859,6 +4911,10 @@ window.K = {
     if (ix >= 0) { C.boss.intentIx = ix; renderAll(); }
   },
   parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
+  // test-only: the deeds ledger is what the reckoning is allowed to talk
+  // about, so its two writers are drivable directly rather than only through a
+  // whole fight that happens to produce the situation
+  _markBrink: (id) => markBrink(id), _dealToBoss: (n, why, who) => dealToBoss(n, why, who),
   actionKind, castTone, cardArt, overHand, FOE_SHEETS,
   // test-only: drive the foe's performance directly, through the same hooks the
   // fight drives, so a check can ask what each intent actually pulls

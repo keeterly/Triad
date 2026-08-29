@@ -157,7 +157,7 @@ const MAX_TURNS = 24;
   });
 
   // ── a run ────────────────────────────────────────────────────────────────
-  let finished = 0, wiped = 0, reloaded = 0, mysteries = 0, bonds = 0;
+  let finished = 0, wiped = 0, reloaded = 0, mysteries = 0, bonds = 0, recks = 0;
 
   for (let i = 0; i < RUNS; i++) {
     const seed = 1000 + i * 977;
@@ -273,6 +273,23 @@ const MAX_TURNS = 24;
         await sleep(900);
         await settle();
         if (r && !r.win) { wiped++; break; }
+        // THE RECKONING stands between the fight and the road now: the foe is
+        // on the ground and the two of them who did something say so. Answer
+        // it at random, the way this soak answers everything.
+        await sleep(500);
+        const said = await J(() => {
+          const sc = window.R.scene();
+          if (!sc || sc.kind !== 'reck') return null;
+          let n = 0;
+          while (n++ < 20 && window.R.scene() && !document.querySelector('.k-fork-reck')) window.R.sceneNext();
+          const o = [...document.querySelectorAll('.k-fork-reck')];
+          if (!o.length) return { id: sc.id, stuck: true };
+          o[Math.floor(Math.random() * o.length)].click();
+          return { id: sc.id };
+        });
+        if (said && said.stuck) fail('col ' + col + ': the reckoning never offered its fork');
+        if (said) { recks++; note('reck:' + said.id); }
+        await sleep(340);
       }
 
       await sleep(200);
@@ -313,7 +330,7 @@ const MAX_TURNS = 24;
 
   console.log('\n── the soak ──');
   console.log(`    ${RUNS} runs · ${finished} reached the Regent and won · ${wiped} wiped`);
-  console.log(`    ${reloaded} mid-run reloads · ${mysteries} crossroads · ${bonds} bond scenes`);
+  console.log(`    ${reloaded} mid-run reloads · ${mysteries} crossroads · ${bonds} bond scenes · ${recks} reckonings`);
 
   check(`SOAK: ${RUNS} random runs, and not one invariant breached at any transition`,
     breaches.length === 0,

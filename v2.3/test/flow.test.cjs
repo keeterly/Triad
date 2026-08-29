@@ -1196,6 +1196,50 @@ const { boot } = require('./harness.cjs');
     check('KIZUNA: …and only the pairs who were standing for it',
       short.ok && short.moved.length === 1 && short.moved[0] === 'ash|elin',
       JSON.stringify(short));
+
+    // ── THE DEEDS LEDGER ──────────────────────────────────────────────────
+    // What the reckoning is allowed to talk about afterwards. Every entry has
+    // to be a thing that MEASURABLY happened — a scene selected by an inferred
+    // deed is a scene that will eventually describe a fight nobody had.
+    const ledger = await J(async () => {
+      const K = window.K;
+      K.startCombat({ seed: 3 });
+      const st = K.state();
+      const d0 = JSON.parse(JSON.stringify(st.deeds));
+      // nobody has done anything yet
+      const fresh = { finisher: d0.finisher, shields: d0.shields.length,
+                      stitches: Object.keys(d0.stitches).length, brink: d0.brink.length,
+                      fell: d0.fell.length, asOne: d0.asOne, untouched: d0.untouched };
+      // an all-out is a deed
+      st.kizuna = 100; st.boss.hp = 400;
+      await K.allOut();
+      const afterAllOut = K.state().deeds.asOne;
+      // a hero taken to a quarter of their health is on the brink; taken to
+      // zero, they fell — and either way somebody has been touched
+      st.heroes.mira.hp = 8;                       // 8 of 34 is under a quarter
+      K._markBrink('mira');
+      const brinked = K.state().deeds.brink.slice();
+      st.heroes.mira.hp = 0;
+      K._markBrink('mira');
+      const fellen = K.state().deeds.fell.slice();
+      // …and the killing blow is attributed to whoever swung it
+      st.heroes.mira.hp = 20; st.heroes.mira.downed = false;
+      st.boss.hp = 1;
+      K._dealToBoss(50, 'hit', 'elin');
+      const fin = K.state().deeds.finisher;
+      return { fresh, afterAllOut, brinked, fellen, fin,
+               touched: K.state().deeds.untouched };
+    });
+    check('DEEDS: a fresh fight has no deeds in it — nothing is assumed before it happens',
+      ledger.fresh.finisher === null && ledger.fresh.shields === 0
+      && ledger.fresh.stitches === 0 && ledger.fresh.brink === 0
+      && ledger.fresh.fell === 0 && ledger.fresh.asOne === 0 && ledger.fresh.untouched === true,
+      JSON.stringify(ledger.fresh));
+    check('DEEDS: striking as one, standing at a quarter, going down, and who swung last are all recorded',
+      ledger.afterAllOut === 1
+      && ledger.brinked.join() === 'mira' && ledger.fellen.join() === 'mira'
+      && ledger.fin === 'elin',
+      JSON.stringify(ledger));
   }
   await settle();
 

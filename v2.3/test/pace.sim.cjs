@@ -38,7 +38,7 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
                     // the mechanism, not just the outcome: an all-out is the
                     // one bond source skill makes more frequent, so if the
                     // curve inverts this is the column that says why
-                    allOuts: 0, turns: 0 };
+                    allOuts: 0, turns: 0, recks: 0, reckBond: 0 };
 
     for (let i = 0; i < RUNS; i++) {
       const seed = 7000 + i * 313;
@@ -138,8 +138,24 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
             try { return eval(src)(sd, p, mt, {}); } finally { K.startCombat = orig; }
           }, [BOT, seed + col * 41, pSkill, MAX_TURNS]);
           if (r) { tally.allOuts += (r.allouts || 0); tally.turns += (r.turns || 0); }
-          await sleep(700);
+          await sleep(1100);
           if (!r || !r.win) { dead = true; break; }
+          // THE RECKONING stands between the fight and the road now. Answer it
+          // the way a player would — half of them take the bond, half the
+          // momentum — so the pacing table measures the beat as it is played.
+          const reck = await J(() => {
+            const sc = window.R.scene();
+            if (!sc || sc.kind !== 'reck') return null;
+            let n = 0;
+            while (n++ < 20 && window.R.scene() && !document.querySelector('.k-fork-reck')) window.R.sceneNext();
+            const o = [...document.querySelectorAll('.k-fork-reck')];
+            const ix = Math.random() < 0.5 ? 0 : 1;
+            const id = sc.id;
+            if (o.length) o[Math.min(ix, o.length - 1)].click();
+            return { id, took: ix };
+          });
+          if (reck) { tally.recks++; if (reck.took === 0) tally.reckBond++; }
+          await sleep(320);
         }
         const over = await J(() => window.R.state().over);
         if (over) break;
@@ -188,7 +204,8 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
       + ', affordable ' + avg(f.map(x => x.afford))
       + ', bought ' + avg(f.map(x => x.n))
       + ' · all-outs/run ' + (+(r.allOuts / r.runs).toFixed(2))
-      + ' · turns/run ' + (+(r.turns / r.runs).toFixed(1)));
+      + ' · turns/run ' + (+(r.turns / r.runs).toFixed(1))
+      + ' · reckonings/run ' + (+(r.recks / r.runs).toFixed(2)));
   });
   console.log('\n  fires are at columns: ' + JSON.stringify(rows[1].atFire.map(x => x.col)));
   console.log('\n  A run that changes fewer than ~4 things about the party between the');

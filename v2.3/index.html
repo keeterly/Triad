@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=62" />
+  <link rel="stylesheet" href="styles.css?v=63" />
 </head>
 <body>
   <div id="k-scale">
@@ -278,8 +278,12 @@
     </section>
     <section id="k-scene" class="k-hidden" aria-label="A memory">
       <div id="k-scene-bg" aria-hidden="true">
-        <img src="../art/bg-descent.webp" alt="">
+        <img id="k-scene-ground" src="../art/bg-descent.webp" alt="">
         <div class="k-scene-veil"></div>
+        <!-- THE THING IS STILL ON THE GROUND. A reckoning happens where the
+             fight happened, over what is left of it — which is most of why it
+             reads as a moment rather than as a menu that opened. -->
+        <img id="k-scene-fallen" class="k-hidden" src="" alt="">
       </div>
       <div class="k-sc-bar k-sc-bar-top" aria-hidden="true"></div>
       <div class="k-sc-bar k-sc-bar-bot" aria-hidden="true"></div>
@@ -310,8 +314,8 @@
       <button type="button" id="k-swap-go" disabled>CHOOSE A CARD TO GIVE UP</button>
     </section>
   </div>
-  <script src="run.js?v=62"></script>
-  <script src="game.js?v=62"></script>
+  <script src="run.js?v=63"></script>
+  <script src="game.js?v=63"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

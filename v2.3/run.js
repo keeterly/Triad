@@ -513,6 +513,183 @@
   ];
   const eventDef = (id) => EVENTS.find(e => e.id === id) || EVENTS[0];
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // THE RECKONING — the beat after a fight, and what it is FOR
+  // ═══════════════════════════════════════════════════════════════════════
+  // StS's loop is win a fight, pick one of three cards. It fires eight to ten
+  // times a run and it is most of why a run feels like it is going somewhere.
+  // This game had nothing there at all: the foe fell, a receipt appeared on the
+  // road, and you walked on. `pace.sim` put a number on the hole — about three
+  // things change about the party between the trailhead and the Regent.
+  //
+  // So the beat is here, and it is NOT a card draft. The foe is still on the
+  // ground and the three of them are still standing in it, and they say
+  // something about what just happened — to each other, out loud, while it is
+  // fresh. Then you choose how that lands.
+  //
+  // WHAT MAKES IT NOT A LOADING SCREEN WITH DIALOGUE ON IT: every reckoning is
+  // selected by a DEED the engine measured. Who landed the last blow. Who was
+  // a quarter of the way from the floor when it did. Who stepped in front of
+  // whom and had the blow actually arrive. Who moved straight off somebody
+  // else's opening. Whether the three of them ever struck as one. A reckoning
+  // that cannot point at something that happened does not get to speak — which
+  // is why the fallback is the plainest one in the table.
+  //
+  // WHAT IT PAYS. Two answers, and they are not the same KIND of thing: one
+  // deepens a pair — the long game, because bonds are what hand over cards —
+  // and one carries momentum into the next fight. Build, or tempo. It is the
+  // oldest good choice in the genre and it costs nothing to understand.
+  const RECK_BOND = 6;       // half of what a first bond level asks
+  const RECK_KIZ = 22;       // …or a fifth of an all-out, banked for the next fight
+
+  const RECKONINGS = [
+    // ── the sharpest ones first: two people, one specific thing ──────────
+    { id: 'lastblow', weight: 5,
+      // the one who nearly went down, watching the one who ended it
+      cast: (d) => {
+        const a = d.finisher, b = (d.brink || []).find(h => h !== d.finisher);
+        return (a && b) ? [a, b] : null;
+      },
+      title: 'THE LAST BLOW',
+      beats: (A, B) => [
+        { who: null, line: 'It comes apart, and the noise it was making stops.' },
+        { who: B.id, line: 'I was three seconds from the floor.' },
+        { who: A.id, line: 'I know. That is why it is over.' },
+      ],
+      ask: 'What does that settle?',
+      picks: (A, B) => [
+        { label: '"THEN DO NOT CUT IT SO FINE."', say: 'Said to the floor, not to ' + A.n + '.',
+          bond: [A.id, B.id] },
+        { label: 'NOTHING. KEEP MOVING.', say: 'The road does not wait to be thanked.',
+          kizuna: RECK_KIZ },
+      ] },
+
+    { id: 'infront', weight: 5,
+      cast: (d) => { const s2 = (d.shields || [])[0]; return s2 ? [s2.by, s2.for] : null; },
+      title: 'IN FRONT OF YOU',
+      beats: (A, B) => [
+        { who: null, line: A.n + ' is still standing where the blow was going to land.' },
+        { who: B.id, line: 'That was meant for me.' },
+        { who: A.id, line: 'Yes.' },
+        { who: B.id, line: 'You do not get to keep doing that.' },
+      ],
+      ask: 'And what does she say to that?',
+      picks: (A, B) => [
+        { label: '"THEN BE SOMEWHERE ELSE."', say: 'Neither of them means it. Both of them mean it.',
+          bond: [A.id, B.id] },
+        { label: 'SHE DOES NOT ANSWER.', say: 'She is already watching the next thing.',
+          kizuna: RECK_KIZ },
+      ] },
+
+    { id: 'opening', weight: 4,
+      cast: (d) => {
+        const best = Object.keys(d.stitches || {}).sort((a, b) => d.stitches[b] - d.stitches[a])[0];
+        if (!best || (d.stitches[best] || 0) < 2) return null;
+        return best.split('|');
+      },
+      title: 'OFF YOUR OPENING',
+      beats: (A, B) => [
+        { who: null, line: 'Three times it happened without either of them calling it.' },
+        { who: A.id, line: 'You went where I was going to go.' },
+        { who: B.id, line: 'You left it open.' },
+        { who: A.id, line: 'I left it open on purpose.' },
+      ],
+      ask: 'Does either of them admit that was a plan?',
+      picks: (A, B) => [
+        { label: '"THEN LEAVE IT OPEN AGAIN."', say: 'A thing they will not have to say twice.',
+          bond: [A.id, B.id] },
+        { label: 'LET IT STAND AS LUCK.', say: 'Easier. And they both know better.',
+          kizuna: RECK_KIZ },
+      ] },
+
+    { id: 'fell', weight: 4,
+      cast: (d) => {
+        const b = (d.fell || [])[0]; if (!b) return null;
+        const a = d.finisher && d.finisher !== b ? d.finisher : null;
+        return a ? [a, b] : null;
+      },
+      title: 'YOU WENT DOWN',
+      beats: (A, B) => [
+        { who: null, line: B.n + ' is upright again. It took longer than anyone says out loud.' },
+        { who: A.id, line: 'You were gone.' },
+        { who: B.id, line: 'For a moment.' },
+        { who: A.id, line: 'It was not a moment.' },
+      ],
+      ask: 'How does it get put down?',
+      picks: (A, B) => [
+        { label: '"I AM NOT DOING THAT AGAIN."', say: 'A promise nobody in this place can keep.',
+          bond: [A.id, B.id] },
+        { label: 'THEY DO NOT PUT IT DOWN.', say: 'It walks the rest of the way with them.',
+          kizuna: RECK_KIZ },
+      ] },
+
+    // ── the whole party ──────────────────────────────────────────────────
+    { id: 'asone', weight: 3,
+      cast: (d, live) => (d.asOne > 0 && live.length >= 2) ? live.slice(0, 2) : null,
+      title: 'AS ONE',
+      beats: (A, B) => [
+        { who: null, line: 'For about a second and a half, they were not three people.' },
+        { who: A.id, line: 'That.' },
+        { who: B.id, line: 'I know.' },
+        { who: null, line: 'Neither of them can say what it was. Both of them want it again.' },
+      ],
+      ask: 'What do they do with that?',
+      picks: (A, B) => [
+        { label: 'NAME IT, SO IT CAN BE ASKED FOR.', say: 'Naming a thing is how you get to use it twice.',
+          bond: [A.id, B.id] },
+        { label: 'DO NOT TOUCH IT. JUST GO.', say: 'Some things stop working when you look at them.',
+          kizuna: RECK_KIZ },
+      ] },
+
+    { id: 'untouched', weight: 3,
+      cast: (d, live) => (d.untouched && live.length >= 2) ? live.slice(0, 2) : null,
+      title: 'NOT ONE MARK',
+      beats: (A, B) => [
+        { who: null, line: 'It never landed. Not once, on any of them.' },
+        { who: B.id, line: 'That does not happen.' },
+        { who: A.id, line: 'It happened.' },
+      ],
+      ask: 'What do they take from it?',
+      picks: (A, B) => [
+        { label: '"SO IT CAN HAPPEN."', say: 'Said carefully, like something that might be true.',
+          bond: [A.id, B.id] },
+        { label: 'GET DOWN THE ROAD BEFORE IT STOPS.', say: 'Momentum is a thing you can spend.',
+          kizuna: RECK_KIZ },
+      ] },
+
+    // ── and the one that can always speak ────────────────────────────────
+    { id: 'down', weight: 1,
+      cast: (d, live) => live.length >= 2 ? live.slice(0, 2) : null,
+      title: 'IT IS DOWN',
+      beats: (A, B) => [
+        { who: null, line: 'Whatever it was singing, it has stopped.' },
+        { who: A.id, line: 'Is that all of them?' },
+        { who: B.id, line: 'That is never all of them.' },
+      ],
+      ask: 'How do they leave it?',
+      picks: (A, B) => [
+        { label: 'STAND A MOMENT LONGER.', say: 'Not for the thing on the ground. For each other.',
+          bond: [A.id, B.id] },
+        { label: 'GO NOW.', say: 'There is light further down and it is not waiting.',
+          kizuna: RECK_KIZ },
+      ] },
+  ];
+
+  // The most SPECIFIC reckoning that can point at something this fight did —
+  // and, between equals, one the run has not already heard.
+  function pickReckoning(deeds, live) {
+    if (!deeds) return null;
+    const seen = RUN.reckSeen || [];
+    const able = RECKONINGS
+      .map(r => ({ r, cast: r.cast(deeds, live) }))
+      .filter(x => x.cast && x.cast.length === 2 && x.cast[0] !== x.cast[1]);
+    if (!able.length) return null;
+    const top = Math.max(...able.map(x => x.r.weight));
+    const best = able.filter(x => x.r.weight === top);
+    const fresh = best.filter(x => seen.indexOf(x.r.id) < 0);
+    return (fresh.length ? fresh : best)[0];
+  }
+
   // ── what a stop can be ────────────────────────────────────────────────────
   // Four kinds, and each one is a different SHAPE at a glance: blades cross,
   // a crown sits on a skull, a flame stands alone, an eye opens. Colour is the
@@ -719,6 +896,7 @@
       foeBonus: 0,                                // HP the Regent woke up with
       wakePair: null,                             // the pair STILL CLOSE names
       seen: [],                                   // the memories this run has heard
+      reckSeen: [],                               // the reckonings it has already spoken
       tier: 1,                                    // raised by MEMORY stops (Build 28)
       hp: null,                                   // null = everyone is whole
       over: null,                                 // 'win' | 'loss'
@@ -1123,6 +1301,77 @@
     };
     if (foe && foe.tier === 'boss') RUN.over = 'win';
     save();
+    // THE FOE IS STILL ON THE GROUND. Before the road takes them back, the
+    // three of them say something about what just happened — chosen by what
+    // the fight actually did. The Regent is the exception: the descent ending
+    // is its own beat and a conversation would step on it.
+    if (openReckoning(sum)) return;
+    toMap();
+  }
+
+  // WHERE THE RECKONING STANDS. The battlefield's own backdrop, and the foe
+  // face-down in it — desaturated, tipped over, sunk into the floor. Any other
+  // scene puts its own ground back, so the memory and the crossroads are
+  // unaffected by having been preceded by a fight.
+  function paintFallen() {
+    // NOT `k-scene-plate` — that id already belongs to the dialogue box, and
+    // giving the backdrop the same one made the memory's plate 430px tall.
+    // The camp suite caught it on the same run it was written.
+    const plate = $('k-scene-ground'), fallen = $('k-scene-fallen');
+    if (!plate || !fallen) return;
+    const reck = _scene && _scene.kind === 'reck';
+    const bg = reck ? '../art/bg23-plaza.webp' : '../art/bg-descent.webp';
+    if (plate.getAttribute('src') !== bg) plate.setAttribute('src', bg);
+    fallen.classList.toggle('k-hidden', !reck);
+    if (!reck) return;
+    const src = '../art/foe-' + (_scene.foe || 'husk') + '.webp';
+    if (fallen.getAttribute('src') !== src) fallen.setAttribute('src', src);
+  }
+
+  // ── the reckoning ────────────────────────────────────────────────────────
+  function openReckoning(sum) {
+    // THE REGENT GETS NO RECKONING. The end of the descent is its own beat and
+    // a conversation over her body would step on it. The rule lives HERE rather
+    // than at the one call site, so a second caller cannot forget it.
+    if (!RUN || RUN.over) return false;
+    const deeds = sum && sum.deeds;
+    const live = ['ash', 'elin', 'mira'].filter(id =>
+      !(RUN.hp && RUN.hp[id] != null && RUN.hp[id] <= 0));
+    const hit = pickReckoning(deeds, live);
+    if (!hit) return false;
+    const [aId, bId] = hit.cast;
+    const A = { id: aId, n: CAST[aId].n }, B = { id: bId, n: CAST[bId].n };
+    RUN.reckSeen = RUN.reckSeen || [];
+    if (RUN.reckSeen.indexOf(hit.r.id) < 0) RUN.reckSeen.push(hit.r.id);
+    _scene = { id: hit.r.id, kind: 'reck', title: hit.r.title, eyebrow: hit.r.ask,
+               beats: hit.r.beats(A, B), picks: hit.r.picks(A, B),
+               foe: sum.foe, cast: [aId, bId] };
+    _beat = 0;
+    save();
+    screen('scene');
+    renderScene();
+    return true;
+  }
+
+  function takeReckoning(ix) {
+    if (!_scene || _scene.kind !== 'reck' || RUN.over) return;
+    const p = _scene.picks[ix]; if (!p) return;
+    let gain = '', gainSub = '';
+    if (p.bond) {
+      const k = PAIRS.find(x => x === [p.bond[0], p.bond[1]].sort().join('|'));
+      if (k) {
+        RUN.bonds[k] = (RUN.bonds[k] || 0) + RECK_BOND;
+        gain = '+' + RECK_BOND; gainSub = PAIR_NAME[k] + ' \u00b7 closer';
+      }
+    }
+    if (p.kizuna) {
+      RUN.kizuna = Math.max(0, Math.min(100, (RUN.kizuna || 0) + p.kizuna));
+      gain = '+' + p.kizuna + '%'; gainSub = 'kizuna carried on';
+    }
+    RUN.flash = { icon: 'story', tone: 'gold', title: _scene.title,
+                  sub: p.say, gain, gainSub };
+    _scene = null; _beat = 0;
+    save();
     toMap();
   }
 
@@ -1422,12 +1671,31 @@
     const done = _beat >= beats.length;
     $('k-scene').classList.toggle('k-sc-done', done);
     $('k-scene').classList.toggle('k-sc-myst', _scene.kind === 'event');
-    const forking = done && (_scene.kind === 'bond' || _scene.kind === 'event');
+    $('k-scene').classList.toggle('k-sc-reck', _scene.kind === 'reck');
+    paintFallen();
+    const forking = done && (_scene.kind === 'bond' || _scene.kind === 'event'
+                          || _scene.kind === 'reck');
     $('k-scene').classList.toggle('k-sc-fork', forking);
     const forkBox = $('k-scene-fork');
     if (forkBox) {
       forkBox.classList.toggle('k-hidden', !forking);
-      if (forking && _scene.kind === 'event') {
+      if (forking && _scene.kind === 'reck') {
+        // The reckoning's fork is the mystery's, with one difference: what it
+        // pays is a RELATIONSHIP or a head of steam, so the chips say which.
+        forkBox.innerHTML = '<span class="k-fork-ask">' + (_scene.eyebrow || '') + '</span>'
+          + '<div class="k-fork-row k-fork-myst">'
+          + _scene.picks.map((p, i) =>
+              '<button type="button" class="k-fork k-fork-opt k-fork-reck" data-ix="' + i + '">'
+              + '<b class="k-fo-lbl">' + p.label + '</b>'
+              + '<span class="k-fo-say">' + p.say + '</span>'
+              + '<span class="k-fo-fx"><em class="k-fo-up">'
+              + (p.bond ? '+' + RECK_BOND + ' \u2014 ' + CAST[p.bond[0]].n + ' &amp; ' + CAST[p.bond[1]].n
+                        : '+' + p.kizuna + '% kizuna, carried')
+              + '</em></span></button>').join('')
+          + '</div>';
+        forkBox.querySelectorAll('.k-fork').forEach(b =>
+          b.addEventListener('click', (e) => { e.stopPropagation(); takeReckoning(+b.dataset.ix); }));
+      } else if (forking && _scene.kind === 'event') {
         // BOTH SIDES OF THE TRADE, ON THE BUTTON. A crossroads that says only
         // what it gives is a crossroads with one obvious answer; the cost is
         // the decision, so it is set in the same row as the gain and coloured
@@ -1469,7 +1737,8 @@
       }
     }
     if (forking) {
-      who.textContent = _scene.kind === 'event' ? '' : (PAIR_NAME[_scene.pair] || '');
+      who.textContent = (_scene.kind === 'event' || _scene.kind === 'reck')
+        ? '' : (PAIR_NAME[_scene.pair] || '');
       who.classList.remove('k-hidden');
       box.className = 'k-sc-line k-sc-narr';
       box.textContent = '';
@@ -1513,7 +1782,9 @@
     const beats = sceneBeats();
     const done = _beat >= beats.length;
     const speaker = done ? null : (beats[_beat].who || null);
-    const inShot = _scene.kind === 'bond' ? _scene.pair.split('|') : ['elin', 'ash', 'mira'];
+    const inShot = _scene.kind === 'bond' ? _scene.pair.split('|')
+                 : _scene.kind === 'reck' ? _scene.cast
+                 : ['elin', 'ash', 'mira'];
     const order = ['elin', 'ash', 'mira'].filter(h => inShot.indexOf(h) >= 0);
     cast.innerHTML = order.map(id => {
       const c = CAST[id];
@@ -1530,7 +1801,8 @@
     // choice is the exit, and tapping past it would be a stop that resolved
     // itself. Named positively: an unrecognised kind must fall through to the
     // payout, never get stuck in front of a fork that is not there.
-    if ((_scene.kind === 'bond' || _scene.kind === 'event') && _beat >= n) return;
+    if ((_scene.kind === 'bond' || _scene.kind === 'event' || _scene.kind === 'reck')
+        && _beat >= n) return;
     if (_beat < n) { _beat++; renderScene(); return; }
     finishScene();
   }
@@ -1956,7 +2228,8 @@
     travel, tapNode, newRun, clear,
     screen,
     render: renderMap,
-    REGIONS, regionOf, EVENTS, eventDef, takeEvent, weakestPair, TREE, treeNode, kindle, tapMemory, focusMemory, sitDown, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
+    REGIONS, regionOf, EVENTS, eventDef, takeEvent, weakestPair,
+    RECKONINGS, pickReckoning, openReckoning, takeReckoning, TREE, treeNode, kindle, tapMemory, focusMemory, sitDown, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
     pendingBonds, openBondScene, takeBond, confirmSwap, renderSwap,
     WAKES, wakeOffer, takeWake, renderWake, wakeDef, wakePair,
     SIGIL_BY_PAIR, sigilFor, renderMark, placeSigil, openMark, leaveMark,

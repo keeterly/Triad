@@ -668,6 +668,127 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       JSON.stringify(paid));
   }
 
+  // ═══ THE RECKONING ═══
+  // The beat after a fight, and the thing that makes it not a loading screen
+  // with dialogue on it: every reckoning is selected by a deed the ENGINE
+  // measured. A reckoning that cannot point at something that happened does
+  // not get to speak.
+  console.log('\n── the reckoning ──');
+  {
+    const deedsOf = (patch) => Object.assign({
+      finisher: null, lastHit: null, shields: [], stitches: {},
+      brink: [], fell: [], asOne: 0, untouched: false }, patch || {});
+
+    const picked = await J((D) => {
+      const live = ['ash', 'elin', 'mira'];
+      const of = (d) => { const p = window.R.pickReckoning(d, live); return p ? { id: p.r.id, cast: p.cast } : null; };
+      return {
+        // a shield that actually took a blow outranks everything general
+        shield: of(Object.assign({}, D, { shields: [{ by: 'elin', for: 'mira' }], asOne: 1 })),
+        // the finisher and somebody who was on the brink
+        last: of(Object.assign({}, D, { finisher: 'ash', brink: ['mira'], asOne: 1 })),
+        // a pair that moved off each other twice or more
+        opening: of(Object.assign({}, D, { stitches: { 'ash|elin': 3 }, asOne: 1 })),
+        // one stitch is not a habit, so it must NOT select the opening scene
+        oneStitch: of(Object.assign({}, D, { stitches: { 'ash|elin': 1 } })),
+        // nothing happened worth naming — the plainest one still speaks
+        bare: of(Object.assign({}, D, {})),
+      };
+    }, deedsOf());
+    check('RECK: the reckoning is chosen by a deed — the sharpest thing the fight actually did',
+      picked.shield && picked.shield.id === 'infront' && picked.shield.cast.join() === 'elin,mira'
+      && picked.last && picked.last.id === 'lastblow' && picked.last.cast.join() === 'ash,mira'
+      && picked.opening && picked.opening.id === 'opening' && picked.opening.cast.join() === 'ash,elin',
+      JSON.stringify(picked));
+    check('RECK: …and a deed that did not happen cannot select its scene — one stitch is not a habit',
+      picked.oneStitch && picked.oneStitch.id !== 'opening'
+      && picked.bare && picked.bare.id === 'down',
+      JSON.stringify({ oneStitch: picked.oneStitch, bare: picked.bare }));
+
+    // THE TWO IN THE SHOT ARE THE TWO THE DEED NAMES. A reflection between the
+    // wrong people is worse than no reflection: it says the game was not
+    // watching.
+    const shot = await J(() => {
+      window.R.resetProfile();
+      window.R.newRun(41);
+      const opened = window.R.openReckoning({ foe: 'husk', deeds: {
+        finisher: 'mira', lastHit: 'mira', shields: [{ by: 'elin', for: 'ash' }],
+        stitches: {}, brink: [], fell: [], asOne: 0, untouched: false } });
+      const sc = window.R.scene();
+      let n = 0;
+      while (n++ < 20 && window.R.scene() && !document.querySelector('.k-fork-reck')) window.R.sceneNext();
+      return { opened, id: sc && sc.id, cast: sc && sc.cast,
+               figs: [...document.querySelectorAll('.k-sc-fig')].map(f => f.dataset.hero),
+               title: (document.getElementById('k-scene-title').textContent || '').trim(),
+               fallen: !document.getElementById('k-scene-fallen').classList.contains('k-hidden'),
+               fallenSrc: document.getElementById('k-scene-fallen').getAttribute('src'),
+               opts: [...document.querySelectorAll('.k-fork-reck')].map(o => ({
+                 label: o.querySelector('.k-fo-lbl').textContent,
+                 fx: o.querySelector('.k-fo-fx').textContent })) };
+    });
+    check('RECK: the two who are talking are the two the deed names, over the thing that fell',
+      shot.opened && shot.id === 'infront' && shot.cast.join() === 'elin,ash'
+      && shot.figs.length === 2 && shot.figs.slice().sort().join() === 'ash,elin'
+      && shot.fallen && /foe-husk/.test(shot.fallenSrc || '') && shot.opts.length === 2,
+      JSON.stringify({ id: shot.id, cast: shot.cast, figs: shot.figs, fallen: shot.fallenSrc }));
+
+    // THE FORK IS THE EXIT, and it pays exactly what its chip says.
+    const held = await J(() => {
+      for (let i = 0; i < 12; i++) window.R.sceneNext();
+      return { still: !!window.R.scene(), forks: document.querySelectorAll('.k-fork-reck').length };
+    });
+    check('RECK: it ends on its fork and waits there — no amount of tapping answers it for you',
+      held.still && held.forks === 2, JSON.stringify(held));
+
+    const paidBond = await J(() => {
+      const b = JSON.parse(JSON.stringify(window.R.state().bonds));
+      const kz = window.R.state().kizuna;
+      document.querySelectorAll('.k-fork-reck')[0].click();
+      const a = window.R.state();
+      const moved = Object.keys(a.bonds).filter(k => a.bonds[k] !== b[k])
+        .map(k => k + ':+' + (a.bonds[k] - b[k]));
+      return { moved, kz: [kz, a.kizuna], onMap: !document.getElementById('k-map').classList.contains('k-hidden'),
+               flash: a.flash };
+    });
+    check('RECK: the answer that deepens a pair deepens THAT pair, and only it',
+      paidBond.moved.length === 1 && paidBond.moved[0] === 'ash|elin:+6'
+      && paidBond.kz[0] === paidBond.kz[1] && paidBond.onMap
+      && !!paidBond.flash && (paidBond.flash.gainSub || '').length > 3,
+      JSON.stringify(paidBond));
+
+    const paidKz = await J(() => {
+      window.R.newRun(41);
+      window.R._set({ kizuna: 10 });
+      window.R.openReckoning({ foe: 'wraith', deeds: {
+        finisher: 'ash', lastHit: 'ash', shields: [], stitches: {},
+        brink: ['elin'], fell: [], asOne: 0, untouched: false } });
+      let n = 0;
+      while (n++ < 20 && window.R.scene() && !document.querySelector('.k-fork-reck')) window.R.sceneNext();
+      const b = JSON.parse(JSON.stringify(window.R.state().bonds));
+      const kz = window.R.state().kizuna;
+      document.querySelectorAll('.k-fork-reck')[1].click();
+      const a = window.R.state();
+      return { bondsMoved: Object.keys(a.bonds).filter(k => a.bonds[k] !== b[k]).length,
+               kz: [kz, a.kizuna] };
+    });
+    check('RECK: …and the answer that keeps the momentum pays kizuna instead, moving no bond',
+      paidKz.bondsMoved === 0 && paidKz.kz[1] === paidKz.kz[0] + 22,
+      JSON.stringify(paidKz));
+
+    // THE REGENT DOES NOT GET ONE. The descent ending is its own beat and a
+    // conversation over her body would step on it.
+    const regent = await J(() => {
+      window.R.newRun(41);
+      window.R._set({ over: 'win' });
+      const opened = window.R.openReckoning({ foe: 'mourner', deeds: {
+        finisher: 'ash', lastHit: 'ash', shields: [{ by: 'elin', for: 'mira' }],
+        stitches: {}, brink: [], fell: [], asOne: 2, untouched: false } });
+      return { opened, scene: !!window.R.scene() };
+    });
+    check('RECK: the Regent gets no reckoning — the end of the descent is its own beat',
+      regent.opened === false && regent.scene === false, JSON.stringify(regent));
+  }
+
   const r = report();
   await H.browser.close();
   process.exit(r.passed === r.total && r.errs === 0 ? 0 : 1);

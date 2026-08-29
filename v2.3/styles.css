@@ -2391,6 +2391,49 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-scene.k-sc-myst #k-scene-title { color: #8fbfb8; }
 /* the three of them are present but they are not the subject here — the place is */
 #k-scene.k-sc-myst .k-sc-fig { filter: brightness(0.72) saturate(0.7); }
+
+/* ── THE RECKONING: the fight's own ground, and what is left on it ────────
+   The foe is face-down where it fell — tipped over, drained of its colour and
+   sunk into the floor, so it reads as a shape on the ground rather than as an
+   enemy that is about to get up. It sits BEHIND the two who are talking. */
+/* SIZED BEFORE IT IS TURNED. Rotating an auto-width portrait about its own
+   foot swung it 460px off the left edge — measured, not guessed. A fixed box
+   plus `contain` means the POST-rotation footprint is the thing being placed:
+   300 wide and 132 tall, lying across the floor behind both of them. */
+/* A SELECTOR AS SPECIFIC AS THE ONE IT HAS TO BEAT. `#k-scene-bg img` sets
+   inset:0, 100%/100% and object-fit:cover for the backdrop plate, and at 0,1,1
+   it outranks a bare #id — so the corpse was being stretched to fill the whole
+   screen and THEN rotated about the middle of that, which put its box 460px
+   off the left edge. Measured with getBoundingClientRect, not guessed.
+   `inset: auto` is the load-bearing line.
+   Sized before it is turned, too: a fixed box plus `contain` means the
+   POST-rotation footprint is the thing being placed — 300 across and 132 tall,
+   lying on the floor behind both of them. Dark enough to be a shape on the
+   ground, light enough to BE one: at brightness 0.34 a foe that is already
+   painted near-black simply was not there, which is the whole point of it. */
+#k-scene-bg img#k-scene-fallen {
+  position: absolute; inset: auto; left: 50%; top: 232px;
+  width: 132px; height: 300px; object-fit: contain;
+  z-index: 2; transform: translate(-50%, -50%) rotate(-84deg);
+  transform-origin: 50% 50%; pointer-events: none;
+  filter: grayscale(0.78) brightness(0.72) contrast(1.05);
+  opacity: 0.55; }
+/* …and a pool of dark under it, so it reads as lying IN the floor */
+#k-scene.k-sc-reck #k-scene-bg::after { content: ''; position: absolute; z-index: 3;
+  left: 50%; top: 236px; width: 420px; height: 78px; transform: translate(-50%, -50%);
+  border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(6,5,8,0.7), rgba(6,5,8,0) 72%); }
+#k-scene.k-sc-reck #k-scene-title { color: #c9a45c; }
+#k-scene.k-sc-reck .k-fork-ask { color: #d8c8a4; }
+#k-scene.k-sc-reck #k-scene-fork { width: 700px; bottom: 18px; }
+#k-scene.k-sc-reck #k-scene-fork::before {
+  left: -70px; right: -70px; top: -34px; bottom: -30px;
+  background: linear-gradient(180deg, rgba(8,7,10,0) 0%, rgba(8,7,10,0.82) 26%,
+    rgba(8,7,10,0.95) 46%, rgba(8,7,10,0.97) 100%); }
+.k-fork-reck { border-color: rgba(201,164,92,0.45) !important;
+  background: linear-gradient(180deg, rgba(30,26,22,0.96), rgba(16,14,12,0.97)) !important; }
+.k-fork-reck .k-fo-lbl { font-size: 13px; letter-spacing: 0.1em; }
+.k-fork-reck .k-fo-say { min-height: 30px; }
 .k-fork-myst { align-items: stretch; }
 .k-fork-opt { flex: 1 1 0; align-items: flex-start !important; gap: 4px !important;
   padding: 13px 15px 12px !important; text-align: left !important;
