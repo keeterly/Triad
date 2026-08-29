@@ -1370,7 +1370,7 @@
     }
     RUN.flash = { icon: 'story', tone: 'gold', title: _scene.title,
                   sub: p.say, gain, gainSub };
-    _scene = null; _beat = 0;
+    closeScene();
     save();
     toMap();
   }
@@ -1461,7 +1461,7 @@
     // The level also teaches them something about what they already carry.
     RUN.pendingSigil = sigilFor(pair, _scene.lv);
     const card = pick.card, after = pick.after;
-    _scene = null; _beat = 0;
+    closeScene();
     // Nothing to hand over — they already carry everything this scene could
     // give — so the level pays its other half and the road goes on.
     if (!card) { save(); if (!openMark(pair)) { if (!openBondScene()) sitDown(); } return; }
@@ -1679,6 +1679,16 @@
     const forkBox = $('k-scene-fork');
     if (forkBox) {
       forkBox.classList.toggle('k-hidden', !forking);
+      // NO FORK SURVIVES INTO THE NEXT SCENE. Hiding the box left its buttons
+      // in the DOM, so a crossroads opened at beat 0 with the previous
+      // RECKONING's answers still sitting behind it — invisible, but present,
+      // matching `.k-fork-opt`, and wired to a handler that would refuse them.
+      // The soak walked straight into it: three of eight runs stalled on a
+      // mystery that could not be answered because the thing answering it was
+      // the ghost of the last fight. A player cannot click a hidden button, so
+      // this was never going to be seen — which is exactly why it needed a
+      // random walk to find it.
+      if (!forking) forkBox.innerHTML = '';
       if (forking && _scene.kind === 'reck') {
         // The reckoning's fork is the mystery's, with one difference: what it
         // pays is a RELATIONSHIP or a head of steam, so the chips say which.
@@ -1770,6 +1780,17 @@
 
   // A BOND SCENE IS A TWO-HANDER. Only the pair is in the shot; the third is
   // somewhere else, which is the whole reason the conversation is happening.
+  // ONE DOOR OUT. Four things end a scene and every one of them used to write
+  // `_scene = null; _beat = 0;` by hand — which is three chances to forget the
+  // third line. Clearing the fork here rather than on the NEXT scene's first
+  // render means an answered question stops existing the moment it is
+  // answered, instead of lingering invisibly until something else redraws.
+  function closeScene() {
+    _scene = null; _beat = 0;
+    const fork = $('k-scene-fork');
+    if (fork) { fork.innerHTML = ''; fork.classList.add('k-hidden'); }
+  }
+
   // A memory is written as `beats`; a mystery is written as two `lines` the
   // road says. One accessor, so every part of this screen walks the same list.
   function sceneBeats() {
@@ -1820,7 +1841,7 @@
     RUN.flash = { icon: 'story', tone: 'violet', title: (_scene ? _scene.title : 'A MEMORY'),
       sub: 'Tier ' + RUN.tier + ' of the tree opens to the three of them.',
       gain: '+1', gainSub: 'ember · tier' };
-    _scene = null; _beat = 0;
+    closeScene();
     save();
     toMap();
   }
@@ -1889,7 +1910,7 @@
     RUN.flash = { icon: 'event', tone: 'mist', title: _scene.title,
       sub: p.label.charAt(0) + p.label.slice(1).toLowerCase() + ' \u2014 ' + p.say,
       gain: head.split(' ')[0], gainSub: words.join(' \u00b7 ') };
-    _scene = null; _beat = 0;
+    closeScene();
     save();
     toMap();
   }
@@ -2229,7 +2250,7 @@
     screen,
     render: renderMap,
     REGIONS, regionOf, EVENTS, eventDef, takeEvent, weakestPair,
-    RECKONINGS, pickReckoning, openReckoning, takeReckoning, TREE, treeNode, kindle, tapMemory, focusMemory, sitDown, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
+    RECKONINGS, pickReckoning, openReckoning, takeReckoning, enterEvent, TREE, treeNode, kindle, tapMemory, focusMemory, sitDown, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
     pendingBonds, openBondScene, takeBond, confirmSwap, renderSwap,
     WAKES, wakeOffer, takeWake, renderWake, wakeDef, wakePair,
     SIGIL_BY_PAIR, sigilFor, renderMark, placeSigil, openMark, leaveMark,
