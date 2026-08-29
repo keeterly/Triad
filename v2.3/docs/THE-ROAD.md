@@ -1270,3 +1270,105 @@ would not have noticed the mystery arriving broken. The camp block also stopped
 inheriting wherever the section above happened to leave the party, and stands
 itself one column short of a fire: a check that silently stops running is worse
 than one that fails.
+
+---
+
+## Build 67 — the feedback and timing pass, and the blind spot that hid it
+
+The note was three clauses. Build 66 answered the first two — more room between
+the kill and the conversation, and the conversation held on the battlefield.
+This is the third: *"we need to improve feedback and timing altogether."*
+
+### The instrument, and the first thing it got wrong
+
+Timing cannot be audited by reading constants. A 620ms flight that starts 300ms
+after the press is a 920ms wait, and no amount of staring at `setTimeout` calls
+will say so. So the pass began with `test/beat.sim.cjs` — a recorder that samples
+the readable screen every animation frame (hand size, AP, health, damage numbers,
+hit flashes, the parry bar, the husk, the reckoning) and logs the moment anything
+changes. Then it drives the game with **real pointer input**, because the hand is
+played by dragging and `.click()` exercises a code path no player has ever used.
+
+Its first report was damning and almost entirely false:
+
+```
+play a card · press      306ms   the click feels dropped
+end the turn           2381ms   dead air, worst 5166ms
+the enemy's four hits land in   79ms
+```
+
+All three were artifacts. `sleep()` caps every wait at 24ms under `?test=1`, so
+the instrument had been pointed at a build with its animation timing deliberately
+removed. The "five seconds of dead air" was the parry bar — the best thing in the
+game — running normally, invisible to a probe that watched `.k-note` when the
+rings on screen are `.k-pring`.
+
+**Every suite in this repo is blind to timing by construction.** That is correct
+for a gate on rules and it is exactly why two real timing defects had survived
+this long with 400+ checks green.
+
+`?realtime=1` is the fix: test mode's determinism — fixed seed, fresh run,
+silence — with the real durations put back. Measured against the shipping build,
+the card answers the finger in **26ms**, the drop resolves in **28ms**, the
+discard sweeps one card per 100ms and the volley spaces its four hits 330ms
+apart. The game was already good. Two things were not.
+
+### The dirge arrived as a lump
+
+The volley gives every hit its own beat. Then the dirge — the party-wide tax that
+actually decides runs — applied all three shares inside one synchronous block and
+popped three numbers into a single frame, on top of the volley's numbers that had
+not finished clearing. Six figures on screen at once, and the one the player most
+needs to read was the one they could not.
+
+It sweeps now. The stage darkens first (the hymn is heard before it is felt),
+then it takes the party one at a time, front to back, with each hero's health
+draining *with* their own number rather than three bars dropping behind the first
+figure. Measured: three heroes hurt 0ms apart → **251ms and 235ms apart**; peak
+simultaneous numbers **6 → 4**.
+
+A hero whose Guard ate the whole hymn used to print `0`. Banking Guard against
+the dirge is the counterplay the tax exists to teach, so the turn it works now
+looks like it worked.
+
+### The body fell inside the killing blow
+
+`fxFoeDown` fired in the same frame the health hit zero — **13ms** after the
+killing hit, while that hit's own flash was still on screen. Impact and collapse
+arrived as one smear and the death had no moment of its own.
+
+It is held 420ms now: the blow connects, the figure stands a beat too long, then
+it goes down. It costs the player nothing — the road already waits 1750ms before
+taking the board back, so this spends silence that was there anyway. Measured:
+blow → fall **13ms → 436ms**; fall → reckoning **1754ms → 1333ms**.
+
+### The gate
+
+`test/beat.test.cjs` is the first suite that boots `?realtime=1`. It is slow on
+purpose and it enforces **order and spacing, never exact durations** — a check
+pinned to the millisecond breaks on every deliberate retune and teaches nobody
+anything. The rule it holds is: *two things the player must read separately do
+not arrive in the same frame.*
+
+Run against the pre-fix build it goes red on both defects (`peak: 6`,
+`holdMs: 19`) and green after — which is the only evidence that a new gate is
+worth its runtime.
+
+**One of its checks was hollow and had to be caught twice.** The first version of
+"no two heroes lose health in the same frame" only timed the *gaps* between health
+changes, so the old lumped dirge showed up as a single well-spaced event and
+sailed through the exact defect the check was written for. It reads *what*
+changed now, not just when: a frame that moves two heroes at once is the lump,
+however well spaced it is from its neighbours. Verified red on the old code
+(`lumpedFrames: 1`) where the timing-only version passed.
+
+### What the instrument cleared
+
+Worth recording, because three plausible fixes died here:
+
+- the card press is not slow — 26ms to lift, with the aim beam up in the same frame
+- the enemy turn is not dead air — the parry bar holds it open for ~5s
+- the discard sweep does stagger — one card per 100ms
+
+Measure, then act. Two of the three "obvious" fixes this pass started with would
+have made the game worse.

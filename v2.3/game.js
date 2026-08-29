@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 66;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 67;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -530,7 +530,20 @@ function setPhase(p) {
   // waiting to collect the fight. This lived inside the `onEnd` block, so a
   // foe killed outside a run — the suite's own fights, a bare board — simply
   // stood there dead.
-  if (p === 'VICTORY') { try { fxFoeDown(); } catch (e) {} }
+  // THE BLOW LANDS BEFORE THE BODY DOES. The fall used to start in the same
+  // frame the health hit zero — 13ms after the killing hit, while that hit's
+  // own flash was still on screen — so the impact and the collapse arrived as
+  // one smear and the death had no moment of its own. It reads as a JRPG death
+  // now: the blow connects, the figure holds a beat too long, and then it goes
+  // down. The road's hand-off already waits 1750ms, so this costs the player
+  // nothing — it spends silence that was there anyway.
+  // …and it only falls if the fight is still won when the beat comes round:
+  // startCombat clears k-foe-down, so a next fight opening inside the hold
+  // would otherwise inherit a husk that was never there.
+  if (p === 'VICTORY') setTimeout(() => {
+    if (!C || C.phase !== 'VICTORY') return;
+    try { fxFoeDown(); } catch (e) {}
+  }, FOE_DEATH_HOLD);
   // A fight that was started BY something reports back to it. Combat itself
   // still knows nothing about runs, maps or embers — it only knows it is over.
   if ((p === 'VICTORY' || p === 'DEFEAT') && C.onEnd) {
@@ -1469,7 +1482,14 @@ async function endTurn(opts) {
   if (C.phase === 'VICTORY') { renderAll(); return report('victory', result); }
   const dirge = dirgeAmount();
   if (dirge > 0 && !result.canceled) {
-    for (const id of livingHeroes()) {
+    // THE HYMN IS HEARD BEFORE IT IS FELT, and then it takes the party one at a
+    // time. Applying all three at once and popping three numbers in one frame
+    // put six figures on screen — the volley's were still clearing — and made
+    // the tax that decides runs the one thing nobody could read.
+    await fxDirgeOpen();
+    const order = livingHeroes();
+    for (let i = 0; i < order.length; i++) {
+      const id = order[i];
       const h = C.heroes[id];
       let d = dirge;
       if (h.guard > 0) { const g = Math.min(h.guard, d); h.guard -= g; d -= g; }
@@ -1479,8 +1499,8 @@ async function endTurn(opts) {
         markBrink(id);
         if (h.hp === 0) { h.downed = true; h.guard = 0; logLine(HEROES23[id].name + ' falls to the dirge.'); }
       }
+      await fxDirgeOne(id, d, i === order.length - 1);
     }
-    await fxDirge(dirge);
     if (!livingHeroes().length) { setPhase('DEFEAT'); renderAll(); return report('defeat', result); }
   }
 
@@ -3361,7 +3381,7 @@ function flyCard(from, toEl, opts) {
     + 'px;height:' + from.h + 'px;opacity:' + (o.fadeIn ? 0 : 1);
   if (o.html) g.innerHTML = o.html;
   S.st.appendChild(g);
-  const ms = testMode() ? 40 : (o.ms || 380);
+  const ms = fastFx() ? 40 : (o.ms || 380);
   const dx = (to.x + to.w / 2) - (from.x + from.w / 2);
   const dy = (to.y + to.h / 2) - (from.y + from.h / 2);
   // a card leaving the hand MORPHS DOWN into the stack; one arriving from the
@@ -3431,7 +3451,16 @@ function flyFromHand(cardId, which, opts) {
   return p;
 }
 
-const sleep = (ms) => new Promise(r => setTimeout(r, (typeof window !== 'undefined' && window.__SIM) ? 0 : (testMode() ? Math.min(ms, 24) : ms)));
+// The dirge's shape, in one place. LEAD is the darkening before anyone is
+// touched; STEP is the gap between one hero and the next — wide enough that
+// three numbers never share a frame; TAIL is the breath before the turn moves
+// on, so the last number is not still rising when the hand starts drawing.
+const DIRGE_LEAD = 190, DIRGE_STEP = 240, DIRGE_TAIL = 300;
+// How long the killing blow is allowed to read before the body starts to fall.
+// Long enough for the impact flash to clear (it fades over ~380ms), short
+// enough to sit well inside the 1750ms the road waits before it takes over.
+const FOE_DEATH_HOLD = 420;
+const sleep = (ms) => new Promise(r => setTimeout(r, (typeof window !== 'undefined' && window.__SIM) ? 0 : (fastFx() ? Math.min(ms, 24) : ms)));
 // THE SWEEP, Spire-style: each card LEAVES the hand as its ghost launches, so
 // the fan closes behind it and the pile grows under it. The old version flew a
 // ghost while the original sat in place until the last one had gone, which read
@@ -3457,9 +3486,9 @@ async function fxSweepHand() {
       flyCard(from, target, { spin: -16 - i * 7, arc: 46 + i * 8, ms: 460, html });
       pileThump('discard');
     }
-    await sleep(testMode() ? 4 : 95);
+    await sleep(fastFx() ? 4 : 95);
   }
-  await sleep(testMode() ? 6 : 260);
+  await sleep(fastFx() ? 6 : 260);
 }
 // THE DRAW BUILDS THE HAND. Every arriving card used to force a full re-layout
 // with no transition, so the four cards already held SNAPPED to new angles five
@@ -3521,17 +3550,44 @@ async function fxDrawOne() {
       pileThump('deck');
     }
   }
-  await sleep(testMode() ? 8 : 230);
+  await sleep(fastFx() ? 8 : 230);
 }
-async function fxDirge(n) {
-  renderPartyHud();
-  for (const id of livingHeroes()) {
-    popupOver(document.querySelector('.k-hero[data-hero="' + id + '"]'), fmtN(n), 'k-pop-dirge k-pop-md');
-  }
+// THE DIRGE SETTLES; IT DOES NOT DROP. Every other blow in the turn earns its
+// own beat — the volley spaces four hits 330ms apart, each with one number over
+// one hero — and then the dirge, the tax that actually decides runs, arrived as
+// a single frame with three numbers in it, landing on top of the volley's
+// numbers that had not finished clearing. Six figures on screen at once, and
+// the one the player most needs to read is the one they cannot.
+//
+// So it sweeps. The stage darkens FIRST — the hymn is heard before it is felt —
+// and then it takes the party one at a time, front to back, far enough apart to
+// count three separate people being hurt by the same thing.
+async function fxDirgeOpen() {
   const s = document.getElementById('k-stage');
   if (s) { s.classList.remove('k-dirge'); void s.offsetWidth; s.classList.add('k-dirge');
     setTimeout(() => s.classList.remove('k-dirge'), 700); }
-  await sleep(320);
+  await sleep(DIRGE_LEAD);
+}
+// One hero's share of it. The HP is applied by the caller immediately before
+// this runs, so the bar drains WITH the number rather than three turns' worth
+// of bars dropping at once behind the first figure — the same lie
+// fxHitResolved was written to stop the volley telling.
+async function fxDirgeOne(id, n, last) {
+  renderPartyHud();
+  const at = document.querySelector('.k-hero[data-hero="' + id + '"]');
+  if (n > 0) {
+    popupOver(at, fmtN(n), 'k-pop-dirge k-pop-md');
+    fxImpact(at, 1.1, 'hurt', 'l');
+    sfx('hurt', 0.5);
+  } else {
+    // GUARD THAT ATE THE WHOLE HYMN IS THE BEST THING GUARD EVER DOES, and it
+    // used to print "0" — or, before the sweep, nothing distinguishable at all.
+    // Banking Guard against the dirge is the counterplay the tax is supposed to
+    // teach, so the turn it works has to look like it worked.
+    fxDeflect(at, false);
+    sfx('guard', 0.85);
+  }
+  await sleep(last ? DIRGE_TAIL : DIRGE_STEP);
 }
 async function fxInterrupt() {
   const b = document.getElementById('k-boss-art');
@@ -3563,6 +3619,17 @@ async function fxHitResolved(tgtId, taken, negated, flawless) {
   await sleep(330);
 }
 function testMode() { return /[?&]test=1/.test(location.search); }
+// TEST MODE STRIPS THE TIMING OUT — every sleep is capped at 24ms so two
+// hundred fights can be gated in a minute. That is right for a suite and
+// ruinous for any measurement of what a turn FEELS like: an instrument that
+// booted with ?test=1 read the enemy's four-hit volley as landing in 79ms and
+// called it a pile-up, when the game a player gets spaces those same four hits
+// 330ms apart. It very nearly bought a fix for a bug that existed only in the
+// harness. `?realtime=1` keeps everything test mode is for — the fixed seed,
+// the fresh boot, the silence — and gives the animation back its real
+// durations, so the beat instrument measures the game that ships.
+function realtime() { return /[?&]realtime=1/.test(location.search); }
+function fastFx() { return testMode() && !realtime(); }
 
 // ═════════════════════════════════════════════════════════════════════════════
 // UI — the reference skin made live. One render root, small renderers per zone.

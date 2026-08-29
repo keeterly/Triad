@@ -1240,6 +1240,13 @@ const { boot } = require('./harness.cjs');
     // the foe was still mid-recoil when the next screen arrived. On a win the
     // board now holds while it goes down, on the `broken` frames that already
     // existed and were only ever used for a stagger.
+    // WHAT MOVED: this used to assert the foe was on the ground 60ms after the
+    // killing blow, and it passed because the fall began in the same frame the
+    // health hit zero. The beat instrument caught that at 13ms — the collapse
+    // starting underneath the killing hit's own flash, so impact and death
+    // arrived as one smear. The fall is now held for FOE_DEATH_HOLD, and the
+    // check asserts the SEQUENCE rather than the speed: standing while the blow
+    // reads, down before the road takes the board back.
     const dying = await J(async () => {
       window.K.startCombat({ seed: 3 });
       const box = document.getElementById('k-boss-art');
@@ -1247,11 +1254,16 @@ const { boot } = require('./harness.cjs');
       window.K.state().boss.hp = 1;
       window.K._dealToBoss(40, 'hit', 'ash');
       await new Promise(r => setTimeout(r, 60));
-      return { phase: window.K.state().phase, before,
-               falling: box.classList.contains('k-foe-down') };
+      const held = box.classList.contains('k-foe-down');
+      let falling = false;
+      for (let i = 0; i < 60 && !falling; i++) {
+        await new Promise(r => setTimeout(r, 25));
+        falling = box.classList.contains('k-foe-down');
+      }
+      return { phase: window.K.state().phase, before, held, falling };
     });
-    check('DYING: winning puts the foe on the ground before anything else happens',
-      dying.phase === 'VICTORY' && dying.falling && !/k-foe-down/.test(dying.before),
+    check('DYING: the killing blow reads before the body falls, and then it falls',
+      dying.phase === 'VICTORY' && !dying.held && dying.falling && !/k-foe-down/.test(dying.before),
       JSON.stringify(dying));
 
     check('DEEDS: striking as one, standing at a quarter, going down, and who swung last are all recorded',

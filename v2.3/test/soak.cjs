@@ -158,6 +158,11 @@ const MAX_TURNS = 24;
 
   // ── a run ────────────────────────────────────────────────────────────────
   let finished = 0, wiped = 0, reloaded = 0, mysteries = 0, bonds = 0, recks = 0;
+  // HOW MANY CONVERSATIONS STAND BETWEEN THE PLAYER AND THE FIRE. Worth
+  // printing rather than only bounding: a campfire you have to talk your way
+  // through five times before you can spend an ember is a pacing fact, not a
+  // stall, and the number is the only way to know which one it has become.
+  let deepestBond = 0;
 
   for (let i = 0; i < RUNS; i++) {
     const seed = 1000 + i * 977;
@@ -201,9 +206,16 @@ const MAX_TURNS = 24;
 
       let screen = await step('entered ' + kind);
 
-      // a campfire may open a bond scene first, and a bond scene pays twice
+      // A CAMPFIRE MAY OPEN SEVERAL BOND SCENES FIRST, and this used to drain at
+      // most four of them before declaring the fire stuck behind a scene. There
+      // are only three pairs, so four looked like plenty — but a pair whose bond
+      // crossed TWO thresholds queues twice, and after four straight wins each
+      // paying a reckoning, five deep is an ordinary Tuesday. The cap turned a
+      // legitimate state into a failure. It drains until the fire opens now, and
+      // only calls it stuck if the count stops moving.
       let guard = 0;
-      while (screen === 'k-scene' && kind === 'camp' && guard++ < 4) {
+      while (screen === 'k-scene' && kind === 'camp' && guard++ < 14) {
+        deepestBond = Math.max(deepestBond, guard);
         bonds++;
         await J(() => { window.R.sceneSkip(); });
         await sleep(160);
@@ -332,7 +344,8 @@ const MAX_TURNS = 24;
 
   console.log('\n── the soak ──');
   console.log(`    ${RUNS} runs · ${finished} reached the Regent and won · ${wiped} wiped`);
-  console.log(`    ${reloaded} mid-run reloads · ${mysteries} crossroads · ${bonds} bond scenes · ${recks} reckonings`);
+  console.log(`    ${reloaded} mid-run reloads · ${mysteries} crossroads · ${bonds} bond scenes · ${recks} reckonings`
+    + `\n    deepest queue of bond scenes in front of one campfire: ${deepestBond}`);
 
   check(`SOAK: ${RUNS} random runs, and not one invariant breached at any transition`,
     breaches.length === 0,
