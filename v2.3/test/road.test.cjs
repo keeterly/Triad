@@ -361,7 +361,7 @@ const { boot } = require('./harness.cjs');
                covers: [...onRoad].every(w => words.indexOf(w) >= 0), quiet };
     });
     check('CHART: the marks are named once, in the legend — so the chart itself stays quiet',
-      key.words.length === 5 && key.distinct === 5 && key.covers && key.quiet,
+      key.words.length === 6 && key.distinct === 6 && key.covers && key.quiet,
       JSON.stringify(key));
 
     const edges = await J(() => {
@@ -480,6 +480,172 @@ const { boot } = require('./harness.cjs');
       && you.done === 0, JSON.stringify(you));
   }
 
+  // ═══ C2 · THE MYSTERY ═══
+  // The road's sixth kind, and the only stop that is a DECISION rather than an
+  // encounter. Everything about it is written as data, so everything about it
+  // can be held to its own words.
+  console.log('\n── a crossroads ──');
+  {
+    const standAt = (kind) => J((k) => {
+      const st = window.R.map().find(n => n.kind === k);
+      if (!st) return null;
+      const prev = window.R.map().find(m => m.col === st.col - 1 && m.to.indexOf(st.id) >= 0);
+      window.R._set({ at: prev.id, path: [prev.id], stop: prev.col + 1, embers: 12 });
+      window.R.travel(st.id);
+      return st.id;
+    }, kind);
+
+    // A road with no mystery on it cannot test one, so find a seed that grew
+    // one rather than asserting on whichever seed happens to be loaded.
+    const seed = await J(() => {
+      for (let s = 1; s <= 80; s++) {
+        window.R.newRun(s);
+        if (window.R.map().some(n => n.kind === 'event')) return s;
+      }
+      return null;
+    });
+    await reset(seed);
+    const at = await standAt('event');
+    await sleep(420);
+
+    const open = await J(() => ({
+      on: ['k-stage', 'k-map', 'k-camp', 'k-scene']
+        .filter(id => !document.getElementById(id).classList.contains('k-hidden')),
+      title: (document.getElementById('k-scene-title').textContent || '').trim(),
+      line: (document.getElementById('k-scene-line').textContent || '').trim(),
+      fork: !!document.querySelector('.k-fork-opt'),
+      pending: window.R.state().pending,
+    }));
+    check('MYSTERY: a mystery stop opens a crossroads, not a fight — and it starts by talking',
+      open.on.length === 1 && open.on[0] === 'k-scene' && open.title.length > 3
+      && open.line.length > 20 && !open.fork && open.pending === at,
+      JSON.stringify(open));
+
+    // THE FORK IS THE EXIT. A stop that can be tapped past is a stop that
+    // resolves itself, which is the one thing a decision must never do.
+    const held = await J(() => {
+      for (let i = 0; i < 20; i++) window.R.sceneNext();
+      return { still: !!window.R.scene(),
+               onScene: !document.getElementById('k-scene').classList.contains('k-hidden'),
+               fork: document.querySelectorAll('.k-fork-opt').length };
+    });
+    check('MYSTERY: it ends on its fork and waits there — no amount of tapping resolves it for you',
+      held.still && held.onScene && held.fork >= 2, JSON.stringify(held));
+
+    // BOTH SIDES OF THE TRADE, ON THE BUTTON, FROM THE SAME DATA THAT CHARGES
+    // IT. A pick that advertises a price it does not charge is the worst thing
+    // this screen could do, so the words are generated from the effect rather
+    // than written beside it — and this is the check that says so.
+    const honest = await J(() => {
+      const def = window.R.EVENTS.find(e => e.title
+        === document.getElementById('k-scene-title').textContent.trim());
+      const opts = [...document.querySelectorAll('.k-fork-opt')];
+      const rows = opts.map(o => ({
+        label: o.querySelector('.k-fo-lbl').textContent,
+        chips: [...o.querySelectorAll('.k-fo-fx em')].map(e => e.textContent),
+        costs: [...o.querySelectorAll('.k-fo-fx .k-fo-down')].length,
+        gains: [...o.querySelectorAll('.k-fo-fx .k-fo-up')].length,
+      }));
+      return { def: def ? def.picks.map(p => ({ label: p.label, keys: Object.keys(p.fx).length })) : null,
+               rows };
+    });
+    check('MYSTERY: every pick prints one chip per effect it will actually apply, cost and gain apart',
+      !!honest.def && honest.rows.length === honest.def.length
+      && honest.rows.every((r, i) => r.label === honest.def[i].label
+        && r.chips.length === honest.def[i].keys && r.costs + r.gains === r.chips.length),
+      JSON.stringify(honest));
+
+    const took = await J(() => {
+      const def = window.R.EVENTS.find(e => e.title
+        === document.getElementById('k-scene-title').textContent.trim());
+      const before = JSON.parse(JSON.stringify(window.R.state()));
+      const fx = def.picks[0].fx;
+      document.querySelectorAll('.k-fork-opt')[0].click();
+      const after = JSON.parse(JSON.stringify(window.R.state()));
+      return { fx, before: { embers: before.embers, hp: before.hp, kizuna: before.kizuna,
+                             bonds: before.bonds, foeBonus: before.foeBonus },
+               after: { embers: after.embers, hp: after.hp, kizuna: after.kizuna,
+                        bonds: after.bonds, foeBonus: after.foeBonus },
+               flash: after.flash, pending: after.pending };
+    });
+    await sleep(300);
+    const paid = await J((t) => {
+      const b = t.before, a = t.after, fx = t.fx, bad = [];
+      if (fx.embers && a.embers !== Math.max(0, b.embers + fx.embers)) bad.push('embers');
+      if (fx.kizuna && a.kizuna !== Math.min(100, (b.kizuna || 0) + fx.kizuna)) bad.push('kizuna');
+      if (fx.regent && a.foeBonus !== (b.foeBonus || 0) + fx.regent) bad.push('regent');
+      if (fx.bond) {
+        const moved = Object.keys(a.bonds).filter(k => a.bonds[k] !== (b.bonds[k] || 0));
+        if (moved.length !== 1 || a.bonds[moved[0]] - (b.bonds[moved[0]] || 0) !== fx.bond) bad.push('bond');
+      }
+      if (fx.hurt || fx.heal) {
+        const max = { ash: 42, elin: 36, mira: 34 };
+        Object.keys(max).forEach(id => {
+          const was = (b.hp && b.hp[id] != null) ? b.hp[id] : max[id];
+          const want = fx.heal ? Math.min(max[id], was + fx.heal) : Math.max(1, was - fx.hurt);
+          if (a.hp[id] !== want) bad.push('hp:' + id);
+        });
+      }
+      // …and nothing it did NOT say may move
+      if (!fx.embers && a.embers !== b.embers) bad.push('silent embers');
+      if (!fx.kizuna && a.kizuna !== b.kizuna) bad.push('silent kizuna');
+      if (!fx.regent && a.foeBonus !== b.foeBonus) bad.push('silent regent');
+      return bad;
+    }, took);
+    check('MYSTERY: taking a trade charges exactly what it said, and moves nothing it did not mention',
+      paid.length === 0, paid.join(',') + ' — ' + JSON.stringify({ fx: took.fx, before: took.before, after: took.after }));
+
+    const back = await J(() => ({
+      onMap: !document.getElementById('k-map').classList.contains('k-hidden'),
+      card: document.getElementById('k-map-card').textContent.replace(/\s+/g, ' '),
+      done: document.querySelectorAll('.k-n-done').length,
+      pending: window.R.state().pending,
+    }));
+    check('MYSTERY: the crossroads hands the road back with a receipt for the trade, and the stop is spent',
+      back.onMap && back.pending === null && back.card.length > 20
+      && took.flash && took.flash.icon === 'event' && (took.flash.gainSub || '').length > 3,
+      JSON.stringify({ onMap: back.onMap, card: back.card.slice(0, 80), flash: took.flash }));
+
+    // A STOP WITH NO FIGHT IN IT MUST NOT BE ABLE TO END THE RUN. The road has
+    // an elite for that. Swept across every bleed in the table, from 1 HP.
+    const survive = await J(() => {
+      const bad = [];
+      window.R.EVENTS.forEach(e => e.picks.forEach((p, i) => {
+        if (!p.fx.hurt) return;
+        window.R.newRun(4242);
+        window.R._set({ hp: { ash: 1, elin: 1, mira: 1 } });
+        window.R._setScene({ ...e, kind: 'event' });
+        window.R.takeEvent(i);
+        const hp = window.R.state().hp;
+        if (Object.keys(hp).some(k => hp[k] < 1)) bad.push(e.id + ':' + p.label + ':' + JSON.stringify(hp));
+      }));
+      return bad;
+    });
+    check('MYSTERY: no crossroads can kill anybody — a blood price always leaves one',
+      survive.length === 0, survive.slice(0, 3).join(' · ') || 'every bleed leaves 1');
+
+    // …and no chart may deal the same crossroads twice, or the second one is a
+    // menu you have already read.
+    const dealt = await J(() => {
+      const bad = []; let withAny = 0, N = 250;
+      for (let s = 1; s <= N; s++) {
+        window.R.newRun(s);
+        const ev = window.R.map().filter(n => n.kind === 'event');
+        if (ev.length) withAny++;
+        if (ev.some(n => !n.event || !window.R.eventDef(n.event))) bad.push(s + ':unwired');
+        if (new Set(ev.map(n => n.event)).size !== ev.length) bad.push(s + ':dupe');
+        // a mystery is a third lane, never a `must` — it can never cost you a
+        // fire, the elite, or a memory
+        if (ev.some(n => n.col === 0 || n.col >= 4)) bad.push(s + ':misplaced');
+      }
+      return { bad: bad.length, withAny, n: N, sample: bad.slice(0, 3) };
+    });
+    check('MYSTERY: every mystery is wired to a written crossroads, never repeated, never in a must-lane',
+      dealt.bad === 0 && dealt.withAny > 250 * 0.4,
+      JSON.stringify({ bad: dealt.bad, roadsWithOne: dealt.withAny + '/' + dealt.n, sample: dealt.sample }));
+    await reset(11);
+  }
+
   // ═══ D · WOUNDS TRAVEL WITH YOU ═══
   console.log('\n── what you carry ──');
   {
@@ -503,9 +669,19 @@ const { boot } = require('./harness.cjs');
       check('CARRY: the next fight opens on the wounds the last one left', false, 'no fight reachable');
     }
 
-    const campId = await J(() => window.R.reachable().find(id => {
-      const n = window.R.map().find(m => m.id === id); return n && n.kind === 'camp';
-    }));
+    // STAND WHERE THE FIRE IS REACHABLE, rather than inheriting wherever the
+    // section above happened to stop. This used to depend on the previous
+    // block leaving the party one column short of a camp; the mystery block
+    // now sits between them and resets the run, and a check that silently
+    // stops running is worse than one that fails.
+    const campId = await J(() => {
+      const camp = window.R.map().find(n => n.kind === 'camp');
+      if (!camp) return null;
+      const prev = window.R.map().find(m => m.col === camp.col - 1 && m.to.indexOf(camp.id) >= 0);
+      const st = window.R.state();
+      window.R._set({ at: prev.id, path: (st.path || []).concat([prev.id]), stop: prev.col + 1 });
+      return camp.id;
+    });
     if (campId) {
       const pre = (await R()).hp;
       await J((id) => window.R.travel(id), campId);

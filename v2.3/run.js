@@ -420,7 +420,98 @@
     camp:  ['A FIRE SOMEBODY LEFT', 'THE LEE OF THE WALL', 'THE LAST DRY STONE'],
     story: ['THE QUIET STRETCH', 'A PLACE TO SIT DOWN', 'SOMEWHERE OUT OF THE WIND'],
     boss:  ['THE MOURNING REGENT'],
+    event: ['A FORK IN THE BLACK', 'THE WATCHER\u2019S STONE', 'SOMETHING LEFT BEHIND',
+            'WHERE THE ROAD FORGETS', 'AN OPEN HAND'],
   };
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // THE MYSTERIES — the stop that is a decision instead of a fight
+  // ═══════════════════════════════════════════════════════════════════════
+  // A road of nothing but battles, fires and memories has one shape of turn on
+  // it: fight, recover, unlock. A mystery is the stop where the run's OTHER
+  // currencies get to be spent — blood, embers, the warmth between them, and
+  // one debt that comes due at the very bottom.
+  //
+  // NO COIN FLIPS. v2.2's events had real gambles in them, and on a road this
+  // short a coin that eats six embers is not tension, it is a stop that
+  // sometimes does nothing. Every mystery here is a TRADE with both sides
+  // written on it — which is also the only version of this that a check can
+  // hold to account. The one that FEELS like a gamble pays its cost at the
+  // bottom of the road instead of hiding it behind a die.
+  //
+  // Effects are DATA, never functions, so a mystery cannot quietly reach into
+  // the run and do something its own words did not say.
+  //   embers  ± the purse            hurt    each hero bleeds (never below 1)
+  //   heal    each hero mends        bond    the WEAKEST pair deepens
+  //   kizuna  the carried %          regent  the Regent wakes with more HP
+  const EVENTS = [
+    { id: 'toll', title: 'THE TOLL', eyebrow: 'A CROSSROADS',
+      lines: ['A gate of black iron, and a bowl worn smooth by ten thousand payments.',
+              'Nothing guards it. Somehow that is worse.'],
+      picks: [
+        { icon: 'ember', label: 'PAY THE BOWL', say: 'The road beyond is kind.',
+          fx: { embers: -6, heal: 10 } },
+        { icon: 'fight', label: 'FORCE THE GATE', say: 'The iron does not give quietly.',
+          fx: { hurt: 4, embers: 5 } },
+      ] },
+    { id: 'well', title: 'THE WHISPERING WELL', eyebrow: 'A CROSSROADS',
+      lines: ['A well that repeats whatever is dropped into it — coins, names, promises.',
+              'Something at the bottom has been collecting them.'],
+      picks: [
+        { icon: 'ember', label: 'DROP FOUR EMBERS', say: 'It whispers back what they will not say out loud.',
+          fx: { embers: -4, bond: 4 } },
+        { icon: 'story', label: 'COVER YOUR EARS', say: 'Two embers on the lip, and no names given.',
+          fx: { embers: 2 } },
+      ] },
+    { id: 'idol', title: 'THE THORNED IDOL', eyebrow: 'A BLOOD PRICE',
+      lines: ['An idol of woven briars, palms open. Old blood blacks the thorns.',
+              'It gives to those who bleed. It does not say how much.'],
+      picks: [
+        { icon: 'elite', label: 'GRASP THE THORNS', say: 'Three hands close on it at once.',
+          fx: { hurt: 5, kizuna: 25 } },
+        { icon: 'camp', label: 'LEAVE IT HUNGRY', say: 'It watches them go.',
+          fx: { heal: 3 } },
+      ] },
+    { id: 'banner', title: 'THE OLD BANNER', eyebrow: 'A CROSSROADS',
+      lines: ['A company banner, half-buried — an order nobody living can name.',
+              'Whoever carried it planted it facing DOWN the road. They meant to hold.'],
+      picks: [
+        { icon: 'camp', label: 'BURN IT FOR HEAT', say: 'One night warm enough to matter.',
+          fx: { heal: 8 } },
+        { icon: 'ember', label: 'STRIP THE GOLD THREAD', say: 'It deserved better. It gets this.',
+          fx: { embers: 6 } },
+        { icon: 'story', label: 'PLANT IT AGAIN', say: 'Nobody says why. Nobody has to.',
+          fx: { bond: 3, kizuna: 10 } },
+      ] },
+    { id: 'dark', title: 'THE HUNGRY DARK', eyebrow: 'A BLOOD PRICE',
+      lines: ['A patch of dark deeper than the dark around it. It does not move. It is patient.',
+              'What is fed to it does not come back. What is TRADED to it does.'],
+      picks: [
+        { icon: 'ember', label: 'FEED IT EMBERS', say: 'It exhales, and the cold goes out of them.',
+          fx: { embers: -7, heal: 12 } },
+        { icon: 'elite', label: 'FEED IT BLOOD', say: 'It pays in kind, and in full.',
+          fx: { hurt: 6, embers: 9 } },
+      ] },
+    { id: 'sleeper', title: 'A SLEEPING ECHO', eyebrow: 'A DEBT',
+      lines: ['One of the hollow dead, sat against a stone. Ember-light banked in its chest.',
+              'It is dreaming. What it dreams of is further down.'],
+      picks: [
+        { icon: 'ember', label: 'TAKE THE LIGHT', say: 'It does not wake. Something below it does.',
+          fx: { embers: 10, regent: 16 } },
+        { icon: 'story', label: 'STEP AROUND IT', say: 'They go the long way, close together.',
+          fx: { embers: 2, bond: 2 } },
+      ] },
+    { id: 'mirror', title: 'THE MIRROR POOL', eyebrow: 'A CROSSROADS',
+      lines: ['Still water showing the three of them a step out of true.',
+              'The reflections move a heartbeat late. Or early. Better not to check twice.'],
+      picks: [
+        { icon: 'story', label: 'HOLD THE GAZE', say: 'What it shows them, they carry as one.',
+          fx: { hurt: 2, bond: 4, kizuna: 10 } },
+        { icon: 'camp', label: 'LOOK AWAY', say: 'Some things are not owed a second look.',
+          fx: { heal: 5 } },
+      ] },
+  ];
+  const eventDef = (id) => EVENTS.find(e => e.id === id) || EVENTS[0];
 
   // ── what a stop can be ────────────────────────────────────────────────────
   // Four kinds, and each one is a different SHAPE at a glance: blades cross,
@@ -440,6 +531,11 @@
     // the tree, and never learned that the two forks that mattered are spent.
     story: { id: 'story', word: 'MEMORY', tone: 'violet',
              blurb: 'Something they have not said out loud yet — and the only thing that opens the deeper nodes at your fires.' },
+    // A MYSTERY IS THE STOP WHERE THE OTHER CURRENCIES GET SPENT. It never
+    // takes a turn off you and it never rolls a die: it asks one question with
+    // both sides of the trade written on it.
+    event: { id: 'event', word: 'MYSTERY', tone: 'mist',
+             blurb: 'A crossroads. Whatever is here will want something — and it pays for what it takes.' },
     boss:  { id: 'boss', word: 'THE REGENT', tone: 'crown',
              blurb: 'The end of the descent. She has been singing the whole way down.' },
   };
@@ -463,11 +559,16 @@
   // `must` list is the old plan — so the elite is still at column 3, the
   // Regent's doorstep still has no fight on it, and a memory is still the only
   // thing that opens a tier.
+  //
+  // `may` is a POOL, not a single kind: the third lane is where the road gets
+  // to be different, so what it offers varies too. A MYSTERY can only ever be
+  // a third lane — it never displaces a `must`, so it cannot cost you the
+  // elite, a fire, or a memory.
   const PLAN = [
     { must: ['fight', 'fight'], may: null },
-    { must: ['fight', 'story'], may: 'fight' },
-    { must: ['camp', 'fight'],  may: 'story' },
-    { must: ['elite', 'fight'], may: 'fight' },
+    { must: ['fight', 'story'], may: ['event', 'fight'] },
+    { must: ['camp', 'fight'],  may: ['story', 'event'] },
+    { must: ['elite', 'fight'], may: ['event', 'fight'] },
     { must: ['camp', 'story'],  may: null },
     { must: ['boss'],           may: null },
   ];
@@ -502,6 +603,9 @@
     // chart is the tell that the places are decoration rather than places
     const bag = {};
     Object.keys(NAMES).forEach(k => { bag[k] = shuffled(NAMES[k]); });
+    // …and so are the mysteries themselves: two of the same crossroads on one
+    // road would make the second one a menu you have already read.
+    const mysteries = shuffled(EVENTS.map(e => e.id));
     const nameFor = (kind) => (bag[kind] && bag[kind].length ? bag[kind].pop() : KIND[kind].word);
 
     PLAN.forEach((col, c) => {
@@ -509,7 +613,7 @@
       // half the time, which is what makes one road three coins across at the
       // fork and another two — and makes the mid-road worth looking at twice.
       const kinds = col.must.slice();
-      if (col.may && rr() < 0.5) kinds.push(col.may);
+      if (col.may && rr() < 0.55) kinds.push(pick(col.may));
       shuffle(kinds);                       // …and which lane each falls in
       kinds.forEach((kind, ix) => {
         const x = MAP_X0 + (MAP_X1 - MAP_X0) * (c / (COLS - 1));
@@ -523,6 +627,7 @@
         if (kind === 'fight' || kind === 'elite' || kind === 'boss') {
           n.foe = kind === 'elite' ? 'revenant' : pick(FOE_BY_COL[c] || ['wraith']);
         }
+        if (kind === 'event') n.event = mysteries.pop() || EVENTS[0].id;
         nodes.push(n);
       });
     });
@@ -692,6 +797,12 @@
     camp:  '<path d="M12 2 c1 4 4 5 4 9 a4 4 0 0 1 -8 0 c0 -2 1 -3 2 -4 c0 2 1 2 1 1 c0 -2 -1 -4 1 -6 z" fill="currentColor"/>'
          + '<path d="M5 20 l4 -3 M19 20 l-4 -3 M4 21 h16" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/>',
     story: '<ellipse cx="12" cy="12" rx="9" ry="6" fill="none" stroke="currentColor" stroke-width="1.9"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/>',
+    // A FORK IN THE ROAD, not a question mark: the mark has to survive being
+    // 4px tall and read as a DECISION rather than as "unknown", because what
+    // is unknown here is which side of a trade you take, not what the stop is.
+    event: '<path d="M12 22 V13 M12 13 L5 5 M12 13 L19 5" stroke="currentColor" stroke-width="2.3"'
+         + ' fill="none" stroke-linecap="round" stroke-linejoin="round"/>'
+         + '<circle cx="5" cy="4" r="2.2" fill="currentColor"/><circle cx="19" cy="4" r="2.2" fill="currentColor"/>',
     boss:  '<path d="M3 18 L5 7 L9 12 L12 5 L15 12 L19 7 L21 18 Z" fill="currentColor"/><path d="M3 20 h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
   };
   // The purse is a SPARK, not a drop — it must not share a silhouette with the
@@ -792,7 +903,7 @@
   function renderKey() {
     const key = $('k-map-key');
     if (!key || key.dataset.drawn) return;
-    key.innerHTML = ['fight', 'elite', 'camp', 'story', 'boss'].map(id => {
+    key.innerHTML = ['fight', 'elite', 'camp', 'story', 'event', 'boss'].map(id => {
       const k = KIND[id];
       return '<span class="k-mk-row k-tone-' + k.tone + '">'
         + '<i>' + svgIcon(id) + '</i><b>' + k.word + '</b></span>';
@@ -834,16 +945,16 @@
 
   function renderRoster() {
     const box = $('k-map-party'); if (!box) return;
-    const H = { ash: { n: 'Ash', art: 'kai', max: 42 }, elin: { n: 'Elin', art: 'elin', max: 36 },
-                mira: { n: 'Mira', art: 'mira', max: 34 } };
+    const H = { ash: { n: 'Ash', art: 'kai' }, elin: { n: 'Elin', art: 'elin' },
+                mira: { n: 'Mira', art: 'mira' } };
     box.innerHTML = Object.keys(H).map(id => {
-      const h = H[id];
-      const hp = RUN.hp && RUN.hp[id] != null ? RUN.hp[id] : h.max;
-      const pct = Math.max(0, Math.min(100, hp / h.max * 100));
+      const h = H[id], max = MAXHP[id];
+      const hp = RUN.hp && RUN.hp[id] != null ? RUN.hp[id] : max;
+      const pct = Math.max(0, Math.min(100, hp / max * 100));
       const low = pct <= 34 ? ' k-mp-low' : '';
       return '<div class="k-mp' + low + '" data-hero="' + id + '">'
         + '<img src="../art/' + h.art + '.webp" alt="">'
-        + '<span class="k-mp-hp"><b>' + hp + '</b>/' + h.max + '</span>'
+        + '<span class="k-mp-hp"><b>' + hp + '</b>/' + max + '</span>'
         + '<span class="k-mp-bar"><i style="width:' + pct + '%"></i></span></div>';
     }).join('');
   }
@@ -913,6 +1024,10 @@
     const foe = n.foe && window.K && window.K.FOES ? window.K.FOES[n.foe] : null;
     if (n.kind === 'camp') return '<b>REST</b><em>mend + spend</em>';
     if (n.kind === 'story') return '<b>+1</b><em>ember · opens deeper nodes</em>';
+    // A mystery prices itself as WHAT IT ASKS, because that is the part that
+    // varies — the payout is on the fork, and putting a number here that the
+    // crossroads might not honour is exactly the lie the card must not tell.
+    if (n.kind === 'event') return '<b>?</b><em>a trade · no fight</em>';
     if (foe) return '<b>+' + foe.embers + '</b><em>embers · ' + window.K.foeHp(foe) + ' hp</em>';
     return '';
   }
@@ -950,6 +1065,7 @@
   function enter(n) {
     if (n.kind === 'camp') return enterCamp(n);
     if (n.kind === 'story') return enterStory(n);
+    if (n.kind === 'event') return enterEvent(n);
     return enterFight(n);
   }
 
@@ -1009,7 +1125,17 @@
   // last instalment of a subtraction. The decision here is not whether to
   // heal. It is WHICH nodes, and — one column earlier — whether to take the
   // campfire at all or take the memory that opens the ones you cannot reach.
-  const MAXHP = { ash: 42, elin: 36, mira: 34 };
+  // ONE PLACE THAT KNOWS HOW BIG A HERO IS. `vigor` is max HP the party woke
+  // up with, and the engine has always honoured it — but the road's roster and
+  // the fire both carried their own hard-coded 42/36/34, so a party that woke
+  // with +6 was shown the wrong denominator on every screen and, worse, was
+  // MENDED to six below its real ceiling at every fire. The mystery stops trade
+  // in health, so this had to stop being three copies of the same table.
+  const BASE_HP = { ash: 42, elin: 36, mira: 34 };
+  const MAXHP = new Proxy(BASE_HP, {
+    get: (t, k) => (typeof k === 'string' && t[k] != null)
+      ? t[k] + ((RUN && RUN.vigor) || 0) : t[k],
+  });
   function enterCamp(n) {
     RUN.hp = RUN.hp || { ...MAXHP };
     // ONE MEND PER FIRE. Re-entering a pending campfire after a reload must
@@ -1249,7 +1375,11 @@
   let _beat = 0, _scene = null;
   let _pendingCard = null, _pendingAfter = '', _swapPick = null;
   function enterStory(n) {
-    _scene = SCENES[Math.min(RUN.seen ? RUN.seen.length : 0, SCENES.length - 1)];
+    // TAGGED, because three kinds of scene share this screen now and two of
+    // them wait on a fork. A memory used to arrive with no `kind` at all, which
+    // is a hole any "is this the forking sort?" test falls straight into.
+    _scene = { ...SCENES[Math.min(RUN.seen ? RUN.seen.length : 0, SCENES.length - 1)],
+               kind: 'story' };
     _beat = 0;
     save();
     screen('scene');
@@ -1263,14 +1393,36 @@
     const box = $('k-scene-line'), who = $('k-scene-who'), cast = $('k-scene-cast');
     if (!box || !_scene) return;
     $('k-scene-title').textContent = _scene.title;
-    const done = _beat >= _scene.beats.length;
+    const beats = sceneBeats();
+    const done = _beat >= beats.length;
     $('k-scene').classList.toggle('k-sc-done', done);
-    const forking = done && _scene.kind === 'bond';
+    $('k-scene').classList.toggle('k-sc-myst', _scene.kind === 'event');
+    const forking = done && (_scene.kind === 'bond' || _scene.kind === 'event');
     $('k-scene').classList.toggle('k-sc-fork', forking);
     const forkBox = $('k-scene-fork');
     if (forkBox) {
       forkBox.classList.toggle('k-hidden', !forking);
-      if (forking) {
+      if (forking && _scene.kind === 'event') {
+        // BOTH SIDES OF THE TRADE, ON THE BUTTON. A crossroads that says only
+        // what it gives is a crossroads with one obvious answer; the cost is
+        // the decision, so it is set in the same row as the gain and coloured
+        // as what it is.
+        forkBox.innerHTML = '<span class="k-fork-ask">' + (_scene.eyebrow || 'A CROSSROADS') + '</span>'
+          + '<div class="k-fork-row k-fork-myst">'
+          + _scene.picks.map((p, i) =>
+              '<button type="button" class="k-fork k-fork-opt" data-ix="' + i + '">'
+              + '<span class="k-fo-ico">' + svgIcon(p.icon) + '</span>'
+              + '<b class="k-fo-lbl">' + p.label + '</b>'
+              + '<span class="k-fo-say">' + p.say + '</span>'
+              + '<span class="k-fo-fx">' + Object.keys(p.fx).map(k =>
+                  '<em class="' + (fxGood(k) && !(k === 'embers' && p.fx[k] < 0)
+                    ? 'k-fo-up' : 'k-fo-down') + '">'
+                  + fxWords({ [k]: p.fx[k] })[0] + '</em>').join('')
+              + '</span></button>').join('')
+          + '</div>';
+        forkBox.querySelectorAll('.k-fork').forEach(b =>
+          b.addEventListener('click', (e) => { e.stopPropagation(); takeEvent(+b.dataset.ix); }));
+      } else if (forking) {
         // SHOW THE CARD, not a description of it. The fork used to print a
         // name and a sentence in a box, so the player chose between two cards
         // while looking at neither — and then met the real face for the first
@@ -1289,7 +1441,7 @@
       }
     }
     if (forking) {
-      who.textContent = PAIR_NAME[_scene.pair] || '';
+      who.textContent = _scene.kind === 'event' ? '' : (PAIR_NAME[_scene.pair] || '');
       who.classList.remove('k-hidden');
       box.className = 'k-sc-line k-sc-narr';
       box.textContent = '';
@@ -1306,25 +1458,33 @@
         + '<span class="k-sc-openx">The deeper nodes are theirs to kindle now.</span>';
       $('k-scene-next').textContent = 'ON';
     } else {
-      const b = _scene.beats[_beat];
+      const b = beats[_beat];
       who.textContent = b.who ? CAST[b.who].n : '';
       who.classList.toggle('k-hidden', !b.who);
       box.className = 'k-sc-line' + (b.who ? '' : ' k-sc-narr');
       box.textContent = b.line;
-      $('k-scene-next').textContent = _beat === _scene.beats.length - 1 ? 'END' : 'NEXT';
+      $('k-scene-next').textContent = _beat === beats.length - 1 ? 'END' : 'NEXT';
     }
     castRow();
     const dots = $('k-scene-dots');
-    if (dots) dots.innerHTML = _scene.beats
+    if (dots) dots.innerHTML = beats
       .map((_, i) => '<i class="' + (i < _beat ? 'on' : i === _beat ? 'now' : '') + '"></i>').join('');
   }
 
   // A BOND SCENE IS A TWO-HANDER. Only the pair is in the shot; the third is
   // somewhere else, which is the whole reason the conversation is happening.
+  // A memory is written as `beats`; a mystery is written as two `lines` the
+  // road says. One accessor, so every part of this screen walks the same list.
+  function sceneBeats() {
+    if (!_scene) return [];
+    return _scene.beats || (_scene.lines || []).map(line => ({ who: null, line }));
+  }
+
   function castRow() {
     const cast = $('k-scene-cast'); if (!cast || !_scene) return;
-    const done = _beat >= _scene.beats.length;
-    const speaker = done ? null : (_scene.beats[_beat].who || null);
+    const beats = sceneBeats();
+    const done = _beat >= beats.length;
+    const speaker = done ? null : (beats[_beat].who || null);
     const inShot = _scene.kind === 'bond' ? _scene.pair.split('|') : ['elin', 'ash', 'mira'];
     const order = ['elin', 'ash', 'mira'].filter(h => inShot.indexOf(h) >= 0);
     cast.innerHTML = order.map(id => {
@@ -1337,15 +1497,18 @@
 
   function sceneNext() {
     if (!_scene || RUN.over) return;
-    // a bond scene ends on its fork and waits there — the choice is the exit
-    if (_scene.kind === 'bond' && _beat >= _scene.beats.length) return;
-    if (_beat < _scene.beats.length) { _beat++; renderScene(); return; }
+    const n = sceneBeats().length;
+    // a bond scene and a mystery both END ON THEIR FORK and wait there — the
+    // choice is the exit, and tapping past it would be a stop that resolved
+    // itself. Named positively: an unrecognised kind must fall through to the
+    // payout, never get stuck in front of a fork that is not there.
+    if ((_scene.kind === 'bond' || _scene.kind === 'event') && _beat >= n) return;
+    if (_beat < n) { _beat++; renderScene(); return; }
     finishScene();
   }
   function sceneSkip() {
     if (!_scene || RUN.over) return;
-    if (_scene.kind === 'bond') { _beat = _scene.beats.length; renderScene(); return; }
-    _beat = _scene.beats.length;      // straight to the payout, never past it:
+    _beat = sceneBeats().length;      // straight to the payout, never past it:
     renderScene();                     // skipping the scene must not skip the reward
   }
   function finishScene() {
@@ -1357,6 +1520,75 @@
     RUN.flash = { icon: 'story', tone: 'violet', title: (_scene ? _scene.title : 'A MEMORY'),
       sub: 'Tier ' + RUN.tier + ' of the tree opens to the three of them.',
       gain: '+1', gainSub: 'ember · tier' };
+    _scene = null; _beat = 0;
+    save();
+    toMap();
+  }
+
+  // ── a mystery ─────────────────────────────────────────────────────────────
+  // The same letterboxed stage a memory uses. A mystery IS a small scene — two
+  // lines and then a question — so it borrows the frame rather than inventing a
+  // second one, and the only new part is the fork, which shows both sides of
+  // every trade before you take one.
+  function enterEvent(n) {
+    const def = eventDef(n.event);
+    _scene = { ...def, kind: 'event', node: n.id };
+    _beat = 0;
+    save();
+    screen('scene');
+    renderScene();
+  }
+
+  // WHAT A TRADE SAYS ABOUT ITSELF, written from the same data that applies it,
+  // so a pick can never advertise a price it does not charge.
+  function fxWords(fx) {
+    const out = [];
+    if (fx.embers)  out.push((fx.embers > 0 ? '+' : '\u2212') + Math.abs(fx.embers) + ' embers');
+    if (fx.heal)    out.push('heal ' + fx.heal + ' each');
+    if (fx.hurt)    out.push('bleed ' + fx.hurt + ' each');
+    if (fx.bond)    out.push('closest pair +' + fx.bond);
+    if (fx.kizuna)  out.push('kizuna +' + fx.kizuna + '%');
+    if (fx.regent)  out.push('the Regent wakes with +' + fx.regent + ' HP');
+    return out;
+  }
+  const fxGood = (k) => k === 'embers' || k === 'heal' || k === 'bond' || k === 'kizuna';
+
+  // THE WEAKEST PAIR, not a named one. A mystery does not know who the run has
+  // been kind to; deepening whichever bond is furthest behind is the version
+  // that is always worth something and never picks a favourite for you.
+  function weakestPair() {
+    return PAIRS.slice().sort((a, b) => (RUN.bonds[a] || 0) - (RUN.bonds[b] || 0))[0];
+  }
+
+  function takeEvent(ix) {
+    if (!_scene || _scene.kind !== 'event' || RUN.over) return;
+    const p = _scene.picks[ix]; if (!p) return;
+    const fx = p.fx;
+    if (fx.embers) RUN.embers = Math.max(0, RUN.embers + fx.embers);
+    if (fx.heal || fx.hurt) {
+      RUN.hp = RUN.hp || {};
+      Object.keys(BASE_HP).forEach(id => {
+        const cur = RUN.hp[id] != null ? RUN.hp[id] : MAXHP[id];
+        // A MYSTERY NEVER KILLS ANYBODY. A stop with no fight in it that can
+        // end the run is a stop that reads as a trap, and the road already has
+        // an elite for that. It leaves 1.
+        RUN.hp[id] = fx.heal ? Math.min(MAXHP[id], cur + fx.heal)
+                             : Math.max(1, cur - fx.hurt);
+      });
+    }
+    if (fx.bond) { const k = weakestPair(); RUN.bonds[k] = (RUN.bonds[k] || 0) + fx.bond; }
+    if (fx.kizuna) RUN.kizuna = Math.max(0, Math.min(100, (RUN.kizuna || 0) + fx.kizuna));
+    if (fx.regent) RUN.foeBonus = (RUN.foeBonus || 0) + fx.regent;
+    // THE RECEIPT LEADS WITH WHAT YOU GOT, and carries the whole trade under
+    // it. Leading with the price read as though the stop had only cost you
+    // something, which is the one thing a crossroads never does.
+    const words = fxWords(fx);
+    const won = Object.keys(fx).find(k => fxGood(k) && !(k === 'embers' && fx[k] < 0));
+    const head = won ? fxWords({ [won]: fx[won] })[0] : words[0] || '';
+    RUN.pending = null;
+    RUN.flash = { icon: 'event', tone: 'mist', title: _scene.title,
+      sub: p.label.charAt(0) + p.label.slice(1).toLowerCase() + ' \u2014 ' + p.say,
+      gain: head.split(' ')[0], gainSub: words.join(' \u00b7 ') };
     _scene = null; _beat = 0;
     save();
     toMap();
@@ -1664,7 +1896,7 @@
     travel, tapNode, newRun, clear,
     screen,
     render: renderMap,
-    REGIONS, regionOf, TREE, treeNode, kindle, tapMemory, focusMemory, sitDown, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
+    REGIONS, regionOf, EVENTS, eventDef, takeEvent, weakestPair, TREE, treeNode, kindle, tapMemory, focusMemory, sitDown, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
     pendingBonds, openBondScene, takeBond, confirmSwap, renderSwap,
     WAKES, wakeOffer, takeWake, renderWake, wakeDef, wakePair,
     SIGIL_BY_PAIR, sigilFor, renderMark, placeSigil, openMark, leaveMark,
@@ -1674,6 +1906,10 @@
     SCENES, sceneNext, sceneSkip, scene: () => _scene, beat: () => _beat,
     // test-only
     _set(patch) { Object.assign(RUN, patch || {}); save(); renderMap(); },
+    // TEST HOOK. Puts a scene on the stage without walking a road to it, so a
+    // crossroads' effects can be swept across every pick in the table rather
+    // than asserted on whichever one a seed happened to deal.
+    _setScene(sc) { _scene = sc; _beat = sc ? (sc.beats || sc.lines || []).length : 0; },
     _pick: () => _pick,
     KIND, PLAN, STOPS, CAMP_FRAC, KIZUNA_CARRY,
   };

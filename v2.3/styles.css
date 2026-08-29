@@ -1588,6 +1588,9 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-tone-gold   { --tone: #e0a85c; }
 .k-tone-violet { --tone: #a58cc4; }
 .k-tone-crown  { --tone: #d4514a; }
+/* the mystery: pale and cold, so it is the one mark on the chart that is
+   neither a threat, a comfort, nor a memory */
+.k-tone-mist   { --tone: #8fbfb8; }
 .k-n-boss .k-n-disc { width: 66px; height: 66px; border-width: 2.2px; }
 .k-n-boss .k-n-disc svg { width: 34px; height: 34px; }
 .k-n-boss .k-n-word { font-size: 10px; letter-spacing: 0.24em; color: #e0c084; }
@@ -2368,6 +2371,43 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-fork:hover .k-card-fork, .k-fork:focus-visible .k-card-fork {
   transform: scale(1.36) translateY(-3px) !important; }
 .k-fork-line { text-align: center; }
+/* ── A MYSTERY'S FORK: both sides of the trade, on the button ─────────────
+   A crossroads that prints only what it GIVES is a crossroads with one obvious
+   answer. The cost is the decision, so it is set in the same row as the gain
+   and coloured as what it is — gains warm, prices red — and the row is built
+   from the same data that applies the effect, so a pick cannot advertise a
+   price it does not charge. */
+#k-scene.k-sc-myst #k-scene-fork { width: 780px; bottom: 18px; }
+/* THE ASK NEEDS GROUND UNDER IT. The bond fork's radial scrim fades out by the
+   time it reaches the question, and a mystery's options are taller — so "A
+   BLOOD PRICE" printed in pale letters straight across three pairs of legs.
+   The mystery's panel takes a flat scrim that reaches above the ask instead. */
+#k-scene.k-sc-myst #k-scene-fork::before {
+  left: -70px; right: -70px; top: -34px; bottom: -30px;
+  background: linear-gradient(180deg, rgba(8,7,10,0) 0%, rgba(8,7,10,0.82) 26%,
+    rgba(8,7,10,0.95) 46%, rgba(8,7,10,0.97) 100%); }
+#k-scene.k-sc-myst .k-fork-ask { color: #a9d4cc; margin-bottom: 8px; }
+/* the crossroads is not a memory, and its title should not be dressed as one */
+#k-scene.k-sc-myst #k-scene-title { color: #8fbfb8; }
+/* the three of them are present but they are not the subject here — the place is */
+#k-scene.k-sc-myst .k-sc-fig { filter: brightness(0.72) saturate(0.7); }
+.k-fork-myst { align-items: stretch; }
+.k-fork-opt { flex: 1 1 0; align-items: flex-start !important; gap: 4px !important;
+  padding: 13px 15px 12px !important; text-align: left !important;
+  border-color: rgba(143,191,184,0.42) !important;
+  background: linear-gradient(180deg, rgba(22,30,33,0.96), rgba(13,17,20,0.97)) !important; }
+.k-fork-opt:hover, .k-fork-opt:focus-visible {
+  border-color: rgba(224,192,132,0.85) !important; }
+.k-fo-ico { width: 26px; height: 26px; display: grid; place-items: center; margin-bottom: 2px; }
+.k-fo-ico svg { width: 22px; height: 22px; color: #8fbfb8; }
+.k-fo-lbl { font-size: 12.5px; letter-spacing: 0.14em; color: #efe6d4; line-height: 1.2; }
+.k-fo-say { font-size: 11px; color: #94a3a0; line-height: 1.3; min-height: 28px; }
+.k-fo-fx { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 3px; }
+.k-fo-fx em { font-style: normal; font-size: 9.5px; letter-spacing: 0.05em;
+  padding: 3px 7px; border-radius: 2px; border: 1px solid currentColor; }
+.k-fo-up { color: #a9c187; }
+.k-fo-down { color: #c4695a; }
+
 #k-scene.k-sc-fork #k-scene-plate { display: none; }
 #k-scene.k-sc-fork #k-scene-skip { display: none; }
 

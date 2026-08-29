@@ -1169,3 +1169,104 @@ besides.
 The road's vocabulary is still five kinds. v2.2 had events and recruits as
 well, and a MYSTERY stop is the obvious next one — but that is content, not
 presentation, so it is not in this build.
+
+---
+
+## Build 59 — the MYSTERY stop
+
+The road's vocabulary was five kinds and every one of them was an encounter:
+fight, fight harder, rest, remember, die. A run had exactly one shape of turn on
+it. The sixth kind is the stop that is a **decision** instead — the one place
+the run's other currencies get spent.
+
+### No coin flips
+
+v2.2's events had real gambles in them, and that is the first thing this build
+threw away. On a six-stop road a coin that eats six embers is not tension; it is
+a stop that sometimes does nothing, and a player who reloads is a player who has
+correctly identified that the stop was never a decision. Every mystery here is a
+**trade with both sides written on it**.
+
+That is also the only version of this a check can hold to account. The effects
+are **data, never functions**:
+
+```
+embers  ± the purse          hurt    each hero bleeds (never below 1)
+heal    each hero mends      bond    the WEAKEST pair deepens
+kizuna  the carried %        regent  the Regent wakes with more HP
+```
+
+`regent` is the one that FEELS like a gamble — A SLEEPING ECHO pays ten embers
+now and wakes the Regent with sixteen more HP at the bottom of the road — but it
+pays its cost in daylight instead of hiding it behind a die.
+
+Seven crossroads, dealt without replacement per run, so no chart hands you the
+same one twice. Each names its own kind of question in an eyebrow: A CROSSROADS,
+A BLOOD PRICE, A DEBT.
+
+### The words come from the effect
+
+Each pick's chips are **generated from the same object that applies the trade**,
+split into gains and costs and coloured as what they are. A pick cannot
+advertise a price it does not charge, because there is no second copy of the
+price to drift. The road suite asserts exactly that: one chip per effect key,
+every chip classified, and after the click nothing moved that the button did not
+mention.
+
+### The screen it borrowed
+
+A mystery IS a small scene — two lines and then a question — so it takes the
+memory's letterboxed stage rather than inventing a second one. Three kinds of
+scene now share it, and two of them (a bond and a mystery) **end on their fork
+and wait there**: the choice is the exit, and no amount of tapping resolves it
+for you.
+
+The mystery keeps the title in its own mist tone, dims the cast (the place is
+the subject here, not the three of them), and takes a flat scrim under the ask —
+the bond fork's radial one fades out before it reaches the question, and with
+taller options "A BLOOD PRICE" printed straight across three pairs of legs.
+
+### Where it can stand
+
+A mystery is a **third-lane stop only**. It never displaces a `must`, so it can
+never cost you the elite, a fire, or a memory — and `may` became a pool rather
+than a single kind, so the third lane offers a crossroads *or* a fight depending
+on the seed. Swept over 250 roads: every mystery wired to a written crossroads,
+never repeated, never in a must-lane. About 60% of roads grow one.
+
+### A crossroads cannot kill you
+
+A stop with no fight in it that can end the run reads as a trap, and the road
+already has an elite for that. Every blood price leaves 1 — swept across every
+bleed in the table, from 1 HP.
+
+### Two bugs found on the way
+
+**Vigor was a lie on two screens.** `vigor` is max HP the party woke up with,
+and the engine has always honoured it — but the road's roster and the campfire
+each carried their own hard-coded 42/36/34. A party that woke with +6 was shown
+the wrong denominator everywhere *and mended to six below its real ceiling at
+every fire*. There is one `MAXHP` now and it knows about vigor. The mysteries
+trade in health, which is what made three copies of that table untenable.
+
+**The fork guard swallowed the memory's exit.** The new "scenes that wait on a
+fork" rule was written as `kind !== 'story'`, and a memory scene arrived with no
+`kind` at all — so `sceneNext` returned early forever, the memory never closed,
+and the tier it promised was never paid. Every check still passed. The only
+thing that noticed was the slice's own log line going from `memory, 9 taps` to
+`memory, 40 taps` — the loop guard, not the scene.
+
+Two fixes: the scene is tagged `kind: 'story'` at the source, the guard names
+the forking kinds positively (an unrecognised kind falls through to the payout
+rather than getting stuck in front of a fork that is not there), and the slice
+now **asserts the memory closes itself and pays its tier** instead of counting
+taps and moving on.
+
+### Coverage
+
+The slice's walk covers all six kinds now, on a seed whose best route touches
+every one — a gate that only proves the road can fight and rest is a gate that
+would not have noticed the mystery arriving broken. The camp block also stopped
+inheriting wherever the section above happened to leave the party, and stands
+itself one column short of a fire: a check that silently stops running is worse
+than one that fails.

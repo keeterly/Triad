@@ -65,10 +65,14 @@ const MAX_TURNS = 30;
     breaches.push(...bad);
   }
 
-  const seen = { fight: 0, elite: 0, camp: 0, story: 0, boss: 0 };
+  const seen = { fight: 0, elite: 0, camp: 0, story: 0, event: 0, boss: 0 };
   const log = [];
 
-  await J((s) => window.R.newRun(s), 5150);
+  // A SEED WHOSE BEST ROUTE TOUCHES ALL SIX KINDS. The route search below
+  // maximises distinct kinds, but it can only pick from what the road offers —
+  // and a mystery is a third-lane stop, so not every seed grows one. 5013 does,
+  // which is what lets the gate walk a crossroads as well as a fire.
+  await J((s) => window.R.newRun(s), 5013);
   const route = await J(() => {
     const m = window.R.map(), start = m.filter(n => n.col === 0);
     const paths = [];
@@ -124,11 +128,11 @@ const MAX_TURNS = 30;
     // a run.
     const stable = await J(() => {
       const a = window.R.wakeOffer().map(w => w.id);
-      window.R.newRun(5150);
+      window.R.newRun(5013);                 // the walk's own seed, re-rolled
       const b = window.R.wakeOffer().map(w => w.id);
       window.R.newRun(4242);
       const c = window.R.wakeOffer().map(w => w.id);
-      window.R.newRun(5150);
+      window.R.newRun(5013);
       return { a, b, c };
     });
     check('WAKE: the same seed wakes the same way, and a different seed does not',
@@ -180,7 +184,7 @@ const MAX_TURNS = 30;
     // Back to the run this slice actually walks, with a plain memory taken so
     // the road below is measured against a known start.
     await J(() => {
-      window.R.newRun(5150);
+      window.R.newRun(5013);
       const plain = window.R.wakeOffer().find(w => w.kind === 'plain');
       window.R.takeWake(plain.id);
     });
@@ -249,7 +253,8 @@ const MAX_TURNS = 30;
         v = await visible();
       }
     }
-    const want = kind === 'camp' ? 'k-camp' : kind === 'story' ? 'k-scene' : 'k-stage';
+    const want = kind === 'camp' ? 'k-camp'
+      : (kind === 'story' || kind === 'event') ? 'k-scene' : 'k-stage';
     check(`SLICE: stop ${col} is a ${kind.toUpperCase()} and it opens the ${want.replace('k-', '')}`,
       v.length === 1 && v[0] === want, v.join(',') + ' (wanted ' + want + ')');
     await invariants('stop ' + col + ' open');
@@ -270,13 +275,51 @@ const MAX_TURNS = 30;
       await sleep(300);
     } else if (kind === 'story') {
       // Walk the scene beat by beat the way a player would, not by skipping.
-      const beats = await J(() => {
+      const walked = await J(() => {
+        const tier = window.R.state().tier;
         let n = 0;
         while (n < 40 && window.R.scene()) { window.R.sceneNext(); n++; }
-        return n;
+        return { n, closed: !window.R.scene(), tier: [tier, window.R.state().tier] };
       });
-      log.push(`stop ${col}: memory, ${beats} taps`);
+      log.push(`stop ${col}: memory, ${walked.n} taps`);
+      // A MEMORY HAS TO END. Tapping through it and running out of taps is not
+      // the same as finishing it — a scene that never closes never pays its
+      // tier, and the walk sails on to the next stop none the wiser. That is
+      // exactly what happened when the mystery's fork-guard swallowed the
+      // memory's exit, and only the log noticed.
+      check(`SLICE: the memory at stop ${col} closes itself and pays the tier it promised`,
+        walked.closed && walked.n < 40 && walked.tier[1] === walked.tier[0] + 1,
+        JSON.stringify(walked));
       await sleep(300);
+    } else if (kind === 'event') {
+      // A MYSTERY ENDS ON ITS FORK AND WAITS THERE. Tap through the lines the
+      // way a player would, then take the trade — and check on the way out
+      // that the button charged exactly what its own chips said it would.
+      const traded = await J(() => {
+        const before = JSON.parse(JSON.stringify(window.R.state()));
+        let n = 0;
+        while (n < 20 && window.R.scene() && !document.querySelector('.k-fork-opt')) {
+          window.R.sceneNext(); n++;
+        }
+        const opts = [...document.querySelectorAll('.k-fork-opt')];
+        const chips = opts.map(o => [...o.querySelectorAll('.k-fo-fx em')].map(e => e.textContent));
+        const label = opts[0] ? opts[0].querySelector('.k-fo-lbl').textContent : '';
+        if (opts[0]) opts[0].click();
+        const after = JSON.parse(JSON.stringify(window.R.state()));
+        return { taps: n, opts: opts.length, chips, label,
+                 embers: [before.embers, after.embers],
+                 hp: [before.hp, after.hp], flash: after.flash };
+      });
+      log.push(`stop ${col}: mystery — ${traded.label}`);
+      check(`SLICE: the mystery at stop ${col} offers a real fork and both sides of every trade`,
+        traded.opts >= 2 && traded.chips.every(c => c.length >= 1)
+        && traded.chips.some(c => c.length >= 2),
+        JSON.stringify({ opts: traded.opts, chips: traded.chips }));
+      check(`SLICE: taking the trade hands the road back with a receipt for it`,
+        !!traded.flash && traded.flash.icon === 'event'
+        && (traded.flash.gainSub || '').length > 3,
+        JSON.stringify(traded.flash));
+      await sleep(400);
     } else {
       const before = await R();
       const r = await H.page.evaluate(([src, sd, p, mt]) => {
@@ -316,8 +359,11 @@ const MAX_TURNS = 30;
     check('SLICE: the end card names the outcome and offers another run',
       /REGENT FALLS|PARTY FALLS/.test(card) && /NEW RUN/.test(card),
       card.replace(/\s+/g, ' ').slice(0, 76));
+    // ALL SIX KINDS, not four. A gate that only proves the road can fight and
+    // rest is a gate that would not have noticed the mystery arriving broken.
     check('SLICE: the walk covered every kind of stop the road can serve',
-      seen.fight >= 1 && seen.camp >= 1 && seen.story >= 1 && seen.boss >= 1,
+      seen.fight >= 1 && seen.camp >= 1 && seen.story >= 1 && seen.event >= 1
+      && seen.elite >= 1 && seen.boss >= 1,
       JSON.stringify(seen));
     check('SLICE: no invariant was breached at any point along the way',
       breaches.length === 0, breaches.slice(0, 4).join(' · ') || 'clean');
