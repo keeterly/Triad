@@ -71,25 +71,40 @@ fire mends, which is the same statement from the other end.
 
 ## 3 · Where this game is genuinely behind
 
-### 3.1 A run develops about three times — MEASURED
+### 3.1 A run develops — MEASURED, and fixed across Builds 62–63
 
 `test/pace.sim.cjs`, 14 runs at each of three levels of player skill. It is a
 **measurement, not a gate** — the moment it becomes a gate it stops being able
 to tell us something we did not already believe.
 
-```
-  skill      won   wiped   nodes kindled   cards swapped in   marks   tier   embers left
-  clumsy      2/14     12            1.79               0.93    0.93      2          6.43
-  ordinary    6/14      8            1.86               0.50    0.50      2         10.43
-  sharp      13/14      1            2.07               0.29    0.29      2         16.79
-
-  fires/run 1.0 · at a fire: purse ~8, tier ~1.5, sealed 5.5, open 4.1, bought ~1.9
-```
-
 StS's *win a fight → pick one of three cards* beat fires eight to ten times a
 run and is most of why a run feels like it is going somewhere. This game
-deliberately does not have it, and the substitute totals **about three things
-changed between the trailhead and the Regent**.
+deliberately does not have it. The question was whether the substitutes fired
+often enough, and the first answer was no — **about three things changed between
+the trailhead and the Regent**, and the number went DOWN as skill went up.
+
+```
+  cards won per run          clumsy   ordinary   sharp
+  Build 61  (as found)         0.93       0.50    0.29    ← backwards
+  Build 62  (all-out pays)     0.50       1.00    1.36    ← the right way
+  Build 63  (the reckoning)    1.43       1.07    2.21    ← and it fires
+
+  reckonings per run           2.50       2.57    3.14
+  all-outs per run             1.36       1.93    3.43   ← why skill is paid
+  turns per run                18.3       18.4    18.4   ← flat, all three builds
+```
+
+A sharp run now changes about **six and a half** things about the party — two
+nodes kindled, two cards swapped in, two marks placed, a tier opened — against
+2.8 when the question was first asked. The `turns per run` row is what makes it
+a fix rather than a coincidence: it has not moved across any of the three
+builds, so nothing here was bought by making fights longer.
+
+The remaining tree numbers are unchanged and still worth knowing:
+
+```
+  fires/run ~0.9 · at a fire: purse ~8, tier ~1.4, sealed ~5.7, open ~4, bought ~2
+```
 
 Two theories died on contact with the numbers, and they are worth recording
 because both were plausible and both were wrong:
@@ -138,9 +153,10 @@ The `turns per run` column is what makes this a fix rather than a coincidence:
 it is flat across all three bots, so the improvement is not "fights got longer",
 it is "skill now buys the thing skill should buy".
 
-### 3.1c The skill cliff is very steep
+### 3.1c The skill cliff is very steep — STILL OPEN, and now the worst thing here
 
-14% / 43% / 93% win rate across the three bots. A new player, parrying at
+7% / 43% / 93% win rate across the three bots, unmoved by Builds 62 and 63
+(neither touched combat, which is the point of measuring them). A new player, parrying at
 roughly 45%, wins about one run in seven — and a wipe costs them the tree, the
 bonds and the memories all at once, because a run that ends at column 2 has
 changed almost nothing. StS's Act 1 is far more forgiving than this, and it is
@@ -188,6 +204,10 @@ That is where effort should go when there is a choice.
 
 ## Log
 
+- **2026-08-29** — Build 62 inverted the bond incentive; Build 63 added the
+  reckoning, the post-fight beat this file had listed as the biggest hole. A
+  sharp run went from 2.8 things changed to about 6.5. The skill cliff is now
+  the largest open item.
 - **2026-08-29** — first pass. Competitor research above; `soak.cjs` and
   `pace.sim.cjs` written as the two standing measurements. The soak found two
   reproducible bugs in its first twelve random runs: a card won and not yet
