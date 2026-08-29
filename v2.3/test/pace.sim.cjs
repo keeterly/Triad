@@ -19,11 +19,23 @@ const { BOT } = require('./bot.cjs');
 
 const RUNS = +(process.env.PACE_RUNS || 24);
 const MAX_TURNS = 30;
-const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
+const ALL_SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
+const SKILLS = process.env.PACE_SKILL
+  ? ALL_SKILLS.filter(s => s[0] === process.env.PACE_SKILL) : ALL_SKILLS;
 
 (async () => {
   const H = await boot({ query: 'road=1' });
   const { J, sleep, page } = H;
+
+  // PACE_GOOD / PACE_GREAT override the parry's payout ladder, so a proposed
+  // flattening can be MEASURED against the same seeds rather than argued.
+  const tune = {};
+  if (process.env.PACE_GOOD) tune.good = +process.env.PACE_GOOD;
+  if (process.env.PACE_GREAT) tune.great = +process.env.PACE_GREAT;
+  if (Object.keys(tune).length) {
+    await J((t) => window.K._setParryWeights(t), tune);
+    console.log('  parry ladder overridden: ' + JSON.stringify(await J(() => window.K._parryWeights())));
+  }
 
   const rows = [];
 
@@ -38,7 +50,10 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
                     // the mechanism, not just the outcome: an all-out is the
                     // one bond source skill makes more frequent, so if the
                     // curve inverts this is the column that says why
-                    allOuts: 0, turns: 0, recks: 0, reckBond: 0 };
+                    allOuts: 0, turns: 0, recks: 0, reckBond: 0,
+                    // WHERE a run ends, not just that it did. A cliff you
+                    // cannot see the foot of is a cliff you tune by guessing.
+                    diedAt: {}, diedTo: {}, hpIn: [] };
 
     for (let i = 0; i < RUNS; i++) {
       const seed = 7000 + i * 313;
@@ -69,6 +84,11 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
         const target = open[Math.floor(Math.random() * open.length)];
         const kind = await J((id) => (window.R.map().find(n => n.id === id) || {}).kind, target);
         tally.stops[kind] = (tally.stops[kind] || 0) + 1;
+        if (kind === 'fight' || kind === 'elite' || kind === 'boss') {
+          const hp = await J(() => { const h = window.R.state().hp;
+            return h ? Object.keys(h).reduce((n2, k) => n2 + h[k], 0) : 112; });
+          tally.hpIn.push(hp);
+        }
         await J((id) => window.R.travel(id), target);
         await sleep(340);
 
@@ -138,6 +158,11 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
             try { return eval(src)(sd, p, mt, {}); } finally { K.startCombat = orig; }
           }, [BOT, seed + col * 41, pSkill, MAX_TURNS]);
           if (r) { tally.allOuts += (r.allouts || 0); tally.turns += (r.turns || 0); }
+          if (r && !r.win) {
+            tally.diedAt[col] = (tally.diedAt[col] || 0) + 1;
+            const foe = await J((id) => (window.R.map().find(n => n.id === id) || {}).foe, target);
+            tally.diedTo[foe || '?'] = (tally.diedTo[foe || '?'] || 0) + 1;
+          }
           await sleep(1100);
           if (!r || !r.win) { dead = true; break; }
           // THE RECKONING stands between the fight and the road now. Answer it
@@ -190,7 +215,10 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
       + String(r.avgEmbers).padStart(14)
       + String(r.brokeAtFire + '/' + r.fires).padStart(18));
   });
-  console.log('\n  stops walked (ordinary): ' + JSON.stringify(rows[1].stops));
+  // …of whichever skills were actually run: PACE_SKILL can narrow this to one,
+  // and indexing rows[1] blind crashed the summary after a 15-minute sweep.
+  const mid = rows[Math.min(1, rows.length - 1)];
+  console.log('\n  stops walked (' + mid.name + '): ' + JSON.stringify(mid.stops));
   console.log('\n── why the tree goes unspent ──');
   rows.forEach(r => {
     const f = r.atFire;
@@ -207,7 +235,14 @@ const SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
       + ' · turns/run ' + (+(r.turns / r.runs).toFixed(1))
       + ' · reckonings/run ' + (+(r.recks / r.runs).toFixed(2)));
   });
-  console.log('\n  fires are at columns: ' + JSON.stringify(rows[1].atFire.map(x => x.col)));
+  console.log('\n── where the run ends ──');
+  rows.forEach(r => {
+    const avg = (a) => a.length ? +(a.reduce((s2, x) => s2 + x, 0) / a.length).toFixed(1) : 0;
+    console.log('  ' + r.name.padEnd(10) + ' died at column ' + JSON.stringify(r.diedAt)
+      + ' · to ' + JSON.stringify(r.diedTo)
+      + ' · party HP walking INTO a fight (of 112): ' + avg(r.hpIn));
+  });
+  console.log('\n  fires are at columns: ' + JSON.stringify(rows[rows.length - 1].atFire.map(x => x.col)));
   console.log('\n  A run that changes fewer than ~4 things about the party between the');
   console.log('  trailhead and the Regent is a run that is survivable and static.');
 

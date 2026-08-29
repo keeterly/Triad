@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 64;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 65;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -309,7 +309,32 @@ const RESONANCE_PAIR = ['ash', 'elin'];
 // 140 HP config reads 39% over the first 100 seeds and 51.8% over 220. Do not
 // trust a sweep at n<200 for a shipping number — rank candidates cheaply, then
 // measure the winner at the full run count.
-const TUNE = { dmgScale: 1.0, dirge: [4, 4], heal: [7, 9], parryKeep: 0.3, bossHp: 168,
+// THE DIRGE IS THE HALF NOBODY CAN PARRY, and at 4 it was most of the Regent.
+//
+// pace.sim found a clumsy run does not die on the road at all: it walks all six
+// stops at 88 of 112 health and then loses to her, twelve wipes of seventeen.
+// regent.probe then asked where that health goes, and split her damage in two:
+//
+//   arriving at 88 of 112     won      taken   by blows   by the DIRGE
+//   dirge 4   clumsy          2/20        99         44         54  (55%)
+//             ordinary       18/20        70         20         50  (72%)
+//             sharp          20/20        48          5         42  (89%)
+//   dirge 3   clumsy          6/20        91         50         41  (45%)
+//             ordinary       19/20        58         21         37  (64%)
+//             sharp          20/20        33          5         28  (84%)
+//
+// Two things in that table. The blows — the half a player can answer — range
+// 44 to 5 across skill, a tenfold spread, exactly as intended. The dirge barely
+// moves: 54 / 50 / 42, because it is a tax on TURNS and every skill takes about
+// eight of them. So at 4 the Regent's threat was mostly a flat toll that
+// ignored the player entirely, and it was 61% of the health they arrive with.
+//
+// The obvious-looking fix — take it off the dirge and put it on her blows —
+// was measured and is WRONG: raising her blows hurts a clumsy party ten times
+// as much as a sharp one, so it makes the cliff steeper, not flatter.
+//
+// Three is the number. It triples the low end and does not touch the top.
+const TUNE = { dmgScale: 1.0, dirge: [3, 3], heal: [7, 9], parryKeep: 0.3, bossHp: 168,
   alloutDmg: 26, alloutBrk: 4 };
 
 const ALLOUT_BASE = { dmg: TUNE.alloutDmg, brk: TUNE.alloutBrk };
@@ -577,6 +602,12 @@ function freshDeeds() {
     fell: [],            // heroes who went down, in a fight that was still won
     asOne: 0,            // all-outs thrown
     untouched: true,     // nobody took a single point of damage
+    // WHERE THE PARTY'S HEALTH WENT. A blow can be read and turned aside; the
+    // dirge cannot be answered by timing at all, only by Guard and healing. If
+    // most of a losing party's health went to the half nobody can parry, then
+    // "get better at parrying" is advice the game does not honour.
+    tookHit: 0,          // damage that arrived through a readable string
+    tookDirge: 0,        // …and damage that no hand could have stopped
   };
 }
 const deedPair = (a, b) => [a, b].sort().join('|');
@@ -1384,6 +1415,7 @@ async function endTurn(opts) {
         if (C.deeds) C.deeds.untouched = false;
         if (struck.guard > 0) { const g = Math.min(struck.guard, dmg); struck.guard -= g; dmg -= g; }
         if (dmg > 0) {
+          if (C.deeds) C.deeds.tookHit += dmg;
           struck.hp = Math.max(0, struck.hp - dmg);
           markBrink(tgtId);
           if (struck.hp === 0) { struck.downed = true; struck.guard = 0; logLine(HEROES23[tgtId].name + ' falls.'); }
@@ -1410,7 +1442,7 @@ async function endTurn(opts) {
       let d = dirge;
       if (h.guard > 0) { const g = Math.min(h.guard, d); h.guard -= g; d -= g; }
       if (d > 0) {
-        if (C.deeds) C.deeds.untouched = false;
+        if (C.deeds) { C.deeds.untouched = false; C.deeds.tookDirge += d; }
         h.hp = Math.max(0, h.hp - d);
         markBrink(id);
         if (h.hp === 0) { h.downed = true; h.guard = 0; logLine(HEROES23[id].name + ' falls to the dirge.'); }
@@ -4915,6 +4947,14 @@ window.K = {
   // about, so its two writers are drivable directly rather than only through a
   // whole fight that happens to produce the situation
   _markBrink: (id) => markBrink(id), _dealToBoss: (n, why, who) => dealToBoss(n, why, who),
+  // test-only: the parry's payout ladder is the steepest curve in the game.
+  // TURNED is all-or-nothing PER NOTE, so it compounds — a player who reads
+  // 45% of notes turns 0.45^2 = 20% of a two-note string while one who reads
+  // 92% turns 85%, and a 2x gap in hands becomes a 4x gap in the thing that
+  // decides fights. Tuning that by argument is how a cliff gets steeper, so
+  // the ladder is drivable from a sim and the change can be A/B'd.
+  _parryWeights: () => ({ ...PARRY_WEIGHT }),
+  _setParryWeights: (o) => { Object.assign(PARRY_WEIGHT, o || {}); },
   actionKind, castTone, cardArt, overHand, FOE_SHEETS,
   // test-only: drive the foe's performance directly, through the same hooks the
   // fight drives, so a check can ask what each intent actually pulls

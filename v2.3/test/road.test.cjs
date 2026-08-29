@@ -796,9 +796,17 @@ const { boot } = require('./harness.cjs');
       }
       return out;
     });
+    // The Regent's dirge moved 4 -> 3 at Build 65. It is the half of her that
+    // nobody can parry, and regent.probe measured it as 61% of the health a
+    // party actually arrives with — a flat toll on TURNS that barely varied
+    // with skill (54 / 50 / 42) while her parryable blows ranged tenfold
+    // (44 / 20 / 5). What the check is really holding is the SHAPE: every foe
+    // gets its own dirge, the boss's is the heaviest, and it is not so heavy
+    // that the unanswerable half decides the fight.
     check('FOES: the fight really is handed the foe’s subset, and the dirge is its own',
       Object.keys(pools).every(id => pools[id].pool.length === F[id].intents.length)
-      && pools.husk.dirge === 2 && pools.mourner.dirge === 4,
+      && pools.husk.dirge === 2 && pools.mourner.dirge === 3
+      && pools.mourner.dirge > pools.husk.dirge,
       JSON.stringify({ husk: pools.husk, mourner: pools.mourner.dirge }));
   }
 
