@@ -132,5 +132,8 @@ That is where effort should go when there is a choice.
 ## Log
 
 - **2026-08-29** — first pass. Competitor research above; `soak.cjs` and
-  `pace.sim.cjs` written as the two standing measurements. The soak found a
-  reproducible card-loss bug on reload (fixed, Build 60).
+  `pace.sim.cjs` written as the two standing measurements. The soak found two
+  reproducible bugs in its first twelve random runs: a card won and not yet
+  placed was lost on reload (Build 60), and a bond fork could hand over a card
+  the party already carried, putting a second copy in a fifteen-card deck
+  (Build 61). Both now gated in `bond.test.cjs`.

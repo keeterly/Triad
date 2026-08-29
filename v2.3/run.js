@@ -1178,6 +1178,21 @@
     if (!pair) return false;
     const lv = (RUN.levels[pair] || 0) + 1;
     _scene = { ...bondScene(pair, lv), kind: 'bond', pair, lv };
+    // A CARD CANNOT BE WON TWICE. BORROWED HABIT starts a returning player
+    // already holding a card they won on an earlier road — and every card in
+    // the profile came out of one of THESE forks, so the fork could hand over
+    // a second copy and the swap would duly put it in the deck. The soak found
+    // it on run 7 of 12, three screens after the reload that made it look like
+    // a persistence bug. It is not: it is a fork that does not check.
+    const held = new Set(window.K.rosterIds(RUN.roster));
+    _scene.picks = (_scene.picks || []).filter(p => !held.has(p.card));
+    // …and if they already carry BOTH, the conversation still happens and the
+    // level still pays its mark. A bond scene is the story beat first; the
+    // card is what it hands over, not what it is for.
+    if (!_scene.picks.length) {
+      _scene.picks = [{ line: 'Nothing changes hands. It did not need to.',
+                        card: null, after: '' }];
+    }
     _beat = 0;
     screen('scene');
     renderScene();
@@ -1189,14 +1204,18 @@
   function takeBond(ix) {
     if (!_scene || _scene.kind !== 'bond') return;
     const pick = _scene.picks[ix]; if (!pick) return;
-    RUN.levels[_scene.pair] = _scene.lv;
+    const pair = _scene.pair;
+    RUN.levels[pair] = _scene.lv;
     if (!heard(_scene.id)) { PROFILE.heard.push(_scene.id); }
-    if (!won(pick.card)) { PROFILE.won.push(pick.card); }
+    if (pick.card && !won(pick.card)) { PROFILE.won.push(pick.card); }
     saveProfile();
     // The level also teaches them something about what they already carry.
-    RUN.pendingSigil = sigilFor(_scene.pair, _scene.lv);
+    RUN.pendingSigil = sigilFor(pair, _scene.lv);
     const card = pick.card, after = pick.after;
     _scene = null; _beat = 0;
+    // Nothing to hand over — they already carry everything this scene could
+    // give — so the level pays its other half and the road goes on.
+    if (!card) { save(); if (!openMark(pair)) { if (!openBondScene()) sitDown(); } return; }
     openSwap(card, after, null);
   }
 
@@ -1439,7 +1458,10 @@
           + _scene.picks.map((p, i) =>
               '<button type="button" class="k-fork" data-ix="' + i + '">'
               + '<span class="k-fork-line">' + p.line + '</span>'
-              + window.K.staticCardHTML(p.card, { cls: 'k-card-fork' })
+              // a fork with nothing left to hand over shows no card face —
+              // there is no card, and drawing an empty frame would say there
+              // was one and it had been taken away
+              + (p.card ? window.K.staticCardHTML(p.card, { cls: 'k-card-fork' }) : '')
               + '</button>').join('')
           + '</div>';
         forkBox.querySelectorAll('.k-fork').forEach(b =>
@@ -1738,6 +1760,18 @@
     const list = RUN.roster[_swapPick.hero];
     const ix = list.indexOf(_swapPick.id);
     if (ix < 0) return;
+    // THE ONE PLACE A DUPLICATE CAN ENTER THE DECK, so the rule is enforced
+    // here as well as at every door that leads here. Fifteen cards, fifteen
+    // names: a second copy of one silently costs the party a card they had.
+    if (window.K.rosterIds(RUN.roster).indexOf(_pendingCard) >= 0) {
+      _pendingCard = null; _swapPick = null; _pendingAfter = '';
+      RUN.pendingCard = null; RUN.pendingAfter = ''; _swapBack = null;
+      const b = RUN.swapBack; RUN.swapBack = null;
+      save();
+      if (b === 'map') return toMap();
+      if (!openBondScene()) return sitDown();
+      return;
+    }
     list[ix] = _pendingCard;
     RUN.flash = { icon: 'camp', tone: 'gold', title: window.K.CARD_DEFS[_pendingCard].name.toUpperCase() + ' — LEARNED',
       sub: _swapPick.hero.toUpperCase() + ' gives up ' + window.K.CARD_DEFS[_swapPick.id].name + ' to carry it.',

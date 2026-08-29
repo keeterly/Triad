@@ -8,6 +8,8 @@
 'use strict';
 const { boot } = require('./harness.cjs');
 
+const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1';
+
 (async () => {
   const H = await boot({ query: 'road=1' });
   const { J, check, report, sleep } = H;
@@ -506,6 +508,164 @@ const { boot } = require('./harness.cjs');
       bare.ids.indexOf('habit') < 0 && bare.ids.length === 3
       && bare.kinds.filter(k => k === 'trade').length === 1,
       JSON.stringify(bare));
+  }
+
+  // ═══ A CARD OWED IS A CARD REMEMBERED ═══
+  // Found by the soak on its third random run, on Build 59. A bond level and
+  // the awakening both hand over a card and then ask which of five slots it
+  // takes — and until now that card lived in a MODULE VARIABLE. Close the tab
+  // on the swap screen and the card was simply gone: the whole payout of an
+  // awakening, or of a bond arc, thrown away with no way to get it back and no
+  // sign that anything had happened. The mark that comes with a bond level has
+  // been re-asked on boot since Build 28; the card it arrives with never was.
+  console.log('\n── a card owed ──');
+  {
+    // bank a won card so the awakening's card-granting memory can be offered
+    await J(() => {
+      localStorage.setItem('kizuna23.profile', JSON.stringify({ heard: [], won: ['shieldblade'] }));
+    });
+    await H.page.goto(RESUME_URL, { waitUntil: 'networkidle' });
+    await H.page.waitForFunction(() => window.__ready === true, null, { timeout: 8000 });
+
+    const seed = await J(() => {
+      for (let s = 1; s <= 200; s++) {
+        window.R.newRun(s);
+        if (window.R.wakeOffer().some(w => w.id === 'habit')) return s;
+      }
+      return null;
+    });
+    const owed = await J((sd) => {
+      window.R.newRun(sd);
+      window.R.takeWake('habit');
+      return { card: window.R.pendingCard(),
+               onSwap: !document.getElementById('k-swap').classList.contains('k-hidden'),
+               roster: JSON.parse(JSON.stringify(window.R.state().roster)) };
+    }, seed);
+
+    await H.page.goto(RESUME_URL, { waitUntil: 'networkidle' });
+    await H.page.waitForFunction(() => window.__ready === true, null, { timeout: 8000 });
+    await sleep(350);
+    const kept = await J(() => ({
+      card: window.R.pendingCard(),
+      onSwap: !document.getElementById('k-swap').classList.contains('k-hidden'),
+      screens: ['k-stage', 'k-map', 'k-camp', 'k-scene', 'k-swap', 'k-wake', 'k-mark']
+        .filter(id => !document.getElementById(id).classList.contains('k-hidden')),
+      slots: ['ash', 'elin', 'mira'].map(h => window.R.state().roster[h].length),
+    }));
+    check('OWED: a card won and not yet placed survives closing the tab — the swap is re-asked, not skipped',
+      owed.onSwap && !!owed.card && kept.onSwap && kept.card === owed.card
+      && kept.screens.length === 1 && kept.slots.every(n => n === 5),
+      JSON.stringify({ owed: owed.card, kept: kept.card, screens: kept.screens }));
+
+    // …and once it IS placed, the debt is gone: a reload must not re-ask for a
+    // card the party is already carrying.
+    const after = await J(() => {
+      const first = document.querySelector('#k-swap-cols .k-swapcard');
+      if (first) first.click();
+      const go = document.getElementById('k-swap-go');
+      if (go && !go.disabled) go.click();
+      const r2 = window.R.state();
+      return { owes: r2.pendingCard, carries: window.K.rosterIds(r2.roster) };
+    });
+    await H.page.goto(RESUME_URL, { waitUntil: 'networkidle' });
+    await H.page.waitForFunction(() => window.__ready === true, null, { timeout: 8000 });
+    await sleep(350);
+    const settled = await J(() => ({
+      owes: window.R.state().pendingCard,
+      onSwap: !document.getElementById('k-swap').classList.contains('k-hidden'),
+      carries: window.K.rosterIds(window.R.state().roster),
+      slots: ['ash', 'elin', 'mira'].map(h => window.R.state().roster[h].length),
+    }));
+    check('OWED: once the card has a slot the debt is settled — a reload does not ask again',
+      !after.owes && !settled.owes && !settled.onSwap
+      && settled.carries.indexOf(owed.card) >= 0
+      && settled.slots.every(n => n === 5) && new Set(settled.carries).size === 15,
+      JSON.stringify({ owes: settled.owes, onSwap: settled.onSwap,
+                       hasCard: settled.carries.indexOf(owed.card) >= 0 }));
+  }
+
+  // ═══ A CARD CANNOT BE WON TWICE ═══
+  // Found by the soak on run 7 of 12, three screens after a reload — which is
+  // what made it look like a persistence bug. It is not. BORROWED HABIT starts
+  // a returning player already holding a card they won on an earlier road, and
+  // every card in the profile came out of one of these very forks. So the fork
+  // could offer it again, the swap put a second copy in the deck, and the
+  // party quietly lost a card to make room for one they already had.
+  console.log('\n── a card cannot be won twice ──');
+  {
+    const dup = await J(() => {
+      // hold a card that one of the ash|mira forks offers, then walk into it
+      window.R.resetProfile();
+      window.R.newRun(11);
+      const scene = window.R.BONDS['ash|mira'][0];
+      const offered = scene.picks.map(p => p.card);
+      const st = window.R.state();
+      st.roster.mira = [offered[0]].concat(st.roster.mira.slice(1));
+      window.R._set({ roster: st.roster, bonds: { 'ash|elin': 0, 'ash|mira': 99, 'elin|mira': 0 } });
+      const opened = window.R.openBondScene();
+      const sc = window.R.scene();
+      return { offered, opened, picks: (sc && sc.picks || []).map(p => p.card),
+               holds: window.K.rosterIds(window.R.state().roster).filter(id => id === offered[0]).length };
+    });
+    check('TWICE: a bond fork never offers a card the party already carries',
+      dup.opened && dup.holds === 1 && dup.picks.indexOf(dup.offered[0]) < 0
+      && dup.picks.length >= 1,
+      JSON.stringify(dup));
+
+    // …and taking whatever is left still leaves fifteen distinct cards.
+    const after = await J(() => {
+      const sc = window.R.scene();
+      window.R.sceneSkip();
+      window.R.takeBond(0);
+      const first = document.querySelector('#k-swap-cols .k-swapcard');
+      if (first) first.click();
+      const go = document.getElementById('k-swap-go');
+      if (go && !go.disabled) go.click();
+      const ids = window.K.rosterIds(window.R.state().roster);
+      return { took: sc.picks[0].card, n: ids.length, uniq: new Set(ids).size,
+               slots: ['ash', 'elin', 'mira'].map(h => window.R.state().roster[h].length) };
+    });
+    check('TWICE: fifteen cards, fifteen names — the swap cannot put a second copy in the deck',
+      after.n === 15 && after.uniq === 15 && after.slots.every(n => n === 5),
+      JSON.stringify(after));
+
+    // BOTH already carried: the conversation still happens and the level still
+    // pays its mark. The scene is the story beat first.
+    const both = await J(() => {
+      window.R.resetProfile();
+      window.R.newRun(11);
+      const scene = window.R.BONDS['elin|mira'][0];
+      const offered = scene.picks.map(p => p.card);
+      const st = window.R.state();
+      st.roster.mira = offered.concat(st.roster.mira.slice(offered.length));
+      window.R._set({ roster: st.roster, bonds: { 'ash|elin': 0, 'ash|mira': 0, 'elin|mira': 99 } });
+      const opened = window.R.openBondScene();
+      const sc = window.R.scene();
+      return { opened, offered, picks: (sc && sc.picks || []).map(p => p.card),
+               lines: (sc && sc.picks || []).map(p => p.line),
+               beats: (sc && sc.beats || []).length };
+    });
+    check('TWICE: when they already carry both, the scene still plays and simply hands nothing over',
+      both.opened && both.beats > 0 && both.picks.length === 1 && both.picks[0] === null
+      && /\S/.test(both.lines[0] || ''),
+      JSON.stringify(both));
+
+    const paid = await J(() => {
+      const before = window.R.state().levels['elin|mira'];
+      window.R.sceneSkip();
+      window.R.takeBond(0);
+      const st = window.R.state();
+      const ids = window.K.rosterIds(st.roster);
+      return { levelled: st.levels['elin|mira'] > before,
+               owes: st.pendingCard, sigil: st.pendingSigil,
+               screen: ['k-stage', 'k-map', 'k-camp', 'k-scene', 'k-swap', 'k-wake', 'k-mark']
+                 .filter(id => !document.getElementById(id).classList.contains('k-hidden')),
+               n: ids.length, uniq: new Set(ids).size };
+    });
+    check('TWICE: …and the level still lands and still pays its mark, with no card owed',
+      paid.levelled && !paid.owes && paid.n === 15 && paid.uniq === 15
+      && paid.screen.length === 1,
+      JSON.stringify(paid));
   }
 
   const r = report();
