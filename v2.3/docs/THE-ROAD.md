@@ -959,3 +959,95 @@ actually are.
 
 That is a patch on a gap, not a fix for it. The twelve bond cards want their own
 paintings the way the sixteen roster cards got theirs.
+
+---
+
+## Build 57 — the fire becomes a place
+
+> *"The memory screen feels more like a spreadsheet grid than rpg, let's fix
+> this to make it into a moment."*
+
+The mechanics of the fire were right from Build 27 and none of them changed
+here. What changed is that the screen stopped presenting them as a table.
+
+### What was actually wrong
+
+Ten rectangles of identical size in a 3×3-and-one grid, each carrying its own
+`7 damage. → 10 damage.` — that is a changelog, laid out as a changelog, and it
+read as one. Three specific things made it a table rather than a place:
+
+1. **Nobody was there.** The party appeared as three 22px avatars in a stat bar
+   at the top — row labels for the columns beneath them. The screen was called
+   THE FIRE and contained neither a fire nor anybody sitting at one.
+2. **Every node argued its own case simultaneously.** Ten before/after
+   sentences on screen at once is ten sentences nobody reads. The information
+   was all present and none of it was legible.
+3. **Nothing happened.** Arriving, choosing and buying were all the same
+   silent instant re-render.
+
+### What it is now
+
+**The party is present.** Each of the three stands at full figure, 118px, over
+their own memories, lit from below by a fire that is just off the bottom of the
+frame — three warm pools on their feet, two glow plates on offset flicker
+tracks, and seven embers climbing the screen on staggered periods. The hero
+header is the hero. The fourth column belongs to nobody, so a coal stands where
+the person would.
+
+**The memories are objects.** Each node is a card-shaped plate (79×134, close
+enough to the hand's 0.634) wearing the painting of the card it sharpens, with
+one ember badge for its price and its name on a scrim at the foot. Owned takes a
+green tick, sealed goes violet and says the one thing it can act on, and a price
+you cannot meet reddens the badge and takes the light off the picture — never
+the picture itself, because the whole point of a price you cannot meet is that
+you can still see what it buys.
+
+**One place to read.** The before/after belongs to whichever memory you have
+picked up, set once, in a strip along the floor at 11.5px instead of ten times
+at 7.5px. Everything a node does is said there, at a size a phone can read.
+
+**Picking one up is the first tap; kindling it is the second.** That is the
+road's own grammar — one tap asks, the second commits — and it is what turns a
+purchase into a decision you watched yourself make. A mouse gets it for free:
+hover picks up, so one click still buys.
+
+**Arriving is an event.** The memories deal in off the fire, left to right, and
+the party rises into the light — once per campfire and never again for that
+visit. A screen that re-deals its whole row every time three embers change hands
+is a screen that flickers at you for using it, so `sitDown()` owns the arrival
+and `renderCamp()` owns everything after it.
+
+### Two checks whose rules moved, and one that was hollow
+
+- *"every upgrade node wears the card it upgrades, **under the words**"* asserted
+  the painting was dimmed below 0.8 so the prose on top could win. That rule is
+  gone — the picture is the point now. Rewritten to the new contract: painting
+  present and **lit**, name above it on its own backing, card-shaped by ratio.
+  It had also started passing for the wrong reason: it read the first carded
+  node, which by that point in the suite was an *owned* one, so it was asserting
+  that a bought node is dim.
+- *"what you cannot afford greys its PRICE, not its face"* kept its rule and
+  gained the strip: the check now also requires the strip to name the memory and
+  say what it would cost.
+- New: the fire burns and the party is at it; the strip carries the diff and no
+  plate restates it; two taps to spend; a sealed memory still explains itself;
+  the row deals in on arrival and stays put on a purchase.
+
+### Two bugs the rebuild surfaced
+
+**A fresh fight could open on the previous fight's camera.** `startCombat`
+cleared `_camPoseCur` but never released a *held* camera or a pending punch-out,
+and `camReset` settles to whatever pose is current. A fight begun while a
+punch-in was still held kept that shot, and the whole cast sat several pixels
+left of where the layout puts it. `camHome()` now snaps to the player pose from
+any state.
+
+**A hero measured mid-glide is measured in the wrong lane.** The KIZUNA-overlap
+check in the flow suite was intermittently failing with Elin's box 33px left of
+where it settles. A fresh fight puts everyone back in their opening lane but
+they *walk* there, and a lane is a depth — so the projected box is both wider
+and further left while the walk is in flight. Same class of error as measuring
+the campfire's deal animation. The rule is unchanged; the measurement waits for
+the board to stand still, and `kzClear` now reports which clause broke and which
+element it hit, because a bare `false` on a state-dependent collision cannot be
+reproduced from the log.

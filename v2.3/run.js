@@ -842,7 +842,7 @@
     // THE FIRE HEARS THEM FIRST. A pair that crossed a level on the road gets
     // their scene before the tree — the fire is where people talk, and the
     // card that comes out of it is the reason to be at one.
-    if (!openBondScene()) { screen('camp'); renderCamp(); }
+    if (!openBondScene()) sitDown();
   }
 
   // ── the bond scenes ──────────────────────────────────────────────────────
@@ -882,7 +882,36 @@
     renderSwap();
   }
 
-  // ── the fire ──────────────────────────────────────────────────────────────
+  // ── the fire ─────────────────────────────────────────────────────────────
+  // THE FIRE IS A PLACE, NOT A TABLE. This screen was ten rectangles of the
+  // same size in a 3x3-and-one grid, each carrying its own "7 damage. -> 10
+  // damage." — which is a changelog, and it read as one. The rebuild keeps
+  // every rule and moves three things:
+  //
+  //   1. THE PARTY IS PRESENT. The three of them stand at the fire above their
+  //      own memories, at full figure, lit from below. The hero header was a
+  //      22px avatar in a stat bar; now it is the person you are spending on.
+  //   2. THE MEMORIES ARE OBJECTS. Each node is a card-shaped plate wearing the
+  //      painting of the card it sharpens, with a single ember badge for its
+  //      price. No node argues its case in prose any more.
+  //   3. ONE PLACE TO READ. The before/after sentence belongs to whichever
+  //      memory you have picked up, set once, at a size a phone can read —
+  //      and picking one up is the first tap, kindling it the second. That is
+  //      the road's own grammar (the first tap asks, the second commits) and
+  //      it is what turns a purchase into a decision you watched yourself make.
+  let _campPick = null;
+
+  // SITTING DOWN IS THE ARRIVAL. Everything that should happen once per fire —
+  // dealing the memories out of it, and starting with nothing picked up —
+  // happens here rather than in renderCamp, which runs again on every purchase.
+  function sitDown() {
+    const wrap = document.getElementById('k-camp-tree');
+    if (wrap) delete wrap.dataset.visit;
+    _campPick = null;
+    screen('camp');
+    renderCamp();
+  }
+
   function renderCamp() {
     const wrap = document.getElementById('k-camp-tree');
     if (!wrap) return;
@@ -893,21 +922,50 @@
     const tierEl = document.getElementById('k-camp-tier');
     if (tierEl) tierEl.textContent = 'TIER ' + RUN.tier;
 
-    wrap.innerHTML = ['ash', 'elin', 'mira'].map(hero => {
-      const rows = TREE.filter(n => n.hero === hero).map(n => nodeHTML(n)).join('');
-      return '<div class="k-ct-col"><header>'
-        + '<img src="../art/' + ({ ash: 'kai', elin: 'elin', mira: 'mira' })[hero] + '.webp" alt="">'
-        + '<b>' + HERO_NAME[hero] + '</b></header>' + rows + '</div>';
-    }).join('');
-    const shared = document.getElementById('k-camp-shared');
-    if (shared) shared.innerHTML = TREE.filter(n => n.hero === 'all').map(n => nodeHTML(n, true)).join('');
-    wrap.parentNode.querySelectorAll('.k-tnode').forEach(b => {
-      b.addEventListener('click', (e) => { e.stopPropagation(); kindle(b.dataset.node); });
+    // ARRIVING IS AN EVENT, BUYING IS NOT. The memories deal in off the fire the
+    // first time you sit down at a given campfire, and never again for the rest
+    // of that visit — a screen that re-deals its whole row every time you spend
+    // three embers is a screen that flickers at you for using it.
+    const fresh = !wrap.dataset.visit;
+    wrap.dataset.visit = '1';
+    wrap.classList.toggle('k-ct-deal', fresh);
+
+    let seat = 0;
+    const ART = { ash: 'kai', elin: 'elin', mira: 'mira' };
+    const cols = ['ash', 'elin', 'mira'].map(hero => {
+      const hp = RUN.hp && RUN.hp[hero] != null ? RUN.hp[hero] : MAXHP[hero];
+      const pct = Math.max(0, Math.min(100, hp / MAXHP[hero] * 100));
+      return '<div class="k-ct-col' + (pct <= 34 ? ' k-ct-hurt' : '') + '" data-hero="' + hero + '">'
+        + '<div class="k-ct-fig"><img src="../art/' + ART[hero] + '.webp" alt=""></div>'
+        + '<header><b>' + HERO_NAME[hero] + '</b>'
+        + '<span class="k-ct-hp"><i style="width:' + pct + '%"></i></span>'
+        + '<em>' + hp + '<i>/' + MAXHP[hero] + '</i></em></header>'
+        + '<div class="k-ct-fan">'
+        + TREE.filter(n => n.hero === hero).map(n => nodeHTML(n, seat++)).join('') + '</div></div>';
     });
-    renderCampRoster();
+    // The shared node stands where the fire is: it belongs to nobody, and it is
+    // the only thing on the screen all three of them are looking at.
+    cols.push('<div class="k-ct-col k-ct-all" data-hero="all">'
+      + '<div class="k-ct-fig k-ct-brazier">' + svgIcon('ember') + '</div>'
+      + '<header><b>' + HERO_NAME.all + '</b></header>'
+      + '<div class="k-ct-fan">'
+      + TREE.filter(n => n.hero === 'all').map(n => nodeHTML(n, seat++)).join('') + '</div></div>');
+    wrap.innerHTML = cols.join('');
+    wrap.querySelectorAll('.k-tnode').forEach(b => {
+      b.addEventListener('click', (e) => { e.stopPropagation(); tapMemory(b.dataset.node); });
+      // A MOUSE READS BY POINTING, A THUMB READS BY TAPPING. Hover picks the
+      // memory up so the strip follows the cursor and one click still buys;
+      // on touch there is no hover, so the first tap does the picking up.
+      b.addEventListener('pointerenter', (e) => {
+        if (e.pointerType === 'mouse') focusMemory(b.dataset.node);
+      });
+    });
+    focusMemory(_campPick, true);
   }
 
-  function nodeHTML(n, wide) {
+  // A plate: the painting, the price, the name. Everything it DOES is said once,
+  // in the strip, for the one you are holding.
+  function nodeHTML(n, seat) {
     const f = nodeFace(n);
     const own = held(n.id);
     const sealed = RUN.tier < n.tier;
@@ -916,36 +974,59 @@
     if (own) cls.push('k-tn-own');
     if (sealed) cls.push('k-tn-sealed');
     if (poor) cls.push('k-tn-poor');
-    if (wide) cls.push('k-tn-wide');
-    // THE TILE IS THE CARD. Nine upgrade nodes described themselves as
-    // "Cleave+ / 7 damage. -> 10 damage." and nothing else — text about a card
-    // you could not see, on a screen whose whole purpose is deciding which card
-    // to make better. Every tree node names a real card and every one of those
-    // has a painting now, so the tile wears it: the same picture that will be
-    // in your hand next fight, behind the same kind of scrim the card uses.
     const art = n.card && window.K.cardArt ? window.K.cardArt(n.card) : null;
-    return '<button type="button" class="' + cls.join(' ') + (art ? ' k-tn-art' : '')
-      + '" data-node="' + n.id + '"'
-      + (own || sealed || poor ? ' tabindex="-1"' : '') + '>'
+    cls.push(art ? 'k-tn-art' : 'k-tn-plain');
+    return '<button type="button" class="' + cls.join(' ') + '" data-node="' + n.id + '"'
+      + ' style="--seat:' + (seat || 0) + '">'
       + (art ? '<img class="k-tn-bg" src="' + art + '" alt="" aria-hidden="true">' : '')
-      + '<span class="k-tn-top"><b>' + f.name + '</b>'
-      + '<em class="k-tn-cost">' + (own ? 'KINDLED' : sealed ? 'TIER ' + n.tier : n.cost) + '</em></span>'
-      + '<span class="k-tn-what">' + (f.from ? '<i>' + f.from + '</i> → ' : '') + f.to + '</span>'
+      + '<span class="k-tn-lift" aria-hidden="true"></span>'
+      + '<span class="k-tn-cost">' + (own ? '✓' : sealed ? 'T' + n.tier : n.cost) + '</span>'
+      + '<span class="k-tn-top"><b>' + f.name + '</b></span>'
+      + '<span class="k-tn-what">' + (f.to || f.from) + '</span>'
       + (sealed ? '<span class="k-tn-seal">A MEMORY OPENS THIS</span>' : '')
       + '</button>';
   }
 
-  function renderCampRoster() {
-    const box = document.getElementById('k-camp-party'); if (!box) return;
-    const art = { ash: 'kai', elin: 'elin', mira: 'mira' };
-    box.innerHTML = Object.keys(MAXHP).map(id => {
-      const hp = RUN.hp && RUN.hp[id] != null ? RUN.hp[id] : MAXHP[id];
-      const pct = Math.max(0, Math.min(100, hp / MAXHP[id] * 100));
-      return '<div class="k-mp' + (pct <= 34 ? ' k-mp-low' : '') + '">'
-        + '<img src="../art/' + art[id] + '.webp" alt="">'
-        + '<span class="k-mp-hp"><b>' + hp + '</b>/' + MAXHP[id] + '</span>'
-        + '<span class="k-mp-bar"><i style="width:' + pct + '%"></i></span></div>';
-    }).join('');
+  // WHAT THE STRIP IS READING. `keep` means "only re-pick if what you were
+  // holding is gone" — the re-render after a purchase should hand you the next
+  // thing you can take rather than throw the reading away.
+  function focusMemory(id, keep) {
+    let n = treeNode(id);
+    if (keep && n && held(n.id)) n = null;
+    if (!n) {
+      const open = (x) => !held(x.id) && RUN.tier >= x.tier;
+      n = TREE.find(x => open(x) && RUN.embers >= x.cost) || TREE.find(open) || TREE[0];
+    }
+    _campPick = n.id;
+    document.querySelectorAll('#k-camp .k-tnode').forEach(b =>
+      b.classList.toggle('k-tn-focus', b.dataset.node === _campPick));
+    campSay(n);
+  }
+
+  function campSay(n) {
+    const strip = document.getElementById('k-camp-read');
+    if (!strip || !n) return;
+    const f = nodeFace(n);
+    const own = held(n.id);
+    const sealed = RUN.tier < n.tier;
+    const poor = !own && !sealed && RUN.embers < n.cost;
+    const call = own ? 'ALREADY KINDLED'
+      : sealed ? 'SEALED — A MEMORY OPENS TIER ' + n.tier
+      : poor ? 'NOT ENOUGH EMBERS — ' + n.cost + ' NEEDED'
+      : 'TAP AGAIN TO KINDLE — ' + n.cost + ' EMBERS';
+    strip.className = 'k-cr ' + (own ? 'k-cr-own' : sealed ? 'k-cr-sealed' : poor ? 'k-cr-poor' : 'k-cr-go');
+    strip.innerHTML = '<b>' + f.name + '</b>'
+      + (f.from ? '<span class="k-cr-was">' + f.from + '</span>'
+                + '<span class="k-cr-arrow">→</span>' : '')
+      + '<span class="k-cr-now">' + f.to + '</span>'
+      + '<em>' + call + '</em>';
+  }
+
+  // The first tap picks a memory up, the second kindles it. Anything you cannot
+  // buy still picks up — a sealed node has to be able to say what would open it.
+  function tapMemory(id) {
+    if (_campPick !== id) { focusMemory(id); return; }
+    kindle(id);
   }
 
   function kindle(id) {
@@ -961,6 +1042,11 @@
     renderCamp();
     const btn = document.querySelector('[data-node="' + id + '"]');
     if (btn) { btn.classList.remove('k-tn-lit'); void btn.offsetWidth; btn.classList.add('k-tn-lit'); }
+    // …and it lands on the person. A purchase that only changes a number in a
+    // purse is a transaction; a purchase that lights somebody up is a memory.
+    const who = document.querySelector('#k-camp-tree .k-ct-col[data-hero="'
+      + (n.hero === 'all' ? 'all' : n.hero) + '"] .k-ct-fig');
+    if (who) { who.classList.remove('k-ct-flare'); void who.offsetWidth; who.classList.add('k-ct-flare'); }
   }
 
   function leaveCamp() {
@@ -1235,7 +1321,7 @@
     // fire's screen with no fire behind it.
     if (back === 'map') return toMap();
     // another pair may also be waiting at this same fire
-    if (!openBondScene()) { screen('camp'); renderCamp(); }
+    if (!openBondScene()) sitDown();
   }
 
   // ── the mark ─────────────────────────────────────────────────────────────
@@ -1287,7 +1373,7 @@
   }
   function leaveMark() {
     RUN.pendingSigil = null; RUN.markPair = null; _markPair = null; save();
-    if (!openBondScene()) { screen('camp'); renderCamp(); }
+    if (!openBondScene()) sitDown();
   }
   function openMark(pair) {
     if (!RUN || !RUN.pendingSigil) return false;
@@ -1392,7 +1478,7 @@
     travel, tapNode, newRun, clear,
     screen,
     render: renderMap,
-    TREE, treeNode, kindle, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
+    TREE, treeNode, kindle, tapMemory, focusMemory, sitDown, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
     pendingBonds, openBondScene, takeBond, confirmSwap, renderSwap,
     WAKES, wakeOffer, takeWake, renderWake, wakeDef, wakePair,
     SIGIL_BY_PAIR, sigilFor, renderMark, placeSigil, openMark, leaveMark,

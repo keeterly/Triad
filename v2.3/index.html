@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=56" />
+  <link rel="stylesheet" href="styles.css?v=57" />
 </head>
 <body>
   <div id="k-scale">
@@ -215,10 +215,17 @@
       <div id="k-camp-bg" aria-hidden="true">
         <img src="../art/bg-descent.webp" alt="">
         <div class="k-camp-veil"></div>
+        <!-- THE FIRE IS AN OBJECT ON THIS SCREEN, NOT A COLOUR ON THE BACKDROP.
+             Two glow plates on offset flicker tracks and a handful of embers
+             climbing out of them: the only thing on the screen that moves on
+             its own, so the room reads as a place you have stopped in rather
+             than a menu drawn over a photograph. -->
+        <div class="k-camp-fire"><i></i><i></i><i></i></div>
+        <div class="k-camp-sparks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
       </div>
       <header id="k-camp-top">
         <div class="k-mt-title"><b>THE FIRE</b><span id="k-camp-tier">TIER 1</span></div>
-        <div id="k-camp-party"></div>
+        <p id="k-camp-say">Wounds close. Nobody says much. There is time to remember.</p>
         <div class="k-camp-stat k-camp-mended" title="Mended at this fire">
           <b id="k-camp-mend">+0</b><em>MENDED</em>
         </div>
@@ -228,7 +235,11 @@
         </div>
       </header>
       <div id="k-camp-tree"></div>
-      <div id="k-camp-shared"></div>
+      <!-- ONE PLACE TO READ, AT A SIZE YOU CAN READ IT. Ten nodes each carrying
+           their own before/after sentence was the spreadsheet; the memories are
+           objects now, and the sentence belongs to whichever one you have
+           picked up. -->
+      <div id="k-camp-read" class="k-cr"></div>
       <button type="button" id="k-camp-leave">BACK TO THE ROAD</button>
     </section>
 
@@ -291,8 +302,8 @@
       <button type="button" id="k-swap-go" disabled>CHOOSE A CARD TO GIVE UP</button>
     </section>
   </div>
-  <script src="run.js?v=56"></script>
-  <script src="game.js?v=56"></script>
+  <script src="run.js?v=57"></script>
+  <script src="game.js?v=57"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

@@ -1473,6 +1473,25 @@ const { boot } = require('./harness.cjs');
   // ═══ H · PRESENTATION ═══
   console.log('\n── presentation ──');
   await fresh(7);
+  // A FRESH FIGHT PUTS EVERYONE BACK IN THEIR OPENING LANE, BUT NOT INSTANTLY.
+  // The figures GLIDE there from wherever the last section left them, and a
+  // lane is a depth — so a hero measured mid-glide is measured at the wrong
+  // size and the wrong x. That is what made the KIZUNA overlap check flaky:
+  // Elin's box read 33px further left while she was still walking back. The
+  // rule is unchanged; the measurement now waits for the board to stand still.
+  await J(async () => {
+    const box = () => [...document.querySelectorAll('.k-hero')]
+      .map(n => { const r = n.getBoundingClientRect(); return [r.left, r.top, r.width].join(); }).join('|');
+    let last = '', same = 0;
+    for (let i = 0; i < 90; i++) {
+      const now = box();
+      same = now === last ? same + 1 : 0;
+      if (same >= 3) return true;
+      last = now;
+      await new Promise(r => requestAnimationFrame(r));
+    }
+    return false;
+  });
   {
     const ui = await J(() => {
       const ir = document.getElementById('k-intent').getBoundingClientRect();
@@ -1541,17 +1560,35 @@ const { boot } = require('./harness.cjs');
         // rather than pinned to a `top` is also what makes that durable — the
         // party stack grows as status chips appear, and a fixed offset under it
         // would eventually collide, which is exactly how this check failed.
+        // …and it reports WHICH of the three it broke. A bare false here cost a
+        // whole debugging session: the collision is state-dependent (it needs a
+        // hero moved or a chip grown), so a failure that names neither the
+        // clause nor the element it hit cannot be reproduced from the log.
         kzClear: (() => {
           const kz = document.getElementById('k-kizuna');
           const k = kz.getBoundingClientRect();
           const hit = (r) => !(k.right <= r.left || k.left >= r.right
             || k.bottom <= r.top || k.top >= r.bottom);
-          const others = [document.getElementById('k-boss-hud'),
-            document.getElementById('k-intent'), ...document.querySelectorAll('.k-hero')];
+          const named = [['boss-hud', document.getElementById('k-boss-hud')],
+            ['intent', document.getElementById('k-intent')]]
+            .concat([...document.querySelectorAll('.k-hero')]
+              .map(n => ['hero:' + n.dataset.hero, n]));
+          const hits = named.filter(([, n]) => hit(n.getBoundingClientRect())).map(([nm]) => nm);
           const rows = [...document.querySelectorAll('.k-pt-hero')];
-          const belowRows = rows.every(n => n.getBoundingClientRect().bottom <= k.top + 0.5);
+          const low = Math.max(...rows.map(n => n.getBoundingClientRect().bottom));
+          const belowRows = low <= k.top + 0.5;
           const inParty = document.getElementById('k-party-hud').contains(kz);
-          return !others.some(n => hit(n.getBoundingClientRect())) && belowRows && inParty;
+          const boxes = {};
+          named.filter(([nm]) => hits.indexOf(nm) >= 0).forEach(([nm, n]) => {
+            const r = n.getBoundingClientRect();
+            boxes[nm] = [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)];
+          });
+          const cast = document.getElementById('k-cast');
+          return { ok: !hits.length && belowRows && inParty, hits, inParty, boxes,
+                   kz: [Math.round(k.left), Math.round(k.top), Math.round(k.right), Math.round(k.bottom)],
+                   camx: cast ? cast.style.getPropertyValue('--cam-x') : '',
+                   castCls: cast ? cast.className : '',
+                   belowRows, rowsBottom: Math.round(low) };
         })(),
         clipped, worstOver,
         overHead, oneLine, noBanner, iconed, noWords, chipN: chips.length,
@@ -1568,7 +1605,7 @@ const { boot } = require('./harness.cjs');
     check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; telegraph is icon chips above the Regent; no card clipped',
       ui.disjoint && ui.rows === 3 && ui.bars === 3 && ui.cards === 5 && ui.fanned
       && ui.pips === 12 && ui.noMove && ui.ap === '3' && ui.apPips === 3 && ui.apLit === 3
-      && ui.gone && ui.breakClear && ui.kzClear
+      && ui.gone && ui.breakClear && ui.kzClear.ok
       && ui.clipped === 0 && ui.overHead && ui.oneLine && ui.noBanner
       && ui.iconed && ui.noWords && ui.perTargetSums && ui.hasTargetFace && ui.hasDirge,
       JSON.stringify(ui));

@@ -112,6 +112,9 @@ const { boot } = require('./harness.cjs');
     // THE FIRE HAS TO FIT. Ten nodes on a 932x430 landscape phone is the whole
     // risk of this screen: one node clipped by the leave button, or a column
     // spilling past the floor, and the tree becomes a thing you scroll for.
+    // The wait is for the arrival deal to land — geometry measured mid-flight
+    // is the geometry of the animation, not of the screen.
+    await sleep(700);
     const fits = await J(() => {
       const stage = document.getElementById('k-camp').getBoundingClientRect();
       const leave = document.getElementById('k-camp-leave').getBoundingClientRect();
@@ -378,34 +381,156 @@ const { boot } = require('./harness.cjs');
 
   }
 
-  // THE TILE IS THE CARD. Nine upgrade nodes described themselves as
-  // "Cleave+ / 7 damage. -> 10 damage." and nothing else — text about a card
-  // you could not see, on the one screen whose entire purpose is deciding which
-  // card to make better. Every tree node names a real card and every one of
-  // those has a painting.
-  const tiles = await J(() => {
-    window.R.screen('camp'); window.R.renderCamp();
-    const all = [...document.querySelectorAll('.k-tnode')];
-    const carded = all.filter(b => b.querySelector('.k-tn-bg'));
-    const srcs = carded.map(b => b.querySelector('.k-tn-bg').getAttribute('src'));
-    const one = carded[0] && carded[0].querySelector('.k-tn-bg');
-    const cs = one ? getComputedStyle(one) : null;
-    return { total: all.length, carded: carded.length,
-             distinct: new Set(srcs).size,
-             painted: srcs.every(x => /\/cards\//.test(x)),
-             // the words must still outrank the picture: the art is dimmed and
-             // sits under a scrim, and every text span is above it
-             dimmed: cs ? parseFloat(cs.opacity) < 0.8 : false,
-             under: carded.every(b => {
-               const z = (el) => { const v = getComputedStyle(el).zIndex;
-                 return v === 'auto' ? 0 : +v; };
-               const bg = z(b.querySelector('.k-tn-bg'));
-               return [...b.querySelectorAll('span')].every(sp => z(sp) > bg); }) };
-  });
-  check('FIRE: every upgrade node wears the card it upgrades, under the words',
-    tiles.carded === 9 && tiles.distinct === 9 && tiles.painted
-    && tiles.dimmed && tiles.under,
-    JSON.stringify(tiles));
+  // ═══ H · THE FIRE IS A PLACE, NOT A TABLE ═══
+  // REWRITTEN at Build 57. The old check here read "every upgrade node wears
+  // the card it upgrades, UNDER THE WORDS" and asserted the painting was dimmed
+  // below 0.8 so the prose on top of it could win. That rule is gone: the node
+  // is not a tile with a picture behind its sentences any more, it is a
+  // card-shaped OBJECT whose picture is the point, with its name on a scrim at
+  // the foot of it and its sentence moved out to the reading strip. So the
+  // check now asserts the new contract — the painting is present and lit, the
+  // name sits above it on its own backing, and the sentence is somewhere you
+  // can actually read it.
+  console.log('\n── the fire is a place ──');
+  {
+    await reset(11);
+    await atCamp({ embers: 12, tier: 2 });
+    await sleep(340);
+
+    const plates = await J(() => {
+      const all = [...document.querySelectorAll('#k-camp .k-tnode')];
+      const carded = all.filter(b => b.querySelector('.k-tn-bg'));
+      const srcs = carded.map(b => b.querySelector('.k-tn-bg').getAttribute('src'));
+      // a plate nobody has touched: not held, not sealed, not the focused one
+      const idle = carded.find(b => !b.className.match(/k-tn-(own|sealed|focus|poor)/));
+      const bg = idle && idle.querySelector('.k-tn-bg');
+      const z = (n) => { const v = getComputedStyle(n).zIndex; return v === 'auto' ? 0 : +v; };
+      const r = idle ? idle.getBoundingClientRect() : { width: 0, height: 0 };
+      return {
+        total: all.length, carded: carded.length, distinct: new Set(srcs).size,
+        painted: srcs.every(x => /\/cards\//.test(x)),
+        // the picture is LIT now, not pushed to the back
+        lit: bg ? parseFloat(getComputedStyle(bg).opacity) >= 0.85 : false,
+        // …and the name still wins, because it sits above the picture on a scrim
+        named: !!(idle && idle.querySelector('.k-tn-top b').textContent.trim().length),
+        above: idle ? [...idle.querySelectorAll('span')].every(sp => z(sp) > z(bg)) : false,
+        // card-shaped: taller than it is wide, by roughly a card's ratio
+        ratio: r.width ? +(r.width / r.height).toFixed(2) : 0,
+      };
+    });
+    check('FIRE: every memory is a card-shaped object wearing its own painting, lit, with its name over it',
+      plates.carded === 9 && plates.distinct === 9 && plates.painted
+      && plates.lit && plates.named && plates.above
+      && plates.ratio > 0.4 && plates.ratio < 0.8,
+      JSON.stringify(plates));
+
+    // THE CHANGELOG IS GONE FROM THE GRID. Ten nodes each setting out their own
+    // "7 damage. → 10 damage." is what made this screen read as a spreadsheet.
+    // The before/after belongs to ONE of them at a time, in one strip, at a
+    // size a phone can read — so no plate may carry the struck-through half.
+    const strip = await J(() => {
+      const s2 = document.getElementById('k-camp-read');
+      const cs = s2 ? getComputedStyle(s2) : null;
+      return {
+        exists: !!s2,
+        name: s2 ? (s2.querySelector('b') || {}).textContent : '',
+        was: s2 ? (s2.querySelector('.k-cr-was') || {}).textContent : '',
+        now: s2 ? (s2.querySelector('.k-cr-now') || {}).textContent : '',
+        call: s2 ? (s2.querySelector('em') || {}).textContent : '',
+        size: cs ? Math.round(parseFloat(cs.fontSize)) : 0,
+        nowSize: s2 && s2.querySelector('.k-cr-now')
+          ? +parseFloat(getComputedStyle(s2.querySelector('.k-cr-now')).fontSize).toFixed(1) : 0,
+        // nothing on a plate strikes anything out any more
+        diffsOnPlates: [...document.querySelectorAll('#k-camp .k-tnode')]
+          .filter(b => getComputedStyle(b.querySelector('.k-tn-what') || b).textDecorationLine
+            .indexOf('line-through') >= 0).length,
+      };
+    });
+    check('FIRE: the before/after is read in one strip, at a readable size — not restated on all ten plates',
+      strip.exists && strip.was && strip.now && strip.was !== strip.now
+      && strip.nowSize >= 11 && strip.diffsOnPlates === 0,
+      JSON.stringify(strip));
+    check('FIRE: the strip names the memory and says what taking it would cost',
+      /\S/.test(strip.name || '') && /\d/.test(strip.call || '') && /EMBER/.test(strip.call || ''),
+      JSON.stringify({ name: strip.name, call: strip.call }));
+
+    // THE PARTY IS AT THE FIRE. The hero header used to be a 22px avatar in a
+    // stat bar — a row label. If the three of them are not actually present and
+    // at human scale, this is a menu with a fire painted behind it.
+    const party = await J(() => {
+      const figs = [...document.querySelectorAll('#k-camp .k-ct-fig img')];
+      const srcs = figs.map(f => f.getAttribute('src'));
+      const hs = figs.map(f => Math.round(f.getBoundingClientRect().height));
+      const fire = document.querySelector('#k-camp .k-camp-fire i');
+      const cs = fire ? getComputedStyle(fire) : null;
+      return { figs: figs.length, distinct: new Set(srcs).size, minH: Math.min(...hs),
+               sparks: document.querySelectorAll('#k-camp .k-camp-sparks i').length,
+               burning: cs ? cs.animationName !== 'none' && parseFloat(cs.animationDuration) > 0 : false };
+    });
+    check('FIRE: the three of them are standing at it, at human scale, and the fire actually burns',
+      party.figs === 3 && party.distinct === 3 && party.minH >= 90
+      && party.sparks >= 5 && party.burning,
+      JSON.stringify(party));
+
+    // A PURCHASE IS A DECISION YOU WATCH YOURSELF MAKE. The road's grammar: the
+    // first tap picks the memory up and the strip says what it does, the second
+    // tap spends. One stray thumb must never cost embers.
+    const twoTap = await J(() => {
+      const tap = (id) => document.querySelector('[data-node="' + id + '"]').click();
+      // move the focus off the node we are about to buy
+      tap('mira.twinfang');
+      const first = { embers: window.R.state().embers,
+                      focused: !!document.querySelector('[data-node="elin.mend"].k-tn-focus') };
+      tap('elin.mend');
+      const picked = { embers: window.R.state().embers,
+                       focused: !!document.querySelector('[data-node="elin.mend"].k-tn-focus'),
+                       reads: (document.getElementById('k-camp-read').querySelector('b') || {}).textContent };
+      tap('elin.mend');
+      const bought = { embers: window.R.state().embers, nodes: window.R.state().nodes.slice() };
+      return { first, picked, bought };
+    });
+    check('FIRE: the first tap picks a memory up and reads it out, the second spends the embers',
+      twoTap.first.embers === 12 && !twoTap.first.focused
+      && twoTap.picked.embers === 12 && twoTap.picked.focused && /Mend/i.test(twoTap.picked.reads || '')
+      && twoTap.bought.embers === 9 && twoTap.bought.nodes.indexOf('elin.mend') >= 0,
+      JSON.stringify(twoTap));
+
+    // …and a memory you cannot reach still has to explain itself when you pick
+    // it up, or the lock is just a greyed-out box.
+    const sealedRead = await J(() => {
+      document.querySelector('[data-node="ash.lastlight"]').click();
+      const s2 = document.getElementById('k-camp-read');
+      return { call: (s2.querySelector('em') || {}).textContent,
+               now: (s2.querySelector('.k-cr-now') || {}).textContent,
+               spent: window.R.state().nodes.indexOf('ash.lastlight') >= 0 };
+    });
+    check('FIRE: picking up a sealed memory still tells you what it is and what would open it',
+      /MEMORY/.test(sealedRead.call || '') && /\S/.test(sealedRead.now || '') && !sealedRead.spent,
+      JSON.stringify(sealedRead));
+
+    // ARRIVING IS AN EVENT, BUYING IS NOT. The row deals in off the fire when you
+    // sit down; if it re-deals every time three embers change hands, the screen
+    // flickers at you for using it.
+    await reset(11);
+    await atCamp({ embers: 12, tier: 2 });
+    await sleep(340);
+    const deal = await J(() => {
+      const wrap = document.getElementById('k-camp-tree');
+      const on = wrap.classList.contains('k-ct-deal');
+      const seats = [...wrap.querySelectorAll('.k-tnode')]
+        .map(b2 => b2.style.getPropertyValue('--seat').trim());
+      const delays = [...wrap.querySelectorAll('.k-tnode')]
+        .map(b2 => parseFloat(getComputedStyle(b2).animationDelay) || 0);
+      window.R.kindle('mira.twinfang');
+      return { on, seats, rising: delays[9] > delays[0],
+               afterBuy: document.getElementById('k-camp-tree').classList.contains('k-ct-deal') };
+    });
+    check('FIRE: the memories deal in when you sit down, and stay put when you spend',
+      deal.on && deal.rising && deal.seats.length === 10
+      && new Set(deal.seats).size === 10 && !deal.afterBuy,
+      JSON.stringify(deal));
+
+  }
 
   const r = report();
   await H.browser.close();

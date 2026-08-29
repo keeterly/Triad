@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 56;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 57;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -568,7 +568,7 @@ function startCombat(opts) {
   // has to be restored on every fresh fight or a spent run leaks into the next.
   TUNE.alloutDmg = ALLOUT_BASE.dmg; TUNE.alloutBrk = ALLOUT_BASE.brk;
   if (opts.allout) { TUNE.alloutDmg = opts.allout.dmg; TUNE.alloutBrk = opts.allout.brk; }
-  _camPoseCur = null;                     // a fresh fight re-composes the shot
+  _camPoseCur = null; camHome();          // a fresh fight re-composes the shot
   const foe = opts.foe || FOES.mourner;
   const carry = opts.partyHp || null;     // a run carries its wounds between fights
   // TWO THINGS THE AWAKENING CAN CHANGE. The run→engine seam is deliberately
@@ -2762,6 +2762,18 @@ function camPose(pose, ms) {
 function camReset(ms) {
   clearTimeout(_camOutT); _camOutT = null;
   cam(Object.assign({}, _camBase, { ms: ms == null ? 560 : ms, ease: CAM_SETTLE, force: true }));
+}
+// A FRESH FIGHT OPENS ON THE PLAYER'S SHOT, INSTANTLY AND FROM ANY STATE.
+// camReset settles to whatever pose is CURRENT, and a hold suppresses it
+// entirely — so a fight started while a punch-in was still held (an all-out,
+// a parry ring, a killing blow that rolled straight into the next stop) opened
+// on the previous fight's camera. The whole cast then sat several pixels left
+// of where the layout puts it, which is how Elin ended up sitting on the
+// KIZUNA ladder: the ladder had not moved, the party had.
+function camHome() {
+  clearTimeout(_camOutT); _camOutT = null;
+  _camHeld = 0; _camBase = CAM_POSE_PLAYER;
+  cam(Object.assign({}, CAM_POSE_PLAYER, { ms: 0, ease: CAM_SETTLE, force: true }));
 }
 // where a subject sits relative to the stage centre, in stage px
 function camOffsetTo(node) {

@@ -1622,93 +1622,219 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-camp img { -webkit-user-drag: none; pointer-events: none; }
 #k-camp-bg { position: absolute; inset: 0; }
 #k-camp-bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-  object-position: 50% 58%; filter: saturate(0.62) brightness(0.3) contrast(1.05); }
+  object-position: 50% 56%; filter: saturate(0.68) brightness(0.42) contrast(1.04); }
 .k-camp-veil { position: absolute; inset: 0; background:
-  radial-gradient(64% 52% at 50% 96%, rgba(224,140,60,0.20) 0%, rgba(10,9,12,0) 72%),
-  linear-gradient(180deg, rgba(9,8,11,0.9) 0%, rgba(9,8,11,0.34) 26%, rgba(9,8,11,0.5) 100%); }
+  linear-gradient(180deg, rgba(9,8,11,0.94) 0%, rgba(9,8,11,0.5) 22%, rgba(9,8,11,0.14) 52%,
+    rgba(9,8,11,0.58) 78%, rgba(9,8,11,0.8) 100%); }
 
-#k-camp-top { position: absolute; left: 0; right: 0; top: 0; height: 62px; z-index: 3;
-  display: flex; align-items: center; gap: 16px; padding: 0 22px; }
-#k-camp-party { display: flex; gap: 12px; flex: 1; }
-.k-camp-stat, #k-camp-purse { display: flex; align-items: center; gap: 5px; }
-.k-camp-stat b { font-size: 20px; color: #a9c187; font-weight: 700; }
+/* ── THE FIRE ────────────────────────────────────────────────────────────────
+   Three plates of warm light stacked on the floor, each on its own flicker
+   track at a different period, so the sum never repeats on a beat you can
+   count. This is the only thing on the screen that moves by itself; it is what
+   separates "a place you stopped in" from "a menu over a photograph". */
+.k-camp-fire { position: absolute; inset: 0; pointer-events: none; }
+.k-camp-fire i { position: absolute; left: 50%; transform: translateX(-50%);
+  border-radius: 50%; mix-blend-mode: screen; }
+.k-camp-fire i:nth-child(1) { bottom: -210px; width: 1100px; height: 560px;
+  background: radial-gradient(closest-side, rgba(226,124,44,0.5), rgba(226,124,44,0) 76%);
+  animation: k-fire-a 3.1s ease-in-out infinite; }
+.k-camp-fire i:nth-child(2) { bottom: -190px; width: 620px; height: 420px;
+  background: radial-gradient(closest-side, rgba(255,168,68,0.52), rgba(255,140,50,0) 72%);
+  animation: k-fire-b 2.3s ease-in-out infinite; }
+.k-camp-fire i:nth-child(3) { bottom: -140px; width: 300px; height: 250px;
+  background: radial-gradient(closest-side, rgba(255,226,164,0.6), rgba(255,170,70,0) 70%);
+  animation: k-fire-c 1.7s ease-in-out infinite; }
+@keyframes k-fire-a { 0%,100% { opacity: 0.82; transform: translateX(-50%) scale(1); }
+                      45% { opacity: 1; transform: translateX(-50%) scale(1.045); } }
+@keyframes k-fire-b { 0%,100% { opacity: 0.7; transform: translateX(-50%) scale(1.03); }
+                      38% { opacity: 1; transform: translateX(-50%) scale(0.97); } }
+@keyframes k-fire-c { 0%,100% { opacity: 0.62; transform: translateX(-51%) scale(0.96); }
+                      55% { opacity: 1; transform: translateX(-49%) scale(1.06); } }
+/* embers, seven of them, on staggered climbs — enough to read as a fire, few
+   enough that nobody counts them */
+.k-camp-sparks { position: absolute; left: 0; right: 0; bottom: 0; height: 100%;
+  pointer-events: none; overflow: hidden; }
+.k-camp-sparks i { position: absolute; bottom: 8px; width: 2px; height: 2px; border-radius: 50%;
+  background: #ffcf8a; box-shadow: 0 0 5px rgba(255,180,90,0.9); opacity: 0;
+  animation: k-spark 4.4s linear infinite; }
+.k-camp-sparks i:nth-child(1) { left: 18%;  animation-delay: 0s;    animation-duration: 4.6s; }
+.k-camp-sparks i:nth-child(2) { left: 34%;  animation-delay: 0.9s;  animation-duration: 3.8s; }
+.k-camp-sparks i:nth-child(3) { left: 47%;  animation-delay: 1.7s;  animation-duration: 5.2s; }
+.k-camp-sparks i:nth-child(4) { left: 56%;  animation-delay: 2.4s;  animation-duration: 4.1s; }
+.k-camp-sparks i:nth-child(5) { left: 68%;  animation-delay: 3.1s;  animation-duration: 4.9s; }
+.k-camp-sparks i:nth-child(6) { left: 26%;  animation-delay: 3.7s;  animation-duration: 5.6s; }
+.k-camp-sparks i:nth-child(7) { left: 78%;  animation-delay: 1.2s;  animation-duration: 5.0s; }
+@keyframes k-spark {
+  0%   { opacity: 0;   transform: translate(0, 0) scale(0.6); }
+  12%  { opacity: 0.95; }
+  70%  { opacity: 0.4; }
+  100% { opacity: 0;   transform: translate(22px, -320px) scale(1.15); } }
+
+/* ── the header: what you have, and one line of weather ─────────────────── */
+#k-camp-top { position: absolute; left: 0; right: 0; top: 0; height: 44px; z-index: 3;
+  display: flex; align-items: center; gap: 16px; padding: 0 20px; }
+#k-camp-say { flex: 1; margin: 0; font-size: 10.5px; letter-spacing: 0.05em; color: #8d8474;
+  font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-camp-stat, #k-camp-purse { display: flex; align-items: center; gap: 5px; flex: none; }
+.k-camp-stat b { font-size: 18px; color: #a9c187; font-weight: 700; }
 .k-camp-stat em, #k-camp-purse em { font-style: normal; font-size: 9px; letter-spacing: 0.18em; color: #8d8474; }
 #k-camp-purse { color: #e0a85c; }
 #k-camp-purse svg { width: 18px; height: 18px; }
 #k-camp-purse b { font-size: 22px; color: #f0cf92; font-weight: 700; }
 
-/* The tree FILLS its band rather than stacking from the top: three nodes of
-   natural height left a 90px hole above the shared node, and a hole in the
-   middle of a screen reads as something missing rather than as space. */
-#k-camp-tree { position: absolute; left: 18px; right: 18px; top: 58px; bottom: 82px; z-index: 3;
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.k-ct-col { display: flex; flex-direction: column; gap: 7px; height: 100%; }
-.k-ct-col .k-tnode { flex: 1; justify-content: center; }
-.k-ct-col > header { display: flex; align-items: center; gap: 7px; padding: 0 2px 2px; }
-.k-ct-col > header img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover;
-  object-position: 50% 18%; border: 1px solid rgba(201,164,92,0.45); }
-.k-ct-col > header b { font-size: 11px; letter-spacing: 0.24em; color: #c9a45c; }
+/* ── the party, and what they can carry forward ──────────────────────────── */
+/* Four columns: the three of them, then the thing that belongs to nobody. The
+   column runs floor to ceiling with the figure at the top and the memories at
+   its feet, so the empty middle is the firelight rather than a gap. */
+#k-camp-tree { position: absolute; left: 18px; right: 18px; top: 46px; bottom: 64px; z-index: 3;
+  display: grid; grid-template-columns: repeat(3, 1fr) 86px; gap: 18px; }
+.k-ct-col { display: flex; flex-direction: column; justify-content: space-between;
+  align-items: center; height: 100%; }
+/* THE HERO HEADER IS THE HERO. A 22px avatar in a stat bar is a row label; the
+   figure standing in the firelight is the person you are spending on. */
+.k-ct-fig { position: relative; height: 118px; display: flex; align-items: flex-end;
+  justify-content: center;
+  filter: drop-shadow(0 8px 14px rgba(0,0,0,0.7)) drop-shadow(0 6px 18px rgba(232,150,60,0.45)); }
+/* the pool each of them is standing in — the fire is below the frame, and this
+   is the only proof of it that lands on a person */
+.k-ct-fig::after { content: ''; position: absolute; left: 50%; bottom: -12px; width: 150px;
+  height: 44px; transform: translateX(-50%); border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(240,160,64,0.34), rgba(240,160,64,0) 72%);
+  animation: k-fire-c 1.7s ease-in-out infinite; }
+.k-ct-fig img { height: 100%; width: auto; object-fit: contain;
+  filter: brightness(0.9) saturate(0.92) contrast(1.04); }
+.k-ct-hurt .k-ct-fig img { filter: brightness(0.66) saturate(0.55); }
+/* the fourth column belongs to nobody, so a coal stands where the person
+   would — the same warm disc their feet are standing in */
+.k-ct-brazier { color: #f0cf92; align-items: center; }
+.k-ct-brazier svg { width: 30px; height: 30px; position: relative;
+  filter: drop-shadow(0 0 14px rgba(224,168,92,0.85));
+  animation: k-fire-c 1.7s ease-in-out infinite; }
+.k-ct-brazier::after { bottom: 22px; width: 96px; height: 96px;
+  background: radial-gradient(closest-side, rgba(240,160,64,0.3), rgba(240,160,64,0) 70%); }
+@keyframes k-ct-flare { 0% { filter: drop-shadow(0 0 0 rgba(255,214,150,0)) brightness(1); }
+                        28% { filter: drop-shadow(0 0 22px rgba(255,214,150,0.95)) brightness(1.5); }
+                        100% { filter: drop-shadow(0 0 0 rgba(255,214,150,0)) brightness(1); } }
+.k-ct-flare { animation: k-ct-flare 640ms ease-out; }
+.k-ct-col > header { display: flex; align-items: center; gap: 6px; width: 100%;
+  justify-content: center; padding: 5px 0 6px; }
+.k-ct-col > header b { font-size: 10.5px; letter-spacing: 0.24em; color: #c9a45c; }
+.k-ct-hp { width: 46px; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.1);
+  overflow: hidden; }
+.k-ct-hp i { display: block; height: 100%; background: linear-gradient(90deg, #7fa06a, #a9c187); }
+.k-ct-hurt .k-ct-hp i { background: linear-gradient(90deg, #9e4a40, #c4695a); }
+.k-ct-col > header em { font-style: normal; font-size: 10.5px; color: #cfc8ba; }
+.k-ct-col > header em i { font-style: normal; font-size: 8.5px; color: #7d7466; }
+.k-ct-fan { display: flex; gap: 6px; width: 100%; height: 134px; }
 
-/* a node: the name, the price, and the difference you are buying */
-.k-tnode { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left;
-  padding: 7px 9px; border-radius: 3px; cursor: pointer; font-family: inherit; color: inherit;
-  background: linear-gradient(180deg, rgba(32,28,38,0.94), rgba(20,17,25,0.96));
-  border: 1px solid rgba(201,164,92,0.34);
-  transition: transform 140ms ease, border-color 200ms ease, opacity 200ms ease; }
-.k-tnode:active { transform: translateY(1px); }
-/* THE TILE WEARS THE CARD IT UPGRADES. Same grammar as the card face: the
-   painting bled through the plate, a scrim taking it down to near-black so the
-   words never fight it, and the picture anchored high because the subject of
-   every one of these paintings is in its upper third. The tile is not trying to
-   BE a card — it is a decision about one — so the art sits further back than it
-   does in the hand and the text stays the loudest thing on it. */
-.k-tnode.k-tn-art { position: relative; overflow: hidden; }
+/* ── a memory: an object, not a table row ────────────────────────────────── */
+/* Card-shaped, wearing the painting of the card it sharpens, with one ember
+   badge for its price. It says its NAME. Everything it DOES is said once, in
+   the strip, for whichever one you are holding — ten nodes each arguing their
+   own case in prose is what made this screen a changelog. */
+.k-tnode { position: relative; flex: 1; min-width: 0; height: 100%; overflow: hidden;
+  padding: 0; border-radius: 5px; cursor: pointer; font-family: inherit; color: inherit;
+  background: linear-gradient(180deg, rgba(24,21,29,0.96), rgba(11,9,14,0.99));
+  border: 1px solid rgba(201,164,92,0.3);
+  transition: transform 160ms ease, border-color 200ms ease, box-shadow 200ms ease,
+              opacity 200ms ease; }
 .k-tn-bg { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0;
-  object-fit: cover; object-position: 50% 16%; pointer-events: none;
-  filter: grayscale(0.3) contrast(1.05) brightness(0.62) saturate(0.9); opacity: 0.62; }
-.k-tnode.k-tn-art::after { content: ''; position: absolute; inset: 0; z-index: 1;
-  pointer-events: none;
-  background: linear-gradient(100deg, rgba(16,13,20,0.95) 30%, rgba(16,13,20,0.66) 62%,
-    rgba(16,13,20,0.42) 100%); }
-.k-tnode.k-tn-art > span { position: relative; z-index: 2; }
-/* a node already taken, or one still sealed, keeps its picture but loses its
-   colour — the same read the poor and dead cards get in the hand */
-.k-tn-own .k-tn-bg, .k-tn-sealed .k-tn-bg { filter: grayscale(0.9) brightness(0.45); opacity: 0.4; }
-.k-tn-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.k-tn-top b { font-size: 13px; color: #efe6d4; letter-spacing: 0.03em; }
-.k-tn-cost { font-style: normal; font-size: 13px; font-weight: 700; color: #e0a85c; flex: none; }
-.k-tn-what { font-size: 10.5px; color: #9a9080; line-height: 1.3; }
-.k-tn-what i { font-style: normal; color: #6f6858; text-decoration: line-through; }
-.k-tn-seal { font-size: 8px; letter-spacing: 0.16em; color: #a58cc4; }
+  object-fit: cover; object-position: 50% 22%; pointer-events: none;
+  filter: contrast(1.04) brightness(0.78) saturate(0.94); opacity: 0.92; }
+/* the plate's own firelight: warm from below, dark at the top so the badge
+   reads, and a hard floor of shadow the name band sits on */
+.k-tn-lift { position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(180deg, rgba(12,10,16,0.62) 0%, rgba(12,10,16,0.05) 34%,
+    rgba(12,10,16,0.62) 62%, rgba(10,8,13,0.96) 100%),
+    radial-gradient(120% 60% at 50% 108%, rgba(232,150,60,0.34), rgba(232,150,60,0) 70%); }
+.k-tn-cost { position: absolute; top: 5px; right: 5px; z-index: 3; width: 19px; height: 19px;
+  border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700;
+  color: #1a1410; background: linear-gradient(180deg, #f0cf92, #d29a4e);
+  box-shadow: 0 1px 5px rgba(0,0,0,0.6); }
+.k-tn-top { position: absolute; left: 0; right: 0; bottom: 22px; z-index: 3; padding: 0 5px;
+  text-align: center; }
+.k-tn-top b { font-size: 10px; letter-spacing: 0.06em; color: #f4ecda; line-height: 1.1;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.95); display: block;
+  overflow: hidden; text-overflow: ellipsis; }
+/* the plate keeps a two-line whisper of what it becomes — enough to sort the
+   nine at a glance; the full sentence is the strip's job */
+.k-tn-what { position: absolute; left: 0; right: 0; bottom: 4px; z-index: 3; padding: 0 5px;
+  font-size: 7.5px; line-height: 1.22; color: #a79c88; text-align: center;
+  max-height: 18px; overflow: hidden; }
+.k-tn-seal { position: absolute; left: 0; right: 0; top: 50%; z-index: 3; padding: 0 4px;
+  transform: translateY(-50%); font-size: 7px; letter-spacing: 0.1em; line-height: 1.5;
+  color: #cbb6e4; text-align: center; text-shadow: 0 1px 4px rgba(0,0,0,0.95); }
 
-/* THREE STATES, AND EACH SAYS WHY. Owned is settled and quiet; sealed says a
-   memory opens it (which is the only thing that does); too-poor greys the
-   price rather than the whole card, so you can still read what you are saving
-   for — the MTG Arena rule the hand already follows. */
-.k-tn-own { border-color: rgba(169,193,135,0.5); opacity: 0.72; cursor: default; }
-.k-tn-own .k-tn-cost { color: #a9c187; font-size: 9px; letter-spacing: 0.16em; }
-.k-tn-sealed { border-color: rgba(165,140,196,0.34); opacity: 0.5; cursor: default; }
-.k-tn-sealed .k-tn-cost { color: #a58cc4; font-size: 9px; letter-spacing: 0.14em; }
-.k-tn-poor { cursor: default; border-color: rgba(201,164,92,0.14); }
-.k-tn-poor .k-tn-cost { color: #7a4d43; }
-.k-tn-poor .k-tn-top b, .k-tn-poor .k-tn-what { opacity: 0.55; }
-.k-tnode:not(.k-tn-own):not(.k-tn-sealed):not(.k-tn-poor) { border-color: rgba(224,168,92,0.7);
-  box-shadow: 0 0 0 1px rgba(224,168,92,0.14), 0 6px 18px rgba(0,0,0,0.5); }
-@keyframes k-tn-flare { 0% { box-shadow: 0 0 0 0 rgba(240,207,146,0.7); }
-                        100% { box-shadow: 0 0 0 14px rgba(240,207,146,0); } }
-.k-tn-lit { animation: k-tn-flare 520ms ease-out; }
+/* THREE STATES, AND EACH SAYS WHY. Owned is settled and quiet with a tick where
+   the price was; sealed goes violet and keeps only the one line that matters —
+   a memory opens it; too-poor reddens the PRICE and leaves the picture alone,
+   so you can still see what you are saving for. */
+.k-tn-own { border-color: rgba(169,193,135,0.5); cursor: default; }
+.k-tn-own .k-tn-bg { filter: grayscale(0.72) brightness(0.5); opacity: 0.5; }
+.k-tn-own .k-tn-cost { background: linear-gradient(180deg, #b9d199, #7fa06a); color: #16200f; }
+.k-tn-own .k-tn-what { opacity: 0.5; }
+.k-tn-sealed { border-color: rgba(165,140,196,0.42); cursor: default; }
+.k-tn-sealed .k-tn-bg { filter: grayscale(0.9) brightness(0.34); opacity: 0.42; }
+.k-tn-sealed .k-tn-cost { background: linear-gradient(180deg, #c3aede, #7d63a4); color: #17111f;
+  font-size: 9px; }
+.k-tn-sealed .k-tn-top { opacity: 0.5; }
+/* A SEALED MEMORY HAS ONE THING TO SAY. Its own effect line under the seal made
+   three stacked texts on an 80px plate; what it does is the strip's job when
+   you pick it up, and what it needs is the only thing it can act on. */
+.k-tn-sealed .k-tn-what { display: none; }
+.k-tn-poor { cursor: default; border-color: rgba(201,164,92,0.16); }
+.k-tn-poor .k-tn-bg { filter: grayscale(0.35) brightness(0.6); opacity: 0.72; }
+.k-tn-poor .k-tn-cost { background: linear-gradient(180deg, #c4695a, #7a3d34); color: #f6e3dd; }
+/* the one you are holding lifts out of the row and takes the firelight */
+.k-tn-focus { transform: translateY(-5px); border-color: rgba(240,207,146,0.9);
+  box-shadow: 0 0 0 1px rgba(240,207,146,0.3), 0 10px 22px rgba(0,0,0,0.66),
+    0 0 26px rgba(224,150,60,0.28); }
+.k-tn-focus .k-tn-bg { filter: contrast(1.06) brightness(0.94) saturate(1); opacity: 1; }
+.k-tnode:active { transform: translateY(-2px); }
+@keyframes k-tn-flare { 0% { box-shadow: 0 0 0 0 rgba(240,207,146,0.8); }
+                        100% { box-shadow: 0 0 0 18px rgba(240,207,146,0); } }
+.k-tn-lit { animation: k-tn-flare 620ms ease-out; }
+/* SITTING DOWN AT A FIRE IS AN EVENT. On arrival the memories are dealt out of
+   it, left to right, and the party rises into the light — once per campfire,
+   never again for the rest of that visit. */
+@keyframes k-ct-deal { from { opacity: 0; transform: translateY(30px) scale(0.92); } }
+@keyframes k-ct-rise { from { opacity: 0; transform: translateY(16px); } }
+.k-ct-deal .k-tnode { animation: k-ct-deal 460ms cubic-bezier(0.2,0.8,0.3,1) backwards;
+  animation-delay: calc(150ms + var(--seat, 0) * 52ms); }
+.k-ct-deal .k-ct-fig, .k-ct-deal .k-ct-col > header {
+  animation: k-ct-rise 560ms ease backwards; }
+.k-ct-deal .k-ct-col:nth-child(2) .k-ct-fig { animation-delay: 70ms; }
+.k-ct-deal .k-ct-col:nth-child(3) .k-ct-fig { animation-delay: 140ms; }
+.k-ct-deal .k-ct-col:nth-child(4) .k-ct-fig { animation-delay: 210ms; }
+/* the shared node owns no painting, so it is lit rather than papered */
+.k-tn-plain { background:
+  radial-gradient(78% 46% at 50% 34%, rgba(224,166,84,0.5), rgba(224,166,84,0) 72%),
+  linear-gradient(180deg, rgba(52,38,26,0.96), rgba(20,15,13,0.99));
+  border-color: rgba(224,192,132,0.5); }
+.k-tn-plain .k-tn-top b { color: #f0cf92; letter-spacing: 0.12em; }
 
-/* The shared node runs the width of the floor and stops CLEAR of the leave
-   button — at right:168 it tucked 20px under it, which the fit check caught. */
-#k-camp-shared { position: absolute; left: 18px; right: 212px; bottom: 16px; z-index: 3; }
-.k-tn-wide { flex-direction: row; align-items: center; gap: 14px; min-height: 48px;
-  padding: 9px 14px; border-color: rgba(224,192,132,0.5); }
-.k-tn-wide .k-tn-top { flex: none; gap: 14px; }
-.k-tn-wide .k-tn-what { flex: 1; font-size: 11.5px; }
-.k-tn-wide .k-tn-top b { font-size: 14px; letter-spacing: 0.2em; color: #e0c084; }
+/* ── the reading strip: one place, one size, one sentence ─────────────────── */
+.k-cr { position: absolute; left: 18px; right: 200px; bottom: 14px; height: 42px; z-index: 3;
+  display: flex; align-items: center; gap: 9px; padding: 0 14px; border-radius: 3px;
+  background: linear-gradient(90deg, rgba(14,12,18,0.9), rgba(14,12,18,0.5));
+  border: 1px solid rgba(201,164,92,0.24); overflow: hidden; }
+.k-cr b { flex: none; font-size: 13px; letter-spacing: 0.08em; color: #f0cf92; }
+.k-cr-was { font-size: 11px; color: #6f6858; text-decoration: line-through; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; flex: none; max-width: 230px; }
+.k-cr-arrow { flex: none; color: #8d8474; font-size: 12px; }
+.k-cr-now { flex: 1; min-width: 0; font-size: 11.5px; color: #dcd2be; line-height: 1.25;
+  max-height: 30px; overflow: hidden; }
+.k-cr em { flex: none; font-style: normal; font-size: 8.5px; letter-spacing: 0.16em;
+  color: #8d8474; padding-left: 10px; border-left: 1px solid rgba(255,255,255,0.1); }
+.k-cr-go { border-color: rgba(240,207,146,0.5); }
+.k-cr-go em { color: #f0cf92; }
+.k-cr-poor em { color: #c4695a; }
+.k-cr-sealed { border-color: rgba(165,140,196,0.4); }
+.k-cr-sealed em { color: #b49ed4; }
+.k-cr-own em { color: #a9c187; }
 
-#k-camp-leave { position: absolute; right: 18px; bottom: 16px; z-index: 4;
-  padding: 12px 16px; border-radius: 3px; cursor: pointer;
+#k-camp-leave { position: absolute; right: 18px; bottom: 14px; z-index: 4; height: 42px;
+  padding: 0 18px; border-radius: 3px; cursor: pointer;
   background: linear-gradient(180deg, #3a3040, #241f2c); color: #e8dcc2;
   border: 1px solid rgba(224,192,132,0.55); font-family: inherit;
   font-size: 11px; letter-spacing: 0.16em; font-weight: 700; }
@@ -1921,7 +2047,12 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    on a black plate both collapsed to the same silhouette — in the roster, at
    the fire, and on the road. Lifting the portraits off the background is the
    whole fix; the art is what it is. */
-.k-pt-hero img, .k-mp img, .k-ct-col > header img {
+/* MOVED at the campfire rebuild: the fire no longer has a 22px avatar to
+   rescue — the hero header IS the hero, at 118px, standing in the firelight,
+   where the two of them are told apart by pose and silhouette. The lift stays
+   for the two places that still show a coin-sized portrait: the road's roster
+   and the party stack. */
+.k-pt-hero img, .k-mp img {
   filter: brightness(1.5) contrast(1.12) saturate(0.9);
   background: radial-gradient(60% 60% at 50% 38%, #3a3440, #1b1820); }
 
@@ -1949,14 +2080,17 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-n-here .k-n-disc svg { color: #1a1620; }
 .k-n-here .k-n-word { color: #efe6d4; }
 
-/* THE FIRE: what you cannot afford now dims its whole body, not just the price
+/* THE FIRE: what you cannot afford dims its whole body, not just the price
    digit. At 2 embers every node still read as buyable because only a 1px
-   border and one small numeral's hue had changed. */
-.k-tn-poor { opacity: 0.46; }
-.k-tn-poor .k-tn-cost { color: #c4695a; }
-.k-tn-poor .k-tn-top b, .k-tn-poor .k-tn-what { opacity: 1; }
-/* and the seal is information, so it is sized and coloured like information */
-.k-tn-seal { font-size: 9.5px; letter-spacing: 0.14em; color: #b49ed4; }
+   border and one small numeral's hue had changed.
+   REWRITTEN at the campfire rebuild: the plate is a picture now, and 0.46 on a
+   picture is a hole in the row. The badge goes red, the art loses its light,
+   and the plate keeps enough body to be read and picked up — because the whole
+   point of a price you cannot meet is that you can still see what it buys. */
+.k-tn-poor { opacity: 0.74; }
+/* and the seal is information, so it is coloured like information — sized to
+   the plate it now lives on rather than to the wide tile it used to */
+.k-tn-seal { font-size: 7.5px; letter-spacing: 0.1em; color: #cbb6e4; }
 
 /* THE MEMORY: the two heroes who are not speaking were rendered as near-pure
    black on black — the middle and right thirds of the frame read as empty,
