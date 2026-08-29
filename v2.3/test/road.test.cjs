@@ -49,8 +49,14 @@ const { boot } = require('./harness.cjs');
     const cols = {};
     m.forEach(n => { (cols[n.col] = cols[n.col] || []).push(n); });
     const colCount = Object.keys(cols).length;
-    check('ROAD: six stops deep, and every stop but the last is a choice of two',
-      colCount === 6 && [0,1,2,3,4].every(c => cols[c].length === 2) && cols[5].length === 1,
+    // REWRITTEN at Build 58: a column used to be exactly two stops, always, in
+    // the same two lanes — so every road in the game was the same eleven coins
+    // in the same eleven places. A column now offers two OR three. What has not
+    // moved is that every stop but the last is a CHOICE, which is the rule this
+    // check was always really about.
+    check('ROAD: six stops deep, and every stop but the last is a choice of two or three',
+      colCount === 6 && [0,1,2,3,4].every(c => cols[c].length >= 2 && cols[c].length <= 3)
+      && cols[5].length === 1,
       JSON.stringify(Object.keys(cols).map(c => cols[c].length)));
 
     const ids = new Set(m.map(n => n.id));
@@ -80,35 +86,81 @@ const { boot } = require('./harness.cjs');
         for (let c = 0; c < 4; c++) {
           const a = col(c), b = col(c + 1);
           let x = 0;
+          // "straight ahead" is a RATIO once a column can be three wide, not
+          // min(i, len-1) — with three lanes feeding two, lanes 1 and 2 both
+          // used to count as crossings under the old formula and a genuinely
+          // bare column could pass.
+          const near = (i) => a.length < 2 ? 0 : Math.round(i * (b.length - 1) / (a.length - 1));
           a.forEach((n, i) => n.to.forEach(t => {
             const j = b.findIndex(q => q.id === t);
-            if (b.length > 1 && j >= 0 && j !== Math.min(i, b.length - 1)) x++;
+            if (b.length > 1 && j >= 0 && j !== near(i)) x++;
           }));
           if (x === 0) bad.push(s + ':' + c);
         }
       }
       return { bad: bad.length, n: N, sample: bad.slice(0, 5) };
     });
-    check('ROAD: the two lanes cross in EVERY column of EVERY seed — swept, not sampled',
+    check('ROAD: the lanes cross in EVERY column of EVERY seed — swept, not sampled',
       sweep.bad === 0, sweep.bad + ' bare columns across ' + sweep.n + ' seeds'
       + (sweep.sample.length ? ' — ' + sweep.sample.join(',') : ''));
     await reset(11);
 
-    const kinds = m.map(n => n.kind);
-    check('ROAD: the road is paced — fights, a campfire, an elite, and no fight on the Regent’s doorstep',
-      kinds.filter(k => k === 'camp').length === 2 && kinds.filter(k => k === 'elite').length === 1
-      && kinds.filter(k => k === 'story').length === 2 && cols[5][0].kind === 'boss'
-      && cols[4].every(n => n.kind === 'camp' || n.kind === 'story'),
-      kinds.join(','));
+    // THE PACING IS AUTHORED, THE SHAPE IS NOT. A third lane may add a fight or
+    // a memory; it may never add a second elite, move the elite off column 3,
+    // or put a fight on the Regent's doorstep. Swept, because a guarantee that
+    // holds for one seed of a generator is not a guarantee.
+    const pace = await J(() => {
+      const bad = [], N = 300;
+      for (let s = 1; s <= N; s++) {
+        window.R.newRun(s);
+        const m = window.R.map();
+        const col = (c) => m.filter(n => n.col === c);
+        const kind = (c) => col(c).map(n => n.kind);
+        const why = [];
+        if (m.filter(n => n.kind === 'elite').length !== 1) why.push('elites');
+        if (kind(3).indexOf('elite') < 0) why.push('elite off col3');
+        if (!col(4).every(n => n.kind === 'camp' || n.kind === 'story')) why.push('fight at the door');
+        if (kind(5).join() !== 'boss') why.push('no Regent');
+        if (m.filter(n => n.kind === 'camp').length < 2) why.push('fires');
+        if (m.filter(n => n.kind === 'story').length < 2) why.push('memories');
+        // every route must be able to reach a memory BEFORE the last fire, or
+        // the tier lock is unopenable on that road
+        if (!m.some(n => n.kind === 'story' && n.col < 4)) why.push('no early memory');
+        if (why.length) bad.push(s + ':' + why.join('+'));
+      }
+      return { bad: bad.length, n: N, sample: bad.slice(0, 4) };
+    });
+    check('ROAD: the road is paced — one elite at column 3, two fires, an early memory, no fight on the Regent’s doorstep',
+      pace.bad === 0, pace.bad + ' broken of ' + pace.n + (pace.sample.length ? ' — ' + pace.sample.join(',') : ''));
+    await reset(11);
 
     // A generated road that is the same road every time is a menu, not a map.
-    const shapes = [];
-    for (const s of [3, 9, 21, 44]) {
-      await reset(s);
-      shapes.push((await J(() => window.R.map().map(n => n.to.join('|')).join('/'))));
-    }
-    check('ROAD: two seeds are two roads — the crossings are seeded, the pacing is not',
-      new Set(shapes).size > 1, new Set(shapes).size + ' distinct of 4');
+    // A generated road that is the same road every time is a menu, not a map.
+    // The old check compared four seeds' EDGE lists, which the two-lane road
+    // could vary while still drawing the identical eleven coins in the
+    // identical eleven places. Three things have to move now: how many stops a
+    // column holds, which lane each kind falls in, and where the coin sits.
+    const vary = await J(() => {
+      const widths = new Set(), lanes = new Set(), spots = new Set(), edges = new Set();
+      let wide = 0, N = 120;
+      for (let s = 1; s <= N; s++) {
+        window.R.newRun(s);
+        const m = window.R.map();
+        const col = (c) => m.filter(n => n.col === c);
+        widths.add([0,1,2,3,4].map(c => col(c).length).join(''));
+        lanes.add(m.map(n => n.kind).join(','));
+        spots.add(m.map(n => n.x + ',' + n.y).join('/'));
+        edges.add(m.map(n => n.to.join('|')).join('/'));
+        if ([0,1,2,3,4].some(c => col(c).length === 3)) wide++;
+      }
+      return { widths: widths.size, lanes: lanes.size, spots: spots.size,
+               edges: edges.size, wide, n: N };
+    });
+    check('ROAD: two seeds are two roads — the width, the lane order, the coins and the crossings all move',
+      vary.widths >= 4 && vary.lanes >= 20 && vary.spots >= 110 && vary.edges >= 20
+      && vary.wide > vary.n * 0.5,
+      JSON.stringify(vary));
+    await reset(11);
   }
 
   await reset(11);
@@ -139,13 +191,24 @@ const { boot } = require('./harness.cjs');
 
     let v = await look();
     check('GLANCE: the road is drawn — a button per stop, each with an icon and a word',
-      v.length === 11 && v.every(n => n.glyph && n.word), v.length + ' stops drawn');
+      v.length >= 10 && v.length <= 13 && v.every(n => n.glyph && n.word),
+      v.length + ' stops drawn');
 
+    // REWRITTEN at Build 58 for the one deliberate exception. Depth still runs
+    // one way — where you may go is the only bright thing — but the Regent is
+    // the thing the whole chart points at and is visible from the trailhead by
+    // design (there is a check below that says exactly that). So she is named
+    // as the exception rather than allowed to quietly break the rule, and
+    // everything else must still recede.
     const openN = v.filter(n => n.open);
-    const dimEnough = v.filter(n => !n.open && !n.here).every(n => n.opacity <= 0.55);
-    check('GLANCE: only the stops you may take are bright — everything else recedes',
-      openN.length === 2 && openN.every(n => n.opacity === 1) && dimEnough,
-      `open ${openN.length} · dimmest-open ${Math.min(...openN.map(n => n.opacity))}`);
+    const recede = v.filter(n => !n.open && !n.here && !/^5:/.test(n.id));
+    const regent = v.find(n => /^5:/.test(n.id));
+    check('GLANCE: only the stops you may take are bright — everything but the Regent recedes',
+      openN.length >= 2 && openN.length <= 3 && openN.every(n => n.opacity === 1)
+      && recede.length && recede.every(n => n.opacity <= 0.55)
+      && regent && regent.opacity < 1 && regent.opacity >= 0.6,
+      `open ${openN.length} · dimmest-open ${Math.min(...openN.map(n => n.opacity))}`
+      + ` · loudest-far ${Math.max(...recede.map(n => n.opacity))} · regent ${regent && regent.opacity}`);
 
     // WHAT IS THERE has to survive greyscale: the icon is the first channel.
     const byKind = {};
@@ -175,6 +238,131 @@ const { boot } = require('./harness.cjs');
     });
     check('GLANCE: no stop hides behind the card or under the header',
       clear.bad.length === 0, JSON.stringify(clear));
+
+    // ONE SEED'S LAYOUT IS NOT A LAYOUT. The coins are jittered off the grid
+    // now, so "it fits" has to be swept — and it can be, exactly, without
+    // rendering 200 roads: measure ONE node's real extent around its centre
+    // and then apply that envelope to every seed's stored x/y.
+    const envelope = await J(() => {
+      const b = document.querySelector('#k-map-nodes .k-node');
+      const n = window.R.map().find(q => q.id === b.dataset.node);
+      const r = b.getBoundingClientRect();
+      const stage = document.getElementById('k-map').getBoundingClientRect();
+      const boss = document.querySelector('.k-node.k-n-boss').getBoundingClientRect();
+      // the party token stands 46px above the stop's centre and is 25px tall,
+      // so on the stop you are ON it — not the disc — is the topmost thing
+      const you = 46 + 13;
+      return {
+        up: Math.max(n.y - (r.top - stage.top), you), down: (r.bottom - stage.top) - n.y,
+        left: n.x - (r.left - stage.left), right: (r.right - stage.left) - n.x,
+        bossW: boss.width, bossH: boss.height,
+        card: (() => { const c = document.getElementById('k-map-card').getBoundingClientRect();
+          return { t: c.top - stage.top, l: c.left - stage.left, r: c.right - stage.left }; })(),
+        key: (() => { const c = document.getElementById('k-map-key').getBoundingClientRect();
+          return { t: c.top - stage.top, l: c.left - stage.left, r: c.right - stage.left }; })(),
+        head: document.getElementById('k-map-top').getBoundingClientRect().height,
+        W: stage.width, H: stage.height,
+      };
+    });
+    const fitAll = await J((env) => {
+      const bad = [], N = 240;
+      for (let s = 1; s <= N; s++) {
+        window.R.newRun(s);
+        window.R.map().forEach(n => {
+          const grow = n.kind === 'boss' ? (env.bossW - (env.left + env.right)) / 2 : 0;
+          const t = n.y - env.up, b2 = n.y + env.down;
+          const l = n.x - env.left - grow, r = n.x + env.right + grow;
+          if (t < env.head) bad.push(s + ':' + n.id + ':head');
+          if (b2 > env.H) bad.push(s + ':' + n.id + ':floor');
+          if (l < 0 || r > env.W) bad.push(s + ':' + n.id + ':edge');
+          if (b2 > env.card.t && r > env.card.l && l < env.card.r) bad.push(s + ':' + n.id + ':card');
+          // …and the legend is furniture too. A coin behind it is a stop you
+          // cannot pick, exactly like one behind the card.
+          if (b2 > env.key.t && r > env.key.l && l < env.key.r) bad.push(s + ':' + n.id + ':key');
+        });
+      }
+      return { bad: bad.length, n: N, sample: bad.slice(0, 4) };
+    }, envelope);
+    check('GLANCE: the coins wander, and none wanders off the chart or behind the furniture — swept over 240 roads',
+      fitAll.bad === 0, fitAll.bad + ' bad of ' + fitAll.n + ' roads'
+      + (fitAll.sample.length ? ' — ' + fitAll.sample.join(',') : ''));
+    await reset(11);
+
+    // ═══ THE CHART ═══
+    // v2.2's map was a PAINTING with a road across it; v2.3's was a road on
+    // black. That is most of what "the world map needs work" meant, and it is
+    // the one property on this screen that a state assertion cannot reach — so
+    // it is asserted where it actually lives: the painting is a real region's
+    // art, at a brightness that leaves it a picture rather than a texture, and
+    // the header names the same place the picture is of.
+    const chart = await J(() => {
+      const img = document.querySelector('#k-map-bg img');
+      const cs = getComputedStyle(img);
+      const bright = (cs.filter.match(/brightness\(([\d.]+)\)/) || [])[1];
+      return { src: img.getAttribute('src'),
+               bright: bright ? +bright : 0,
+               w: img.naturalWidth, h: img.naturalHeight,
+               head: (document.getElementById('k-map-prog').textContent || '').trim(),
+               say: (document.getElementById('k-map-say').textContent || '').trim(),
+               region: window.R.state().region };
+    });
+    const regions = await J(() => window.R.REGIONS.map(r => ({ ...r })));
+    const mine = regions.find(r => r.id === chart.region);
+    check('CHART: the road is drawn on a painting of somewhere, and the header names that somewhere',
+      !!mine && chart.src === '../art/' + mine.art + '.webp' && chart.w > 1000
+      && chart.head.indexOf(mine.name) === 0 && chart.say === mine.line,
+      JSON.stringify({ region: chart.region, src: chart.src, head: chart.head, w: chart.w }));
+    // 0.42 was the value that made this a black rectangle with coins on it.
+    check('CHART: the painting is lit enough to BE a painting — not a texture under a black plate',
+      chart.bright >= 0.5, 'brightness ' + chart.bright);
+
+    const spread = await J(() => {
+      const seen = {}, N = 200;
+      for (let s = 1; s <= N; s++) { window.R.newRun(s); const r = window.R.state().region; seen[r] = (seen[r] || 0) + 1; }
+      return { seen, kinds: Object.keys(seen).length, min: Math.min(...Object.values(seen)) };
+    });
+    check('CHART: a run has a face — all six charts turn up, and none of them hogs the road',
+      spread.kinds === 6 && spread.min > 200 / 6 * 0.5, JSON.stringify(spread));
+    await reset(11);
+
+    // A STOP HAS A NAME. "BATTLE · BATTLE · BATTLE" down a chart is a
+    // difficulty list; a road you walk has places on it — and two of the same
+    // place on one chart is the tell that they are decoration.
+    const named = await J(() => {
+      const bad = [], N = 200;
+      for (let s = 1; s <= N; s++) {
+        window.R.newRun(s);
+        const m = window.R.map();
+        const names = m.map(n => n.name);
+        if (names.some(x => !x || x.length < 4)) bad.push(s + ':blank');
+        if (new Set(names).size !== names.length) bad.push(s + ':dupe');
+      }
+      return { bad: bad.length, n: N, sample: bad.slice(0, 3) };
+    });
+    check('CHART: every stop is a PLACE — it has a name, and no chart repeats one',
+      named.bad === 0, named.bad + ' bad of ' + named.n
+      + (named.sample.length ? ' — ' + named.sample.join(',') : ''));
+    await reset(11);
+
+    // THE LEGEND BUYS THE RIGHT TO A QUIET CHART. Words surface only where a
+    // choice lives; the vocabulary lives once, off to the side. If the legend
+    // is missing a mark, a stop on the road is a symbol nobody ever names.
+    const key = await J(() => {
+      const rows = [...document.querySelectorAll('#k-map-key .k-mk-row')];
+      const words = rows.map(r => r.querySelector('b').textContent);
+      const marks = rows.map(r => r.querySelector('svg').innerHTML);
+      const onRoad = new Set([...document.querySelectorAll('#k-map-nodes .k-node')]
+        .map(b => b.querySelector('.k-n-word').textContent));
+      const quiet = [...document.querySelectorAll('#k-map-nodes .k-node')]
+        .filter(b => !b.classList.contains('k-n-open') && !b.classList.contains('k-n-here')
+                  && !b.classList.contains('k-n-boss'))
+        .every(b => +getComputedStyle(b.querySelector('.k-n-word')).opacity === 0);
+      return { words, distinct: new Set(marks).size,
+               covers: [...onRoad].every(w => words.indexOf(w) >= 0), quiet };
+    });
+    check('CHART: the marks are named once, in the legend — so the chart itself stays quiet',
+      key.words.length === 5 && key.distinct === 5 && key.covers && key.quiet,
+      JSON.stringify(key));
 
     const edges = await J(() => {
       const o = { walk: 0, live: 0, dim: 0 };
@@ -271,10 +459,25 @@ const { boot } = require('./harness.cjs');
       won.at === target && won.stop === 1 && !won.over,
       JSON.stringify({ at: won.at, stop: won.stop }));
 
-    const pin = await J(() => document.querySelectorAll('.k-n-pin').length);
-    const done = await J(() => document.querySelectorAll('.k-n-done').length);
-    check('GLANCE: after the first stop you are pinned to it, and it is marked spent',
-      pin === 1 && done === 0, `pins ${pin} · here is not yet "done"`);
+    // REWRITTEN at Build 58: where you are standing was the words YOU ARE HERE
+    // on a tag (`.k-n-pin`). It is the three of them now, on a token that walks
+    // between stops — so the check is that the party is ON the stop you just
+    // reached, not that a label exists somewhere.
+    const you = await J(() => {
+      const t = document.getElementById('k-map-you');
+      const here = document.querySelector('.k-node.k-n-here');
+      if (!t || !here) return { shown: false };
+      const a = t.getBoundingClientRect(), b = here.getBoundingClientRect();
+      return { shown: !t.classList.contains('k-hidden'),
+               faces: t.querySelectorAll('img').length,
+               on: t.dataset.on,
+               dx: Math.round(Math.abs((a.left + a.width / 2) - (b.left + b.width / 2))),
+               above: a.bottom <= b.top + b.height * 0.6,
+               done: document.querySelectorAll('.k-n-done').length };
+    });
+    check('GLANCE: after the first stop the three of them are standing on it, and it is not yet spent',
+      you.shown && you.faces === 3 && you.on === target && you.dx <= 6 && you.above
+      && you.done === 0, JSON.stringify(you));
   }
 
   // ═══ D · WOUNDS TRAVEL WITH YOU ═══

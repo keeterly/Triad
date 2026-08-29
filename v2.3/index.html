@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=57" />
+  <link rel="stylesheet" href="styles.css?v=58" />
 </head>
 <body>
   <div id="k-scale">
@@ -171,15 +171,18 @@
          you may go, an icon shape says what is there. The card at the foot is
          the confirmation step — one tap asks, the second commits. -->
     <section id="k-map" class="k-hidden" aria-label="The road">
+      <!-- THE CHART. The painting is set from the run's region, so the road is
+           drawn ON somewhere rather than on black; the src here is only the
+           one the first paint replaces. -->
       <div id="k-map-bg" aria-hidden="true">
-        <img src="../art/bg-descent.webp" alt="">
+        <img src="../art/map-lament.webp" alt="">
         <div class="k-map-veil"></div>
       </div>
 
       <header id="k-map-top">
         <div class="k-mt-title">
           <b>THE DESCENT</b>
-          <span id="k-map-prog">STOP 1 OF 6</span>
+          <span id="k-map-prog"><i>THE LAMENT</i>STOP 1 OF 6</span>
         </div>
         <div id="k-map-party"></div>
         <!-- what the three of them carry between fights: half the bond
@@ -201,8 +204,13 @@
         <button type="button" id="k-mute" aria-label="Music" title="Music"></button>
       </header>
 
+      <p id="k-map-say" aria-hidden="true"></p>
       <svg id="k-map-edges" viewBox="0 0 932 430" preserveAspectRatio="none" aria-hidden="true"></svg>
       <div id="k-map-nodes"></div>
+      <!-- the three of them, standing on the stop they are standing on -->
+      <div id="k-map-you" class="k-hidden" aria-hidden="true"></div>
+      <!-- the marks name themselves once, here, so the chart does not have to -->
+      <div id="k-map-key" aria-hidden="true"></div>
       <div id="k-map-card" class="k-map-card k-mc-idle"></div>
     </section>
 
@@ -302,8 +310,8 @@
       <button type="button" id="k-swap-go" disabled>CHOOSE A CARD TO GIVE UP</button>
     </section>
   </div>
-  <script src="run.js?v=57"></script>
-  <script src="game.js?v=57"></script>
+  <script src="run.js?v=58"></script>
+  <script src="game.js?v=58"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

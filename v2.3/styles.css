@@ -1474,26 +1474,48 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-map, #k-map * { -webkit-touch-callout: none !important; -webkit-user-select: none; user-select: none; }
 #k-map img { -webkit-user-drag: none; pointer-events: none; }
 #k-map-bg { position: absolute; inset: 0; }
+/* THE PAINTING IS THE SCREEN, NOT A TEXTURE UNDER IT. At brightness 0.42 under
+   a veil that reached 0.78 in the middle, the chart was a black rectangle with
+   eleven coins on it — which is the whole reason this screen stopped reading
+   as a place. The land is legible now; the scrims are pushed to the EDGES,
+   where the header, the legend and the card actually sit, so the middle band
+   the road runs through keeps its picture. */
 #k-map-bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-  object-position: 50% 46%; filter: saturate(0.5) brightness(0.42) contrast(1.05); }
+  object-position: 50% 46%; filter: saturate(0.58) brightness(0.6) contrast(1.08); }
 .k-map-veil { position: absolute; inset: 0; background:
-  radial-gradient(120% 88% at 50% 46%, rgba(10,9,12,0.12) 0%, rgba(9,8,11,0.78) 74%, rgba(8,7,10,0.94) 100%),
-  linear-gradient(180deg, rgba(9,8,11,0.86) 0%, rgba(9,8,11,0.1) 22%, rgba(9,8,11,0) 42%),
-  linear-gradient(0deg, rgba(8,7,10,0.9) 0%, rgba(8,7,10,0.22) 26%, rgba(8,7,10,0) 46%); }
+  radial-gradient(128% 96% at 50% 44%, rgba(10,9,12,0.06) 30%, rgba(9,8,11,0.54) 78%, rgba(8,7,10,0.88) 100%),
+  linear-gradient(180deg, rgba(9,8,11,0.9) 0%, rgba(9,8,11,0.42) 16%, rgba(9,8,11,0) 32%),
+  linear-gradient(0deg, rgba(8,7,10,0.92) 0%, rgba(8,7,10,0.42) 16%, rgba(8,7,10,0) 34%); }
 
 /* ── the header: who you are, how far in, what you carry ── */
+/* THE HEADER HAS TO HOLD SIX THINGS ON A 932px PHONE. It held five, and the
+   region name plus a KIZUNA carry was two too many: the title wrapped onto the
+   flavour line and the mute button walked off the right edge. The party is the
+   thing with slack in it — three heroes were 468px of it — so the roster
+   stacks its number over its bar beside the portrait instead of laying them
+   out in a row, which is 200px back and reads as a JRPG party strip besides. */
 #k-map-top { position: absolute; left: 0; right: 0; top: 0; height: 74px; z-index: 4;
-  display: flex; align-items: center; gap: 18px; padding: 0 22px; }
-.k-mt-title { display: flex; flex-direction: column; gap: 2px; min-width: 168px; }
+  display: flex; align-items: center; gap: 14px; padding: 0 20px; }
+.k-mt-title { display: flex; flex-direction: column; gap: 2px; flex: none; }
+.k-mt-title b, .k-mt-title span { white-space: nowrap; }
 .k-mt-title b { font-size: 19px; letter-spacing: 0.26em; color: #e0c084; font-weight: 700; }
-.k-mt-title span { font-size: 10px; letter-spacing: 0.22em; color: #8d8474; }
-#k-map-party { display: flex; gap: 12px; flex: 1; }
-.k-mp { display: flex; align-items: center; gap: 7px; }
-.k-mp img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; object-position: 50% 18%;
+.k-mt-title span { font-size: 10px; letter-spacing: 0.22em; color: #8d8474;
+  display: flex; align-items: baseline; gap: 8px; }
+.k-mt-title span i { font-style: normal; font-size: 10px; letter-spacing: 0.26em; color: #c9a45c; }
+.k-mt-title span i::after { content: '·'; margin-left: 8px; color: #6f6858; }
+#k-map-say { position: absolute; left: 22px; top: 62px; margin: 0; z-index: 4;
+  font-size: 10.5px; font-style: italic; letter-spacing: 0.04em; color: #8d8474;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.95); pointer-events: none; }
+#k-map-party { display: flex; gap: 13px; flex: 1; justify-content: center; }
+.k-mp { display: grid; grid-template-columns: auto auto; align-items: center;
+  column-gap: 7px; row-gap: 3px; }
+.k-mp img { grid-row: 1 / span 2; width: 33px; height: 33px; border-radius: 50%;
+  object-fit: cover; object-position: 50% 18%;
   border: 1px solid rgba(201,164,92,0.5); background: #1b1820; }
-.k-mp-hp { font-size: 12px; color: #cfc8ba; letter-spacing: 0.04em; }
-.k-mp-hp b { font-size: 15px; color: #efe6d4; }
-.k-mp-bar { width: 54px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+.k-mp-hp { grid-column: 2; font-size: 10.5px; color: #cfc8ba; letter-spacing: 0.04em; line-height: 1; }
+.k-mp-hp b { font-size: 13.5px; color: #efe6d4; }
+.k-mp-bar { grid-column: 2; width: 48px; height: 3px; background: rgba(255,255,255,0.1);
+  border-radius: 2px; overflow: hidden; }
 .k-mp-bar i { display: block; height: 100%; background: linear-gradient(90deg, #7fa06a, #a9c187); }
 .k-mp-low .k-mp-bar i { background: linear-gradient(90deg, #9e4a40, #c4695a); }
 .k-mp-low img { border-color: rgba(184,87,74,0.8); }
@@ -1517,9 +1539,12 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-mute.k-muted:hover { opacity: 0.7; }
 
 /* ── the edges: exactly three weights, because a glance sorts three ── */
-#k-map-edges { position: absolute; inset: 0; width: 932px; height: 430px; z-index: 2; pointer-events: none; }
+/* the roads have to survive being drawn over a painting, so they carry their
+   own shadow — a pale dash on pale rubble is not a road, it is a scratch */
+#k-map-edges { position: absolute; inset: 0; width: 932px; height: 430px; z-index: 2;
+  pointer-events: none; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.95)); }
 .k-edge { fill: none; stroke-linecap: round; }
-.k-e-dim  { stroke: rgba(190,178,158,0.13); stroke-width: 2; stroke-dasharray: 5 9; }
+.k-e-dim  { stroke: rgba(198,186,164,0.26); stroke-width: 2.2; stroke-dasharray: 5 9; }
 .k-e-walk { stroke: rgba(224,192,132,0.78); stroke-width: 3; }
 .k-e-live { stroke: rgba(224,192,132,0.5); stroke-width: 2.6; stroke-dasharray: 7 7;
   animation: k-e-crawl 1.6s linear infinite; }
@@ -1527,15 +1552,36 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 
 /* ── the stops ── */
 #k-map-nodes { position: absolute; inset: 0; z-index: 3; }
+/* the legend: five marks, named once, out of the road's way */
+/* BOTTOM RIGHT, not bottom left: the first column's coins sit at x≈108 and
+   their word reaches y≈332, and once they jitter that is the same corner the
+   legend was in. The right corner is the only one nothing walks through — the
+   road ends at the Regent, who stands well above it. */
+#k-map-key { position: absolute; right: 20px; bottom: 20px; z-index: 5;
+  display: flex; flex-direction: column; gap: 3px; padding: 8px 11px; border-radius: 3px;
+  background: rgba(10,9,12,0.62); border: 1px solid rgba(201,164,92,0.16); pointer-events: none; }
+.k-mk-row { display: flex; align-items: center; gap: 8px; }
+.k-mk-row i { width: 13px; height: 13px; display: grid; place-items: center; }
+.k-mk-row i svg { width: 13px; height: 13px; color: var(--tone, #9a9080); }
+.k-mk-row b { font-size: 7.5px; letter-spacing: 0.2em; color: #8d8474; font-weight: 400; }
 .k-node { position: absolute; transform: translate(-50%, -50%); z-index: 3;
   display: flex; flex-direction: column; align-items: center; gap: 5px;
   background: none; border: 0; padding: 0; cursor: pointer; color: inherit;
   font-family: inherit; transition: opacity 240ms ease, transform 240ms cubic-bezier(.2,.8,.3,1); }
+/* A COIN, NOT A RING. On black a 1.6px ring over a flat fill was enough; on a
+   painting it was a hole you could see the land through, and eleven of them
+   read as smudges. Same size, same tone, but the disc is now lit from its own
+   top edge and sits in a pool of shadow — it separates from bright rubble and
+   from black sky alike. */
 .k-n-disc { position: relative; width: 52px; height: 52px; border-radius: 50%;
-  display: grid; place-items: center; background: #16141b;
-  border: 1.6px solid var(--tone, #7d7466); box-shadow: 0 6px 16px rgba(0,0,0,0.6); }
+  display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 34%, #221d29 0%, #0a080d 82%);
+  border: 1.6px solid var(--tone, #7d7466);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.85), 0 0 0 5px rgba(8,7,10,0.42),
+    inset 0 1px 0 rgba(232,220,196,0.08); }
 .k-n-disc svg { width: 26px; height: 26px; color: var(--tone, #b6ab97); }
-.k-n-word { font-size: 9px; letter-spacing: 0.18em; color: #9a9080; white-space: nowrap; }
+.k-n-word { font-size: 9px; letter-spacing: 0.18em; color: #9a9080; white-space: nowrap;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.8); }
 /* the four kinds, each its own tone — the SECOND channel, never the only one */
 .k-tone-steel  { --tone: #9fb0bd; }
 .k-tone-red    { --tone: #c4695a; }
@@ -1548,7 +1594,16 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 
 /* WHERE MAY I GO. Reachable stops are the only bright things on the board and
    the only ones that move; everything else is flat and dim. */
-.k-n-far { opacity: 0.32; filter: saturate(0.35); }
+/* DEPTH RUNS ONE WAY: where you stand, then where you may go, then where you
+   have been, then the rest. The road ahead is always the bigger crowd, so it
+   has to be the quietest — but on a painting it must still be READ, which is
+   why the far coins keep their body and lose their colour rather than fading
+   into the land. */
+.k-n-far { opacity: 0.5; filter: saturate(0.3); }
+.k-n-far .k-n-disc { border-color: rgba(160,150,134,0.32); }
+/* …except the Regent. She is the thing the whole chart points at, and she is
+   visible from the trailhead by design. */
+.k-n-boss.k-n-far { opacity: 0.72; filter: saturate(0.6); }
 .k-n-done { opacity: 0.5; filter: saturate(0.25); }
 .k-n-done .k-n-disc { border-color: rgba(190,178,158,0.3); }
 .k-n-done .k-n-disc::after { content: '✓'; position: absolute; right: -3px; bottom: -3px;
@@ -1567,10 +1622,33 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    saying something else. */
 .k-n-here { opacity: 1; }
 .k-n-here .k-n-disc { border-color: #efe6d4; box-shadow: 0 0 0 3px rgba(239,230,212,0.16), 0 8px 20px rgba(0,0,0,0.7); }
-.k-n-pin { position: absolute; top: -24px; white-space: nowrap; font-size: 8px;
-  letter-spacing: 0.22em; color: #0d0c10; background: #efe6d4; padding: 3px 7px; border-radius: 2px; }
-.k-n-pin::after { content: ''; position: absolute; left: 50%; bottom: -4px; margin-left: -4px;
-  border: 4px solid transparent; border-top-color: #efe6d4; }
+/* ── THE PARTY TOKEN ──────────────────────────────────────────────────────
+   This was the words YOU ARE HERE on a white tag. The party is a party, so it
+   is the party — three coins standing on the stop they are standing on — and
+   because the token is a persistent element rather than part of the nodes'
+   innerHTML, it WALKS to the next stop instead of blinking there. */
+#k-map-you { position: absolute; z-index: 5; transform: translate(-50%, -50%);
+  display: flex; pointer-events: none;
+  transition: left 620ms cubic-bezier(0.35,0.05,0.2,1), top 620ms cubic-bezier(0.35,0.05,0.2,1);
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.85)); }
+#k-map-you img { width: 25px; height: 25px; border-radius: 50%; object-fit: cover;
+  object-position: 50% 16%; border: 1.4px solid rgba(240,207,146,0.9); background: #1b1820;
+  filter: brightness(1.4) contrast(1.1) saturate(0.9); }
+#k-map-you img + img { margin-left: -8px; }
+#k-map-you img:nth-child(1) { z-index: 3; }
+#k-map-you img:nth-child(2) { z-index: 2; }
+#k-map-you img:nth-child(3) { z-index: 1; }
+#k-map-you .k-you-down { filter: grayscale(1) brightness(0.5); border-color: rgba(154,144,128,0.5); }
+/* the lamp they are carrying — it is what lights the coin they stand on */
+#k-map-you::before { content: ''; position: absolute; left: 50%; top: 60%; width: 96px; height: 62px;
+  transform: translate(-50%, 0); border-radius: 50%; z-index: -1;
+  background: radial-gradient(closest-side, rgba(240,190,110,0.34), rgba(240,190,110,0) 72%); }
+/* THE CHART SPEAKS BY ITS MARKS; the words surface where a choice lives.
+   Eleven labels competing with a painting is how this screen ended up reading
+   as a list of stops — v2.2's chart showed a name only on the road you could
+   actually take, and the legend carried the vocabulary for the rest. */
+.k-n-word { opacity: 0; transition: opacity 220ms ease; }
+.k-n-open .k-n-word, .k-n-here .k-n-word, .k-n-pick .k-n-word, .k-n-boss .k-n-word { opacity: 1; }
 .k-n-pick { transform: translate(-50%, -50%) scale(1.12); }
 .k-n-pick .k-n-disc { background: #26212c; box-shadow: 0 0 0 3px rgba(224,192,132,0.28), 0 10px 24px rgba(0,0,0,0.7); }
 
@@ -1584,7 +1662,11 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   background: #16141b; border: 1.4px solid var(--tone, #9a9080); }
 .k-mc-ico svg { width: 22px; height: 22px; color: var(--tone, #b6ab97); }
 .k-mc-body { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.k-mc-body b { font-size: 16px; letter-spacing: 0.1em; color: #efe6d4; }
+.k-mc-body b { font-size: 15px; letter-spacing: 0.09em; color: #efe6d4;
+  display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+.k-mc-kind { font-style: normal; flex: none; font-size: 8.5px; letter-spacing: 0.2em;
+  color: var(--tone, #9a9080); font-weight: 400; padding: 2px 6px; border-radius: 2px;
+  border: 1px solid currentColor; opacity: 0.8; }
 .k-mc-body span { font-size: 12px; color: #9a9080; line-height: 1.28; }
 .k-mc-gain { flex: none; text-align: right; display: flex; flex-direction: column; }
 .k-mc-gain b { font-size: 19px; color: #e0a85c; }
@@ -2074,11 +2156,16 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 
 /* THE ROAD: standing on a stop and being able to reach it were near-twins —
    two pale rings side by side, told apart only by a pin floating 90px away.
-   Where you ARE is now a filled disc; where you MAY GO keeps the pulse. */
-.k-n-here .k-n-disc { background: linear-gradient(180deg, #f0e6d0, #d8c9a6);
-  border-color: #fff8e8; box-shadow: 0 0 0 3px rgba(239,230,212,0.2), 0 8px 22px rgba(0,0,0,0.75); }
-.k-n-here .k-n-disc svg { color: #1a1620; }
-.k-n-here .k-n-word { color: #efe6d4; }
+   Where you ARE became a filled cream disc; where you MAY GO kept the pulse.
+   REWRITTEN at Build 58: the three of them now STAND on the stop they are on,
+   which says it better than any disc treatment can — and a cream coin left the
+   place you have already been as the brightest thing on the chart, competing
+   with the two you can actually choose. Where you are is a settled coin with a
+   pale rim under the party's feet; the gold pulse is the only bright thing. */
+.k-n-here .k-n-disc { border-color: rgba(239,230,212,0.85);
+  box-shadow: 0 0 0 4px rgba(239,230,212,0.1), 0 8px 22px rgba(0,0,0,0.8); }
+.k-n-here .k-n-disc svg { color: #efe6d4; }
+.k-n-here .k-n-word { color: #cfc8ba; }
 
 /* THE FIRE: what you cannot afford dims its whole body, not just the price
    digit. At 2 embers every node still read as buyable because only a 1px
@@ -2221,9 +2308,9 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    Half the KIZUNA survives a fight, so the all-out stops being a thing that
    happens twice a run against the two biggest foes. It has to be visible on
    the road or it is a resource the player only ever meets mid-fight. */
-#k-map-kizuna { display: flex; align-items: center; gap: 6px; }
+#k-map-kizuna { display: flex; align-items: center; gap: 5px; flex: none; }
 .k-mkz-lbl { font-size: 8px; letter-spacing: 0.22em; color: #8d8474; }
-.k-mkz-bar { width: 64px; height: 5px; border-radius: 3px; overflow: hidden;
+.k-mkz-bar { width: 52px; height: 5px; border-radius: 3px; overflow: hidden;
   background: rgba(255,255,255,0.1); }
 .k-mkz-bar i { display: block; height: 100%; border-radius: 3px;
   background: linear-gradient(90deg, #9a7fc4, #e0c084); transition: width 420ms ease; }

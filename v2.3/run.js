@@ -50,6 +50,16 @@
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   }
   const pick = (a) => a[Math.floor(rr() * a.length) % a.length];
+  // seeded Fisher-Yates, on the run's own cursor — a shuffled lane order is
+  // what stops every road being the same eleven coins in the same eleven places
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(rr() * (i + 1)) % (i + 1);
+      const t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  const shuffled = (a) => shuffle(a.slice());
 
   // ═══════════════════════════════════════════════════════════════════════
   // THE TREE — what embers buy, and why a memory is worth taking
@@ -361,6 +371,57 @@
     ] },
   ];
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // THE CHART — where this descent is happening
+  // ═══════════════════════════════════════════════════════════════════════
+  // A road drawn on black is a flowchart. v2.2's map was a PAINTING with a road
+  // across it, and that is most of what made it read as a place you were going
+  // down into rather than a menu of six buttons. The six charts come back, one
+  // per run, seeded — so a run has a face, and two runs are two descents rather
+  // than the same descent twice.
+  //
+  // A region is a NAME and a PAINTING and nothing else. No bias, no modifier,
+  // no extra rule to learn: the slice's job here is atmosphere and identity,
+  // and a region that also changed the maths would be a second system smuggled
+  // in behind a backdrop.
+  const REGIONS = [
+    { id: 'lament', name: 'THE LAMENT', art: 'map-lament',
+      line: 'Islands of a city that stopped mid-sentence.' },
+    { id: 'silence', name: 'THE SILENCE', art: 'map-silence',
+      line: 'A drowned garden. The tree is still holding something up.' },
+    { id: 'stillness', name: 'THE STILLNESS', art: 'map-stillness',
+      line: 'Stairs going down into a light nobody lit.' },
+    { id: 'rust', name: 'THE RUST', art: 'map-rust',
+      line: 'Scaffolds the diggers left, still bolted to nothing.' },
+    { id: 'cinders', name: 'THE CINDERS', art: 'map-cinders',
+      line: 'Something under the rock is still burning.' },
+    { id: 'deep', name: 'THE DEEP', art: 'map-deep',
+      line: 'Cold light in the stone. It answers when you walk.' },
+  ];
+  // Hashed rather than `seed % 6`, so consecutive seeds (which is what a sweep
+  // and a tester both use) do not walk the list in order.
+  function regionFor(seed) {
+    let h = ((seed >>> 0) ^ 0x9e3779b9) >>> 0;
+    h = Math.imul(h ^ (h >>> 15), 0x85ebca6b) >>> 0;
+    h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
+    return REGIONS[((h ^ (h >>> 16)) >>> 0) % REGIONS.length];
+  }
+  const regionOf = (id) => REGIONS.find(r => r.id === id) || REGIONS[0];
+
+  // A STOP HAS A NAME. "BATTLE · BATTLE · BATTLE" down a chart is a difficulty
+  // list; a road you are walking has places on it. The kind word stays as the
+  // functional read under the mark — the name is what the stop calls itself
+  // when you pick it up, which is the only place there is room to say it.
+  const NAMES = {
+    fight: ['ASHFALL ROAD', 'THE HOLLOW CHOIR', 'MOURNING FIELD', 'COLD PROCESSION',
+            'THE GREY MILE', 'THE BROKEN CHANCEL', 'THE WEEPING STAIR', 'SILENT MARCH',
+            'THE LOW GALLERY', 'A STAIR WITHOUT A RAIL'],
+    elite: ['THE WARDEN STIRS', 'WHERE THE STRONG FELL', 'THE GORGE OF NAMES'],
+    camp:  ['A FIRE SOMEBODY LEFT', 'THE LEE OF THE WALL', 'THE LAST DRY STONE'],
+    story: ['THE QUIET STRETCH', 'A PLACE TO SIT DOWN', 'SOMEWHERE OUT OF THE WIND'],
+    boss:  ['THE MOURNING REGENT'],
+  };
+
   // ── what a stop can be ────────────────────────────────────────────────────
   // Four kinds, and each one is a different SHAPE at a glance: blades cross,
   // a crown sits on a skull, a flame stands alone, an eye opens. Colour is the
@@ -383,7 +444,7 @@
              blurb: 'The end of the descent. She has been singing the whole way down.' },
   };
 
-  // The column plan. Fixed, not procedural — a six-stop road is short enough
+  // The column plan. Authored, not procedural — a six-stop road is short enough
   // that authored pacing beats generated pacing every time, and it means the
   // shape of a run is a thing that can be reasoned about and tested.
   //   0  two easy fights: the opening is a choice, but not yet a gamble
@@ -392,13 +453,23 @@
   //   3  elite or fight: the gamble, placed where a full purse can answer it
   //   4  campfire or memory: no fighting on the Regent's doorstep
   //   5  the Regent
+  //
+  // WHAT CHANGED AT BUILD 58. The plan used to name TWO kinds per column and
+  // put them in the same lane every time, so every road in the game was the
+  // same eleven coins in the same eleven places and the only thing a seed
+  // moved was which diagonal joined them. A column now names the kinds it
+  // MUST offer plus one it MAY, shuffles which lane each falls in, and jitters
+  // where the coin actually sits. The pacing guarantees are untouched — the
+  // `must` list is the old plan — so the elite is still at column 3, the
+  // Regent's doorstep still has no fight on it, and a memory is still the only
+  // thing that opens a tier.
   const PLAN = [
-    ['fight', 'fight'],
-    ['fight', 'story'],
-    ['camp', 'fight'],
-    ['elite', 'fight'],
-    ['camp', 'story'],
-    ['boss'],
+    { must: ['fight', 'fight'], may: null },
+    { must: ['fight', 'story'], may: 'fight' },
+    { must: ['camp', 'fight'],  may: 'story' },
+    { must: ['elite', 'fight'], may: 'fight' },
+    { must: ['camp', 'story'],  may: null },
+    { must: ['boss'],           may: null },
   ];
   // Which foe stands at a fight node, by depth. The ladder is legible: you
   // meet the Husk before you meet the Wraith, always.
@@ -409,57 +480,99 @@
   // 932×430 with a header to clear: the road runs left to right across the
   // middle band, which is the same axis the fight is fought along, so "forward"
   // means the same thing on both screens.
-  // The band the road runs through has to clear BOTH the header (74px) and the
-  // confirmation card (62px tall, 20px off the floor → its top edge is y=348).
-  // A stop is a 52px disc plus a word beneath it plus, for the one you are
-  // standing on, a pin above it — so the lowest row can reach y+42 and the
-  // highest can reach y-50.
-  const MAP_X0 = 104, MAP_X1 = 838, MAP_Y = 224, MAP_SPREAD = 66;
-  function nodeXY(col, ix, n) {
-    const x = MAP_X0 + (MAP_X1 - MAP_X0) * (col / (COLS - 1));
-    const y = n === 1 ? MAP_Y : MAP_Y + (ix === 0 ? -MAP_SPREAD : MAP_SPREAD);
-    return { x, y };
+  //
+  // The band has to clear BOTH the header (74px) and the confirmation card. A
+  // stop is a 52px disc plus a word beneath it, and the party stands above the
+  // one you are on — so the highest lane can reach y-56 and the lowest y+42.
+  // Three lanes at ±64 around 218 with ±8 of jitter lands inside exactly the
+  // envelope the two-lane road already proved: 146 to 290.
+  const MAP_X0 = 108, MAP_X1 = 836, MAP_Y = 218, MAP_SPREAD = 64;
+  const JIT_X = 14, JIT_Y = 8;
+  function laneY(ix, n) {
+    if (n === 1) return MAP_Y;
+    if (n === 2) return MAP_Y + (ix === 0 ? -MAP_SPREAD : MAP_SPREAD);
+    return MAP_Y + (ix - 1) * MAP_SPREAD;
   }
 
   // ── building a road ───────────────────────────────────────────────────────
   function buildMap(seed) {
     rseed(seed);
     const nodes = [];
-    PLAN.forEach((kinds, col) => {
+    // names are dealt, not drawn with replacement — two ASHFALL ROADs on one
+    // chart is the tell that the places are decoration rather than places
+    const bag = {};
+    Object.keys(NAMES).forEach(k => { bag[k] = shuffled(NAMES[k]); });
+    const nameFor = (kind) => (bag[kind] && bag[kind].length ? bag[kind].pop() : KIND[kind].word);
+
+    PLAN.forEach((col, c) => {
+      // THE THIRD LANE IS THE VARIETY. A column that can widen does so about
+      // half the time, which is what makes one road three coins across at the
+      // fork and another two — and makes the mid-road worth looking at twice.
+      const kinds = col.must.slice();
+      if (col.may && rr() < 0.5) kinds.push(col.may);
+      shuffle(kinds);                       // …and which lane each falls in
       kinds.forEach((kind, ix) => {
-        const p = nodeXY(col, ix, kinds.length);
-        const n = { id: col + ':' + ix, col, ix, kind, x: p.x, y: p.y, to: [] };
+        const x = MAP_X0 + (MAP_X1 - MAP_X0) * (c / (COLS - 1));
+        const y = laneY(ix, kinds.length);
+        // the wander. The Regent is the one fixed point on the chart — she is
+        // the thing the whole road is pointing at, so she does not drift.
+        const jx = kind === 'boss' ? 0 : Math.round((rr() - 0.5) * 2 * JIT_X);
+        const jy = kind === 'boss' ? 0 : Math.round((rr() - 0.5) * 2 * JIT_Y);
+        const n = { id: c + ':' + ix, col: c, ix, kind, name: nameFor(kind),
+                    x: x + jx, y: y + jy, to: [] };
         if (kind === 'fight' || kind === 'elite' || kind === 'boss') {
-          n.foe = kind === 'elite' ? 'revenant' : pick(FOE_BY_COL[col] || ['wraith']);
+          n.foe = kind === 'elite' ? 'revenant' : pick(FOE_BY_COL[c] || ['wraith']);
         }
         nodes.push(n);
       });
     });
     const at = (col) => nodes.filter(n => n.col === col);
     // EVERY NODE HAS A WAY IN AND A WAY OUT, and at least one crossing per
-    // column. Without the forced crossing the road degenerates into two
-    // parallel corridors, where the only decision in the whole run is the
-    // first one — which is exactly the failure StS's map generator guards
-    // against with the same rule.
+    // column. Without the forced crossing the road degenerates into parallel
+    // corridors, where the only decision in the whole run is the first one —
+    // which is exactly the failure StS's map generator guards against with the
+    // same rule.
     for (let c = 0; c < COLS - 1; c++) {
       const a = at(c), b = at(c + 1);
-      a.forEach((n, i) => n.to.push(b[Math.min(i, b.length - 1)].id));
+      // the straight-ahead road: each lane meets the lane opposite it. With
+      // uneven lane counts "opposite" is a ratio, not an index — three lanes
+      // feeding two must not all pile into lane 1.
+      const near = (i) => a.length < 2 ? 0
+        : Math.round(i * (b.length - 1) / (a.length - 1));
+      a.forEach((n, i) => n.to.push(b[near(i)].id));
       if (b.length > 1 && a.length > 1) {
         let crossed = false;
-        if (rr() < 0.55) { a[0].to.push(b[1].id); crossed = true; }
-        if (rr() < 0.55) { a[1].to.push(b[0].id); crossed = true; }
+        a.forEach((n, i) => {
+          const alt = b.filter((_, j) => j !== near(i));
+          // two roads out of a stop is the most a glance can hold, so a node
+          // that already forks does not fork again
+          if (alt.length && n.to.length < 2 && rr() < 0.55) {
+            n.to.push(pick(alt).id); crossed = true;
+          }
+        });
         // THE FALLBACK HAS TO ACTUALLY CROSS. It used to pick a source and a
-        // destination independently, so two of its four outcomes were the
+        // destination independently, so half its outcomes were the
         // straight-ahead edge the base connection had already added — silently
         // absorbed by the Set. The forced crossing therefore only crossed half
-        // the time it fired, and 34% of seeds ended up with at least one
-        // column that was two parallel corridors: the exact failure this rule
-        // exists to prevent. The single-seed check in road.test.cjs passed on
-        // luck. Pick the source, then take the OTHER lane, always.
-        if (!crossed) { const from = rr() < 0.5 ? 0 : 1; a[from].to.push(b[1 - from].id); }
+        // the time it fired, and 34% of seeds ended up with a column that was
+        // two parallel corridors. Pick the source, then take a DIFFERENT lane.
+        if (!crossed) {
+          const i = Math.floor(rr() * a.length) % a.length;
+          const alt = b.filter((_, j) => j !== near(i));
+          if (alt.length) a[i].to.push(pick(alt).id);
+        }
       } else if (b.length === 1) {
         a.forEach(n => { if (n.to.indexOf(b[0].id) < 0) n.to.push(b[0].id); });
       }
+      // NO ORPHANS. A third lane nobody's `near` maps onto is a coin painted
+      // on the chart with no road to it — the one failure a wider column can
+      // introduce that a two-lane column never could.
+      b.forEach((t, j) => {
+        if (a.some(n => n.to.indexOf(t.id) >= 0)) return;
+        let src = 0, best = Infinity;
+        a.forEach((_, i) => { const d = Math.abs(near(i) - j); if (d < best) { best = d; src = i; } });
+        a[src].to.push(t.id);
+      });
       a.forEach(n => { n.to = [...new Set(n.to)]; });
     }
     return nodes;
@@ -475,7 +588,7 @@
   function freshRun(seed) {
     const s = (seed != null ? seed : (Date.now() >>> 0)) || 1;
     return {
-      seed: s, map: buildMap(s), at: null, path: [], stop: 0,
+      seed: s, region: regionFor(s).id, map: buildMap(s), at: null, path: [], stop: 0,
       embers: 0, nodes: [],                       // the tree nodes this run has kindled
       kizuna: 0,                                  // what the three of them carry
       bonds: { 'ash|elin': 0, 'ash|mira': 0, 'elin|mira': 0 },
@@ -591,6 +704,7 @@
     const wrap = $('k-map-nodes'), edges = $('k-map-edges');
     if (!wrap || !edges) return;
     const open = reachable();
+    paintChart();
 
     // EDGES FIRST, and in three weights. The road you walked is solid gold; the
     // roads you may take now are bright; everything else is a rumour. Three
@@ -622,10 +736,9 @@
       return '<button type="button" class="' + cls.join(' ') + '" data-node="' + n.id + '"'
         + ' style="left:' + n.x + 'px; top:' + n.y + 'px"'
         + (isOpen ? '' : ' tabindex="-1"')
-        + ' aria-label="' + k.word + '">'
+        + ' aria-label="' + (n.name || k.word) + ' — ' + k.word + '">'
         + '<span class="k-n-disc">' + svgIcon(n.kind) + '</span>'
         + '<span class="k-n-word">' + k.word + '</span>'
-        + (isHere ? '<span class="k-n-pin">YOU ARE HERE</span>' : '')
         + '</button>';
     }).join('');
 
@@ -633,8 +746,13 @@
       b.addEventListener('click', (e) => { e.stopPropagation(); tapNode(b.dataset.node); });
     });
 
-    $('k-map-prog').textContent = RUN.over ? (RUN.over === 'win' ? 'THE DESCENT IS ENDED' : 'THE ROAD ENDS HERE')
-      : 'STOP ' + Math.min(RUN.stop + 1, STOPS) + ' OF ' + STOPS;
+    // THE HEADER SAYS WHERE, THEN HOW FAR. A run that opens on "STOP 1 OF 6"
+    // and nothing else is a progress bar; a run that opens on the name of the
+    // place it is happening in is a descent into somewhere.
+    const reg = regionOf(RUN.region);
+    $('k-map-prog').innerHTML = '<i>' + reg.name + '</i>'
+      + (RUN.over ? (RUN.over === 'win' ? 'THE DESCENT IS ENDED' : 'THE ROAD ENDS HERE')
+                  : 'STOP ' + Math.min(RUN.stop + 1, STOPS) + ' OF ' + STOPS);
     $('k-embers-n').textContent = RUN.embers;
     const kz = $('k-map-kizuna'), kzf = $('k-map-kz-fill'), kzn = $('k-map-kz-n');
     if (kz && kzf && kzn) {
@@ -648,8 +766,70 @@
     // in index.html, which is how it ended up being the campfire's teardrop
     const spark = $('k-ember-ico');
     if (spark && !spark.dataset.drawn) { spark.innerHTML = svgIcon('ember'); spark.dataset.drawn = '1'; }
+    renderKey();
+    renderYou();
     renderRoster();
     renderCard();
+  }
+
+  // ── the chart the road is drawn on ───────────────────────────────────────
+  // The painting is set from the run rather than baked into the markup, and
+  // only when it actually changes: swapping the src every render would restart
+  // the decode on a 1672px image every time a node was tapped.
+  function paintChart() {
+    const img = document.querySelector('#k-map-bg img');
+    const reg = regionOf(RUN.region);
+    const src = '../art/' + reg.art + '.webp';
+    if (img && img.getAttribute('src') !== src) img.setAttribute('src', src);
+    const say = $('k-map-say');
+    if (say && say.textContent !== reg.line) say.textContent = reg.line;
+  }
+
+  // THE MARKS NAME THEMSELVES ONCE, off to the side, so the chart does not have
+  // to. Eleven words competing with a painting is how the road ended up
+  // reading as a spreadsheet of stops; the legend is what buys the right to
+  // show a word only where there is a choice to make.
+  function renderKey() {
+    const key = $('k-map-key');
+    if (!key || key.dataset.drawn) return;
+    key.innerHTML = ['fight', 'elite', 'camp', 'story', 'boss'].map(id => {
+      const k = KIND[id];
+      return '<span class="k-mk-row k-tone-' + k.tone + '">'
+        + '<i>' + svgIcon(id) + '</i><b>' + k.word + '</b></span>';
+    }).join('');
+    key.dataset.drawn = '1';
+  }
+
+  // WHERE THE THREE OF THEM ARE STANDING. This was the words YOU ARE HERE on a
+  // tag above the stop. The party is a party, so it is the party: three coins
+  // standing on the coin, and they WALK to the next one — the token is a
+  // persistent element rather than part of the nodes' innerHTML, which is the
+  // whole reason its left/top can transition instead of snapping.
+  function renderYou() {
+    const you = $('k-map-you');
+    if (!you) return;
+    const n = RUN.at ? node(RUN.at) : null;
+    if (!n) { you.classList.add('k-hidden'); you.dataset.on = ''; return; }
+    if (!you.dataset.drawn) {
+      const art = { ash: 'kai', elin: 'elin', mira: 'mira' };
+      you.innerHTML = Object.keys(art).map(id =>
+        '<img src="../art/' + art[id] + '.webp" alt="" data-hero="' + id + '">').join('');
+      you.dataset.drawn = '1';
+    }
+    // arriving on the road for the first time is a placement, not a walk
+    const warp = you.classList.contains('k-hidden') || !you.dataset.on;
+    if (warp) { you.style.transition = 'none'; }
+    you.classList.remove('k-hidden');
+    you.style.left = n.x + 'px';
+    you.style.top = (n.y - 46) + 'px';
+    you.dataset.on = n.id;
+    if (warp) { void you.offsetWidth; you.style.transition = ''; }
+    Object.keys(MAXHP).forEach(id => {
+      const img = you.querySelector('[data-hero="' + id + '"]');
+      if (!img) return;
+      const hp = RUN.hp && RUN.hp[id] != null ? RUN.hp[id] : MAXHP[id];
+      img.classList.toggle('k-you-down', hp <= 0);
+    });
   }
 
   function renderRoster() {
@@ -713,8 +893,14 @@
     const n = node(_pick), k = KIND[n.kind];
     const foe = n.foe && window.K && window.K.FOES ? window.K.FOES[n.foe] : null;
     card.className = 'k-map-card k-tone-' + k.tone;
+    // THE STOP NAMES ITSELF, AND THEN SAYS WHAT IT IS. The title used to be the
+    // kind word or the foe's name, so three of the six stops on a road were all
+    // called BATTLE and the chart had no places on it. The name is the title
+    // now; the kind is a chip beside it, and the foe is named in the price line
+    // where the thing you are being told is what it costs and pays.
     card.innerHTML = '<span class="k-mc-ico">' + svgIcon(n.kind) + '</span>'
-      + '<div class="k-mc-body"><b>' + (foe ? foe.name : k.word) + '</b>'
+      + '<div class="k-mc-body"><b>' + (n.name || k.word)
+      + '<em class="k-mc-kind">' + (foe ? foe.name : k.word) + '</em></b>'
       + '<span>' + k.blurb + '</span></div>'
       + '<div class="k-mc-gain">' + gainText(n) + '</div>'
       + '<button type="button" id="k-map-go" class="k-mc-go">TRAVEL</button>';
@@ -1478,7 +1664,7 @@
     travel, tapNode, newRun, clear,
     screen,
     render: renderMap,
-    TREE, treeNode, kindle, tapMemory, focusMemory, sitDown, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
+    REGIONS, regionOf, TREE, treeNode, kindle, tapMemory, focusMemory, sitDown, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
     pendingBonds, openBondScene, takeBond, confirmSwap, renderSwap,
     WAKES, wakeOffer, takeWake, renderWake, wakeDef, wakePair,
     SIGIL_BY_PAIR, sigilFor, renderMark, placeSigil, openMark, leaveMark,

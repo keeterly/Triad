@@ -1051,3 +1051,121 @@ the campfire's deal animation. The rule is unchanged; the measurement waits for
 the board to stand still, and `kzClear` now reports which clause broke and which
 element it hit, because a bare `false` on a state-dependent collision cannot be
 reproduced from the log.
+
+---
+
+## Build 58 — the road becomes a chart
+
+> *"The world map needs work. In v2.2 the backdrop helped and the variety of
+> paths helped. The UX and UI doesn't read JRPG roguelite."*
+
+Three separate things were true at once, and each has its own fix.
+
+### 1. It was a road on black
+
+v2.2's world map was a PAINTING with a road across it. v2.3's was a flowchart:
+`bg-descent.webp` at `brightness(0.42)` under a veil that reached 0.78 in the
+middle, which is a black rectangle with eleven coins on it. The painting was
+technically present and doing nothing.
+
+The six charts come back — `map-lament`, `map-silence`, `map-stillness`,
+`map-rust`, `map-cinders`, `map-deep`, already painted, already in the same
+language as the bestiary — and one is chosen per run from the seed. The land is
+lit now (`brightness(0.6)`), and the scrims moved to the EDGES where the header,
+the legend and the card actually sit, so the band the road runs through keeps
+its picture.
+
+A region is a **name and a painting and nothing else**. No bias, no modifier, no
+extra rule: the slice's job here is atmosphere and run identity, and a region
+that also changed the maths would be a second system smuggled in behind a
+backdrop. The header names it, and one line under the title says what it is.
+
+That alone is what makes two runs feel like two descents rather than the same
+descent twice.
+
+### 2. Every road was the same road
+
+The plan named two kinds per column and put them in the same lane every time.
+Every generated road in the game was the same eleven coins in the same eleven
+places; the only thing a seed moved was which diagonal joined them.
+
+Four things move now:
+
+- **Width.** A column names the kinds it MUST offer plus one it MAY, and takes
+  the third about half the time. A fork can be two stops wide or three.
+- **Lane order.** Which kind falls in which lane is shuffled, so the memory is
+  not always on the bottom rail.
+- **Position.** Each coin is jittered ±14px across and ±8px down off the grid,
+  so the road wanders instead of running on two straight rails. The Regent does
+  not drift — she is the thing the chart is pointing at.
+- **Crossings.** "Straight ahead" is a RATIO now, not `min(i, len-1)`; a node
+  forks at most once (two roads out is the most a glance holds); and a new
+  orphan pass catches the one failure a wider column can introduce that a
+  two-lane column never could — a third lane nobody's road reaches.
+
+The authored pacing is untouched. The `must` lists ARE the old plan, and the
+guarantees are now swept over 300 seeds rather than asserted on one: exactly one
+elite, at column 3; two fires; an early memory on every road; nothing but a fire
+or a memory on the Regent's doorstep.
+
+### 3. It didn't read as a place
+
+- **A stop has a name.** `BATTLE · BATTLE · BATTLE` down a chart is a difficulty
+  list. Names are dealt without replacement per run, so no chart repeats one,
+  and the name is the confirmation card's title — the kind becomes a chip beside
+  it and the foe is named there too, where what you are being told is what it
+  costs and pays.
+- **The chart stays quiet.** Words surface only on the stops you can take, where
+  you are, and the Regent — v2.2's rule. Eleven labels competing with a painting
+  is most of what made this read as a list.
+- **A legend**, bottom right, naming the five marks once so the chart doesn't
+  have to. Bottom RIGHT because the first column's coins reach y≈332 at x≈108,
+  and once they jitter that is the corner the legend was in.
+- **The party walks the road.** `YOU ARE HERE` on a white tag is gone. The three
+  of them stand on the stop they are standing on, and because the token is a
+  persistent element rather than part of the nodes' innerHTML, its `left`/`top`
+  transition — it walks to the next stop instead of blinking there. A downed
+  hero greys out in the token.
+- **A coin, not a ring.** On black a 1.6px ring over a flat fill was enough; on
+  a painting it was a hole you could see the land through. The disc is lit from
+  its own top edge and sits in a pool of shadow, so it separates from bright
+  rubble and from black sky alike. The roads carry their own drop shadow for the
+  same reason.
+
+### The header had run out of room
+
+Adding a region name and a KIZUNA carry to a header that already held a title,
+a party, an ember count and a mute button overflowed a 932px phone: the title
+wrapped onto the flavour line and the mute button walked off the right edge.
+The party was the thing with slack in it — three heroes laid out as
+portrait·number·bar was 468px — so the roster stacks its number over its bar
+beside the portrait. That is ~200px back, and it reads as a JRPG party strip
+besides.
+
+### Checks whose rules moved, and one that had gone wrong
+
+- *"every stop but the last is a choice of two"* → **of two or three**. What has
+  not moved is that every stop but the last is a CHOICE, which is what the check
+  was always about.
+- *"the two lanes cross in EVERY column"* — the sweep's own definition of
+  "straight ahead" was `min(i, len-1)`, which with three lanes feeding two
+  counts lanes 1 and 2 as crossings. A genuinely bare column could have passed
+  it. Now a ratio, matching the generator.
+- *"only the stops you may take are bright"* — the Regent is deliberately
+  visible from the trailhead (there is a check that says so), so she is now
+  NAMED as the exception rather than allowed to quietly break the rule.
+- *"no stop hides behind the card"* tested one seed's layout. The coins jitter
+  now, so it is swept over 240 roads — exactly, without rendering 240 maps, by
+  measuring one node's real extent around its centre and applying that envelope
+  to every seed's stored x/y. The furniture it must clear includes the legend.
+- New: the chart is a real region's painting at a brightness that leaves it a
+  picture; the header names the same place the picture is of; all six charts
+  turn up across 200 seeds; every stop has a name and no chart repeats one; the
+  legend covers every mark on the road and the rest of the chart stays quiet;
+  width, lane order, coin positions and crossings all move between seeds.
+
+### Still open
+
+The road's vocabulary is still five kinds. v2.2 had events and recruits as
+well, and a MYSTERY stop is the obvious next one — but that is content, not
+presentation, so it is not in this build.
