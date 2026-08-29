@@ -679,10 +679,28 @@
   // and, between equals, one the run has not already heard.
   function pickReckoning(deeds, live) {
     if (!deeds) return null;
-    const seen = RUN.reckSeen || [];
-    const able = RECKONINGS
+    // The selector is a pure read of the ledger — it can be asked the question
+    // outside a run (a check, a sim) and should answer, not throw.
+    const seen = (RUN && RUN.reckSeen) || [];
+    // A CAST HAS TO NAME TWO REAL PEOPLE. This filter checked the shape — two
+    // entries, not the same one twice — and never that either entry was
+    // somebody. A cast of ['ash', undefined] is length 2 with distinct members,
+    // so it passed, and openReckoning then read `.n` off nothing and took the
+    // whole hand-off down with it: the fight ended, the reckoning never opened,
+    // and the road was handed a board it could not leave. Eight soak runs never
+    // saw it; sixteen did, twice.
+    const REAL = ['ash', 'elin', 'mira'];
+    const shaped = RECKONINGS
       .map(r => ({ r, cast: r.cast(deeds, live) }))
       .filter(x => x.cast && x.cast.length === 2 && x.cast[0] !== x.cast[1]);
+    const able = shaped.filter(x => x.cast.every(id => REAL.indexOf(id) >= 0));
+    // …and it says which one it threw out. A guard that silently drops a
+    // malformed cast fixes the crash and hides the thing that built it.
+    for (const x of shaped) {
+      if (able.indexOf(x) < 0) {
+        try { console.warn('reckoning ' + x.r.id + ' cast names a stranger: ' + JSON.stringify(x.cast)); } catch (e) {}
+      }
+    }
     if (!able.length) return null;
     const top = Math.max(...able.map(x => x.r.weight));
     const best = able.filter(x => x.r.weight === top);

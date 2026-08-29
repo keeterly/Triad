@@ -1266,6 +1266,41 @@ const { boot } = require('./harness.cjs');
       dying.phase === 'VICTORY' && !dying.held && dying.falling && !/k-foe-down/.test(dying.before),
       JSON.stringify(dying));
 
+    // A PAIR CARD IS NOT A PERSON. Pair cards carry owner ids like 'ash|elin',
+    // and dealToBoss wrote whatever it was handed straight into the ledger's
+    // `finisher` — so when a pair card landed the kill, THE LAST BLOW built a
+    // cast naming somebody who does not exist, openReckoning read `.n` off
+    // nothing, and the whole hand-off died: the fight over, the conversation
+    // never opening, the road left holding a board with no way out. Eight soak
+    // runs never reached it. Sixteen did, twice. The ledger names a person or
+    // nobody now, and the reckoning refuses a cast that names a stranger.
+    const pairKill = await J(() => {
+      window.K.startCombat({ seed: 3 });
+      // …and the brink has to be REAL, not asked for. A first version called
+      // _markBrink on a hero at full health, which does nothing — so THE LAST
+      // BLOW had no second name, never got selected, and the reckoning half of
+      // this check passed without ever building the malformed cast it exists to
+      // catch. Hurt her first, then mark it.
+      window.K.state().heroes.elin.hp = 2;
+      window.K._markBrink('elin');
+      window.K.state().boss.hp = 1;
+      window.K._dealToBoss(40, 'hit', 'ash|elin');       // the two of them, together
+      const d = window.K.state().deeds;
+      const REAL = ['ash', 'elin', 'mira'];
+      let hit = null, threw = null;
+      try { hit = window.R.pickReckoning(d, REAL); } catch (e) { threw = String(e.message); }
+      return { finisher: d.finisher, finishPair: d.finishPair, lastHit: d.lastHit, threw,
+               brink: d.brink,
+               cast: hit ? hit.cast : null,
+               castReal: hit ? hit.cast.every(id => REAL.indexOf(id) >= 0) : true };
+    });
+    check('DEEDS: a pair card that lands the kill is recorded as the pair, never as a person who is not there',
+      pairKill.finisher === null && pairKill.finishPair === 'ash|elin' && !pairKill.threw,
+      JSON.stringify(pairKill));
+    check('RECK: a reckoning never casts somebody who does not exist',
+      pairKill.castReal && !pairKill.threw && pairKill.brink.indexOf('elin') >= 0,
+      JSON.stringify(pairKill));
+
     check('DEEDS: striking as one, standing at a quarter, going down, and who swung last are all recorded',
       ledger.afterAllOut === 1
       && ledger.brinked.join() === 'mira' && ledger.fellen.join() === 'mira'

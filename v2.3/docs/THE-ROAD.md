@@ -1372,3 +1372,54 @@ Worth recording, because three plausible fixes died here:
 
 Measure, then act. Two of the three "obvious" fixes this pass started with would
 have made the game worse.
+
+---
+
+## Build 68 — a pair card is not a person
+
+The 16-run soak (eight had been the habit) turned up a crash the whole suite had
+been walking past:
+
+```
+onEnd failed TypeError: Cannot read properties of undefined (reading 'n')
+  at openReckoning (run.js:1337)
+```
+
+**What it was.** Pair cards carry owner ids like `ash|elin`, and `dealToBoss`
+wrote whatever it was handed straight into the deeds ledger as the finisher. So
+when a pair card landed the killing blow, THE LAST BLOW built a cast naming
+somebody who does not exist, `openReckoning` read `.n` off nothing, and the
+hand-off died inside its own try/catch: the fight over, the conversation never
+opening, the road left holding a board with no way out of it.
+
+It needed a pair card to land the kill **and** a hero on the brink, which is why
+eight runs never saw it and sixteen saw it twice.
+
+**Two layers, as usual.** At the source, the ledger records a person or nobody —
+when the two of them ended it together, `finishPair` says so and `finisher` stays
+null. At the gate, `pickReckoning` checked the *shape* of a cast (two entries,
+not the same one twice) and never that either entry was somebody; it now requires
+both to be real, and warns with the reckoning id and the offending cast when it
+throws one out, because a guard that silently drops a malformed cast fixes the
+crash and hides whatever built it.
+
+**The check that nearly shipped hollow.** The reproduction marked Elin at the
+brink — on a hero at full health, where `markBrink` correctly does nothing. THE
+LAST BLOW therefore had no second name, was never selected, and the reckoning half
+of the check passed without ever building the malformed cast it exists to catch.
+Hurt her first, then mark it. Against the old code both checks now go red on
+exactly the right value: `cast: ["ash|elin", "elin"]`.
+
+`pickReckoning` also stopped throwing when asked outside a run. It is a pure read
+of the ledger; a check or a sim should be able to ask it the question.
+
+### The soak's own cap
+
+While chasing that, the soak reported `camp did not open the fire` on a seed that
+had queued five bond scenes in front of a campfire. That was the harness: it
+drained at most four before calling the fire stuck. There are only three pairs, so
+four looked like plenty — but a pair whose bond crosses two thresholds queues
+twice, and after four straight wins each paying a reckoning, five deep is an
+ordinary Tuesday. It drains until the fire opens now, and prints the deepest queue
+it saw, because *how many conversations stand between the player and the fire* is
+a pacing fact worth watching rather than a number to bound and forget.

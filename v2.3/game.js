@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 67;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 68;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -619,8 +619,17 @@ function combatSummary(p) {
 // them ever struck as one. Nothing here is inferred and nothing is invented.
 function freshDeeds() {
   return {
-    finisher: null,      // who landed the killing blow
+    finisher: null,      // who landed the killing blow — a PERSON, or nobody
     lastHit: null,       // …tracked continuously, because the kill is not announced
+    // A PAIR CARD IS NOT A PERSON. Its owner id is 'ash|elin', and it used to
+    // go into `finisher` exactly as a hero's would — so THE LAST BLOW handed
+    // the reckoning a cast naming somebody who does not exist and the hand-off
+    // died reading a name off nothing: the fight over, the conversation never
+    // opening, the road holding a board with no way out of it. Eight soak runs
+    // never saw it; sixteen did, twice. When the two of them ended it together
+    // that is what these say, and `finisher` stays null.
+    lastPair: null,
+    finishPair: null,
     shields: [],         // [{by, for}] — an intercession that actually took a blow
     stitches: {},        // pairKey → how many times one moved off the other
     brink: [],           // heroes who dropped to a quarter of their health or less
@@ -985,7 +994,13 @@ function dealToBoss(n, why, who) {
   if (C.boss.broken) n = Math.round(n * 1.25);   // BROKEN: +25% damage taken
   // WHO SWUNG LAST. Recorded on every blow rather than at the kill, because
   // nothing tells this function that the blow it is applying is the last one.
-  if (C.deeds && who) C.deeds.lastHit = who;
+  // …and a PAIR CARD IS NOT A PERSON: its owner id is 'ash|elin'. The ledger
+  // records a person or nobody; the pair key goes in its own field. (See
+  // freshDeeds for what this crash looked like from the road.)
+  const solo = who && who.indexOf('|') < 0 ? who : null;
+  if (C.deeds && who) {
+    if (solo) C.deeds.lastHit = solo; else C.deeds.lastPair = who;
+  }
   C.boss.hp = Math.max(0, C.boss.hp - n);
   if (why !== 'allout') kizunaGain(n * KIZUNA_PER_DAMAGE);   // the all-out cannot feed itself
   if (_dmgBatch) { _dmgBatch.n += n; if (why) _dmgBatch.why = why; fxStrikeBoss(n, why); }
@@ -993,7 +1008,10 @@ function dealToBoss(n, why, who) {
   renderBossHud();          // the Regent's bar moves when she is hit, not later
   checkBossPhase();
   if (C.boss.hp <= 0) {
-    if (C.deeds && !C.deeds.finisher) C.deeds.finisher = who || C.deeds.lastHit;
+    if (C.deeds && !C.deeds.finisher && !C.deeds.finishPair) {
+      C.deeds.finisher = solo || C.deeds.lastHit || null;
+      if (!C.deeds.finisher) C.deeds.finishPair = who || C.deeds.lastPair || null;
+    }
     setPhase('VICTORY');
   }
 }
