@@ -153,10 +153,43 @@ The `turns per run` column is what makes this a fix rather than a coincidence:
 it is flat across all three bots, so the improvement is not "fights got longer",
 it is "skill now buys the thing skill should buy".
 
-### 3.1c The skill cliff is very steep — STILL OPEN, and now the worst thing here
+### 3.1c The skill cliff — flattened once, at Build 65, and not finished
 
-7% / 43% / 93% win rate across the three bots, unmoved by Builds 62 and 63
-(neither touched combat, which is the point of measuring them). A new player, parrying at
+```
+  run win rate        clumsy   ordinary   sharp
+  Build 64                7%        43%     93%
+  Build 65               21%        57%    100%
+```
+
+Every guess about WHY it was steep was wrong until it was measured, and the
+sequence is worth keeping because two of the wrong answers were the obvious
+ones.
+
+**It was not the road.** A clumsy run walks all six stops at 88 of 112 health
+and then loses to the Regent — twelve wipes out of seventeen, at the last
+screen of a fifteen-minute run.
+
+**It was not her damage.** `regent.probe` split her in two at the health players
+actually arrive with. Her BLOWS — the half a player can answer — range 44 to 5
+across skill, a tenfold spread, exactly as intended. Her DIRGE barely moved:
+54 / 50 / 42, because it is a tax on TURNS and every skill takes about eight of
+them. At dirge 4 the Regent's threat was mostly a flat toll that ignored the
+player entirely, and it was **61% of the health they arrive with**. That is the
+same structural bug as 3.1b: a mechanic paid for by fight length, heaviest on
+the player who needs the most time.
+
+**And the obvious fix was wrong.** "Take it off the dirge and put it on her
+blows, so she hurts you through the thing you can answer" was measured: raising
+her blows hurts a clumsy party ten times as much as a sharp one, so it makes
+the cliff *steeper*. Lowering the dirge to 3 triples the low end and does not
+touch the top.
+
+Still open, and deliberately not tuned further on a sample of 14:
+
+- A clumsy run still loses 8 of its 11 deaths to the Regent.
+- Sharp is now 14 of 14. A boss a good player never loses to has no teeth —
+  but that is n=14 played by a bot that does not misclick, and the correct
+  response to it is a bigger sweep, not another number. A new player, parrying at
 roughly 45%, wins about one run in seven — and a wipe costs them the tree, the
 bonds and the memories all at once, because a run that ends at column 2 has
 changed almost nothing. StS's Act 1 is far more forgiving than this, and it is
@@ -204,6 +237,10 @@ That is where effort should go when there is a choice.
 
 ## Log
 
+- **2026-08-29** — Build 65 flattened the skill cliff by measuring where it
+  actually was: not the road, not her damage, but the half of the Regent that
+  no timing can answer. 7/43/93 → 21/57/100. `regent.probe.cjs` lands as the
+  standing measurement.
 - **2026-08-29** — Build 62 inverted the bond incentive; Build 63 added the
   reckoning, the post-fight beat this file had listed as the biggest hole. A
   sharp run went from 2.8 things changed to about 6.5. The skill cliff is now
