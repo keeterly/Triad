@@ -29,6 +29,8 @@ const MAX_TURNS = 24;
 (async () => {
   const H = await boot({ query: 'road=1' });
   const { J, check, report, sleep, page } = H;
+  // the road's length is the road's to state, not the harness's to remember
+  const STOPS = await J(() => window.R.STOPS);
 
   const SCREENS = ['k-stage', 'k-map', 'k-camp', 'k-scene', 'k-swap', 'k-wake', 'k-mark'];
   const visible = () => J((ids) => ids.filter(id => {
@@ -158,10 +160,11 @@ const MAX_TURNS = 24;
 
   // ── a run ────────────────────────────────────────────────────────────────
   let finished = 0, wiped = 0, reloaded = 0, mysteries = 0, bonds = 0, recks = 0;
-  // HOW MANY CONVERSATIONS STAND BETWEEN THE PLAYER AND THE FIRE. Worth
-  // printing rather than only bounding: a campfire you have to talk your way
+  // HOW MANY CONVERSATIONS STAND BETWEEN THE PLAYER AND A STOP'S OWN BUSINESS.
+  // Worth printing rather than only bounding: a fire you have to talk your way
   // through five times before you can spend an ember is a pacing fact, not a
-  // stall, and the number is the only way to know which one it has become.
+  // stall, and the number is the only way to know which one it has become. It
+  // read 5 while every bond queued for the campfire; one per stop reads 1.
   let deepestBond = 0;
 
   for (let i = 0; i < RUNS; i++) {
@@ -190,7 +193,10 @@ const MAX_TURNS = 24;
     scr = await clearDebts('trailhead', scr);
     if (scr !== 'k-map') fail('the awakening did not open the road (' + scr + ')');
 
-    for (let col = 0; col < 6; col++) {
+    // …the whole road, however long the road says it is. Written as a literal
+    // 6 this stopped two thirds of the way down an eleven-stop road and every
+    // run came back neither won nor wiped.
+    for (let col = 0; col < STOPS; col++) {
       const openIds = await J(() => window.R.reachable());
       if (!openIds.length) { fail('col ' + col + ': no reachable stop'); break; }
 
@@ -206,15 +212,19 @@ const MAX_TURNS = 24;
 
       let screen = await step('entered ' + kind);
 
-      // A CAMPFIRE MAY OPEN SEVERAL BOND SCENES FIRST, and this used to drain at
-      // most four of them before declaring the fire stuck behind a scene. There
-      // are only three pairs, so four looked like plenty — but a pair whose bond
-      // crossed TWO thresholds queues twice, and after four straight wins each
-      // paying a reckoning, five deep is an ordinary Tuesday. The cap turned a
-      // legitimate state into a failure. It drains until the fire opens now, and
-      // only calls it stuck if the count stops moving.
+      // ANY STOP MAY OPEN WITH A CONVERSATION. This used to be `kind === 'camp'`
+      // — bond scenes queued up and all arrived at the fire, which is the
+      // campfire overload Build 69 took apart. One fires on arrival at whatever
+      // stop earned it now, so the walk has to answer it wherever it lands, and
+      // it can no longer tell a bond from a memory by the screen alone (both
+      // are k-scene): it asks the scene what it is.
+      //
+      // The cap stays because a stuck scene must still be caught, but it is no
+      // longer four: a pair crossing TWO thresholds queues twice, and after
+      // several straight wins each paying a reckoning, several deep is ordinary.
+      const isBond = () => J(() => { const sc = window.R.scene(); return !!sc && sc.kind === 'bond'; });
       let guard = 0;
-      while (screen === 'k-scene' && kind === 'camp' && guard++ < 14) {
+      while (screen === 'k-scene' && await isBond() && guard++ < 14) {
         deepestBond = Math.max(deepestBond, guard);
         bonds++;
         await J(() => { window.R.sceneSkip(); });
@@ -317,6 +327,7 @@ const MAX_TURNS = 24;
         // a plain page.reload() here measured the harness wiping the save
         // rather than the game restoring it.
         await page.goto(RESUME_URL, { waitUntil: 'networkidle' });
+        await H.pastTitle();
         await page.waitForFunction(() => window.__ready === true, null, { timeout: 8000 });
         await sleep(400);
         reloaded++;
@@ -345,7 +356,7 @@ const MAX_TURNS = 24;
   console.log('\n── the soak ──');
   console.log(`    ${RUNS} runs · ${finished} reached the Regent and won · ${wiped} wiped`);
   console.log(`    ${reloaded} mid-run reloads · ${mysteries} crossroads · ${bonds} bond scenes · ${recks} reckonings`
-    + `\n    deepest queue of bond scenes in front of one campfire: ${deepestBond}`);
+    + `\n    deepest queue of conversations at one stop: ${deepestBond}`);
 
   check(`SOAK: ${RUNS} random runs, and not one invariant breached at any transition`,
     breaches.length === 0,

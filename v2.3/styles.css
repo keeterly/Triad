@@ -441,13 +441,47 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* ARMED — a combo that is live right now takes a gold rim and breathes. The
    old treatment was a static border a shade warmer than the frame, which is
    invisible in a fan of five. */
-.k-card-active { border: 1.5px solid #e0c084;
-  box-shadow: 0 5px 14px rgba(0,0,0,0.65), 0 0 0 1.5px rgba(224,192,132,0.5),
-              0 0 20px rgba(224,192,132,0.6), inset 0 0 14px rgba(120,96,44,0.35);
-  animation: k-armed 1.9s ease-in-out infinite; }
+.k-card-active { border: 1.5px solid #f0d488;
+  box-shadow: 0 5px 14px rgba(0,0,0,0.65), 0 0 0 1.5px rgba(224,192,132,0.55),
+              0 0 24px rgba(224,192,132,0.7), inset 0 0 14px rgba(120,96,44,0.35);
+  animation: k-armed 1.6s ease-in-out infinite; }
 @keyframes k-armed { 50% { box-shadow: 0 5px 14px rgba(0,0,0,0.65),
-  0 0 0 2px rgba(240,212,136,0.75), 0 0 30px rgba(224,192,132,0.85),
-  inset 0 0 16px rgba(140,112,52,0.45); } }
+  0 0 0 2.5px rgba(246,222,152,0.9), 0 0 40px rgba(240,212,136,1),
+  inset 0 0 18px rgba(150,120,56,0.5); } }
+/* A WISP TRAVELS THE BORDER. A breathing glow says "this card is special"; it
+   does not say "this card is special RIGHT NOW, because of the card you just
+   played". Something MOVING does — a light running the rim is the difference
+   between a state and an event, and the follow-up is an event: it is live this
+   instant and gone the moment somebody else acts.
+   The conic gradient turns on the card's own layer under the face, so it rides
+   the fan's rotation and the drag's lift without any JS. */
+.k-wisp { position: absolute; inset: -2px; border-radius: 7px;
+  z-index: 4; pointer-events: none;
+  background: conic-gradient(from var(--wisp, 0deg),
+    rgba(255,244,214,0) 0deg, rgba(255,244,214,0) 210deg,
+    rgba(255,240,200,0.55) 288deg, rgba(255,252,236,0.95) 330deg,
+    rgba(255,240,200,0.55) 348deg, rgba(255,244,214,0) 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude; padding: 2px;
+  filter: blur(0.4px);
+  animation: k-wisp 1.6s linear infinite; }
+/* AFTER AN ALLY runs brighter and faster than the other conditions. It is the
+   one the player is being taught to watch for — the combo that only exists
+   because of the card somebody else just played, and that stops existing the
+   moment anyone else acts. */
+.k-wisp-ally { animation-duration: 1.15s;
+  background: conic-gradient(from var(--wisp, 0deg),
+    rgba(255,244,214,0) 0deg, rgba(255,244,214,0) 186deg,
+    rgba(255,236,182,0.5) 270deg, rgba(255,252,236,1) 328deg,
+    rgba(255,244,206,0.7) 350deg, rgba(255,244,214,0) 360deg); }
+@property --wisp { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+@keyframes k-wisp { to { --wisp: 360deg; } }
+/* …and the combo strip at the foot of the card lights with it, so the reason
+   the card is glowing is legible without reading the rule again */
+.k-card-active .k-combo.on { animation: k-comboglow 1.5s ease-in-out infinite; }
+@keyframes k-comboglow { 50% { background: rgba(224,192,132,0.22);
+  box-shadow: inset 0 0 12px rgba(255,240,200,0.28); } }
 /* UNPLAYABLE — greyed the way MTG Arena greys a card you cannot pay for: a
    scrim over the face rather than a filter on it, because a filter on the card
    composites its children too and took the cost orb's colour with it — and the
@@ -1354,8 +1388,30 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   background: linear-gradient(180deg, #ffeec4, #e0c084); border-radius: 2px;
   padding: 1.5px 6px; letter-spacing: 0.16em; }
 #k-kizuna.k-kz-ready:active { transform: scale(0.97); }
-@keyframes k-kzready { 50% { box-shadow: 0 0 30px rgba(224,192,132,0.8),
-  inset 0 0 16px rgba(255,238,196,0.18); } }
+/* IT PULSES, IT DOES NOT JUST GLOW. The ready state used to breathe a
+   box-shadow and nothing else — on a lit board, next to three health bars and a
+   damage number, a soft halo on a 15px strip is not a thing that says PRESS ME.
+   The whole control now swells very slightly and its label brightens on the
+   same beat, so the readiness is carried by MOTION, which the eye catches at
+   the edge of vision, rather than by glow alone, which it does not. */
+@keyframes k-kzready {
+  0%, 100% { box-shadow: 0 0 18px rgba(224,192,132,0.45), inset 0 0 12px rgba(255,238,196,0.1);
+             transform: scale(1); }
+  50%      { box-shadow: 0 0 34px rgba(240,212,136,0.95), 0 0 3px rgba(255,238,196,0.5),
+                         inset 0 0 18px rgba(255,238,196,0.22);
+             transform: scale(1.035); }
+}
+/* the label keeps the same beat, so the word and the frame swell together */
+#k-kizuna.k-kz-ready .k-kz-lbl { animation: k-kzword 1.7s ease-in-out infinite; }
+@keyframes k-kzword { 50% { color: #fff6df; text-shadow: 0 0 10px rgba(255,238,196,0.75); } }
+/* and the fill itself catches a travelling highlight, so a full bar is not the
+   same still gold as a nearly-full one */
+#k-kizuna.k-kz-ready #k-kz-fill {
+  background-image: linear-gradient(100deg, rgba(255,255,255,0) 38%,
+    rgba(255,248,225,0.75) 50%, rgba(255,255,255,0) 62%);
+  background-size: 240% 100%;
+  animation: k-kzsweep 1.7s linear infinite; }
+@keyframes k-kzsweep { 0% { background-position: 180% 0; } 100% { background-position: -80% 0; } }
 #k-kizuna.k-kz-born { animation: k-kzborn 0.7s ease; }
 @keyframes k-kzborn { 0% { transform: scale(1); } 30% { transform: scale(1.07); } 100% { transform: scale(1); } }
 #k-kizuna:disabled { opacity: 0.9; }
@@ -1565,7 +1621,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-mk-row i svg { width: 13px; height: 13px; color: var(--tone, #9a9080); }
 .k-mk-row b { font-size: 7.5px; letter-spacing: 0.2em; color: #8d8474; font-weight: 400; }
 .k-node { position: absolute; transform: translate(-50%, -50%); z-index: 3;
-  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
   background: none; border: 0; padding: 0; cursor: pointer; color: inherit;
   font-family: inherit; transition: opacity 240ms ease, transform 240ms cubic-bezier(.2,.8,.3,1); }
 /* A COIN, NOT A RING. On black a 1.6px ring over a flat fill was enough; on a
@@ -1573,14 +1629,24 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    read as smudges. Same size, same tone, but the disc is now lit from its own
    top edge and sits in a pool of shadow — it separates from bright rubble and
    from black sky alike. */
-.k-n-disc { position: relative; width: 52px; height: 52px; border-radius: 50%;
+/* SMALLER, BECAUSE THERE ARE TWICE AS MANY. Eleven columns across the same
+   728px leaves 73px between centres; a 52px coin plus its shadow ring left
+   almost nothing between neighbours, and the chart read as a string of beads
+   rather than a set of choices. */
+.k-n-disc { position: relative; width: 34px; height: 34px; border-radius: 50%;
   display: grid; place-items: center;
   background: radial-gradient(circle at 50% 34%, #221d29 0%, #0a080d 82%);
   border: 1.6px solid var(--tone, #7d7466);
   box-shadow: 0 6px 18px rgba(0,0,0,0.85), 0 0 0 5px rgba(8,7,10,0.42),
     inset 0 1px 0 rgba(232,220,196,0.08); }
-.k-n-disc svg { width: 26px; height: 26px; color: var(--tone, #b6ab97); }
-.k-n-word { font-size: 9px; letter-spacing: 0.18em; color: #9a9080; white-space: nowrap;
+.k-n-disc svg { width: 18px; height: 18px; color: var(--tone, #b6ab97); }
+/* The name is the widest thing a node owns — 'A STAIR WITHOUT A RAIL' in
+   nowrap is far wider than the coin under it. Only the stops you can act on
+   show one (see the rule further down, which has always done this), but a
+   longer road puts two of those side by side often enough to need a ceiling:
+   at 73px between columns, two open neighbours would otherwise overprint. */
+.k-n-word { font-size: 8.5px; letter-spacing: 0.16em; color: #9a9080; white-space: nowrap;
+  max-width: 118px; overflow: hidden; text-overflow: ellipsis;
   text-shadow: 0 1px 4px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.8); }
 /* the four kinds, each its own tone — the SECOND channel, never the only one */
 .k-tone-steel  { --tone: #9fb0bd; }
@@ -1591,8 +1657,8 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* the mystery: pale and cold, so it is the one mark on the chart that is
    neither a threat, a comfort, nor a memory */
 .k-tone-mist   { --tone: #8fbfb8; }
-.k-n-boss .k-n-disc { width: 66px; height: 66px; border-width: 2.2px; }
-.k-n-boss .k-n-disc svg { width: 34px; height: 34px; }
+.k-n-boss .k-n-disc { width: 48px; height: 48px; border-width: 2.2px; }
+.k-n-boss .k-n-disc svg { width: 26px; height: 26px; }
 .k-n-boss .k-n-word { font-size: 10px; letter-spacing: 0.24em; color: #e0c084; }
 
 /* WHERE MAY I GO. Reachable stops are the only bright things on the board and
@@ -2703,9 +2769,15 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   animation: k-rk-fade 900ms ease both 500ms; }
 
 #k-reck { position: absolute; inset: 0; z-index: 45; }
-#k-reck-title { position: absolute; left: 22px; top: 14px; font-size: 13px;
-  letter-spacing: 0.3em; color: #c9a45c; text-shadow: 0 2px 10px rgba(0,0,0,0.95);
+/* THE TITLE NAMES THE FIGHT IT ENDS. Four words in the corner with nothing
+   attached was a caption for a scene the player has to reconstruct; the foe's
+   name over it says what this is a reckoning OF. */
+#k-reck-title { position: absolute; left: 22px; top: 13px;
+  display: flex; flex-direction: column; gap: 3px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.95);
   animation: k-rk-in 600ms ease both 300ms; }
+#k-reck-title i { font-style: normal; font-size: 8.5px; letter-spacing: 0.28em; color: #7d7466; }
+#k-reck-title b { font-weight: 400; font-size: 15px; letter-spacing: 0.3em; color: #e0c084; }
 /* the plate sits where the hand was, because that is where the eye already is */
 #k-reck-plate { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
   width: 640px; min-height: 84px; padding: 13px 18px 15px; border-radius: 4px;
@@ -2745,9 +2817,39 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-rk-opt:active { transform: translateY(1px); }
 .k-rk-opt b { font-size: 12.5px; letter-spacing: 0.1em; color: #efe6d4; line-height: 1.2; }
 .k-rk-say { font-size: 11px; color: #94a3a0; line-height: 1.3; min-height: 28px; }
-.k-rk-fx { font-style: normal; align-self: flex-start; font-size: 9.5px;
-  letter-spacing: 0.05em; padding: 3px 7px; border-radius: 2px;
-  color: #a9c187; border: 1px solid currentColor; }
+/* WHAT YOU GET, BEFORE WHAT YOU SAY. This was a hairline chip of 9.5px text
+   under two lines of dialogue, which made the loudest thing on a reward screen
+   the wording of the answer and the quietest thing the reward. It is a band
+   across the foot of the option now, and a bond carries the FACES of the pair
+   it deepens — whose bond and how much, with no reading. */
+.k-rk-fx { font-style: normal; display: flex; align-items: center; gap: 8px;
+  margin-top: 8px; padding: 7px 10px; border-radius: 3px;
+  background: linear-gradient(180deg, rgba(224,192,132,0.14), rgba(201,164,92,0.05));
+  border: 1px solid rgba(201,164,92,0.4); }
+.k-rk-faces { display: flex; flex: 0 0 auto; }
+.k-rk-faces img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover;
+  object-position: 50% 16%; border: 1.4px solid rgba(240,207,146,0.85); background: #1b1820;
+  /* the same lift the map's party token uses — Ash is painted dark on dark and
+     is a smudge at anything less */
+  filter: brightness(1.4) contrast(1.1) saturate(0.9); }
+.k-rk-faces img + img { margin-left: -9px; }
+.k-rk-glyph { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 13px; color: #241a06;
+  background: linear-gradient(180deg, #ffeec4, #e0c084);
+  border: 1.4px solid rgba(240,207,146,0.85); }
+.k-rk-amt { font-size: 12px; letter-spacing: 0.14em; color: #ffeec4; white-space: nowrap; }
+.k-rk-who2 { font-size: 9px; letter-spacing: 0.1em; color: #9a9080; margin-left: auto;
+  text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the two prizes are not the same KIND of thing, so they are not the same
+   colour: a bond is warm and belongs to two people, momentum is cold and
+   belongs to the road */
+.k-rk-kz .k-rk-fx { background: linear-gradient(180deg, rgba(143,191,184,0.14), rgba(143,191,184,0.04));
+  border-color: rgba(143,191,184,0.42); }
+.k-rk-kz .k-rk-glyph { background: linear-gradient(180deg, #d5f0ea, #8fbfb8); color: #10201e;
+  border-color: rgba(143,191,184,0.85); }
+.k-rk-kz .k-rk-amt { color: #d5f0ea; }
+.k-rk-opt:hover .k-rk-fx { border-color: rgba(240,207,146,0.85); }
+.k-rk-kz:hover .k-rk-fx { border-color: rgba(190,232,225,0.85); }
 
 /* ONLY THE TWO WHO ARE TALKING ARE LIT. The third is still standing there —
    this is the same board — but the eye needs telling whose moment this is. */
@@ -2755,3 +2857,80 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   transition: filter 520ms ease, opacity 520ms ease; }
 .k-hero.k-reck-in { transition: filter 520ms ease, transform 520ms ease; }
 .k-hero.k-reck-say { filter: drop-shadow(0 0 18px rgba(240,207,146,0.34)); }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE TITLE — the game says its own name
+   The game used to open on the awakening: a three-way fork over cards a player
+   has no context for, before anything has told them what this is or who these
+   people are. A title screen is the one place the premise can be stated once —
+   three of them, one road down, something at the bottom still singing — and the
+   one place a stored run can be put down without finishing or dying in it.
+   ═══════════════════════════════════════════════════════════════════════════ */
+#k-title { position: absolute; inset: 0; overflow: hidden;
+  display: grid; place-items: center; background: #07060a; }
+#k-title-bg { position: absolute; inset: 0; z-index: 0; }
+#k-title-bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  /* a slow drift, so the still is a PLACE rather than a wallpaper */
+  animation: k-tt-drift 34s ease-in-out infinite alternate;
+  filter: brightness(0.42) saturate(0.72) contrast(1.06); }
+@keyframes k-tt-drift { from { transform: scale(1.06) translate(-1.2%, 0.6%); }
+                        to   { transform: scale(1.14) translate(1.2%, -0.8%); } }
+.k-title-veil { position: absolute; inset: 0;
+  background: radial-gradient(120% 90% at 50% 42%, rgba(7,6,10,0) 0%, rgba(7,6,10,0.72) 62%, rgba(7,6,10,0.97) 100%),
+              linear-gradient(180deg, rgba(7,6,10,0.6) 0%, rgba(7,6,10,0) 26%, rgba(7,6,10,0.9) 100%); }
+
+/* THE THREE OF THEM, in silhouette, standing between the player and the road.
+   They are the premise: the game is not one hero with a deck, it is a party
+   whose relationships are the mechanic. */
+/* THEY STAND BELOW THE TITLE, NOT THROUGH IT. A first pass put them 210px
+   tall at the foot of a 430px screen, which is half the viewport: Elin's staff
+   crossed the BEGIN button and the cast list underneath was printed over her
+   face. They are a band along the very bottom now — smaller, dimmer, and
+   masked away well before they reach the plate. */
+#k-title-cast { position: absolute; left: 50%; bottom: -30px; transform: translateX(-50%);
+  z-index: 1; display: flex; align-items: flex-end; gap: 0;
+  opacity: 0.42; pointer-events: none;
+  animation: k-tt-rise 1600ms cubic-bezier(0.2,0.8,0.3,1) both 260ms; }
+#k-title-cast img { width: 150px; height: 150px; object-fit: cover; object-position: 50% 20%;
+  filter: brightness(0.42) contrast(1.25) saturate(0.4)
+          drop-shadow(0 0 26px rgba(0,0,0,0.95));
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 40%, #000 78%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 40%, #000 78%, transparent 100%); }
+#k-title-cast img:nth-child(2) { width: 172px; height: 172px; margin: 0 -22px; z-index: 2;
+  filter: brightness(0.5) contrast(1.2) saturate(0.45) drop-shadow(0 0 30px rgba(0,0,0,0.95)); }
+@keyframes k-tt-rise { from { opacity: 0; transform: translateX(-50%) translateY(26px); } }
+
+#k-title-plate { position: relative; z-index: 3; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+  padding-bottom: 34px; }
+#k-title-over { font-size: 9px; letter-spacing: 0.52em; color: #8d8474; margin: 0 0 12px;
+  animation: k-tt-fade 900ms ease both 220ms; }
+#k-title-name { margin: 0; font-size: 66px; line-height: 0.94; font-weight: 400;
+  letter-spacing: 0.3em; text-indent: 0.3em; color: #f4e9d0;
+  text-shadow: 0 0 40px rgba(224,192,132,0.42), 0 6px 30px rgba(0,0,0,0.95);
+  animation: k-tt-name 1500ms cubic-bezier(0.2,0.8,0.3,1) both; }
+@keyframes k-tt-name { from { opacity: 0; letter-spacing: 0.62em; filter: blur(7px); } }
+#k-title-line { margin: 15px 0 0; max-width: 470px; font-size: 12.5px; line-height: 1.6;
+  font-style: italic; color: #a79c88; animation: k-tt-fade 1100ms ease both 620ms; }
+#k-title-go { display: flex; flex-direction: column; align-items: center; gap: 9px;
+  margin-top: 22px; animation: k-tt-fade 900ms ease both 1000ms; }
+.k-tt-go { font-family: inherit; cursor: pointer; min-width: 268px;
+  padding: 11px 26px; border-radius: 3px; font-size: 11px; letter-spacing: 0.28em;
+  color: #241a06; background: linear-gradient(180deg, #ffeec4, #dcb972);
+  border: 1px solid rgba(255,238,196,0.9);
+  box-shadow: 0 0 26px rgba(224,192,132,0.34), 0 8px 22px rgba(0,0,0,0.6);
+  transition: transform 140ms ease, box-shadow 220ms ease, filter 220ms ease; }
+.k-tt-go:hover { filter: brightness(1.08); box-shadow: 0 0 38px rgba(240,212,136,0.6), 0 8px 22px rgba(0,0,0,0.6); }
+.k-tt-go:active { transform: translateY(1px); }
+/* BEGIN AGAIN, beside a run you could continue, must not look like the thing to
+   press — it throws that road away. */
+.k-tt-alt { background: none; color: #a79c88; border-color: rgba(201,164,92,0.35);
+  box-shadow: none; font-size: 10px; min-width: 200px; padding: 8px 20px; }
+.k-tt-alt:hover { color: #e0c084; border-color: rgba(224,192,132,0.7); filter: none;
+  box-shadow: 0 0 18px rgba(224,192,132,0.18); }
+/* THE CAST LIST IS THE CAST. Naming them under the button, over the top of the
+   three figures standing right there, said the same thing twice and said the
+   second one illegibly. */
+#k-title-foot { display: none; }
+@keyframes k-tt-fade { from { opacity: 0; } }

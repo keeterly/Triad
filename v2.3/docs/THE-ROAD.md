@@ -1423,3 +1423,111 @@ twice, and after four straight wins each paying a reckoning, five deep is an
 ordinary Tuesday. It drains until the fire opens now, and prints the deepest queue
 it saw, because *how many conversations stand between the player and the fire* is
 a pacing fact worth watching rather than a number to bound and forget.
+
+---
+
+## Build 69 — a longer road, and the upgrades spread out along it
+
+Six notes came in at once. Four of them are one change with four faces.
+
+### The road is eleven stops, not six
+
+A six-stop road had nowhere to put anything. Every upgrade the game owns — two
+or three bond conversations, the mark that puts a state on a card, the whole
+ember tree — could only land at a campfire, because campfires were the only
+stops that could carry them. So a fire was four systems stacked on one screen,
+three times a run, and nothing happened on the other three stops.
+
+Eleven columns, with fires at 3, 6 and 9 — a third of the road apart — so the
+run has a rhythm of press-forward / sit-down instead of one long grind and a
+rest at the end. Two elites instead of one. Nothing but rest and memory on the
+Regent's doorstep, which was already the rule and now has room to be true.
+
+The coins shrank to match: 34px instead of 52, the wander halved from ±14 to ±7
+(centres are 73px apart now, not 146), and the name bags roughly doubled,
+because names are dealt without replacement and an eleven-column chart was
+emptying them and falling back to BATTLE, BATTLE, BATTLE.
+
+### The campfire is the fire again
+
+Bond scenes used to WAIT for a campfire and arrive all at once when they got
+there. They fire where they are earned now — on arrival at the next stop, before
+that stop's own business, **at most one**. Eleven stops carry the developing half
+of the game between them instead of three.
+
+The chain (scene → fork → swap → mark) remembers which stop it interrupted on
+`RUN`, not in a closure, because it spans three screens and the tab can close in
+the middle of it.
+
+### What that measured
+
+The pace sim, same seeds, same bot:
+
+```
+                 cards swapped in    nodes kindled    won
+  before  ordinary        1.07             1.29       6/14
+  after   ordinary        3.92             2.58       8/12
+  before  sharp           2.21             2.07      13/14
+  after   sharp           4.67             3.92      12/12
+```
+
+`docs/THE-BENCHMARK.md` set the bar itself: *a run that changes fewer than ~4
+things about the party between the trailhead and the Regent is survivable and
+static.* An ordinary run changed about 2.4 things. It changes about 6.5 now —
+the road clears its own bar for the first time. Deaths also spread across
+columns 2, 4, 6, 7, 8 and 10 rather than piling up at a single cliff.
+
+**Three harnesses were walking six stops of an eleven-stop road** and reporting
+the truncation as a difficulty spike — the pace sim came back 0/12 at every
+skill level with four deaths, which is the harness giving up, not the game
+getting hard. Every one of them reads `R.STOPS` now, along with nine road checks
+that had the number 6, `col(4)` or `/^5:/` written into them. A check has no
+business restating a constant it does not own.
+
+### Readiness that reads
+
+**The all-out bar** pulsed a box-shadow and nothing else — a soft halo on a 15px
+strip, next to three health bars and a damage number, is not a thing that says
+press me. The whole control swells now, the label brightens on the same beat,
+and the fill catches a travelling highlight. Measured: scale 1.009 → 1.035.
+
+**A live combo** breathed gold; it now runs a wisp of light around its border,
+brightest and fastest for AFTER AN ALLY — the combo the player is being taught
+to watch for, which exists only because of the card somebody else just played
+and stops existing the moment anyone else acts. A still glow says "this card is
+special"; something moving says "right now". Measured: the wisp angle advances
+187° → 245° → 302° → 359° → 57°.
+
+The wisp is its own element, not a pseudo: `.k-card::before` is the face's inner
+texture and `.k-card-poor::after` is the unaffordable scrim, and a card can be
+armed *and* unaffordable — both slots were spoken for, and taking either would
+have silently deleted something.
+
+### The reckoning says what it pays
+
+The prize was a hairline chip of 9.5px text under two lines of dialogue, which
+made the loudest thing on a reward screen the wording of the answer and the
+quietest thing the reward. It is a band across the foot of the option now, and a
+bond carries the **faces of the pair it deepens** — whose bond and by how much,
+with no reading. The two prizes are not the same kind of thing, so they are not
+the same colour: a bond is warm and belongs to two people, momentum is cold and
+belongs to the road.
+
+The title also names the fight it ends — `THE CHOIR OF ONE · FALLEN` over
+`NOT ONE MARK` — because four words in a corner with nothing attached is a
+caption for a scene the player has to reconstruct.
+
+### A title
+
+The game opened straight onto the awakening: a three-way fork over cards, before
+anything had said what this is or who these people are. There is a title now —
+the name, the premise in one line, the three of them in silhouette along the
+bottom, and one door.
+
+It is on the **real boot path**, not skipped in test mode: the harness presses
+the button a player presses, so every check in every suite is running against a
+game that was actually started. A reload lands there too, and offers the stored
+run as CONTINUE rather than silently resuming it — which is most of what a title
+is for, and means the run coming back is something the player asks for. BEGIN
+AGAIN throws the stored road away, because leaving it beside a second run is how
+somebody ends up with two and no way to tell which one they are in.

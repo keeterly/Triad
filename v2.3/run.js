@@ -35,7 +35,13 @@
   // since a four-round fight cannot fill the bar from nothing — while the
   // Regent still has to be earned inside her own fight.
   const KIZUNA_CARRY = 0.5;
-  const COLS = 6;
+  // ELEVEN COLUMNS, NOT SIX. A six-stop road put every upgrade the game has —
+  // two bond conversations, the mark that puts a state on a card, and the whole
+  // ember tree — onto the two campfire stops, because those were the only stops
+  // that could carry them. The run was over before any of it had room to land.
+  // Eleven stops is not "more of the same": it is the space the developing half
+  // of the game needs in order to be spread out instead of stacked.
+  const COLS = 11;
   const STOPS = COLS;                       // one node visited per column
 
   // ── the run's own RNG, kept apart from the fight's ────────────────────────
@@ -413,15 +419,26 @@
   // functional read under the mark — the name is what the stop calls itself
   // when you pick it up, which is the only place there is room to say it.
   const NAMES = {
+    // A LONGER ROAD EMPTIES THE BAGS. Names are dealt without replacement and
+    // fall back to the kind's own word when a bag runs dry — so on an
+    // eleven-column chart the back half was turning into BATTLE, BATTLE,
+    // BATTLE, which is exactly the tell the bags exist to avoid.
     fight: ['ASHFALL ROAD', 'THE HOLLOW CHOIR', 'MOURNING FIELD', 'COLD PROCESSION',
             'THE GREY MILE', 'THE BROKEN CHANCEL', 'THE WEEPING STAIR', 'SILENT MARCH',
-            'THE LOW GALLERY', 'A STAIR WITHOUT A RAIL'],
-    elite: ['THE WARDEN STIRS', 'WHERE THE STRONG FELL', 'THE GORGE OF NAMES'],
-    camp:  ['A FIRE SOMEBODY LEFT', 'THE LEE OF THE WALL', 'THE LAST DRY STONE'],
-    story: ['THE QUIET STRETCH', 'A PLACE TO SIT DOWN', 'SOMEWHERE OUT OF THE WIND'],
+            'THE LOW GALLERY', 'A STAIR WITHOUT A RAIL', 'THE SALT TERRACE',
+            'WHAT THE FLOOD LEFT', 'THE UNLIT NAVE', 'A ROAD OF OWN MAKING',
+            'THE THIN BRIDGE', 'BELOW THE BELL', 'THE CHALK CUTTING',
+            'WHERE THE CARTS STOPPED', 'THE SUNKEN ORCHARD', 'A LONG SHALLOW STEP'],
+    elite: ['THE WARDEN STIRS', 'WHERE THE STRONG FELL', 'THE GORGE OF NAMES',
+            'THE KEEPER OF THE STAIR', 'WHAT GUARDS THE CROSSING'],
+    camp:  ['A FIRE SOMEBODY LEFT', 'THE LEE OF THE WALL', 'THE LAST DRY STONE',
+            'AN OVERHANG, JUST', 'THE HOLLOW UNDER THE ROOT'],
+    story: ['THE QUIET STRETCH', 'A PLACE TO SIT DOWN', 'SOMEWHERE OUT OF THE WIND',
+            'THE HOUR BEFORE', 'A GAP IN THE WEATHER', 'THE FLAT ROCK'],
     boss:  ['THE MOURNING REGENT'],
     event: ['A FORK IN THE BLACK', 'THE WATCHER\u2019S STONE', 'SOMETHING LEFT BEHIND',
-            'WHERE THE ROAD FORGETS', 'AN OPEN HAND'],
+            'WHERE THE ROAD FORGETS', 'AN OPEN HAND', 'A DOOR IN A WALL',
+            'THE STONE THAT WAS MOVED'],
   };
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -759,18 +776,35 @@
   // to be different, so what it offers varies too. A MYSTERY can only ever be
   // a third lane — it never displaces a `must`, so it cannot cost you the
   // elite, a fire, or a memory.
+  // The shape of a road, column by column. Three fires instead of two, and they
+  // sit at 3, 6 and 9 — a third of the way apart — so the run has a rhythm of
+  // press-forward / sit-down rather than one long grind and a rest at the end.
+  // Memories and crossroads are seeded between them so that the stop where the
+  // party CHANGES is rarely the same stop where they REST.
   const PLAN = [
-    { must: ['fight', 'fight'], may: null },
-    { must: ['fight', 'story'], may: ['event', 'fight'] },
-    { must: ['camp', 'fight'],  may: ['story', 'event'] },
-    { must: ['elite', 'fight'], may: ['event', 'fight'] },
-    { must: ['camp', 'story'],  may: null },
-    { must: ['boss'],           may: null },
+    { must: ['fight', 'fight'], may: null },                 //  0 the trailhead
+    { must: ['fight', 'story'], may: ['event', 'fight'] },   //  1
+    { must: ['fight', 'event'], may: ['story'] },            //  2
+    { must: ['camp', 'fight'],  may: ['story'] },            //  3 the first fire
+    { must: ['elite', 'fight'], may: ['event', 'fight'] },   //  4
+    { must: ['story', 'fight'], may: ['event'] },            //  5
+    { must: ['camp', 'event'],  may: ['fight'] },            //  6 the second
+    { must: ['fight', 'elite'], may: ['story', 'fight'] },   //  7
+    { must: ['fight', 'event'], may: ['story'] },            //  8
+    // NOTHING BUT REST AND MEMORY ON HER DOORSTEP. You always arrive at the
+    // Regent having chosen how to spend the last quiet stop, never having just
+    // finished a fight — the encounter is tuned as a FIGHT, not as the last
+    // instalment of an attrition sum.
+    { must: ['camp', 'story'],  may: null },                 //  9 the last fire
+    { must: ['boss'],           may: null },                 // 10
   ];
   // Which foe stands at a fight node, by depth. The ladder is legible: you
   // meet the Husk before you meet the Wraith, always.
-  const FOE_BY_COL = [['husk', 'cultist'], ['husk', 'cultist'], ['cultist', 'wraith'],
-                      ['wraith'], ['wraith'], ['mourner']];
+  const FOE_BY_COL = [
+    ['husk', 'cultist'], ['husk', 'cultist'], ['husk', 'cultist'],
+    ['cultist', 'wraith'], ['cultist', 'wraith'], ['cultist', 'wraith'],
+    ['wraith'], ['wraith'], ['wraith'], ['wraith'], ['mourner'],
+  ];
 
   // ── geometry of the road ──────────────────────────────────────────────────
   // 932×430 with a header to clear: the road runs left to right across the
@@ -783,7 +817,11 @@
   // Three lanes at ±64 around 218 with ±8 of jitter lands inside exactly the
   // envelope the two-lane road already proved: 146 to 290.
   const MAP_X0 = 108, MAP_X1 = 836, MAP_Y = 218, MAP_SPREAD = 64;
-  const JIT_X = 14, JIT_Y = 8;
+  // THE WANDER SCALES WITH THE SPACING. Eleven columns across the same 728px
+  // put the coins 73px apart instead of 146, so a ±14px drift that read as
+  // character on a six-stop road would have neighbours trading places on an
+  // eleven-stop one.
+  const JIT_X = 7, JIT_Y = 8;
   function laneY(ix, n) {
     if (n === 1) return MAP_Y;
     if (n === 2) return MAP_Y + (ix === 0 ? -MAP_SPREAD : MAP_SPREAD);
@@ -944,7 +982,7 @@
 
   // ── the screen ────────────────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
-  const SCREENS = { map: 'k-map', combat: 'k-stage', camp: 'k-camp', scene: 'k-scene', swap: 'k-swap', wake: 'k-wake', mark: 'k-mark' };
+  const SCREENS = { title: 'k-title', map: 'k-map', combat: 'k-stage', camp: 'k-camp', scene: 'k-scene', swap: 'k-swap', wake: 'k-wake', mark: 'k-mark' };
   // WHICH SCREEN IS UP IS ALSO WHICH MUSIC IS PLAYING, and this is the only
   // function that answers the first question — so it answers the second too.
   // Scattering cues through the map, the camp, the scene and the swap would
@@ -1174,7 +1212,7 @@
       const won = RUN.over === 'win';
       card.className = 'k-map-card k-mc-end' + (won ? ' k-mc-win' : ' k-mc-loss');
       card.innerHTML = '<div class="k-mc-body"><b>' + (won ? 'THE REGENT FALLS' : 'THE PARTY FALLS') + '</b>'
-        + '<span>' + (won ? 'Six stops, ' + RUN.embers + ' embers, and the singing has stopped.'
+        + '<span>' + (won ? STOPS + ' stops, ' + RUN.embers + ' embers, and the singing has stopped.'
                           : 'The descent keeps what it takes. Begin again.') + '</span></div>'
         + '<button type="button" id="k-map-go" class="k-mc-go">NEW RUN</button>';
       $('k-map-go').addEventListener('click', (e) => { e.stopPropagation(); newRun(); });
@@ -1267,11 +1305,34 @@
     setTimeout(() => { _busy = false; enter(n); }, 260);
   }
 
+  // ONE CONVERSATION PER STOP. Bond scenes used to WAIT for a campfire, and
+  // arrive all at once when they got there — so a fire was two or three
+  // conversations, each of which asks you to give up a card and then place a
+  // mark on another one, and only THEN the tree and the embers. Four systems on
+  // one stop, three times a run, with nothing happening on the other eight.
+  //
+  // A bond fires where it is EARNED now: on arrival at the next stop, before
+  // that stop's own business, at most one. Eleven stops carry the developing
+  // half of the game between them instead of three.
   function enter(n) {
+    if (n.kind !== 'boss' && openBondScene(n.id)) return;
+    enterStop(n);
+  }
+  function enterStop(n) {
     if (n.kind === 'camp') return enterCamp(n);
     if (n.kind === 'story') return enterStory(n);
     if (n.kind === 'event') return enterEvent(n);
     return enterFight(n);
+  }
+  // Where a bond chain lets go. The stop it interrupted is remembered on RUN
+  // rather than held in a closure, because the chain spans three screens and
+  // the player can close the tab in the middle of it.
+  function endBondChain() {
+    const id = RUN && RUN.bondResume;
+    if (RUN) { RUN.bondResume = null; save(); }
+    const n = id && node(id);
+    if (n) return enterStop(n);
+    return toMap();
   }
 
   function enterFight(n) {
@@ -1370,7 +1431,16 @@
     const done = _rbeat >= _reck.beats.length;
     box.classList.remove('k-hidden');
     box.classList.toggle('k-reck-asking', done);
-    $('k-reck-title').textContent = _reck.title;
+    // THE TITLE NAMES THE FIGHT IT ENDS. It used to be four words in the top
+    // corner with nothing to attach them to — a caption for a scene the player
+    // has to reconstruct. Standing the foe's name over it says what this is a
+    // reckoning OF, which is the whole reason the conversation is happening
+    // here, over this body, rather than anywhere else.
+    // `foe` is the id; the bestiary holds the name it is known by.
+    const fell = _reck.foe && window.K.FOES[_reck.foe];
+    $('k-reck-title').innerHTML =
+      (fell ? '<i>' + fell.name.toUpperCase() + ' &middot; FALLEN</i>' : '')
+      + '<b>' + _reck.title + '</b>';
     // ONLY THE TWO WHO ARE TALKING ARE LIT. The third is still standing there —
     // this is the same board — but the eye needs telling who this is between.
     ['ash', 'elin', 'mira'].forEach(id => {
@@ -1403,15 +1473,27 @@
       const fig = document.querySelector('.k-hero[data-hero="' + id + '"]');
       if (fig) fig.classList.remove('k-reck-say');
     });
+    // WHAT YOU GET HAS TO READ BEFORE WHAT YOU SAY. The prize used to be a
+    // hairline chip of 9.5px text under two lines of dialogue — so the loudest
+    // thing on a REWARD screen was the wording of the answer, and the reward
+    // itself was the quietest. It is a band now, with the faces of the pair a
+    // bond deepens on it: whose bond, and by how much, without reading a word.
     fork.innerHTML = '<span class="k-rk-ask">' + (_reck.ask || '') + '</span>'
       + '<div class="k-rk-row">'
-      + _reck.picks.map((p, i) =>
-          '<button type="button" class="k-rk-opt" data-ix="' + i + '">'
-          + '<b>' + p.label + '</b><span class="k-rk-say">' + p.say + '</span>'
-          + '<em class="k-rk-fx">'
-          + (p.bond ? '+' + RECK_BOND + ' \u2014 ' + CAST[p.bond[0]].n + ' &amp; ' + CAST[p.bond[1]].n
-                    : '+' + p.kizuna + '% kizuna, carried')
-          + '</em></button>').join('')
+      + _reck.picks.map((p, i) => {
+          const prize = p.bond
+            ? '<span class="k-rk-faces">'
+              + p.bond.map(id => '<img src="../art/' + CAST[id].art + '.webp" alt="">').join('')
+              + '</span><span class="k-rk-amt">BOND +' + RECK_BOND + '</span>'
+              + '<span class="k-rk-who2">' + CAST[p.bond[0]].n + ' &amp; ' + CAST[p.bond[1]].n + '</span>'
+            : '<span class="k-rk-glyph">\u25c8</span>'
+              + '<span class="k-rk-amt">KIZUNA +' + p.kizuna + '%</span>'
+              + '<span class="k-rk-who2">carried into the next fight</span>';
+          return '<button type="button" class="k-rk-opt' + (p.bond ? ' k-rk-bond' : ' k-rk-kz')
+            + '" data-ix="' + i + '">'
+            + '<b>' + p.label + '</b><span class="k-rk-say">' + p.say + '</span>'
+            + '<span class="k-rk-fx">' + prize + '</span></button>';
+        }).join('')
       + '</div>';
     fork.querySelectorAll('.k-rk-opt').forEach(b =>
       b.addEventListener('click', (e) => { e.stopPropagation(); takeReckoning(+b.dataset.ix); }));
@@ -1492,10 +1574,11 @@
       RUN.campDone = n.id;
     }
     save();
-    // THE FIRE HEARS THEM FIRST. A pair that crossed a level on the road gets
-    // their scene before the tree — the fire is where people talk, and the
-    // card that comes out of it is the reason to be at one.
-    if (!openBondScene()) sitDown();
+    // THE FIRE IS THE FIRE. It used to hear the conversations first — every
+    // pair that had crossed a level, one after another, before the tree was
+    // even on screen. They happen on the road now (see enter), so a campfire is
+    // one thing again: mend, and spend.
+    sitDown();
   }
 
   // ── the bond scenes ──────────────────────────────────────────────────────
@@ -1505,9 +1588,15 @@
       return lv > (RUN.levels[k] || 0) && !!bondScene(k, (RUN.levels[k] || 0) + 1);
     });
   }
-  function openBondScene() {
+  // `resume` is the stop this conversation is interrupting — the one to enter
+  // when the chain (scene → fork → swap → mark) finally lets go. Passing none
+  // means the chain returns to the road, which is what the awakening's card and
+  // the test hooks want.
+  function openBondScene(resume) {
     const pair = pendingBonds()[0];
     if (!pair) return false;
+    RUN.bondResume = resume || null;
+    save();
     const lv = (RUN.levels[pair] || 0) + 1;
     _scene = { ...bondScene(pair, lv), kind: 'bond', pair, lv };
     // A CARD CANNOT BE WON TWICE. BORROWED HABIT starts a returning player
@@ -1547,7 +1636,7 @@
     closeScene();
     // Nothing to hand over — they already carry everything this scene could
     // give — so the level pays its other half and the road goes on.
-    if (!card) { save(); if (!openMark(pair)) { if (!openBondScene()) sitDown(); } return; }
+    if (!card) { save(); if (!openMark(pair)) endBondChain(); return; }
     openSwap(card, after, null);
   }
 
@@ -2122,8 +2211,7 @@
       const b = RUN.swapBack; RUN.swapBack = null;
       save();
       if (b === 'map') return toMap();
-      if (!openBondScene()) return sitDown();
-      return;
+      return endBondChain();
     }
     list[ix] = _pendingCard;
     RUN.flash = { icon: 'camp', tone: 'gold', title: window.K.CARD_DEFS[_pendingCard].name.toUpperCase() + ' — LEARNED',
@@ -2144,8 +2232,7 @@
     // there is a campfire to go back to; returning to one would have shown the
     // fire's screen with no fire behind it.
     if (back === 'map') return toMap();
-    // another pair may also be waiting at this same fire
-    if (!openBondScene()) sitDown();
+    return endBondChain();
   }
 
   // ── the mark ─────────────────────────────────────────────────────────────
@@ -2197,7 +2284,7 @@
   }
   function leaveMark() {
     RUN.pendingSigil = null; RUN.markPair = null; _markPair = null; save();
-    if (!openBondScene()) sitDown();
+    endBondChain();
   }
   function openMark(pair) {
     if (!RUN || !RUN.pendingSigil) return false;
@@ -2271,10 +2358,49 @@
     }
   }
 
+  // THE TITLE IS THE FIRST SCREEN, and the only one that is a decision about
+  // the GAME rather than inside it. The run behind it is not built until the
+  // player asks for it — BEGIN throws away whatever was stored, CONTINUE picks
+  // it up — so the title is also the one place a stored run can be abandoned
+  // without finishing or dying in it.
+  let _bootOpts = null;
   function boot(opts) {
-    opts = opts || {};
+    _bootOpts = opts = opts || {};
     PROFILE = opts.freshProfile ? { heard: [], won: [] } : loadProfile();
     bindCamp();
+    if (opts.title !== false) return toTitle();
+    return begin(opts);
+  }
+  function toTitle() {
+    const saved = load();
+    // ANY UNFINISHED RUN IS WORTH OFFERING BACK, including one still sitting on
+    // the awakening. Requiring a travelled stop meant closing the tab on the
+    // opening choice threw it away silently, which is the one moment a player
+    // is most likely to walk off and come back to.
+    const going = !!(saved && !saved.over);
+    const go = $('k-title-go');
+    if (go) {
+      go.innerHTML =
+        (going ? '<button type="button" class="k-tt-go k-tt-on" data-go="on">CONTINUE THE DESCENT</button>' : '')
+        + '<button type="button" class="k-tt-go' + (going ? ' k-tt-alt' : '') + '" data-go="new">'
+        + (going ? 'BEGIN AGAIN' : 'BEGIN THE DESCENT') + '</button>';
+      go.querySelectorAll('.k-tt-go').forEach(b => b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        beginFromTitle(b.dataset.go === 'new');
+      }));
+    }
+    screen('title');
+  }
+  // BEGIN AGAIN THROWS THE OLD ROAD AWAY. Leaving it stored and starting a
+  // second run beside it is how a player ends up with two runs and no way to
+  // tell which one they are in.
+  function beginFromTitle(fresh) {
+    const o = Object.assign({}, _bootOpts || {}, { title: false });
+    if (fresh) { o.fresh = true; try { localStorage.removeItem(RUN_KEY); } catch (e) {} }
+    begin(o);
+  }
+  function begin(opts) {
+    opts = opts || {};
     const saved = opts.fresh ? null : load();
     RUN = saved || freshRun(opts.seed);
     if (!RUN.roster) RUN.roster = window.K.baseRoster();
@@ -2308,7 +2434,7 @@
   }
 
   window.R = {
-    boot,
+    boot, toTitle, beginFromTitle,
     active: () => !!RUN && !RUN.over,
     state: () => RUN,
     map: () => (RUN ? RUN.map : []),

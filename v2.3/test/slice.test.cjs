@@ -196,7 +196,11 @@ const MAX_TURNS = 30;
       v.length === 1 && v[0] === 'k-map', v.join(','));
   }
 
-  for (let col = 0; col < 6; col++) {
+  // The road's length is the road's to state — this was a literal 6, so growing
+  // the road to eleven columns made the slice stop walking two thirds of the
+  // way down and report a run that never ended.
+  const STOPS = await J(() => window.R.STOPS);
+  for (let col = 0; col < STOPS; col++) {
     // WALK A ROUTE CHOSEN UP FRONT, not greedily.
     //
     // A slice test that only ever fights proves the slice only ever fights, so
@@ -219,9 +223,20 @@ const MAX_TURNS = 30;
     // that has to be traded into somebody's five. The gate walks that whole
     // path — it is the one place the social layer, the deck and the road all
     // touch at once.
+    // WHAT MOVED at Build 69: this used to be `kind === 'camp'`, because a bond
+    // only ever opened at a fire — every level crossed on the road queued up and
+    // arrived there at once, which is the campfire overload. A bond fires where
+    // it is earned now, at most one per stop, so ANY stop can open with a
+    // conversation. Which means the walk can no longer tell a bond from a
+    // memory by the screen alone (both are k-scene): it asks the scene what it
+    // is.
     let bonds = 0;
-    if (kind === 'camp' && v[0] === 'k-scene') {
-      while (v[0] === 'k-scene' && bonds < 4) {
+    const isBond = () => J(() => {
+      const sc = window.R.scene();
+      return !!sc && sc.kind === 'bond';
+    });
+    if (v[0] === 'k-scene' && await isBond()) {
+      while (v[0] === 'k-scene' && await isBond() && bonds < 4) {
         bonds++;
         const traded = await J(() => {
           window.R.sceneSkip();

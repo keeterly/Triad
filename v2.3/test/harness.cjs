@@ -67,13 +67,33 @@ async function boot(opts = {}) {
   const query = opts.query ? '&' + String(opts.query).replace(/^[?&]/, '') : '';
   await page.goto(`http://127.0.0.1:${port}/v2.3/index.html?test=1${query}`, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.__ready === true, null, { timeout: 8000 });
+  // THE TITLE IS ON THE REAL BOOT PATH, so the suites walk through it rather
+  // than around it. Skipping it in test mode would leave the one screen every
+  // first-time player sees as the one screen nothing ever exercises — so the
+  // harness presses the button a player presses, and every check that follows
+  // is running against a game that was actually started.
+  // …and the same step is reusable, because a RELOAD lands on the title too:
+  // that is the point of it (the stored run is offered as CONTINUE rather than
+  // silently resumed), so anything that reloads mid-suite has to press through
+  // it the way a player would. The FIRST button is always the one that keeps
+  // going — CONTINUE when there is a run, BEGIN when there is not.
+  const pastTitle = async () => {
+    await page.evaluate(async () => {
+      const t = document.getElementById('k-title');
+      if (!t || t.classList.contains('k-hidden')) return;
+      const go = t.querySelector('.k-tt-go');
+      if (go) go.click();
+      await new Promise(r => setTimeout(r, 60));
+    });
+  };
+  await pastTitle();
 
   const results = [];
   const shotsDir = path.join(__dirname, 'shots');
   fs.mkdirSync(shotsDir, { recursive: true });
   let shotN = 0;
   return {
-    browser, ctx, page, errs, results,
+    browser, ctx, page, errs, results, pastTitle,
     J: (fn, ...a) => page.evaluate(fn, ...a),
     sleep: ms => page.waitForTimeout(ms),
     shot: async (tag) => { await page.screenshot({ path: path.join(shotsDir, `${String(++shotN).padStart(2, '0')}-${tag}.png`) }); },

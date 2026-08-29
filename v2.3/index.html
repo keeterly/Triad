@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=68" />
+  <link rel="stylesheet" href="styles.css?v=69" />
 </head>
 <body>
   <div id="k-scale">
@@ -286,6 +286,29 @@
       <p id="k-mark-ask"></p>
       <div id="k-mark-cols"></div>
     </section>
+    <!-- THE TITLE. The game used to open on the awakening — a fork with three
+         cards on it, before the player has been told what any of this is. A
+         title is where a game says its own name and lets you decide to start
+         it, and it is the one screen that can carry the premise: three of them,
+         one road down, and a thing at the bottom that is still singing. -->
+    <section id="k-title" class="k-hidden" aria-label="Title">
+      <div id="k-title-bg" aria-hidden="true">
+        <img src="../art/bg-descent.webp" alt="">
+        <div class="k-title-veil"></div>
+      </div>
+      <div id="k-title-cast" aria-hidden="true">
+        <img src="../art/kai.webp" alt="">
+        <img src="../art/elin.webp" alt="">
+        <img src="../art/mira.webp" alt="">
+      </div>
+      <div id="k-title-plate">
+        <p id="k-title-over">A DESCENT IN THREE</p>
+        <h1 id="k-title-name">KIZUNA</h1>
+        <p id="k-title-line">Something at the bottom is still singing. They are going down to make it stop.</p>
+        <div id="k-title-go"></div>
+        <p id="k-title-foot">Ash &middot; Elin &middot; Mira</p>
+      </div>
+    </section>
     <section id="k-wake" class="k-hidden" aria-label="On waking">
       <div id="k-wake-bg" aria-hidden="true">
         <img src="../art/bg-descent.webp" alt="">
@@ -329,8 +352,8 @@
       <button type="button" id="k-swap-go" disabled>CHOOSE A CARD TO GIVE UP</button>
     </section>
   </div>
-  <script src="run.js?v=68"></script>
-  <script src="game.js?v=68"></script>
+  <script src="run.js?v=69"></script>
+  <script src="game.js?v=69"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

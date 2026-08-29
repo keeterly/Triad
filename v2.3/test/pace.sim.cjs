@@ -26,6 +26,7 @@ const SKILLS = process.env.PACE_SKILL
 (async () => {
   const H = await boot({ query: 'road=1' });
   const { J, sleep, page } = H;
+  const STOPS = await J(() => window.R.STOPS);
 
   // PACE_GOOD / PACE_GREAT override the parry's payout ladder, so a proposed
   // flattening can be MEASURED against the same seeds rather than argued.
@@ -78,7 +79,11 @@ const SKILLS = process.env.PACE_SKILL
       let dead = false;
       let lastFireEmbers = null, fireCount = 0;
 
-      for (let col = 0; col < 6; col++) {
+      // THE ROAD'S LENGTH IS THE ROAD'S TO STATE. Written as a literal 6, this
+      // walked two thirds of an eleven-stop road and then stopped — so the sim
+      // reported 0 wins at every skill level and four deaths in twelve runs,
+      // which reads as a brutal difficulty spike and was the harness giving up.
+      for (let col = 0; col < STOPS; col++) {
         const open = await J(() => window.R.reachable());
         if (!open.length) break;
         const target = open[Math.floor(Math.random() * open.length)];

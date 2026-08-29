@@ -42,6 +42,11 @@ const { boot } = require('./harness.cjs');
 
   await reset(11);
 
+  // THE ROAD'S LENGTH IS THE ROAD'S TO STATE. Nine checks used to carry it as a
+  // literal — 6, col(4), /^5:/ — so growing the road from six columns to eleven
+  // read as nine regressions rather than one deliberate change.
+  const STOPS = await J(() => window.R.STOPS);
+
   // ═══ A · THE GRAPH IS A ROAD, NOT A PILE ═══
   console.log('\n── the shape of the road ──');
   {
@@ -54,16 +59,23 @@ const { boot } = require('./harness.cjs');
     // in the same eleven places. A column now offers two OR three. What has not
     // moved is that every stop but the last is a CHOICE, which is the rule this
     // check was always really about.
-    check('ROAD: six stops deep, and every stop but the last is a choice of two or three',
-      colCount === 6 && [0,1,2,3,4].every(c => cols[c].length >= 2 && cols[c].length <= 3)
-      && cols[5].length === 1,
+    // …and REWRITTEN AGAIN at Build 69, when the road went from six columns to
+    // eleven. The number was written into the check's own name and body, so a
+    // deliberate change to the road's length read as nine broken checks. It
+    // reads R.STOPS now: a check has no business restating a constant it does
+    // not own.
+    check('ROAD: as deep as the road says, and every stop but the last is a choice of two or three',
+      colCount === STOPS
+      && Array.from({ length: STOPS - 1 }, (_, c) => c)
+           .every(c => cols[c].length >= 2 && cols[c].length <= 3)
+      && cols[STOPS - 1].length === 1,
       JSON.stringify(Object.keys(cols).map(c => cols[c].length)));
 
     const ids = new Set(m.map(n => n.id));
     const inbound = {};
     m.forEach(n => n.to.forEach(t => { inbound[t] = (inbound[t] || 0) + 1; }));
     const orphan = m.filter(n => n.col > 0 && !inbound[n.id]);
-    const dead = m.filter(n => n.col < 5 && !n.to.length);
+    const dead = m.filter(n => n.col < STOPS - 1 && !n.to.length);
     const bad = m.flatMap(n => n.to.filter(t => !ids.has(t)));
     check('ROAD: no orphans, no dead ends, no edge to nowhere',
       !orphan.length && !dead.length && !bad.length,
@@ -117,20 +129,38 @@ const { boot } = require('./harness.cjs');
         const col = (c) => m.filter(n => n.col === c);
         const kind = (c) => col(c).map(n => n.kind);
         const why = [];
-        if (m.filter(n => n.kind === 'elite').length !== 1) why.push('elites');
-        if (kind(3).indexOf('elite') < 0) why.push('elite off col3');
-        if (!col(4).every(n => n.kind === 'camp' || n.kind === 'story')) why.push('fight at the door');
-        if (kind(5).join() !== 'boss') why.push('no Regent');
-        if (m.filter(n => n.kind === 'camp').length < 2) why.push('fires');
-        if (m.filter(n => n.kind === 'story').length < 2) why.push('memories');
+        // WHAT MOVED at Build 69: the road is eleven columns, not six, so the
+        // numbers these rules were written around all changed. The RULES did
+        // not — one elite per half rather than one per road, a fire roughly
+        // every third column rather than two of them, nothing but rest and
+        // memory on the Regent's doorstep — and they are written against the
+        // road's own length now instead of against 3, 4 and 5.
+        const LAST = window.R.STOPS - 1, DOOR = LAST - 1;
+        const elites = m.filter(n => n.kind === 'elite');
+        if (elites.length < 1 || elites.length > 2) why.push('elites');
+        // an elite belongs in the back half of each stretch it guards, never at
+        // the trailhead and never on the doorstep
+        if (elites.some(n => n.col < 2 || n.col >= DOOR)) why.push('elite misplaced');
+        if (!col(DOOR).every(n => n.kind === 'camp' || n.kind === 'story')) why.push('fight at the door');
+        if (kind(LAST).join() !== 'boss') why.push('no Regent');
+        const fires = m.filter(n => n.kind === 'camp');
+        if (fires.length < 3) why.push('fires');
+        if (m.filter(n => n.kind === 'story').length < 3) why.push('memories');
+        // A FIRE HAS TO BE WITHIN REACH OF A HURT PARTY. On a longer road the
+        // real risk is not "too few fires" but a stretch of five fights with no
+        // way to mend in the middle of it, so the gap between fires is what is
+        // asserted — including the run-up from the trailhead.
+        const fireCols = [-1].concat(fires.map(n => n.col).sort((a, b) => a - b)).concat([LAST]);
+        const widest = Math.max(...fireCols.slice(1).map((c, i) => c - fireCols[i]));
+        if (widest > 5) why.push('gap ' + widest);
         // every route must be able to reach a memory BEFORE the last fire, or
         // the tier lock is unopenable on that road
-        if (!m.some(n => n.kind === 'story' && n.col < 4)) why.push('no early memory');
+        if (!m.some(n => n.kind === 'story' && n.col < DOOR - 2)) why.push('no early memory');
         if (why.length) bad.push(s + ':' + why.join('+'));
       }
       return { bad: bad.length, n: N, sample: bad.slice(0, 4) };
     });
-    check('ROAD: the road is paced — one elite at column 3, two fires, an early memory, no fight on the Regent’s doorstep',
+    check('ROAD: the road is paced — elites placed, fires never more than five columns apart, an early memory, no fight on the Regent’s doorstep',
       pace.bad === 0, pace.bad + ' broken of ' + pace.n + (pace.sample.length ? ' — ' + pace.sample.join(',') : ''));
     await reset(11);
 
@@ -191,7 +221,7 @@ const { boot } = require('./harness.cjs');
 
     let v = await look();
     check('GLANCE: the road is drawn — a button per stop, each with an icon and a word',
-      v.length >= 10 && v.length <= 13 && v.every(n => n.glyph && n.word),
+      v.length >= STOPS * 2 - 2 && v.length <= STOPS * 3 && v.every(n => n.glyph && n.word),
       v.length + ' stops drawn');
 
     // REWRITTEN at Build 58 for the one deliberate exception. Depth still runs
@@ -201,8 +231,11 @@ const { boot } = require('./harness.cjs');
     // as the exception rather than allowed to quietly break the rule, and
     // everything else must still recede.
     const openN = v.filter(n => n.open);
-    const recede = v.filter(n => !n.open && !n.here && !/^5:/.test(n.id));
-    const regent = v.find(n => /^5:/.test(n.id));
+    // …and she is found by BEING the Regent. `/^5:/` was her column number
+    // written into a regex, which stopped being true the moment the road grew.
+    const bossId = await J(() => (window.R.map().find(n => n.kind === 'boss') || {}).id);
+    const recede = v.filter(n => !n.open && !n.here && n.id !== bossId);
+    const regent = v.find(n => n.id === bossId);
     check('GLANCE: only the stops you may take are bright — everything but the Regent recedes',
       openN.length >= 2 && openN.length <= 3 && openN.every(n => n.opacity === 1)
       && recede.length && recede.every(n => n.opacity <= 0.55)
@@ -283,6 +316,44 @@ const { boot } = require('./harness.cjs');
       }
       return { bad: bad.length, n: N, sample: bad.slice(0, 4) };
     }, envelope);
+    // …AND NONE OVERPRINTS ANOTHER. This is the risk a denser chart introduces
+    // and the one the envelope sweep above cannot see: it tests each coin
+    // against the furniture and the edges, never against its neighbours. At
+    // eleven columns the centres are 73px apart and a name in nowrap can be
+    // wider than that, so two visible names could share a line. Swept over
+    // sixty roads, each walked three stops in so a standing node's name is on
+    // screen beside the ones you may take.
+    const names = await (async () => {
+      const bad = [];
+      for (let sd = 1; sd <= 60; sd++) {
+        await J((x) => {
+          window.R.newRun(x);
+          for (let i = 0; i < 3; i++) { const r = window.R.reachable(); if (r.length) window.R.travel(r[0]); }
+        }, sd);
+        await sleep(90);
+        await J(() => { window.R.screen('map'); window.R.render(); });
+        await sleep(90);
+        const hit = await J(() => {
+          const vis = [...document.querySelectorAll('#k-map-nodes .k-node')]
+            .filter(b => +getComputedStyle(b.querySelector('.k-n-word')).opacity > 0.5)
+            .map(b => ({ t: b.querySelector('.k-n-word').textContent,
+                         r: b.querySelector('.k-n-word').getBoundingClientRect() }));
+          const out = [];
+          for (let i = 0; i < vis.length; i++) for (let j = i + 1; j < vis.length; j++) {
+            const a = vis[i].r, c = vis[j].r;
+            if (a.left < c.right && c.left < a.right && a.top < c.bottom && c.top < a.bottom)
+              out.push(vis[i].t + '×' + vis[j].t);
+          }
+          return out;
+        });
+        if (hit.length) bad.push(sd + ':' + hit[0]);
+      }
+      return bad;
+    })();
+    check('GLANCE: no two names a player can read at once share a line — swept over 60 roads',
+      names.length === 0, names.length + ' overprinting' + (names.length ? ' — ' + names.slice(0, 3).join(', ') : ''));
+    await reset(11);
+
     check('GLANCE: the coins wander, and none wanders off the chart or behind the furniture — swept over 240 roads',
       fitAll.bad === 0, fitAll.bad + ' bad of ' + fitAll.n + ' roads'
       + (fitAll.sample.length ? ' — ' + fitAll.sample.join(',') : ''));
@@ -636,11 +707,15 @@ const { boot } = require('./harness.cjs');
         if (new Set(ev.map(n => n.event)).size !== ev.length) bad.push(s + ':dupe');
         // a mystery is a third lane, never a `must` — it can never cost you a
         // fire, the elite, or a memory
-        if (ev.some(n => n.col === 0 || n.col >= 4)) bad.push(s + ':misplaced');
+        // The rule was always about PLACEMENT — never at the trailhead, never
+        // in the closing stretch where the last fire and the Regent live — even
+        // though the check's name said "must-lane". Written against the road's
+        // length it survives the road growing.
+        if (ev.some(n => n.col === 0 || n.col >= window.R.STOPS - 2)) bad.push(s + ':misplaced');
       }
       return { bad: bad.length, withAny, n: N, sample: bad.slice(0, 3) };
     });
-    check('MYSTERY: every mystery is wired to a written crossroads, never repeated, never in a must-lane',
+    check('MYSTERY: every mystery is wired to a written crossroads, never repeated, never at the trailhead or the door',
       dealt.bad === 0 && dealt.withAny > 250 * 0.4,
       JSON.stringify({ bad: dealt.bad, roadsWithOne: dealt.withAny + '/' + dealt.n, sample: dealt.sample }));
     await reset(11);
@@ -743,12 +818,16 @@ const { boot } = require('./harness.cjs');
 
     // The Regent, and what beating her means.
     await reset(11);
-    const boss = await J(() => window.R.map().find(n => n.col === 5));
+    // …by BEING the Regent, not by living at column 5. Her column moved when
+    // the road grew; what she is did not.
+    const boss = await J(() => window.R.map().find(n => n.col === window.R.STOPS - 1));
     check('BOSS: the last stop is the Regent, and she is visible from the trailhead',
       boss.kind === 'boss' && boss.foe === 'mourner', JSON.stringify({ kind: boss.kind, foe: boss.foe }));
+    // …and the stop before her is "the one that leads to her", not column 4.
     await J((b) => {
-      const prev = window.R.map().find(m => m.col === 4 && m.to.indexOf(b.id) >= 0);
-      window.R._set({ at: prev.id, path: [prev.id], stop: 5, embers: 9 });
+      const last = window.R.STOPS - 1;
+      const prev = window.R.map().find(m => m.col === last - 1 && m.to.indexOf(b.id) >= 0);
+      window.R._set({ at: prev.id, path: [prev.id], stop: last, embers: 9 });
     }, boss);
     await J((id) => window.R.travel(id), boss.id);
     await sleep(420);
@@ -820,6 +899,15 @@ const { boot } = require('./harness.cjs');
     const before = await R();
     await H.page.reload({ waitUntil: 'networkidle' });
     await H.page.waitForFunction(() => window.__ready === true, null, { timeout: 8000 });
+    // WHAT MOVED at Build 69: a reload used to drop you straight back into the
+    // run. It lands on the TITLE now and offers the stored run as CONTINUE —
+    // which is most of what a title screen is for, and means the run coming
+    // back whole is something the player asks for rather than something that
+    // happens to them. What is asserted below is unchanged.
+    const onTitle = await J(() => !document.getElementById('k-title').classList.contains('k-hidden'));
+    check('SAVE: a reload lands on the title, with the stored run offered rather than resumed',
+      onTitle, JSON.stringify({ onTitle }));
+    await H.pastTitle();
     const after = await J(() => {
       const r = window.R.state();
       const hidden = (id) => document.getElementById(id).classList.contains('k-hidden');
@@ -838,15 +926,92 @@ const { boot } = require('./harness.cjs');
       after.inFight === false && after.at === null && after.onWake === true
       && after.woke == null,
       JSON.stringify(after));
+    // …and it comes back when the player asks for it. boot() opens the title
+    // now, so this drove a title screen and then read a run that had not been
+    // built yet; CONTINUE is the door, exactly as it is for a real reload.
     const round = await J((b) => {
       localStorage.setItem('kizuna23.run', JSON.stringify(b));
       window.R.boot({});
-      const r = window.R.state();
-      return { at: r.at, embers: r.embers, stop: r.stop };
+      const btn = document.querySelector('#k-title-go .k-tt-go[data-go="on"]');
+      const offered = !!btn;
+      if (btn) btn.click();
+      const r = window.R.state() || {};
+      return { offered, at: r.at, embers: r.embers, stop: r.stop };
     }, before);
     check('SAVE: a stored run comes back whole — where you stand, and what you carry',
-      round.at === before.at && round.embers === before.embers && round.stop === before.stop,
+      round.offered && round.at === before.at && round.embers === before.embers && round.stop === before.stop,
       JSON.stringify(round));
+  }
+
+  // ═══ THE TITLE ═══
+  // The one screen every first-time player sees, and — because it is on the
+  // real boot path rather than skipped in test mode — the one the whole suite
+  // walks through on its way in.
+  console.log('\n── the title ──');
+  {
+    await J(() => { try { localStorage.removeItem('kizuna23.run'); } catch (e) {} });
+    const cold = await J(() => {
+      window.R.boot({});
+      const up = (id) => !document.getElementById(id).classList.contains('k-hidden');
+      return { onTitle: up('k-title'),
+               elsewhere: ['k-wake','k-map','k-stage','k-camp','k-scene','k-swap','k-mark'].filter(up),
+               name: (document.getElementById('k-title-name') || {}).textContent,
+               line: ((document.getElementById('k-title-line') || {}).textContent || '').length,
+               doors: [...document.querySelectorAll('.k-tt-go')].map(b => b.dataset.go),
+               run: !!window.R.state() };
+    });
+    check('TITLE: a cold start opens on the title, and on nothing else',
+      cold.onTitle && cold.elsewhere.length === 0, JSON.stringify(cold));
+    check('TITLE: it says the game’s name, states the premise, and offers exactly one door',
+      cold.name === 'KIZUNA' && cold.line > 30 && cold.doors.join() === 'new',
+      JSON.stringify({ name: cold.name, line: cold.line, doors: cold.doors }));
+
+    const begun = await J(() => {
+      document.querySelector('.k-tt-go[data-go="new"]').click();
+      const up = (id) => !document.getElementById(id).classList.contains('k-hidden');
+      const r = window.R.state();
+      return { onTitle: up('k-title'), onWake: up('k-wake'), built: !!r, stop: r && r.stop };
+    });
+    check('TITLE: BEGIN builds the run and hands it to the awakening',
+      !begun.onTitle && begun.onWake && begun.built, JSON.stringify(begun));
+
+    // …and with a road under way, the title offers it back FIRST.
+    const offered = await J(() => {
+      const c = document.querySelector('#k-wake-cards button'); if (c) c.click();
+      window.R.boot({});
+      return { doors: [...document.querySelectorAll('.k-tt-go')].map(b => b.dataset.go),
+               labels: [...document.querySelectorAll('.k-tt-go')].map(b => b.textContent.trim()) };
+    });
+    check('TITLE: an unfinished run is offered back, and CONTINUE is the loud door',
+      offered.doors.join() === 'on,new' && /CONTINUE/.test(offered.labels[0])
+      && /AGAIN/.test(offered.labels[1]),
+      JSON.stringify(offered));
+
+    const kept = await J(() => {
+      const was = JSON.parse(localStorage.getItem('kizuna23.run'));
+      document.querySelector('.k-tt-go[data-go="on"]').click();
+      const r = window.R.state();
+      return { woke: r.woke === was.woke, seed: r.seed === was.seed, embers: r.embers === was.embers };
+    });
+    check('TITLE: CONTINUE brings the same road back, not a new one',
+      kept.woke && kept.seed && kept.embers, JSON.stringify(kept));
+
+    // BEGIN AGAIN THROWS THE OLD ROAD AWAY. Leaving it stored beside a second
+    // run is how a player ends up with two and no way to tell which they are in.
+    const wiped = await J(() => {
+      const oldSeed = window.R.state().seed;
+      window.R.boot({});
+      document.querySelector('.k-tt-go[data-go="new"]').click();
+      const r = window.R.state();
+      return { oldSeed, seed: r.seed, path: r.path.length, woke: r.woke,
+               stored: JSON.parse(localStorage.getItem('kizuna23.run') || 'null') };
+    });
+    check('TITLE: BEGIN AGAIN throws the stored road away rather than leaving two',
+      wiped.path === 0 && wiped.woke == null
+      && wiped.stored && wiped.stored.path.length === 0,
+      JSON.stringify({ path: wiped.path, woke: wiped.woke,
+                       storedPath: wiped.stored && wiped.stored.path.length }));
+    await reset(11);
   }
 
   // THE MUTE REPORTS A CHOICE, NOT AN ENVIRONMENT. This suite boots WITHOUT

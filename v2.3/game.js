@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 68;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 69;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -3901,6 +3901,15 @@ function renderHand() {
       + (_sel === id ? ' k-card-sel' : '') + '" data-card="' + id + '"'
       + ' style="--rot:' + rot + 'deg;--dy:' + dy + 'px;--tilt:' + tilt
       + 'deg;--lean:' + lean + 'deg">'
+      // THE WISP IS ITS OWN ELEMENT, not a pseudo. `.k-card::before` is already
+      // the face's inner texture and `.k-card-poor::after` is the unaffordable
+      // scrim — a card can be armed AND unaffordable, so both pseudo slots are
+      // spoken for and taking either would have silently deleted something.
+      // The follow-up gets its own class: "after an ally" is the combo the
+      // player is asked to look for, so it is the one that runs brightest.
+      + (ev.condActive && !dead
+          ? '<i class="k-wisp' + (c.cond && c.cond.type === 'FOLLOW_UP' ? ' k-wisp-ally' : '') + '"></i>'
+          : '')
       + cardFaceHTML(c, ev, gem, ownerArt)
       + '</button>';
   }).join('');

@@ -289,46 +289,59 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     check('TRADE: the trade hands you on to the tree, still at the same fire',
       back.camp && !back.swap, JSON.stringify(back));
 
-    // TWO LEVELS CROSSED ON ONE ROAD IS TWO SCENES, back to back at the same
-    // fire — the first draft of this check assumed one and read the second
-    // scene opening as a bug.
+    // WHAT MOVED at Build 69: two levels crossed on one road used to be two
+    // scenes BACK TO BACK AT THE SAME FIRE. That was the campfire overload —
+    // two conversations, each asking you to give up a card and then mark
+    // another, and only then the tree. A bond fires where it is earned now, one
+    // per stop, so two levels is two scenes at TWO stops. The rule the check is
+    // really about never moved: each level runs its full scene → fork → swap →
+    // mark, marks exactly one card, and the party still carries 5/5/5.
     await reset(11);
     await atCamp({ bonds: { 'ash|mira': 40, 'ash|elin': 0, 'elin|mira': 0 }, embers: 6, tier: 2 });
-    await sleep(420);
-    const chain = await J(() => {
-      const out = { titles: [], marks: [] };
-      // Each level now runs scene → fork → swap → MARK, and only then hands
-      // back to the next scene or the fire.
-      const step = (ix) => {
-        window.R.sceneSkip(); window.R.takeBond(ix);
-        document.querySelector('#k-swap-cols .k-swapcard').click();
-        document.getElementById('k-swap-go').click();
-        out.marks.push(!document.getElementById('k-mark').classList.contains('k-hidden'));
-        const btn = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
-        if (btn) btn.click();
-      };
-      out.titles.push(document.getElementById('k-scene-title').textContent);
-      step(0);
-      out.second = !document.getElementById('k-scene').classList.contains('k-hidden');
-      out.titles.push(document.getElementById('k-scene-title').textContent);
-      step(1);
-      const r = window.R.state();
-      out.sigils = Object.keys(r.sigils).length;
-      out.pending = r.pendingSigil;
-      out.camp = !document.getElementById('k-camp').classList.contains('k-hidden');
-      out.level = r.levels['ash|mira'];
-      out.sizes = ['ash', 'elin', 'mira'].map(h => r.roster[h].length);
-      out.uniq = new Set(window.K.rosterIds(r.roster)).size;
+    await sleep(460);
+    const runOne = () => J(() => {
+      const out = {};
+      out.title = document.getElementById('k-scene-title').textContent;
+      window.R.sceneSkip(); window.R.takeBond(0);
+      document.querySelector('#k-swap-cols .k-swapcard').click();
+      document.getElementById('k-swap-go').click();
+      out.mark = !document.getElementById('k-mark').classList.contains('k-hidden');
+      const btn = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
+      if (btn) btn.click();
       return out;
     });
+    const first = await runOne();
+    await sleep(320);
+    // …and the fire it interrupted is what it hands back to, not another scene
+    const atFire = await J(() => ({
+      camp: !document.getElementById('k-camp').classList.contains('k-hidden'),
+      scene: !document.getElementById('k-scene').classList.contains('k-hidden'),
+    }));
+    check('TRADE: the conversation hands back to the stop it interrupted, and the fire is only the fire',
+      atFire.camp && !atFire.scene, JSON.stringify(atFire));
+
+    // the second level is still owed, and it is owed at the NEXT stop
+    await J(() => { window.R.leaveCamp(); });
+    await sleep(320);
+    await J(() => { const r = window.R.reachable(); if (r.length) window.R.travel(r[0]); });
+    await sleep(520);
+    const opened = await J(() => !document.getElementById('k-scene').classList.contains('k-hidden'));
+    const second = opened ? await runOne() : { title: null, mark: false };
+    await sleep(320);
+    const chain = await J(() => {
+      const r = window.R.state();
+      return { sigils: Object.keys(r.sigils).length, pending: r.pendingSigil,
+               level: r.levels['ash|mira'],
+               sizes: ['ash', 'elin', 'mira'].map(h => r.roster[h].length),
+               uniq: new Set(window.K.rosterIds(r.roster)).size };
+    });
     check('MARK: each level marks one card, and the grant never survives its own screen',
-      chain.marks.length === 2 && chain.marks.every(Boolean)
-      && chain.sigils === 2 && chain.pending == null,
-      JSON.stringify({ marks: chain.marks, sigils: chain.sigils, pending: chain.pending }));
-    check('TRADE: two levels crossed on one road is two scenes at the same fire, and still 5/5/5',
-      chain.second && chain.titles[0] !== chain.titles[1] && chain.level === 2
-      && chain.camp && chain.sizes.every(n => n === 5) && chain.uniq === 15,
-      JSON.stringify(chain));
+      first.mark && second.mark && chain.sigils === 2 && chain.pending == null,
+      JSON.stringify({ marks: [first.mark, second.mark], sigils: chain.sigils, pending: chain.pending }));
+    check('TRADE: two levels crossed on one road is two scenes at TWO stops, and still 5/5/5',
+      opened && first.title !== second.title && chain.level === 2
+      && chain.sizes.every(n => n === 5) && chain.uniq === 15,
+      JSON.stringify({ titles: [first.title, second.title], opened, ...chain }));
   }
 
   // ═══ E · WHAT SURVIVES A DEATH ═══
@@ -526,6 +539,7 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     });
     await H.page.goto(RESUME_URL, { waitUntil: 'networkidle' });
     await H.page.waitForFunction(() => window.__ready === true, null, { timeout: 8000 });
+    await H.pastTitle();      // a fresh load lands on the title; CONTINUE is the door
 
     const seed = await J(() => {
       for (let s = 1; s <= 200; s++) {
@@ -544,6 +558,7 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
 
     await H.page.goto(RESUME_URL, { waitUntil: 'networkidle' });
     await H.page.waitForFunction(() => window.__ready === true, null, { timeout: 8000 });
+    await H.pastTitle();      // a fresh load lands on the title; CONTINUE is the door
     await sleep(350);
     const kept = await J(() => ({
       card: window.R.pendingCard(),
@@ -569,6 +584,7 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     });
     await H.page.goto(RESUME_URL, { waitUntil: 'networkidle' });
     await H.page.waitForFunction(() => window.__ready === true, null, { timeout: 8000 });
+    await H.pastTitle();      // a fresh load lands on the title; CONTINUE is the door
     await sleep(350);
     const settled = await J(() => ({
       owes: window.R.state().pendingCard,

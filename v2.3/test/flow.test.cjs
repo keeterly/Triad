@@ -944,6 +944,68 @@ const { boot } = require('./harness.cjs');
       JSON.stringify({ apBefore: fin.ap, landed }));
     check('NO DUAL BONUS: Finale grants output, cost stays 1',
       fin.cost === 1 && fin.dmg === 15 && cold.currentCost === 1, JSON.stringify(fin));
+
+    // A LIVE COMBO HAS TO BE SEEN, not merely be true. A card that is armed
+    // reads gold and BREATHES; a follow-up — the combo the player is being
+    // taught to look for, the one that exists only because of the card somebody
+    // else just played and stops existing the moment anyone else acts — also
+    // runs a wisp of light around its border. That is an EVENT, and a still
+    // glow cannot say "right now" the way something moving can.
+    //
+    // Driven, not observed in passing: a first draft read whichever armed card
+    // happened to be in the fan at this point in the walk, which was the FINALE
+    // and then a Mend — armed, wisped, and not the thing this check is about.
+    //
+    // And MEASURED rather than read off the stylesheet: the wisp rides an
+    // @property angle, which fails silently to a static gradient if custom
+    // property animation is ever unavailable — a still ring being exactly the
+    // thing this was built to stop being.
+    await fresh(7);
+    const wisp = await J(async () => {
+      const D = window.K.CARD_DEFS, ids = Object.keys(D);
+      const fu = ids.find(i2 => D[i2].cond && D[i2].cond.type === 'FOLLOW_UP');
+      const other = ids.find(i2 => D[i2].owner && D[i2].owner.indexOf('|') < 0
+        && D[i2].owner !== D[fu].owner && !D[i2].cond);
+      window.K.forceHand([other, fu]);
+      window.K.playCard(other);                        // now the follow-up is live
+      await new Promise(r => setTimeout(r, 120));
+      const card = document.querySelector('#k-hand .k-card-active[data-card="' + fu + '"]');
+      if (!card) return { armed: false, wanted: fu };
+      const w = card.querySelector('.k-wisp');
+      if (!w) return { armed: true, wisp: false, id: fu };
+      const r2 = w.getBoundingClientRect();
+      const read = () => parseFloat(getComputedStyle(w).getPropertyValue('--wisp')) || 0;
+      const a = read();
+      await new Promise(res => setTimeout(res, 300));
+      const b = read();
+      return { armed: true, wisp: true, id: fu, ally: w.classList.contains('k-wisp-ally'),
+               w: Math.round(r2.width), h: Math.round(r2.height), moved: Math.abs(b - a) > 1 };
+    });
+    check('ARMED: a live follow-up wears a gold wisp that actually travels its border',
+      wisp.armed && wisp.wisp && wisp.ally && wisp.moved && wisp.w > 40 && wisp.h > 40,
+      JSON.stringify(wisp));
+
+    // THE ALL-OUT SAYS PRESS ME, and says it by MOVING. A ready bar used to
+    // breathe a box-shadow and nothing else — a soft halo on a 15px strip,
+    // beside three health bars and a damage number, is not a call to action.
+    const kzPulse = await J(async () => {
+      window.K.state().kizuna = 100; window.K.render();
+      await new Promise(r => setTimeout(r, 120));
+      const b = document.getElementById('k-kizuna');
+      if (!b.classList.contains('k-kz-ready')) return { ready: false };
+      const scale = () => {
+        const m = getComputedStyle(b).transform.match(/matrix\(([-\d.]+)/);
+        return m ? +m[1] : 1;
+      };
+      const seen = [];
+      for (let i2 = 0; i2 < 9; i2++) { seen.push(scale()); await new Promise(r => setTimeout(r, 110)); }
+      return { ready: true, anim: getComputedStyle(b).animationName,
+               swell: +(Math.max(...seen) - Math.min(...seen)).toFixed(4) };
+    });
+    check('READY: the all-out bar swells on its own beat, not only glows',
+      kzPulse.ready && kzPulse.anim === 'k-kzready' && kzPulse.swell > 0.005,
+      JSON.stringify(kzPulse));
+    await fresh(7);
     check('NO DUAL BONUS: Follow-Up Cross Sever costs 1, output stays 9',
       cs.cost === 1 && cs.dmg === 9, JSON.stringify(cs));
   }
