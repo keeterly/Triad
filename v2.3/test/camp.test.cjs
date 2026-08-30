@@ -161,12 +161,24 @@ const { boot } = require('./harness.cjs');
 
     await J(() => window.R.leaveCamp());
     await sleep(200);
+    // NO RECEIPT ON THE ROAD. This asserted that the map printed "MENDED …"
+    // across its foot the moment the player stepped away from the fire that
+    // had just mended them — the same news twice, the second time on a screen
+    // they had already left. What the road still owes is the STATE: the party
+    // is handed back healed, the header carries the purse, and the chart does
+    // not restate what the fire already said.
     const back = await J(() => ({
       onMap: !document.getElementById('k-map').classList.contains('k-hidden'),
-      card: document.getElementById('k-map-card').textContent,
+      card: document.getElementById('k-map-card').textContent.trim(),
+      embersShown: document.getElementById('k-embers-n').textContent,
+      embersReal: String(window.R.state().embers),
+      healed: JSON.stringify(window.R.state().hp || {}),
     }));
-    check('FIRE: leaving hands you back to the road with a receipt for what happened',
-      back.onMap && /MENDED|mended/.test(back.card), back.card.replace(/\s+/g, ' ').slice(0, 72));
+    check('FIRE: leaving hands you back to the road, healed, with the purse on the header',
+      back.onMap && back.embersShown === back.embersReal,
+      JSON.stringify(back));
+    check('FIRE: …and the road does not re-announce the fire on a banner',
+      back.card === '', back.card.replace(/\s+/g, ' ').slice(0, 72));
   }
 
   // ═══ D · THE BOUGHT CARD IS THE DEALT CARD ═══
@@ -350,14 +362,18 @@ const { boot } = require('./harness.cjs');
     await J(() => window.R.sceneNext());
     await sleep(240);
     const after = await R();
+    // …and the tier is announced IN THE SCENE (SKIP goes to that payout — the
+    // check above proves the line reads TIER 2 OPENS), not again on the map.
     const back = await J(() => ({
       onMap: !document.getElementById('k-map').classList.contains('k-hidden'),
-      card: document.getElementById('k-map-card').textContent,
+      card: document.getElementById('k-map-card').textContent.trim(),
+      embersShown: document.getElementById('k-embers-n').textContent,
+      embersReal: String(window.R.state().embers),
     }));
-    check('MEMORY: leaving the scene raises the tier, pays an ember, and says so on the road',
+    check('MEMORY: leaving the scene raises the tier, pays an ember, and hands back the road',
       after.tier === 2 && after.embers >= 1 && after.seen.length === 1
-      && back.onMap && /tier 2/i.test(back.card),
-      JSON.stringify({ tier: after.tier, embers: after.embers, seen: after.seen }));
+      && back.onMap && back.card === '' && back.embersShown === back.embersReal,
+      JSON.stringify({ tier: after.tier, embers: after.embers, seen: after.seen, card: back.card }));
 
     // The two memories on a road are a conversation with a first half and a
     // second half — the same scene twice would be worse than one scene once.

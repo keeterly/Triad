@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 73;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 74;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1094,10 +1094,26 @@ async function allOut() {
 function fxFoeDown() {
   const box = el('k-boss-art');
   if (!box) return;
-  if (typeof foeAnimState === 'function') { try { foeAnimState('broken'); } catch (e) {} }
+  // THE POSE IT DIES IN IS THE POSE IT KEEPS. Not `foeAnimState('broken')` —
+  // that starts the stagger loop at frame 0 and leaves it running, which is
+  // what had the body pulsing on the ground. The frames are walked to the LAST
+  // one of the broken run and then frozen, so the CSS fall lands a still shape
+  // rather than a twitching one.
+  try { foeAnimKill('broken'); } catch (e) {}
   box.classList.remove('k-foe-down');
   void box.offsetWidth;
   box.classList.add('k-foe-down');
+}
+// Freeze the sheet on the final frame of `name` and refuse every later state
+// change. `foeAnimArm` builds a fresh `_fanim` per fight, so the flag cannot
+// outlive the corpse that earned it.
+function foeAnimKill(name) {
+  const a = _fanim; if (!a) return;
+  const st = a.sheet.states[name];
+  if (st && st.length) { a.state = name; a.frame = st.length - 1; a.dir = 0; }
+  a.dead = true;
+  clearTimeout(_fanimBack); _fanimBack = null; a.resume = null;
+  foeAnimPaint();
 }
 
 function checkBossPhase() {
@@ -1766,6 +1782,13 @@ function foeAnimTick() {
     _fanim = null; return;
   }
   if (document.hidden || camReduced()) return;    // reduced motion holds the pose
+  // A CORPSE DOES NOT BREATHE. `broken` is a two-frame BOUNCING loop — it was
+  // authored as a stagger, which is a thing that happens to a foe that is still
+  // alive — and death borrowed it wholesale, so a dead enemy lay on the ground
+  // ping-ponging between two frames forever. Every foe sheet does this, so the
+  // fix belongs here rather than in five `play` blocks: once the fight has
+  // killed it, the frame it landed on is the frame it keeps.
+  if (a.dead) return;
   const play = a.sheet.play[a.state] || { ms: 150, bounce: true };
   const n = (a.sheet.states[a.state] || []).length;
   if (n < 2) return;
@@ -1791,7 +1814,7 @@ function foeAnimTick() {
 // drop the foe back to resting in the middle of its own volley, because a
 // barrage runs longer than the swing that opens it.
 function foeAnimState(name) {
-  const a = _fanim; if (!a) return;
+  const a = _fanim; if (!a || a.dead) return;
   // A foe whose sheet does not carry this act simply keeps what it is showing.
   // The CSS pose on the parent still plays over it, so the act still reads —
   // which is what lets frames land one state at a time.
@@ -1807,7 +1830,7 @@ function foeAnimState(name) {
 // middle of its own volley — and it times out against the same window the CSS
 // shake runs for, so the frames and the shudder end together.
 function foeAnimReact(name, ms) {
-  const a = _fanim; if (!a || !a.sheet.states[name]) return;
+  const a = _fanim; if (!a || a.dead || !a.sheet.states[name]) return;
   // Struck again while already reeling: hold it longer and replay, but do NOT
   // let 'hit' become the thing it goes back to.
   if (a.state !== name) a.resume = a.state;
@@ -3987,6 +4010,14 @@ function renderHand() {
       + '" class="k-card' + (ev.sigil ? ' k-card-sig k-sig-' + ev.sigil : '')
       + (ev.condActive && !dead ? ' k-card-active' : '') + (afford ? '' : ' k-card-poor')
       + (dead ? ' k-card-dead' : '') + (isPairCard(c) ? ' k-card-res' : '')
+      + (c.cond && c.cond.type === 'FINALE' ? ' k-card-tri' : '')
+      // TEAM PLAYS ARE BLUE. Gold was doing two jobs on this face — it
+      // marked a bond card AND it marked a live combo — so the one
+      // colour on the screen could not say which of the two it meant.
+      // Gold now means only 'this is live right now'; blue means 'this
+      // is a play that needs more than one of them'. A duo card is blue
+      // because two heroes own it; a Finale is blue because it wants all
+      // three to have acted. Both can still arm, and arming is the gold.
       + (_sel === id ? ' k-card-sel' : '') + '" data-card="' + id + '"'
       + ' style="--rot:' + rot + 'deg;--dy:' + dy + 'px;--tilt:' + tilt
       + 'deg;--lean:' + lean + 'deg">'

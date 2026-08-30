@@ -163,12 +163,12 @@
       // Ash is he/him in every bond scene ("What does he say to that?", "He
       // shifts his guard"). This was the one place that said otherwise, and it
       // is the SECOND screen of the game.
-      line: 'Ash keeps a twist of dry grass in his coat for no reason he can name. '
-          + 'His mother\u2019s hands, doing this, in a room that is gone. The road will want a fire.',
+      line: 'Ash twists the dry grass the way his mother did, in a kitchen that is gone. '
+          + 'His hands do it while he talks about something else. The road will want a fire.',
       gain: '+4 embers', apply(r) { r.embers += 4; } },
     { id: 'lastnote', kind: 'plain', who: 'ELIN', title: 'THE LAST NOTE',
-      line: 'The three of them held a chord once, at the end of something. Elin never let go of it. '
-          + 'It is still there under everything, waiting to be finished.',
+      line: 'The three of them held one chord, once, at the end of something. Elin never let it go. '
+          + 'She hums it under her breath, waiting for the other two to come in.',
       // WHAT IT SETS IS WHAT IT SAYS. These call `r.kizuna`, and every other
       // surface — the combat bar, the map HUD, the reckoning's own prize band —
       // calls that KIZUNA. Meanwhile BOND is the separate per-pair ladder the
@@ -176,27 +176,27 @@
       // the second screen a player ever sees.
       gain: 'kizuna begins at 45', apply(r) { r.kizuna = 45; } },
     { id: 'rest', kind: 'plain', who: 'MIRA', title: 'A NIGHT THAT KEPT',
-      line: 'One night nobody woke them. Mira remembers the weight of the other two against her back, '
-          + 'and how nothing came. She has been carrying the rest of that night ever since.',
+      line: 'One night nothing came for them. Mira remembers two warm backs against hers, and how she '
+          + 'stayed awake anyway, guarding a quiet that did not need her. She kept the quiet.',
       gain: '+6 health, all three', apply(r) { r.vigor += 6; } },
     { id: 'close', kind: 'plain', who: null, title: 'STILL CLOSE',
-      line: 'Something one of them did for another, so small neither would call it anything. '
-          + 'It is the reason they can still find each other without looking.',
+      line: 'A small kindness passed between two of them, too small for either to name it. '
+          + 'It is why they can still find each other in the dark without looking.',
       gain: 'a pair begins close', apply(r) { r.bonds[wakePair()] = 10; } },
     // the persistent slot — offered only when an earlier road won something
     { id: 'habit', kind: 'card', who: 'ALL THREE', title: 'AN OLD HABIT',
-      line: 'There is a thing they learned on a road that ended badly. The hands remember it '
-          + 'whether or not anyone wants them to. The deck will have to make room.',
+      line: 'A thing the three of them worked out on a road that ended badly. The hands kept it '
+          + 'after the rest of them agreed to let go. The deck will have to make room.',
       gain: 'carry a card you have won', apply() {} },
     // the trades — one of these is always in the offer
     { id: 'borrowed', kind: 'trade', who: 'ALL THREE', title: 'BORROWED FIRE',
-      line: 'There is a way to take the warmth now and settle for it later. All three of them '
-          + 'know how. None of them says so out loud.',
+      line: 'There is a way to take the warmth now and pay for it further down. All three of them '
+          + 'know how. All three of them pretend not to.',
       gain: '+8 embers', cost: 'they set out already hurt',
       apply(r) { r.embers += 8; r.hp = { ash: 34, elin: 29, mira: 27 }; } },
     { id: 'debt', kind: 'trade', who: 'ELIN', title: 'A DEBT OF BREATH',
       line: 'Reach back far enough and the chord is already ringing. So is everything that was '
-          + 'listening to it the first time.',
+          + 'listening the first time. Elin reaches anyway.',
       gain: 'kizuna begins at 70', cost: 'the Regent wakes with 14 more',
       apply(r) { r.kizuna = 70; r.foeBonus += 14; } },
   ];
@@ -283,73 +283,73 @@
   const BONDS = {
     'ash|elin': [
       { id: 'ae1', title: 'THE PRACTICE', beats: [
-        { who: null,   line: 'They have fallen into it again without discussing it.' },
-        { who: 'elin', line: 'You still step left when you are tired.' },
-        { who: 'ash',  line: 'You still cover it.' },
-        { who: 'elin', line: 'I always will. That is not the same as it being fine.' },
+        { who: null,   line: 'Nobody suggests it. They simply end up shoulder to shoulder, the way water ends up downhill.' },
+        { who: 'elin', line: 'You still drift left when you are tired. I could set a clock by it.' },
+        { who: 'ash',  line: 'And you still slide across to cover it before I have finished being tired.' },
+        { who: 'elin', line: 'I always will. I would only rather it were a choice than a reflex.' },
       ], ask: 'What does he say to that?', picks: [
-        { line: '"Then keep covering it."', card: 'shieldsong',
-          after: 'She does not argue. She never has.' },
+        { line: '"Then keep covering it. Please."', card: 'shieldsong',
+          after: 'She does not argue. She never has. But she does notice the word.' },
         { line: '"Then let me stop needing it."', card: 'lastvigil',
-          after: 'He shifts his guard a half-step. It costs him something.' },
+          after: 'He shifts his guard half a step. It costs him more than the fight did.' },
       ] },
       { id: 'ae2', title: 'WHAT IT ENDED AS', beats: [
-        { who: 'ash',  line: 'You have not asked what I remember about the last time.' },
+        { who: 'ash',  line: 'You have never once asked what I remember about the last time.' },
         { who: 'elin', line: 'No.' },
-        { who: 'ash',  line: 'Why not.' },
-        { who: 'elin', line: 'Because I was there, and because you would tell me the kind version.' },
+        { who: 'ash',  line: 'You ask everybody everything. Why not me.' },
+        { who: 'elin', line: 'Because I was there. And because you would hand it to me with the sharp parts filed off.' },
       ], ask: 'What does he give her instead?', picks: [
-        { line: 'The kind version anyway.', card: 'gravebloom',
-          after: 'She lets him have it. Something in her unclenches.' },
-        { line: 'All of it.', card: 'ashenoath',
-          after: 'It takes a while. Neither of them sleeps much after.' },
+        { line: 'The filed-down version anyway.', card: 'gravebloom',
+          after: 'She lets him have it. Something in her shoulders comes down regardless.' },
+        { line: 'All of it. Sharp parts included.', card: 'ashenoath',
+          after: 'It takes most of the night. Neither sleeps. Both of them look lighter for it.' },
       ] },
     ],
     'ash|mira': [
       { id: 'am1', title: 'IN FRONT', beats: [
-        { who: 'mira', line: 'You keep putting yourself between me and things.' },
+        { who: 'mira', line: 'Four times today you put your shoulder where my ribs were going to be. I counted.' },
         { who: 'ash',  line: 'That is the job.' },
-        { who: 'mira', line: 'It is a job you gave yourself.' },
+        { who: 'mira', line: 'It is a job you handed yourself. You never asked me to sign anything.' },
       ], ask: 'What do they settle on?', picks: [
-        { line: '"Cover me, then. Properly."', card: 'shieldblade',
-          after: 'She stops working around him and starts working behind him.' },
+        { line: '"Cover me properly, then."', card: 'shieldblade',
+          after: 'She stops working around him and starts working behind him. It is faster. She hates that.' },
         { line: '"Don\u2019t wait for me."', card: 'twinshadow',
-          after: 'He stops turning to check. It is harder than standing still.' },
+          after: 'He stops turning to check. It is harder than standing in front of her ever was.' },
       ] },
       { id: 'am2', title: 'THE QUICK ONE', beats: [
-        { who: null,   line: 'She is bleeding and has not mentioned it.' },
-        { who: 'ash',  line: 'How long.' },
-        { who: 'mira', line: 'Two stops. It is fine. I get out before it matters.' },
-        { who: 'ash',  line: 'And when you do not.' },
+        { who: null,   line: 'She has been bleeding since the second stop and has mentioned it to nobody.' },
+        { who: 'ash',  line: 'You have been favouring that side since the choir. How long.' },
+        { who: 'mira', line: 'Two stops. It is fine \u2014 I am always gone before it matters.' },
+        { who: 'ash',  line: 'And the day you are not, I would like to already be standing there.' },
       ], ask: 'What does she change?', picks: [
         { line: 'She starts leaving earlier.', card: 'cutthecord',
-          after: 'Out of reach before the answer comes. It is not cowardice.' },
+          after: 'Out of reach before the answer arrives. She would not call it care. It is.' },
         { line: 'She starts hitting harder.', card: 'bothblades',
-          after: 'Heavy first, then quick. Nothing left standing to answer.' },
+          after: 'Heavy first, then quick. Nothing left standing to argue with either of them.' },
       ] },
     ],
     'elin|mira': [
       { id: 'em1', title: 'THE SHAPE OF IT', beats: [
-        { who: 'mira', line: 'You hear it differently than we do.' },
-        { who: 'elin', line: 'I hear what it is asking for.' },
-        { who: 'mira', line: 'And what is that.' },
-        { who: 'elin', line: 'To be allowed to stop.' },
+        { who: 'mira', line: 'You hear something down here the rest of us do not. What is it saying?' },
+        { who: 'elin', line: 'It is not saying. It is asking.' },
+        { who: 'mira', line: 'Asking for what.' },
+        { who: 'elin', line: 'To be allowed to stop. Everything this far down is asking for that.' },
       ], ask: 'What does Mira do with that?', picks: [
-        { line: 'Learns to slow it down.', card: 'coldmercy',
-          after: 'A knife can be patient. She had not considered it.' },
-        { line: 'Learns to ask her first.', card: 'quietword',
-          after: 'They start speaking mid-fight. It is not tidy, and it works.' },
+        { line: 'She learns to slow a knife down.', card: 'coldmercy',
+          after: 'A blade can be patient. Nobody had ever thought to tell her.' },
+        { line: 'She learns to ask before she moves.', card: 'quietword',
+          after: 'They start talking mid-fight. It is not tidy. It works.' },
       ] },
       { id: 'em2', title: 'NOT A KINDNESS', beats: [
-        { who: 'elin', line: 'You could have let me take that one.' },
-        { who: 'mira', line: 'You would not have got up.' },
-        { who: 'elin', line: 'That was mine to decide.' },
-        { who: 'mira', line: '\u2026yes.' },
+        { who: 'elin', line: 'That one was mine, and you took it off me.' },
+        { who: 'mira', line: 'You would not have got back up. I have watched you get up. It is slow.' },
+        { who: 'elin', line: 'Slow is still mine to decide.' },
+        { who: 'mira', line: '\u2026yes. All right. Yes.' },
       ], ask: 'How does it settle?', picks: [
-        { line: 'They share the weight.', card: 'thornandlamp',
-          after: 'A little of everything, for everyone. Nobody carries it alone.' },
-        { line: 'Elin names it out loud.', card: 'namethefear',
-          after: 'Said plainly, it has less room to move.' },
+        { line: 'They agree to share the weight.', card: 'thornandlamp',
+          after: 'A little of everything, carried by everyone. Nobody gets to be the noble one.' },
+        { line: 'Elin says the frightened part out loud.', card: 'namethefear',
+          after: 'Named plainly, in company, it has much less room to move.' },
       ] },
     ],
   };
@@ -358,30 +358,30 @@
   const SCENES = [
     { id: 'lullaby', title: 'WHAT THE SONG IS FOR', beats: [
       { who: null,   line: 'The road bends. The singing does not.' },
-      { who: 'elin', line: 'It isn’t a threat. Listen to the shape of it.' },
-      { who: 'mira', line: 'It’s a hymn. They’re always threats.' },
-      { who: 'elin', line: 'It’s a lullaby. She’s still trying to put something to sleep.' },
+      { who: 'elin', line: 'Stop a moment. It isn’t a threat — listen to the shape of it.' },
+      { who: 'mira', line: 'It’s a hymn. In my experience hymns are threats with better manners.' },
+      { who: 'elin', line: 'It’s a lullaby. She’s still trying to put something to sleep, and it won’t go.' },
       { who: 'mira', line: '…for who?' },
-      { who: 'elin', line: 'For whatever she couldn’t keep.' },
-      { who: 'ash',  line: 'Then we aren’t killing her. We’re finishing it.' },
-      { who: null,   line: 'Three people stop arguing about what they are walking toward.' },
+      { who: 'elin', line: 'For whatever she couldn’t keep. She has been at it a very long time.' },
+      { who: 'ash',  line: 'Then we aren’t going down there to kill her. We’re going down to finish it.' },
+      { who: null,   line: 'Three people stop arguing about what they are walking toward, and start walking.' },
     ] },
     { id: 'careful', title: 'THE THING NOBODY SAYS', beats: [
-      { who: null,   line: 'Nobody has said it since the first stop.' },
-      { who: 'mira', line: 'You two move like one thing. You don’t even look.' },
-      { who: 'ash',  line: 'We’ve had the practice.' },
-      { who: 'mira', line: 'And how did that end.' },
+      { who: null,   line: 'It has been sitting between them since the trailhead, unsaid, taking up room.' },
+      { who: 'mira', line: 'You two move like one animal. You don’t even look. How long have you had that?' },
+      { who: 'ash',  line: 'A long time. Practice, mostly. Some of it we’d rather not have had.' },
+      { who: 'mira', line: 'And how did the practice end.' },
       { who: 'elin', line: 'It ended.' },
-      { who: 'ash',  line: 'Which is why we’re careful with you.' },
+      { who: 'ash',  line: 'Which is the whole reason we keep being careful with you.' },
       { who: 'mira', line: 'Don’t be careful with me. Be fast.' },
-      { who: null,   line: 'She steps up into the line without being asked. Nobody moves her back.' },
+      { who: null,   line: 'She steps up into the line before it is offered. Neither of them moves her back.' },
     ] },
     { id: 'floor', title: 'ONE MORE FLOOR', beats: [
-      { who: null,   line: 'The stair keeps going. It should have stopped.' },
-      { who: 'ash',  line: 'How far down does she go?' },
-      { who: 'elin', line: 'As far as she has to. That’s what grief is.' },
-      { who: 'mira', line: 'Then we go one floor further than that.' },
-      { who: null,   line: 'It is not a plan. It is the closest thing they have.' },
+      { who: null,   line: 'The stair keeps going down. It should have run out three turns ago.' },
+      { who: 'ash',  line: 'How far down does a thing like her go?' },
+      { who: 'elin', line: 'As far as she has to. That’s the trouble with grief — it hasn’t got a floor.' },
+      { who: 'mira', line: 'Then we go one floor further than that. All three of us, or none.' },
+      { who: null,   line: 'It is not a plan. It is a promise wearing a plan’s coat, and it is what they have.' },
     ] },
   ];
 
@@ -474,38 +474,38 @@
       lines: ['A gate of black iron, and a bowl worn smooth by ten thousand payments.',
               'Nothing guards it. Somehow that is worse.'],
       picks: [
-        { icon: 'ember', label: 'PAY THE BOWL', say: 'The road beyond is kind.',
+        { icon: 'ember', label: 'PAY THE BOWL', say: 'Ash pays before anyone asks him to. The road beyond is kinder for it.',
           fx: { embers: -6, heal: 10 } },
-        { icon: 'fight', label: 'FORCE THE GATE', say: 'The iron does not give quietly.',
+        { icon: 'fight', label: 'FORCE THE GATE', say: 'Mira goes first. The iron does not give quietly, and neither does she.',
           fx: { hurt: 4, embers: 5 } },
       ] },
     { id: 'well', title: 'THE WHISPERING WELL', eyebrow: 'A CROSSROADS',
       lines: ['A well that repeats whatever is dropped into it — coins, names, promises.',
               'Something at the bottom has been collecting them.'],
       picks: [
-        { icon: 'ember', label: 'DROP FOUR EMBERS', say: 'It whispers back what they will not say out loud.',
+        { icon: 'ember', label: 'DROP FOUR EMBERS', say: 'It gives back the things none of them would say out loud. Nobody meets anyone\u2019s eye.',
           fx: { embers: -4, bond: 4 } },
-        { icon: 'story', label: 'COVER YOUR EARS', say: 'Two embers on the lip, and no names given.',
+        { icon: 'story', label: 'COVER YOUR EARS', say: 'Two embers left on the lip, and not one name given away.',
           fx: { embers: 2 } },
       ] },
     { id: 'idol', title: 'THE THORNED IDOL', eyebrow: 'A BLOOD PRICE',
       lines: ['An idol of woven briars, palms open. Old blood blacks the thorns.',
               'It gives to those who bleed. It does not say how much.'],
       picks: [
-        { icon: 'elite', label: 'GRASP THE THORNS', say: 'Three hands close on it at once.',
+        { icon: 'elite', label: 'GRASP THE THORNS', say: 'Three hands close on it at the same moment. Nobody had to count down.',
           fx: { hurt: 5, kizuna: 25 } },
-        { icon: 'camp', label: 'LEAVE IT HUNGRY', say: 'It watches them go.',
+        { icon: 'camp', label: 'LEAVE IT HUNGRY', say: 'It watches them go. They walk closer together than the path requires.',
           fx: { heal: 3 } },
       ] },
     { id: 'banner', title: 'THE OLD BANNER', eyebrow: 'A CROSSROADS',
       lines: ['A company banner, half-buried — an order nobody living can name.',
               'Whoever carried it planted it facing DOWN the road. They meant to hold.'],
       picks: [
-        { icon: 'camp', label: 'BURN IT FOR HEAT', say: 'One night warm enough to matter.',
+        { icon: 'camp', label: 'BURN IT FOR HEAT', say: 'One night warm enough to matter. Elin apologises to it under her breath.',
           fx: { heal: 8 } },
         { icon: 'ember', label: 'STRIP THE GOLD THREAD', say: 'It deserved better. It gets this.',
           fx: { embers: 6 } },
-        { icon: 'story', label: 'PLANT IT AGAIN', say: 'Nobody says why. Nobody has to.',
+        { icon: 'story', label: 'PLANT IT AGAIN', say: 'They set it facing down the road again. Nobody says why. Nobody has to.',
           fx: { bond: 3, kizuna: 10 } },
       ] },
     { id: 'dark', title: 'THE HUNGRY DARK', eyebrow: 'A BLOOD PRICE',
@@ -523,14 +523,14 @@
       picks: [
         { icon: 'ember', label: 'TAKE THE LIGHT', say: 'It does not wake. Something below it does.',
           fx: { embers: 10, regent: 16 } },
-        { icon: 'story', label: 'STEP AROUND IT', say: 'They go the long way, close together.',
+        { icon: 'story', label: 'STEP AROUND IT', say: 'They go the long way round, shoulder to shoulder, and let it keep dreaming.',
           fx: { embers: 2, bond: 2 } },
       ] },
     { id: 'mirror', title: 'THE MIRROR POOL', eyebrow: 'A CROSSROADS',
       lines: ['Still water showing the three of them a step out of true.',
               'The reflections move a heartbeat late. Or early. Better not to check twice.'],
       picks: [
-        { icon: 'story', label: 'HOLD THE GAZE', say: 'What it shows them, they carry as one.',
+        { icon: 'story', label: 'HOLD THE GAZE', say: 'Whatever it shows them, they agree to carry the same weight of it.',
           fx: { hurt: 2, bond: 4, kizuna: 10 } },
         { icon: 'camp', label: 'LOOK AWAY', say: 'Some things are not owed a second look.',
           fx: { heal: 5 } },
@@ -577,13 +577,13 @@
       },
       title: 'THE LAST BLOW',
       beats: (A, B) => [
-        { who: null, line: 'It comes apart, and the noise it was making stops.' },
-        { who: B.id, line: 'I was three seconds from the floor.' },
-        { who: A.id, line: 'I know. That is why it is over.' },
+        { who: null, line: 'It comes apart mid-note, and the noise it had been making stops.' },
+        { who: B.id, line: 'I was about three seconds from the floor there.' },
+        { who: A.id, line: 'I know. I was counting them too. That is why it is over.' },
       ],
       ask: 'What does that settle?',
       picks: (A, B) => [
-        { label: '"THEN DO NOT CUT IT SO FINE."', say: 'Said to the floor, not to ' + A.n + '.',
+        { label: '"THEN DO NOT CUT IT SO FINE."', say: 'Said to the floor rather than to ' + A.n + '. It still arrives.',
           bond: [A.id, B.id] },
         { label: 'NOTHING. KEEP MOVING.', say: 'The road does not wait to be thanked.',
           kizuna: RECK_KIZ },
@@ -593,19 +593,21 @@
       cast: (d) => { const s2 = (d.shields || [])[0]; return s2 ? [s2.by, s2.for] : null; },
       title: 'IN FRONT OF YOU',
       beats: (A, B) => [
-        { who: null, line: A.n + ' is still standing where the blow was going to land.' },
+        { who: null, line: A.n + ' is still standing exactly where the blow was going to land.' },
         { who: B.id, line: 'That was meant for me.' },
         { who: A.id, line: 'Yes.' },
-        { who: B.id, line: 'You do not get to keep doing that.' },
+        { who: B.id, line: 'You do not get to keep doing that to me.' },
       ],
       // A LINE WHOSE SPEAKER IS CHOSEN AT RUNTIME CANNOT CARRY A PRONOUN. This
       // reckoning's cast is whoever stepped in front of whoever, so "she" was
-      // wrong for two thirds of the pairs it can draw.
+      // wrong for two thirds of the pairs it can draw. That goes for the ANSWERS
+      // as well as the question: the second fork used to narrate "she does not
+      // answer" over a cast that is Ash two times in three.
       ask: 'And what comes back?',
       picks: (A, B) => [
         { label: '"THEN BE SOMEWHERE ELSE."', say: 'Neither of them means it. Both of them mean it.',
           bond: [A.id, B.id] },
-        { label: 'SHE DOES NOT ANSWER.', say: 'She is already watching the next thing.',
+        { label: 'NO ANSWER. NOT YET.', say: 'Some answers wait for a quieter stretch of road.',
           kizuna: RECK_KIZ },
       ] },
 
@@ -617,9 +619,9 @@
       },
       title: 'OFF YOUR OPENING',
       beats: (A, B) => [
-        { who: null, line: 'Three times it happened without either of them calling it.' },
-        { who: A.id, line: 'You went where I was going to go.' },
-        { who: B.id, line: 'You left it open.' },
+        { who: null, line: 'Three times it happened, and neither of them called for it once.' },
+        { who: A.id, line: 'You went exactly where I was going to go.' },
+        { who: B.id, line: 'You left it open for me.' },
         { who: A.id, line: 'I left it open on purpose.' },
       ],
       ask: 'Does either of them admit that was a plan?',
@@ -638,14 +640,14 @@
       },
       title: 'YOU WENT DOWN',
       beats: (A, B) => [
-        { who: null, line: B.n + ' is upright again. It took longer than anyone says out loud.' },
+        { who: null, line: B.n + ' is upright again. It took longer than either of them will say out loud.' },
         { who: A.id, line: 'You were gone.' },
         { who: B.id, line: 'For a moment.' },
-        { who: A.id, line: 'It was not a moment.' },
+        { who: A.id, line: 'It was not a moment. I was counting.' },
       ],
       ask: 'How does it get put down?',
       picks: (A, B) => [
-        { label: '"I AM NOT DOING THAT AGAIN."', say: 'A promise nobody in this place can keep.',
+        { label: '"I AM NOT DOING THAT AGAIN."', say: 'A promise nobody on this road can keep. It gets made anyway.',
           bond: [A.id, B.id] },
         { label: 'THEY DO NOT PUT IT DOWN.', say: 'It walks the rest of the way with them.',
           kizuna: RECK_KIZ },
@@ -659,7 +661,7 @@
         { who: null, line: 'For about a second and a half, they were not three people.' },
         { who: A.id, line: 'That.' },
         { who: B.id, line: 'I know.' },
-        { who: null, line: 'Neither of them can say what it was. Both of them want it again.' },
+        { who: null, line: 'Neither of them can say what it was. Both of them would like it back.' },
       ],
       ask: 'What do they do with that?',
       picks: (A, B) => [
@@ -674,12 +676,12 @@
       title: 'NOT ONE MARK',
       beats: (A, B) => [
         { who: null, line: 'It never landed. Not once, on any of them.' },
-        { who: B.id, line: 'That does not happen.' },
+        { who: B.id, line: 'That does not happen. That has never once happened.' },
         { who: A.id, line: 'It happened.' },
       ],
       ask: 'What do they take from it?',
       picks: (A, B) => [
-        { label: '"SO IT CAN HAPPEN."', say: 'Said carefully, like something that might be true.',
+        { label: '"SO IT CAN HAPPEN."', say: 'Said carefully, the way you hold a thing that might still be true tomorrow.',
           bond: [A.id, B.id] },
         { label: 'GET DOWN THE ROAD BEFORE IT STOPS.', say: 'Momentum is a thing you can spend.',
           kizuna: RECK_KIZ },
@@ -692,7 +694,7 @@
       beats: (A, B) => [
         { who: null, line: 'Whatever it was singing, it has stopped.' },
         { who: A.id, line: 'Is that all of them?' },
-        { who: B.id, line: 'That is never all of them.' },
+        { who: B.id, line: 'It is never all of them. But it is fewer than there were.' },
       ],
       ask: 'How do they leave it?',
       picks: (A, B) => [
@@ -1117,7 +1119,18 @@
         + (isOpen ? '' : ' tabindex="-1"')
         + ' aria-label="' + (n.name || k.word) + ' — ' + k.word + '">'
         + '<span class="k-n-disc">' + svgIcon(n.kind) + '</span>'
+        // THE KIND, NOT THE NAME. Swapping in the place name put 'A STAIR
+        // WITHOUT A RAIL' in a nowrap span on every one of eleven columns —
+        // and an invisible span still takes its width, so far coins grew wide
+        // enough to overprint each other and to reach under the legend. The
+        // legend names the marks; the coin says which mark it is.
         + '<span class="k-n-word">' + k.word + '</span>'
+        // THE PRICE MOVED ONTO THE STOP. It used to live on a confirmation card
+        // at the foot of the screen, which meant the only way to learn what a
+        // stop cost was to tap it — a chart that hides its numbers until you
+        // commit is not a chart, it is a menu. One tap travels now, so the
+        // numbers have to be readable BEFORE the tap, which means on the coin.
+        + (isOpen || isHere ? '<span class="k-n-cost">' + costLine(n) + '</span>' : '')
         + '</button>';
     }).join('');
 
@@ -1129,7 +1142,7 @@
     // and nothing else is a progress bar; a run that opens on the name of the
     // place it is happening in is a descent into somewhere.
     const reg = regionOf(RUN.region);
-    $('k-map-prog').innerHTML = '<i>' + reg.name + '</i>'
+    $('k-map-prog').innerHTML = '<b>' + reg.name + '</b>'
       + (RUN.over ? (RUN.over === 'win' ? 'THE DESCENT IS ENDED' : 'THE ROAD ENDS HERE')
                   : 'STOP ' + Math.min(RUN.stop + 1, STOPS) + ' OF ' + STOPS);
     $('k-embers-n').textContent = RUN.embers;
@@ -1243,21 +1256,27 @@
       const from = lv === 0 ? 0 : BOND_STEPS[lv - 1];
       const pct = done ? 100 : Math.max(0, Math.min(100, (pts - from) / (need - from) * 100));
       const [a, b] = k.split('|');
-      return '<div class="k-mb' + (done ? ' k-mb-full' : '') + '" data-pair="' + k + '"'
-        + ' title="' + PAIR_NAME[k] + '">'
-        + '<span class="k-mb-faces">'
-        + '<img src="../art/' + art[a] + '.webp" alt=""><img src="../art/' + art[b] + '.webp" alt="">'
-        + '</span>'
+      // NO SECOND SET OF FACES. Six more portraits beside the party's own three
+      // made the header nine faces deep and none of them said which was which —
+      // "several portraits with unclear information". The pair is named in
+      // letters, which is unambiguous once you know three people, and the row
+      // gets its width back.
+      const ini = CAST[a].n[0] + CAST[b].n[0];
+      return '<div class="k-mb' + (done ? ' k-mb-full' : '') + (pts ? '' : ' k-mb-cold')
+        + '" data-pair="' + k + '" title="' + PAIR_NAME[k] + '">'
+        + '<span class="k-mb-who">' + ini + '</span>'
         + '<span class="k-mb-bar"><i style="width:' + pct + '%"></i></span>'
         + '<span class="k-mb-n">' + (done ? '\u25c8' : pts + '/' + need) + '</span>'
         + '</div>';
     }).join('');
   }
 
-  // THE CARD IS THE CONFIRMATION STEP. A phone map with one-tap travel is a map
-  // that sends you into an elite by accident; the first tap asks, the second
-  // commits, and in between the card says exactly what the stop is and what it
-  // is worth. It doubles as the run's outcome card when the run is over.
+  // THE CARD IS NOW ONLY THE RUN'S LAST WORD. It used to be the confirmation
+  // step — tap to ask, tap again to commit — and the reason that was worth a
+  // permanent band at the foot of the chart was that the band was the only
+  // place the stop's price was written. Both halves are gone: the price is on
+  // the coin, and the tap travels. What is left is the two things that are
+  // genuinely a full-width statement — the run ending, and the run stranding.
   function renderCard() {
     const card = $('k-map-card'); if (!card) return;
     if (RUN.over) {
@@ -1270,7 +1289,12 @@
       $('k-map-go').addEventListener('click', (e) => { e.stopPropagation(); newRun(); });
       return;
     }
-    if (!_pick && RUN.flash) {
+    // THE RECEIPT IS GONE. It announced what had just happened on the screen
+    // the player was standing on one second earlier — "MIRA gives up Quick
+    // Throw to carry it" the moment after they chose exactly that — and it took
+    // the widest band at the foot of the chart to do it. What it reported is
+    // already in the header (embers, bonds) and in the deck.
+    if (false && !_pick && RUN.flash) {
       const f = RUN.flash;
       card.className = 'k-map-card k-mc-flash k-tone-' + (f.tone || 'gold');
       card.innerHTML = (f.icon ? '<span class="k-mc-ico">' + svgIcon(f.icon) + '</span>' : '')
@@ -1291,9 +1315,13 @@
         $('k-map-go').addEventListener('click', (e) => { e.stopPropagation(); newRun(); });
         return;
       }
-      card.className = 'k-map-card k-mc-idle';
-      card.innerHTML = '<div class="k-mc-body"><b>CHOOSE THE NEXT STOP</b>'
-        + '<span>Tap a lit stop to see what waits there.</span></div>';
+      // NOTHING TO SAY, SO SAY NOTHING. This drew a 900px banner reading
+      // CHOOSE THE NEXT STOP across the foot of a chart whose lit coins were
+      // already the only bright things on it, and whose subtitle described a
+      // confirmation step that no longer exists. The stops carry their own
+      // prices now; the band under them was pure furniture.
+      card.className = 'k-map-card k-hidden';
+      card.innerHTML = '';
       return;
     }
     const n = node(_pick), k = KIND[n.kind];
@@ -1313,6 +1341,17 @@
     $('k-map-go').addEventListener('click', (e) => { e.stopPropagation(); travel(_pick); });
   }
 
+  // The same reading as gainText, sized for a coin rather than a banner: two
+  // facts at most, because a third one at 8px is a smudge.
+  function costLine(n) {
+    const foe = n.foe && window.K && window.K.FOES ? window.K.FOES[n.foe] : null;
+    if (n.kind === 'camp') return 'MEND \u00b7 SPEND';
+    if (n.kind === 'story') return '+1\u2726';
+    if (n.kind === 'event') return 'A TRADE';
+    if (foe) return '+' + foe.embers + '\u2726 \u00b7 ' + window.K.foeHp(foe) + 'hp';
+    return '';
+  }
+
   // WHAT IS THERE, in numbers. A choice between two stops is only a choice if
   // both prices are on screen at the same time as the decision.
   function gainText(n) {
@@ -1327,12 +1366,16 @@
     return '';
   }
 
+  // ONE TAP TRAVELS. The second tap was a confirmation step added when the
+  // chart was six big coins and a misfire cost a whole run; at eleven smaller
+  // ones it is a toll on every single move, eleven times a run, to prevent a
+  // mistake the card underneath was already describing.
   function tapNode(id) {
     if (_busy || RUN.over) return;
     if (reachable().indexOf(id) < 0) return;      // a stop you cannot reach says nothing
-    if (_pick === id) { travel(id); return; }     // second tap on the same stop commits
     _pick = id; RUN.flash = null;
     renderMap();
+    travel(id);
   }
 
   // ── travelling ────────────────────────────────────────────────────────────

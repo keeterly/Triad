@@ -526,35 +526,57 @@ const { boot } = require('./harness.cjs');
     check('GLANCE: the roads are drawn in three weights — walked, open, rumoured',
       edges.dim > 0 && edges.walk + edges.live + edges.dim >= 10, JSON.stringify(edges));
 
-    // ONE TAP ASKS, THE SECOND COMMITS. A phone map that travels on the first
-    // tap is a map that walks you into an elite by accident.
-    const first = openN[0].id;
-    await J((id) => { document.querySelector('[data-node="' + id + '"]').click(); }, first);
-    const asked = await R();
-    const card = await J(() => {
-      const c = document.getElementById('k-map-card');
-      return { html: c.textContent, go: !!document.getElementById('k-map-go'), cls: c.className };
+    // ONE TAP TRAVELS. This checked the opposite for eleven builds — that the
+    // first tap only ASKED, and a second tap on a TRAVEL button committed — and
+    // that rule is gone: at eleven stops the confirmation was a toll on every
+    // move to prevent a mistake the coin itself now describes. The check that
+    // replaces it has to be the one that made the old rule safe to remove:
+    // THE PRICE IS LEGIBLE BEFORE THE TAP. Written against the pre-change code
+    // this goes red — there was no .k-n-cost on any coin, and the numbers only
+    // ever existed on a card that appeared after the first tap.
+    const priced = await J(() => {
+      const out = { open: 0, priced: 0, samples: [], banner: '' };
+      document.querySelectorAll('.k-node.k-n-open').forEach(b => {
+        out.open++;
+        const c = b.querySelector('.k-n-cost');
+        if (!c) return;
+        const t = c.textContent.trim();
+        if (!t) return;
+        out.priced++; out.samples.push(t);
+      });
+      out.banner = (document.getElementById('k-map-card').textContent || '').trim();
+      return out;
     });
-    check('GLANCE: the first tap ASKS — nothing has moved, and the stop names itself',
-      asked.at === null && card.go && card.html.length > 12, JSON.stringify({ at: asked.at, go: card.go }));
+    check('GLANCE: every stop you can take prices itself ON the chart, before any tap',
+      priced.open >= 2 && priced.priced === priced.open
+      && priced.samples.every(t => /\+\d|MEND|TRADE/.test(t)),
+      JSON.stringify(priced));
+    // …and the band that used to carry those numbers is not still down there
+    // saying CHOOSE THE NEXT STOP over a chart that has already said it.
+    check('GLANCE: no idle banner under the chart — the coins carry the reading now',
+      priced.banner === '', JSON.stringify({ banner: priced.banner.slice(0, 60) }));
     // THE LOAD-BEARING RULE HAS TO TRAVEL WITH THE STOP. "Only a memory opens
     // the deeper nodes" was stated in exactly one place — the sealed-node line
     // at a fire the player had to have already reached. A run that took only
     // battles could spend both forks that mattered without ever learning it.
+    // …and it has to say so WITHOUT being tapped, because tapping it is now
+    // the same thing as taking it. The rule lives in the legend's own blurb,
+    // which is on the chart at all times.
     const memory = await J(() => {
       const st = window.R.map().find(n => n.kind === 'story');
       const prev = window.R.map().find(m => m.col === st.col - 1 && m.to.indexOf(st.id) >= 0);
       window.R._set({ at: prev.id, path: [prev.id], stop: prev.col + 1 });
-      window.R.tapNode(st.id);
-      return document.getElementById('k-map-card').textContent;
+      const node = document.querySelector('[data-node="' + st.id + '"]');
+      return {
+        cost: node ? (node.querySelector('.k-n-cost') || {}).textContent || '' : '',
+        rule: window.R.KIND.story.blurb,
+        aria: node ? node.getAttribute('aria-label') : '',
+      };
     });
     check('GLANCE: a memory says what it is FOR before you take it, not after',
-      /deeper nodes/i.test(memory), memory.replace(/\s+/g, ' ').slice(0, 96));
+      /deeper nodes/i.test(memory.rule) && /\+1/.test(memory.cost),
+      JSON.stringify(memory));
     await reset(11);
-    await J(() => { document.querySelector('.k-node.k-n-open').click(); });
-
-    check('GLANCE: the card prices the stop before you commit to it',
-      /\+\d|REST/.test(card.html), card.html.replace(/\s+/g, ' ').slice(0, 90));
   }
 
   // ═══ C · TRAVELLING ═══
@@ -562,10 +584,10 @@ const { boot } = require('./harness.cjs');
   {
     const before = await R();
     const target = (await J(() => window.R.reachable()))[0];
-    await J(() => document.getElementById('k-map-go').click());
+    await J((id) => { document.querySelector('[data-node="' + id + '"]').click(); }, target);
     await sleep(420);
     const st = await R();
-    check('TRAVEL: the second tap commits — you are at the stop and the path remembers it',
+    check('TRAVEL: one tap commits — you are at the stop and the path remembers it',
       st.at === target && st.path.length === 1 && st.stop === 1,
       JSON.stringify({ at: st.at, stop: st.stop }));
 
@@ -745,16 +767,28 @@ const { boot } = require('./harness.cjs');
     check('MYSTERY: taking a trade charges exactly what it said, and moves nothing it did not mention',
       paid.length === 0, paid.join(',') + ' — ' + JSON.stringify({ fx: took.fx, before: took.before, after: took.after }));
 
+    // THE RECEIPT IS GONE, AND THAT IS THE POINT. It printed a full-width
+    // summary of the trade onto the map one second after the crossroads itself
+    // had shown the player the fork, their pick and its consequence — the same
+    // news twice, the second time on a screen they had already left. What the
+    // road still owes them is the STATE: the stop spent, the road handed back,
+    // and the header carrying the new numbers. That is what this asserts now.
     const back = await J(() => ({
       onMap: !document.getElementById('k-map').classList.contains('k-hidden'),
       card: document.getElementById('k-map-card').textContent.replace(/\s+/g, ' '),
       done: document.querySelectorAll('.k-n-done').length,
       pending: window.R.state().pending,
+      // the header is where the trade is now legible
+      embersShown: document.getElementById('k-embers-n').textContent,
+      embersReal: String(window.R.state().embers),
     }));
-    check('MYSTERY: the crossroads hands the road back with a receipt for the trade, and the stop is spent',
-      back.onMap && back.pending === null && back.card.length > 20
+    check('MYSTERY: the crossroads hands the road back, the stop is spent, and the header carries the trade',
+      back.onMap && back.pending === null && back.done >= 1
+      && back.embersShown === back.embersReal
       && took.flash && took.flash.icon === 'event' && (took.flash.gainSub || '').length > 3,
-      JSON.stringify({ onMap: back.onMap, card: back.card.slice(0, 80), flash: took.flash }));
+      JSON.stringify({ onMap: back.onMap, done: back.done, embers: back.embersShown, flash: took.flash }));
+    check('MYSTERY: …and it does NOT re-announce it on a banner over the chart',
+      back.card === '', JSON.stringify({ card: back.card.slice(0, 80) }));
 
     // A STOP WITH NO FIGHT IN IT MUST NOT BE ABLE TO END THE RUN. The road has
     // an elite for that. Swept across every bleed in the table, from 1 HP.

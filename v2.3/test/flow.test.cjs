@@ -2619,7 +2619,17 @@ const { boot } = require('./harness.cjs');
     const ring = await J(async () => {
       window.K.forceIntent('hymn');
       window.K.endTurn();                      // live rhythm, no grades passed
-      await new Promise(res => setTimeout(res, 620));   // past the lead-in
+      // WAIT FOR THE RING, DO NOT GUESS AT IT. This slept a flat 620ms and then
+      // asked whether the ring was up. Under load — a slower render, a heavier
+      // hand, another suite sharing the browser — the lead-in and that constant
+      // drift apart, and the check reports the parry bar missing when it is
+      // merely late. Three separate parry checks were wandering in and out of
+      // red on exactly this, never the same one twice, which is the signature
+      // of a racing probe rather than a broken feature. Poll for the thing.
+      for (let i = 0; i < 200 && !document.querySelector('.k-pring'); i++) {
+        await new Promise(res => setTimeout(res, 10));
+      }
+      await new Promise(res => setTimeout(res, 60));   // …and let it settle in
       const st = document.getElementById('k-stage');
       const r = st.querySelector('.k-pring');
       const cs = r && getComputedStyle(r.querySelector('.k-pr-close'));
@@ -2815,7 +2825,17 @@ const { boot } = require('./harness.cjs');
     const early = await J(async () => {
       window.K.forceIntent('hymn');
       window.K.endTurn();
-      await new Promise(res => setTimeout(res, 640));     // ring is up, beat is not
+      // WAIT FOR THE RING, DO NOT GUESS AT IT. This slept a flat 620ms and then
+      // asked whether the ring was up. Under load — a slower render, a heavier
+      // hand, another suite sharing the browser — the lead-in and that constant
+      // drift apart, and the check reports the parry bar missing when it is
+      // merely late. Three separate parry checks were wandering in and out of
+      // red on exactly this, never the same one twice, which is the signature
+      // of a racing probe rather than a broken feature. Poll for the thing.
+      for (let i = 0; i < 200 && !document.querySelector('.k-pring'); i++) {
+        await new Promise(res => setTimeout(res, 10));
+      }
+      await new Promise(res => setTimeout(res, 60));   // …and let it settle in
       const st = document.getElementById('k-stage');
       st.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 400, clientY: 200, pointerId: 3 }));
       await new Promise(res => setTimeout(res, 60));
@@ -2885,7 +2905,17 @@ const { boot } = require('./harness.cjs');
     const bait = await J(async () => {
       window.K.forceIntent('benediction');          // its first note is a bait
       const r = window.K.endTurn();
-      await new Promise(res => setTimeout(res, 640));
+      // WAIT FOR THE RING, DO NOT GUESS AT IT. This slept a flat 620ms and then
+      // asked whether the ring was up. Under load — a slower render, a heavier
+      // hand, another suite sharing the browser — the lead-in and that constant
+      // drift apart, and the check reports the parry bar missing when it is
+      // merely late. Three separate parry checks were wandering in and out of
+      // red on exactly this, never the same one twice, which is the signature
+      // of a racing probe rather than a broken feature. Poll for the thing.
+      for (let i = 0; i < 200 && !document.querySelector('.k-pring'); i++) {
+        await new Promise(res => setTimeout(res, 10));
+      }
+      await new Promise(res => setTimeout(res, 60));   // …and let it settle in
       const ring = document.querySelector('.k-pring');
       const kind = ring && ring.dataset;
       const mark = ring && ring.querySelector('.k-pr-x svg');
@@ -2906,7 +2936,17 @@ const { boot } = require('./harness.cjs');
     const burst = await J(async () => {
       window.K.forceIntent('rain');                 // opens on a burst
       const r = window.K.endTurn();
-      await new Promise(res => setTimeout(res, 640));
+      // WAIT FOR THE RING, DO NOT GUESS AT IT. This slept a flat 620ms and then
+      // asked whether the ring was up. Under load — a slower render, a heavier
+      // hand, another suite sharing the browser — the lead-in and that constant
+      // drift apart, and the check reports the parry bar missing when it is
+      // merely late. Three separate parry checks were wandering in and out of
+      // red on exactly this, never the same one twice, which is the signature
+      // of a racing probe rather than a broken feature. Poll for the thing.
+      for (let i = 0; i < 200 && !document.querySelector('.k-pring'); i++) {
+        await new Promise(res => setTimeout(res, 10));
+      }
+      await new Promise(res => setTimeout(res, 60));   // …and let it settle in
       const st = document.getElementById('k-stage');
       const kind = (document.querySelector('.k-pring') || {}).dataset;
       for (let i = 0; i < 3; i++) {                 // land the flurry
@@ -3059,16 +3099,28 @@ const { boot } = require('./harness.cjs');
       const dot = document.getElementById('k-cycle-dot').getBoundingClientRect();
       const overlaps = (a, b) => !(a.right <= b.left || a.left >= b.right
         || a.bottom <= b.top || a.top >= b.bottom);
-      const orbRound = getComputedStyle(document.querySelector('.k-ap-chip')).borderRadius;
+      // THE ORB IS GONE. AP was a 66px ring with a numeral in it stacked over
+      // three diamonds, in the bottom-left corner — the one corner a player
+      // reading their hand never looks at. It is a row of marks under the hand
+      // now, so what this check must prove moved with it: the marks are BELOW
+      // the cards (that is the whole point of the move), there is one per AP in
+      // the budget, and lit-vs-hollow tracks what is left. A check that still
+      // measured a border-radius would have gone green on a deleted element.
+      const hand = document.getElementById('k-hand').getBoundingClientRect();
+      const pips = Array.from(document.querySelectorAll('.k-ap-pip'));
+      const st23 = window.K.state();
       const out = {
         deckLeft: d.left - st.left < st.width * 0.35,
         discRight: st.right - x.right < st.width * 0.35,
         lowerThird: d.top - st.top > st.height * 0.6 && x.top - st.top > st.height * 0.6,
-        // the resource is round and the zones are rectangles — never the same shape
-        orbRound: /50%/.test(orbRound),
-        // the resource sits ABOVE its corner pile, Spire-style, and nothing
-        // in the bottom bar overlaps anything else
-        orbAboveDeck: ap.bottom <= d.top,
+        // one mark per point of budget, lit for what is still spendable
+        apMarks: pips.length,
+        apBudget: st23.apMax,
+        apLit: pips.filter(p => !p.classList.contains('k-ap-off')).length,
+        apLeft: st23.ap,
+        // and they sit UNDER the hand, which is where the spending happens
+        apUnderHand: ap.top >= hand.bottom - 2,
+        apCentred: Math.abs((ap.left + ap.right) / 2 - (hand.left + hand.right) / 2) < 8,
         endTurnAboveDiscard: et.bottom <= x.top,
         noOverlap: !overlaps(ap, d) && !overlaps(ap, x) && !overlaps(et, x)
           && !overlaps(et, d) && !overlaps(d, x),
@@ -3093,10 +3145,12 @@ const { boot } = require('./harness.cjs');
     check('PILES: a draw stack and a discard stack sit in the lower corners, counting live',
       piles.deckLeft && piles.discRight && piles.lowerThird && piles.stacked
       && piles.deckN === piles.stateDeck, JSON.stringify(piles));
-    check('BOTTOM BAR: round resource above its pile, action above its pile, nothing overlapping',
-      piles.orbRound && piles.orbAboveDeck && piles.endTurnAboveDiscard && piles.noOverlap
-      && piles.swapOnDeck,
-      JSON.stringify({ round: piles.orbRound, orbAbove: piles.orbAboveDeck,
+    check('BOTTOM BAR: AP is a row of marks under the hand, one per point, and nothing overlaps',
+      piles.apMarks === piles.apBudget && piles.apLit === piles.apLeft
+      && piles.apUnderHand && piles.apCentred
+      && piles.endTurnAboveDiscard && piles.noOverlap && piles.swapOnDeck,
+      JSON.stringify({ marks: piles.apMarks, budget: piles.apBudget, lit: piles.apLit,
+        left: piles.apLeft, under: piles.apUnderHand, centred: piles.apCentred,
         etAbove: piles.endTurnAboveDiscard, clear: piles.noOverlap, swap: piles.swapOnDeck }));
     check('PILES: a played card is seen flying into the discard, and the pile thumps',
       piles.flying >= 1 && piles.thumped && piles.landed && piles.discAfter === '1',

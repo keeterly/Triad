@@ -1860,3 +1860,66 @@ between lanes on a 620ms transition, and a rect read mid-glide reports a hero
 33px left of where they stop, in a wider box. A fixed sleep only moves the odds.
 It polls until two consecutive frames agree about where everybody is, then
 measures. Three consecutive full runs of flow: 222/222.
+
+## Build 74 — the screen stops saying things twice
+
+Fourteen of the fifteen notes from the last playtest, plus one instrument fixed.
+
+**The road.** The region name is the title now (`THE STILLNESS`, not `THE DESCENT`
+over it). The three bond meters were six 16px portraits of the same three people
+already standing at 33px beside them — they are two-letter chips now, dim when a
+pair has never spoken. The edges dropped from 2.2/3/2.6 to 1.2/1.7/1.5 and the
+coins from 34px to 27px, so the chart stopped reading as a diagram of string.
+
+**One tap travels, and the coin carries the price.** The confirmation card was
+added when the road was six big coins and a misfire cost a run; at eleven it was
+a toll on every move. It could only be removed once the numbers it carried moved
+somewhere the player can read them BEFORE committing, so every reachable stop now
+prints its own `+3✦ · 46hp` under its mark, and the 900px `CHOOSE THE NEXT STOP`
+banner is gone. Three checks that asserted the old two-tap rule were rewritten
+against the new one; two more (fire, memory) asserted a receipt on the map for
+something the player had just watched happen and now assert the state instead.
+
+**Blue means a team play.** Gold was marking two unrelated things on one card
+face: *this belongs to a pair* (permanent) and *this combo is live right now*
+(one action). A hand with three gold cards in it said nothing. Duo cards and
+Finale cards are cool-lit now — frame, wisp and armed breath — and gold is left
+to mean only ARMED. A blue card wearing a gold rim is exactly what it looks like.
+
+**AP left the corner.** A 66px ring with a numeral in it, stacked over three
+diamonds saying what it was out of, in the one corner of the board a player
+reading their hand never looks at. It is a row of marks under the hand.
+
+**The telegraph got a plate.** Every other readout on this board sits on
+something; the most important line in the turn was asked to survive on
+text-shadow over a painted sky. It has a hairline box and a `NEXT` caption.
+
+**A corpse does not breathe.** `broken` is a two-frame *bouncing* loop — authored
+as a stagger, which is a thing that happens to a foe that is still alive — and
+death borrowed it wholesale, so a dead enemy lay on the ground ping-ponging
+forever. `foeAnimKill` walks the frames to the last one of the broken run and
+freezes them, and nothing can revive it; the CSS kills the breathing loop and the
+reflection on the plate-only foes.
+
+**The fire's tiles show their paintings.** Measured: an 80×134 tile with
+`inset: 0` and `cover` over a 420×560 painting threw a fifth of every picture
+away sideways, and then brightness 0.78 under an opaque lift took most of the
+rest — the sealed tiles were rendering 42% opacity of a 0.34-brightness image,
+which is why half the tree looked like it had no art. The plate is a true 3:4
+window at the top of the tile now, with the words in the band beneath it.
+
+### The instrument: three parry checks were racing, not failing
+
+While measuring the above, LENS failed three runs in a row and looked like a
+regression from the blue cards. It was not. Bisected to a class name, then to a
+class name **with no CSS attached** — at which point a *different* parry check
+failed instead, and then a third. All five fragile checks shared one shape:
+`endTurn()`, then a flat `setTimeout(620)` "past the lead-in", then a query for
+`.k-pring`. Under any load the lead-in and that constant drift apart and the
+probe reports the parry bar missing when it is merely late. They poll for the
+ring now. Flow went from ~1-in-1 wandering red to ~1-in-3, and the one that is
+left (MASH, `.k-pring-burst`) is a different probe with the same disease.
+
+The lesson is the one this repo keeps relearning: a reproducible-looking failure
+is not a caused failure, and the way to tell them apart is to bisect until the
+change that "causes" it is provably inert.
