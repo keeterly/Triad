@@ -48,7 +48,17 @@ module.exports.BOT = `
       const tgt = (st.heroes[hit.target] && !st.heroes[hit.target].downed) ? hit.target : living()[0];
       if (!tgt) continue;
       let raw = hit.dmg[st.boss.phase - 1];
-      if (hit.backFactor != null && st.heroes[tgt].row === 'back') raw = Math.ceil(raw * hit.backFactor);
+      // THE BOT WAS BLIND TO WHERE ANYBODY WAS STANDING. backFactor was
+      // renamed to sweep + ROW_SHELTER in the engine — game.js says so in a
+      // comment — and this line was never updated, so hit.backFactor has been
+      // undefined on every hit since. The forecast therefore priced lane
+      // position at ZERO, which means every balance number this repo has ever
+      // produced was measured by a party that could not tell the difference
+      // between standing in front of a sweeping blade and standing behind it.
+      if (hit.sweep) {
+        const sh = (K.ROW_SHELTER || {})[st.heroes[tgt].row];
+        if (sh != null) raw = Math.ceil(raw * sh);
+      }
       raw = Math.max(0, raw - chill); chill = 0;
       const parrier = (st.intercession === tgt) ? 'elin' : tgt;
       // expected: pSuccess of the time it is blunted (or negated if Guard is
@@ -101,12 +111,30 @@ module.exports.BOT = `
     if (st.phase === 'DEFEAT') return { win: false, turns: st.turn, died: true, hp: HP(), kizuna: KZ(), allouts: AO(), pairBond: PB() };
     const it = K.currentIntent();
 
-    // Positional counterplay: the Scything Advance spares the Back row.
-    if (it.frontOnly) {
-      for (const h of ['mira', 'ash']) {
-        if (S().ap >= 2 && !S().turnState.moved && !S().heroes[h].downed && S().heroes[h].row === 'front'
-            && S().heroes[h].hp < 20) { K.moveHero(h); break; }
+    // POSITIONAL COUNTERPLAY, DRIVEN BY THE FORECAST RATHER THAN BY A FLAG.
+    // This keyed on it.frontOnly, which appears exactly once in the whole
+    // engine — its own definition — and nothing reads it. It also only ever
+    // considered heroes already under 20 health, so the bot could not choose to
+    // step out of the way BEFORE being hurt, which is the only time the choice
+    // is worth anything. It now moves whoever a sweep is aimed at, when moving
+    // measurably blunts what is coming and the AP is spare.
+    if ((it.hits || []).some(h2 => h2.sweep) && S().ap >= 2 && !S().turnState.moved) {
+      const before = forecast();
+      const shelt = K.ROW_SHELTER || {};
+      const order = ['front', 'mid', 'back'];
+      let best = null, bestGain = 0;
+      for (const h of living()) {
+        const st2 = S().heroes[h];
+        const back = order[Math.min(order.length - 1, order.indexOf(st2.row) + 1)];
+        if (back === st2.row) continue;
+        const now = shelt[st2.row] != null ? shelt[st2.row] : 1;
+        const then = shelt[back] != null ? shelt[back] : 1;
+        // what this hero is about to take, times the share the step removes
+        const gain = (before[h] || 0) * Math.max(0, 1 - then / now);
+        if (gain > bestGain) { bestGain = gain; best = h; }
       }
+      // worth an AP only if it beats what an AP of damage would have bought
+      if (best && bestGain >= 4) K.moveHero(best);
     }
 
     // SPEND THE LADDER. A bot that never fires the all-out measures a party

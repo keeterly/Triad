@@ -1788,3 +1788,75 @@ system exists at all. The label sits on the figure now. All three clear the hand
 That one is worth keeping in mind: the fix was applied, the measurement of the
 thing changed confirmed it, and the goal was still not met, because the property
 that mattered was one nobody had measured.
+
+---
+
+## Build 73 — the lane becomes a priced read, and two instruments stop lying
+
+The row system was the last verified-but-unbuilt finding: three named positions
+that a player could finish several fights without discovering. Going at it turned
+up two measurement bugs first, which is the more useful half of this build.
+
+### The bot could not see where anybody was standing
+
+`test/bot.cjs` forecast damage with `hit.backFactor` — a field the engine
+renamed to `sweep` + `ROW_SHELTER`, and said so in a comment. The line was never
+updated, so `hit.backFactor` has been `undefined` on every hit since. **Every
+balance number this repo has produced was measured by a party that could not
+tell the difference between standing in front of a sweeping blade and standing
+behind it.**
+
+Its one positional rule was keyed on `it.frontOnly`, which appears exactly once
+in the whole engine — its own definition — and it only ever considered heroes
+already under 20 health, which is after the choice stops being worth anything.
+It now moves whoever a sweep is aimed at, when the forecast says the step
+measurably blunts what is coming and the AP is spare.
+
+### `forceIntent` selected something else, on 11 of 17 calls
+
+Worse, and older. The hook found the intent's index in `REGENT_INTENTS` — the
+full table of eight — and assigned it to `C.boss.intentIx`, which
+`currentIntent()` reads against `C.intents`, **the foe's filtered subset**. The
+two lists only agree for a foe that draws every intent.
+
+```
+  husk:    asked toll        → got scythe
+  cultist: asked benediction → got rain
+  wraith:  asked scythe      → got rain
+```
+
+Eleven of seventeen. Every check in the suite that names an intent on a
+non-Regent foe has been asserting against a different intent and passing — and
+it is why my first attempt to verify the sweep mark reported no sweep at all on
+a foe whose scythe carries two of them.
+
+Both instruments are gated now: a check drives `forceIntent` across the whole
+bestiary and asserts it returns what it was asked for.
+
+### And then the lane
+
+On paper the shelter is enormous — `ROW_SHELTER` is 1 / 0.62 / 0.3, so the
+Scything Advance is 26–34 at the front and 8–12 at the back. **One AP, twenty-two
+damage: the best single AP a player can spend anywhere in the game.** The
+telegraph showed it as an ordinary number, so the lane was a decision nobody
+knew they were being offered.
+
+A sweep now says so, and says what stepping back would cost — as a number, not a
+percentage, because this deck's rule is that the screen shows the number that
+will actually land. `7 MIRA ⤳4 · 11 ASH ⤳7`. The mark is computed by the same
+function that will land the blow, so the promise and the outcome cannot drift,
+and a check takes the offer and asserts the number it was promised is the number
+that arrives.
+
+A first draft of that mark printed `→38%` off the ratio while the engine
+actually dealt a 36% cut. Small, and exactly the kind of small that the rule
+about showing real numbers exists to prevent.
+
+### The flake, finally
+
+`kzClear` has been intermittently reporting the all-out bar colliding with Elin
+since Build 57, and has been re-rolled past several times. The heroes glide
+between lanes on a 620ms transition, and a rect read mid-glide reports a hero
+33px left of where they stop, in a wider box. A fixed sleep only moves the odds.
+It polls until two consecutive frames agree about where everybody is, then
+measures. Three consecutive full runs of flow: 222/222.

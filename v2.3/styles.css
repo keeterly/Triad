@@ -3088,3 +3088,14 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-insp-key b { grid-column: 2; font-size: 10px; letter-spacing: 0.16em; color: #e0c084;
   font-weight: 400; }
 .k-insp-key span { grid-column: 2; font-size: 10.5px; line-height: 1.42; color: #a79c88; }
+
+
+/* A SWEEP IS A DIFFERENT KIND OF BLOW. Standing one row back turns the Scything
+   Advance from 26-34 into 8-12 — the best single AP a player can spend anywhere
+   in the game — and the telegraph showed it as an ordinary number, so the lane
+   was a decision nobody knew they were being offered. The mark carries the
+   damage it WOULD land for, not a percentage: this deck's rule is that the
+   screen shows the number that will actually land. */
+.k-ichip-sweep { font-style: normal; margin-left: 3px; font-size: 9.5px;
+  letter-spacing: 0.02em; color: #9fb0bd; }
+.k-ichip-atk .k-ichip-sweep { opacity: 0.92; }

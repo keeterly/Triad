@@ -750,6 +750,53 @@ const { boot } = require('./harness.cjs');
       lanes.length === 3 && lanes.every(l => l.txt && l.px >= 9 && !l.behind),
       JSON.stringify(lanes));
 
+    // A TEST HOOK THAT SILENTLY SELECTS SOMETHING ELSE IS WORSE THAN NO HOOK.
+    // forceIntent found the intent's index in REGENT_INTENTS — the full table of
+    // eight — and assigned it to C.boss.intentIx, which currentIntent() reads
+    // against the FOE'S filtered subset. Measured across the bestiary: 11 of 17
+    // calls selected a different intent from the one they named. Every check in
+    // this suite that names an intent on a non-Regent foe was asserting against
+    // something else, and passing.
+    const hook = await J(() => {
+      const bad = [];
+      let n = 0;
+      for (const f of Object.keys(window.K.FOES)) {
+        window.K.startCombat({ foe: window.K.FOES[f], seed: 3 });
+        for (const want of window.K.FOES[f].intents) {
+          n++;
+          window.K.forceIntent(want);
+          const got = window.K.currentIntent().id;
+          if (got !== want) bad.push(f + ':' + want + '\u2192' + got);
+        }
+      }
+      return { n, bad };
+    });
+    check('HOOK: forceIntent selects the intent it was asked for, on every foe in the bestiary',
+      hook.n >= 15 && hook.bad.length === 0, JSON.stringify(hook));
+
+    // …AND THE LANE IS A PRICED READ. A sweep loses most of its weight with
+    // distance — front 1, mid 0.62, back 0.3 — so stepping back is the best
+    // single AP in the game on the turn it is offered, and the telegraph showed
+    // a sweep as an ordinary number with nothing to say distance mattered. The
+    // mark carries the damage it would land for, computed by the same function
+    // that will land it, so the promise and the outcome cannot drift.
+    const swept = await J(async () => {
+      window.K.startCombat({ foe: window.K.FOES.wraith, seed: 3 });
+      window.K.forceIntent('scythe');
+      await new Promise(r => setTimeout(r, 40));
+      const rows = window.K.intentByTarget().filter(r => r.sweep);
+      const marks = [...document.querySelectorAll('.k-ichip-sweep')].map(e => e.textContent.replace(/[^0-9]/g, ''));
+      if (!rows.length) return { swept: 0 };
+      const who = rows[0].who, promised = rows[0].back, before = rows[0].total;
+      window.K.moveHero(who);                       // take the offer
+      const after = (window.K.intentByTarget().find(r => r.who === who) || {}).total;
+      return { swept: rows.length, marks, who, before, promised, after };
+    });
+    check('LANES: a sweep says so, and the number it promises one row back is the number that lands',
+      swept.swept >= 1 && swept.marks.length === swept.swept
+      && swept.after === swept.promised && swept.after < swept.before,
+      JSON.stringify(swept));
+
     check('TELEGRAPH: every intent in the bestiary fits the board, dirge and three targets and all',
       fits.W > 900 && fits.n >= 15 && fits.bad.length === 0,
       JSON.stringify({ measured: fits.n, W: fits.W, off: fits.bad }));
@@ -1841,7 +1888,24 @@ const { boot } = require('./harness.cjs');
     return false;
   });
   {
-    const ui = await J(() => {
+    const ui = await J(async () => {
+      // MEASURE A STILL BOARD. The heroes GLIDE between lanes on a 620ms
+      // transition, and a rect read mid-glide reports a hero 33px to the left
+      // of where they will stop, in a wider box — which is how kzClear kept
+      // reporting the all-out bar colliding with Elin on some runs and not
+      // others. This has been re-rolled past several times; a fixed sleep only
+      // moves the odds. It polls until two consecutive frames agree about where
+      // everybody is, and measures that.
+      const snap = () => [...document.querySelectorAll('.k-hero')]
+        .map(n => { const r = n.getBoundingClientRect();
+          return Math.round(r.left) + ',' + Math.round(r.top) + ',' + Math.round(r.width); }).join('|');
+      let was = snap();
+      for (let i = 0; i < 90; i++) {
+        await new Promise(r => requestAnimationFrame(r));
+        const now = snap();
+        if (now === was && now) break;
+        was = now;
+      }
       const ir = document.getElementById('k-intent').getBoundingClientRect();
       const br = document.getElementById('k-boss-art').getBoundingClientRect();
       const clearOf = (r) => ir.right < r.left || ir.left > r.right || ir.bottom < r.top || ir.top > r.bottom;
@@ -1850,7 +1914,19 @@ const { boot } = require('./harness.cjs');
       const hud = document.getElementById('k-boss-hud').getBoundingClientRect();
       const disjoint = ir.bottom < br.top + br.height * 0.45
         && clearOf(document.getElementById('k-party-hud').getBoundingClientRect());
-      const overHead = ir.left > br.left - 40 && ir.right < br.right + 40
+      // WHAT MOVED at Build 73: this required the row to fit INSIDE the Regent's
+      // sprite, ±40px. That held while the telegraph was three bare numbers and
+      // stopped holding the moment it started saying WHO each blow is for and
+      // what stepping back would cost — the readout outgrew the figure it
+      // describes. It is also why the row used to hang 11px off the board: a
+      // thing centred on her and grown outward has nowhere to go.
+      //
+      // The rule the check is really about is that you read the threat where the
+      // threatener is. That is now expressed as: the row covers her, ends on her
+      // side of the board rather than drifting away from it, and stays clear of
+      // the HUD above it.
+      const overHead = ir.left < br.right && br.left < ir.right
+        && Math.abs(ir.right - br.right) < 60
         && ir.top >= hud.bottom - 1;
       const oneLine = ir.height < 34;
       const chips = document.querySelectorAll('#k-intent .k-ichip');

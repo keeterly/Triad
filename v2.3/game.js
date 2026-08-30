@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 72;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 73;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -828,14 +828,18 @@ function hitTargetId(hit) {
 }
 // One hit's damage RIGHT NOW: phase value, row shelter, then Chill. Chill is
 // spent by the first hit of the action, so only that hit previews the relief.
-function hitDamage(hit, chillLeft) {
+function hitDamage(hit, chillLeft, asRow) {
   const raw = Math.round(hit.dmg[C.boss.phase - 1] * TUNE.dmgScale * (C.foe ? C.foe.dmgMul : 1));
   const tgt = hitTargetId(hit);
   let d = raw;
+  // `asRow` prices the same blow as if the target stood somewhere else — the
+  // telegraph uses it to say what stepping back would actually cost, in damage
+  // rather than in a percentage.
   // A sweep loses its edge with distance: full weight at the front, most of it
   // blunted at the back. `sweep` replaces the old backFactor on/off shelter.
-  if (hit.sweep && tgt) d = Math.ceil(raw * (ROW_SHELTER[C.heroes[tgt].row] != null
-    ? ROW_SHELTER[C.heroes[tgt].row] : 1));
+  const inRow = asRow || (tgt && C.heroes[tgt] ? C.heroes[tgt].row : null);
+  if (hit.sweep && inRow) d = Math.ceil(raw * (ROW_SHELTER[inRow] != null
+    ? ROW_SHELTER[inRow] : 1));
   return Math.max(0, d - (chillLeft || 0));
 }
 // The dirge: unparryable chip on every living hero, each enemy phase.
@@ -881,8 +885,19 @@ function intentByTarget() {
     const who = hitTargetId(h);
     if (!who) continue;
     const row = rows.find(r => r.who === who);
-    if (row) { row.total += d; row.hits.push(d); }
-    else rows.push({ who, total: d, hits: [d] });
+    // A SWEEP IS A DIFFERENT KIND OF BLOW AND THE TELEGRAPH NEVER SAID SO.
+    // Standing back turns the Scything Advance from 26-34 into 8-12 — the best
+    // single AP a player can spend anywhere in the game — and the chip showed
+    // it as an ordinary number, so the lane was a decision nobody knew they
+    // were being offered.
+    // …and what the SAME blows would cost one row further back, computed the
+    // way the engine computes them rather than as a percentage off the top. A
+    // ratio is an estimate; this deck's rule is that the screen shows the
+    // number that will actually land.
+    const back = ROWS[Math.min(ROWS.length - 1, ROWS.indexOf(C.heroes[who].row) + 1)];
+    const dBack = h.sweep ? hitDamage(h, chill, back) : d;
+    if (row) { row.total += d; row.back += dBack; row.hits.push(d); row.sweep = row.sweep || !!h.sweep; }
+    else rows.push({ who, total: d, back: dBack, hits: [d], sweep: !!h.sweep });
   }
   return rows;
 }
@@ -3912,6 +3927,10 @@ function renderIntent() {
         // important fact on the screen, and it was being carried by seventeen
         // pixels of dark hair on dark armour.
         + '<u>' + HEROES23[row.who].name + '</u>'
+        // …and if distance blunts it, say so and say by how much from here
+        + (row.sweep && row.back < row.total
+            ? '<em class="k-ichip-sweep" title="a sweep — one row back and it lands for '
+              + fmtN(row.back) + '">\u2933' + fmtN(row.back) + '</em>' : '')
         + '</span>');
     }
     // the vocabulary is ready for defend and charge turns even though the
@@ -5193,11 +5212,21 @@ window.K = {
     C.discard = [];
     renderAll();
   },
+  // A TEST HOOK THAT SILENTLY SELECTS SOMETHING ELSE IS WORSE THAN NO HOOK.
+  // This found the intent's index in REGENT_INTENTS — the full table of eight —
+  // and assigned it to `C.boss.intentIx`, which currentIntent() reads against
+  // C.intents, the FOE'S filtered subset. The two lists only agree for a foe
+  // that draws every intent. Measured across the bestiary: 11 of 17 calls
+  // selected a different intent from the one they named — asking the wraith for
+  // its scythe got the rain, asking the husk for its toll got the scythe — so
+  // every check in the suite that names an intent on a non-Regent foe has been
+  // asserting against something else, and passing.
   forceIntent(id) {
-    const ix = REGENT_INTENTS.findIndex(i => i.id === id);
-    if (ix >= 0) { C.boss.intentIx = ix; renderAll(); }
+    const ix = (C.intents || []).findIndex(i => i.id === id);
+    if (ix >= 0) { C.boss.intentIx = ix; renderAll(); return true; }
+    return false;
   },
-  KEYWORD_RULE, keywordsOf, parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
+  KEYWORD_RULE, keywordsOf, ROW_SHELTER, parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
   // test-only: the deeds ledger is what the reckoning is allowed to talk
   // about, so its two writers are drivable directly rather than only through a
   // whole fight that happens to produce the situation
