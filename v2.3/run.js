@@ -2258,12 +2258,21 @@
     // and the whole thing spilled off the right edge of the screen.
     // THE CHIP IS GONE, and the header with it. A card arriving into the deck
     // was described by a one-line chip in the top corner while the thing it
-    // would replace was a text row in a list of ten — so the single most
-    // consequential decision the road asks ("which of these fifteen leaves
-    // forever?") was made without seeing either card. The trade panel below
-    // shows both, full size. Nothing else on this screen needs to say it twice.
+    // would replace was a text row in a list of ten — so the decision was made
+    // without seeing either card. The trade panel below shows both, full size.
+    // …AND IT IS NO LONGER FOREVER. This note used to call the choice "which of
+    // these fifteen leaves forever?", which was true when a displaced card was
+    // written over and gone. It goes to the bench now and the deck screen can
+    // bring it back, so the weight here is which five are being CARRIED into
+    // the next fight — still the road's sharpest question, and an honest one.
     $('k-swap-new').innerHTML = '';
-    $('k-swap-ask').textContent = 'FIVE SLOTS EACH — WHAT LEAVES?';
+    // NOT "WHAT LEAVES" ANY MORE. A displaced card goes to the bench now — the
+    // deck screen is a door onto it and the trade can be undone there — so the
+    // question this screen asks is which of the five stops being CARRIED, not
+    // which one is destroyed. Copy that describes a cost the game no longer
+    // charges is worse than no copy: a player who believes it plays around a
+    // rule that is not there.
+    $('k-swap-ask').textContent = 'FIVE SLOTS EACH — WHO STEPS OUT?';
     // TWO LISTS AND THE TRADE. The lists stay compact rows, because ten cards
     // have to be SCANNABLE and ten faces would be a wall; the panel is where
     // the two cards that actually matter are looked at.
@@ -2470,8 +2479,8 @@
     list[ix] = _pendingCard;
     benchTake(_pendingCard);
     RUN.flash = { icon: 'camp', tone: 'gold', title: window.K.CARD_DEFS[_pendingCard].name.toUpperCase() + ' — LEARNED',
-      sub: _swapPick.hero.toUpperCase() + ' gives up ' + window.K.CARD_DEFS[_swapPick.id].name + ' to carry it.',
-      gain: '5/5/5', gainSub: 'the deck never grows' };
+      sub: _swapPick.hero.toUpperCase() + ' sets down ' + window.K.CARD_DEFS[_swapPick.id].name + ' to carry it.',
+      gain: '5/5/5', gainSub: 'five slots, and a bench' };
     const _wasCard = _pendingCard;
     _pendingCard = null; _swapPick = null; _pendingAfter = '';
     // Read the destination from the RUN, not from a module variable: a stale

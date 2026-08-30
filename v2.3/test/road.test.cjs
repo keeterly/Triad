@@ -1204,6 +1204,39 @@ const { boot } = require('./harness.cjs');
     !!mute && mute.pref === true && mute.on === false && mute.muted === false,
     JSON.stringify(mute));
 
+  // ═══ F · THE BENCH SURVIVES THE TAB ═══
+  // A BENCH THAT DOES NOT SURVIVE A RELOAD IS NOT A BENCH, it is a receipt the
+  // player cannot spend. Every other DECK check runs inside one page life and
+  // would pass just as happily against a bench held in a module variable, so
+  // this is the one that actually asks the question — and it has to boot the
+  // way a PLAYER's reload boots (&resume=1), because the suite's own `fresh`
+  // flag wipes the stored run and would make the wipe look like the answer.
+  {
+    const put = await J(() => {
+      const st = window.R.state();
+      st.bench = { ash: ['guardcut'], elin: [], mira: [] };
+      st.roster.ash = ['cleave', 'cstance', 'crosssever', 'lastlight', 'shieldsong'];
+      window.R.openDeck();
+      document.querySelector('.k-dk-slot[data-hero="ash"]').click();
+      document.querySelector('.k-dk-alt').click();
+      window.R.closeDeck();
+      return { roster: window.R.state().roster.ash.slice(),
+               bench: window.R.bench().ash.slice() };
+    });
+    await sleep(120);
+    await H.page.goto(H.page.url().replace(/#.*$/, '') + '&resume=1', { waitUntil: 'networkidle' });
+    await H.page.waitForFunction(() => window.__ready === true, null, { timeout: 8000 });
+    await H.pastTitle();
+    await sleep(200);
+    const back = await J(() => ({ roster: window.R.state().roster.ash.slice(),
+      bench: window.R.bench().ash.slice(),
+      valid: window.K.rosterValid(window.R.state().roster) }));
+    check('DECK: the swap and the bench are still there after a reload',
+      put.roster.join() === back.roster.join() && back.roster[0] === 'guardcut'
+      && back.bench.join() === 'cleave' && back.valid,
+      JSON.stringify({ before: put, after: back }));
+  }
+
   const r = report();
   await H.browser.close();
   process.exit(r.passed === r.total && r.errs === 0 ? 0 : 1);

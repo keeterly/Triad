@@ -2329,3 +2329,64 @@ it goes on the shelf". That is a deliberate consequence of being able to swap
 freely from a deck view, not an oversight, and it is the one thing in this build
 worth a second opinion: if trades should stay one-way, the deck screen becomes
 read-only and the bench holds only what a scene displaced.
+
+---
+
+## Build 85 — the bench is kept, and the copy stops charging for it
+
+The second opinion came back: **keep the bench.** So this build does the
+follow-through that the answer implies, which is almost entirely a copy problem.
+
+The swap screen still asked `FIVE SLOTS EACH — WHAT LEAVES?`, and the receipt
+after a trade still read `ASH gives up Cleave` over the line `the deck never
+grows`. All three describe a cost the game no longer charges. Copy that
+describes a rule that is not there is worse than no copy at all: a player who
+believes it plays around it — hoarding a slot, refusing a trade — and the game
+never corrects them, because from the inside a rule you are obeying and a rule
+that exists look identical. So: `WHO STEPS OUT?`, `ASH sets down Cleave`, and
+`five slots, and a bench`.
+
+### The reload bug that was not one
+
+The probe written to prove the bench survives a reload reported this:
+
+```
+before reload {"roster":["guardcut",...],"bench":["cleave"]}
+after  reload {"roster":["cleave","guardcut",...],"bench":[]}
+```
+
+Read at face value that is a lost bench and a reverted swap. It is neither. The
+suite boots `fresh: testMode() && !resume` — `?test=1` **wipes the stored run on
+purpose**, so every suite starts clean, and the probe reloaded without
+`&resume=1`. It was measuring the wipe. Booting the way a player's reload boots
+returns the swap and the bench intact.
+
+The lesson is the one this project keeps relearning from the other direction:
+an instrument that boots differently from the thing it is measuring reports on
+itself. `?test=1` caps every sleep at 24ms and it also throws the save away;
+both are right for a suite and both make a specific class of question
+unanswerable unless you opt out of them.
+
+There is now a check that asks the question properly — `DECK: the swap and the
+bench are still there after a reload` — and it re-navigates to `&resume=1`
+rather than trusting the boot it inherited. Gated red by removing the `save()`
+from `deckSwap`, where it printed *byte for byte* the output above. That is the
+proof the check is not hollow, and it is also the proof that the original
+"bug" was the probe: the same wrong answer, from a genuinely broken save and
+from a correct save read through the wrong door.
+
+### Noted while hunting for the rest of that copy
+
+`RUN.flash` — the post-stop receipt — is **written in six places and read in
+one, and that one is behind `if (false && ...)`.** The receipt was deliberately
+removed from the map card in an earlier build (its comment says so: it announced
+what had happened on the screen the player had just left, and took the widest
+band at the foot of the chart to do it), but the six writers were left in place.
+
+So the `sets down` / `five slots, and a bench` correction above is, today,
+correcting text nothing displays. It is still the right correction — a fossil
+that says the wrong thing is worse than one that says the right thing, and the
+receipt may well come back somewhere narrower — but it is worth recording that
+the swap screen's `k-swap-ask`, which a player *does* read, was the only one of
+the three that was live. Ripping out the flash system or reviving it is a scope
+decision, not a copy fix, so it is flagged here rather than done.
