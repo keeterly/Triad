@@ -193,24 +193,40 @@ const { boot } = require('./harness.cjs');
     JSON.stringify({ src: unmuted.src, vol: unmuted.vol, paused: unmuted.paused,
                      at: unmuted.at, then: stillRunning.at }));
 
-  // The control itself: one button, in the road's header, that says which state
-  // it is in with a shape rather than with opacity alone.
+  // The control itself: one row, BEHIND THE MENU in the road's header, that says
+  // which state it is in with a shape rather than with opacity alone.
+  // WHAT MOVED: the mute used to be a bare icon pinned to the end of the header.
+  // It is a menu row now — the header carries two doors, the deck and the menu,
+  // and everything that was loose up there went behind one of them. So the
+  // check has to OPEN the menu before it measures, or it reads a zero-width
+  // button inside a hidden panel and calls a working control broken.
   const btn = await J(() => {
     const b = document.getElementById('k-mute');
     if (!b) return null;
-    const inHeader = !!b.closest('#k-map-top');
+    const menu = document.getElementById('k-menu');
+    const inMenu = !!b.closest('#k-menu');
+    const menuInHeader = !!(menu && menu.closest('#k-map-top'));
+    const shutFirst = menu.classList.contains('k-hidden');
+    document.getElementById('k-menu-btn').click();
+    const opened = !menu.classList.contains('k-hidden');
     const on = { muted: b.classList.contains('k-muted'), html: b.innerHTML };
     b.click();
     const off = { muted: b.classList.contains('k-muted'), html: b.innerHTML };
     b.click();
-    return { inHeader, on, off, back: b.classList.contains('k-muted'),
-             r: b.getBoundingClientRect().width };
+    const out = { inHeader: inMenu && menuInHeader, shutFirst, opened,
+                  on, off, back: b.classList.contains('k-muted'),
+                  r: b.getBoundingClientRect().width };
+    document.getElementById('k-menu-btn').click();
+    out.shutAfter = menu.classList.contains('k-hidden');
+    return out;
   });
-  check('MUSIC: the mute lives in the road header and changes SHAPE, not just opacity',
-    !!btn && btn.inHeader && btn.on.muted === false && btn.off.muted === true
-    && btn.on.html !== btn.off.html && btn.back === false && btn.r > 10 && btn.r < 40,
-    JSON.stringify({ inHeader: btn && btn.inHeader, w: btn && btn.r,
-                     changed: btn && btn.on.html !== btn.off.html }));
+  check('MUSIC: the mute lives behind the header menu, which opens and shuts, and it changes SHAPE',
+    !!btn && btn.inHeader && btn.shutFirst && btn.opened && btn.shutAfter
+    && btn.on.muted === false && btn.off.muted === true
+    && btn.on.html !== btn.off.html && btn.back === false && btn.r > 40,
+    JSON.stringify({ inMenuInHeader: btn && btn.inHeader, shutFirst: btn && btn.shutFirst,
+                     opened: btn && btn.opened, shutAfter: btn && btn.shutAfter,
+                     w: btn && btn.r, changed: btn && btn.on.html !== btn.off.html }));
 
   // Nothing about the mute may reach the battlefield: this build has spent
   // several passes taking permanent furniture OFF the combat screen.

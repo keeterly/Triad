@@ -1898,32 +1898,38 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    x=1049 and the mute button to 1090 — both of them entirely off the board, on a
    header that does not scroll. The run's own currency is not a thing to push
    off screen to make room for a new meter. */
-#k-map-bonds { display: flex; gap: 4px; align-items: center; margin-left: 6px; }
-.k-mb { display: grid; grid-template-columns: auto auto; align-items: center;
-  column-gap: 4px; row-gap: 2px; }
-/* INITIALS, NOT PORTRAITS. Three pair chips meant six faces across the top of
-   the map — the same three heroes, drawn twice each, at 16px, beside the party
-   strip that already shows all three at 33px. Six thumbnails of people you are
-   already looking at is not information; it is noise pretending to be a legend.
-   Two letters carry the same pair identity in a third of the width. */
-.k-mb-who { grid-row: 1 / span 2; font-size: 9px; font-weight: 700;
-  letter-spacing: 0.06em; color: #cbbf9f; line-height: 1;
-  padding: 3px 3px; border-radius: 3px; background: rgba(201,164,92,0.13);
-  border: 1px solid rgba(201,164,92,0.3); }
-/* a pair that has never spoken reads cold, so the eye can find it */
-.k-mb-cold .k-mb-who { color: #7a7367; background: rgba(255,255,255,0.04);
-  border-color: rgba(160,150,134,0.22); }
-.k-mb-n { grid-column: 2; font-size: 8px; letter-spacing: 0.06em; color: #9a9080; line-height: 1; }
-.k-mb-bar { grid-column: 2; width: 26px; height: 3px; border-radius: 2px;
-  background: rgba(255,255,255,0.1); overflow: hidden; }
-.k-mb-bar i { display: block; height: 100%; border-radius: 2px;
-  background: linear-gradient(90deg, #c9a45c, #f0d488);
-  transition: width 520ms cubic-bezier(0.2,0.8,0.3,1); }
-/* a pair with nothing left to give reads as ARRIVED, not as stalled at 100% */
-.k-mb-full .k-mb-bar i { background: linear-gradient(90deg, #f0d488, #fff3d0); }
-.k-mb-full .k-mb-n { color: #e0c084; font-size: 9px; }
-.k-mb-full .k-mb-who { color: #ffeec2; background: rgba(240,212,136,0.2);
-  border-color: rgba(240,212,136,0.8); }
+/* the three bond chips left this header for the deck screen — see renderDeck.
+   Their rules went with them; what is up here now is two doors and a purse. */
+
+/* ── THE HEADER'S TWO DOORS ───────────────────────────────────────────────
+   A fan of cards and three bars. The deck's door has to look like a deck —
+   Spire taught every player of this genre what that icon means — and the
+   settings' door has to look like the one thing everybody already knows. */
+/* pinned to the right edge — chrome belongs in the corner and the run's own
+   facts belong on the left, which is the split the old header did not make */
+#k-deck-btn-map { margin-left: auto; }
+#k-deck-btn-map, #k-menu-btn { width: 28px; height: 28px; flex: none; padding: 0;
+  display: grid; place-items: center; cursor: pointer; border-radius: 4px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(201,164,92,0.28);
+  color: #cbbf9f; transition: color 160ms ease, border-color 160ms ease,
+    background 160ms ease; }
+#k-deck-btn-map svg, #k-menu-btn svg { width: 17px; height: 17px; }
+#k-deck-btn-map:hover, #k-menu-btn:hover { color: #f4e6c4;
+  border-color: rgba(240,207,146,0.65); background: rgba(240,207,146,0.12); }
+#k-menu-btn { margin-left: 4px; }
+/* the menu itself: one switch today, and a place for the next one */
+#k-menu { position: absolute; right: 18px; top: 46px; z-index: 20;
+  display: flex; flex-direction: column; gap: 2px; padding: 5px;
+  border-radius: 4px; background: rgba(14,12,18,0.97);
+  border: 1px solid rgba(201,164,92,0.3);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.7); }
+#k-menu button { display: flex; align-items: center; gap: 7px; width: 100%;
+  padding: 6px 10px 6px 8px; border: 0; border-radius: 3px; cursor: pointer;
+  background: none; color: #cbbf9f; font-family: inherit;
+  font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; }
+#k-menu button:hover { background: rgba(240,207,146,0.14); color: #f4e6c4; }
+#k-menu button svg { width: 15px; height: 15px; flex: none; }
+
 .k-mp { display: grid; grid-template-columns: auto auto; align-items: center;
   column-gap: 7px; row-gap: 3px; }
 .k-mp img { grid-row: 1 / span 2; width: 33px; height: 33px; border-radius: 50%;
@@ -1948,13 +1954,11 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    and never furniture on the one screen that has to stay clean. Dim until
    touched, and dimmer still when the music is off — the state reads at a
    glance from the slash, not from the opacity. */
-#k-mute { margin-left: 4px; padding: 4px; background: none; border: 0;
-  color: #8d8474; opacity: 0.55; cursor: pointer; line-height: 0;
-  -webkit-tap-highlight-color: transparent;
-  transition: opacity 160ms ease, color 160ms ease; }
-#k-mute svg { width: 15px; height: 15px; display: block; }
-#k-mute:hover, #k-mute:focus-visible { opacity: 0.95; color: #e0c084; outline: none; }
-#k-mute.k-muted { opacity: 0.34; }
+/* THE MUTE LIVES IN THE MENU NOW, so it is a menu row rather than a bare icon
+   pinned to the header — the icon plus the word it has always needed. */
+#k-mute::after { content: 'MUSIC'; }
+#k-mute.k-muted { color: #8d8478; }
+#k-mute.k-muted::after { content: 'MUSIC OFF'; }
 #k-mute.k-muted:hover { opacity: 0.7; }
 
 /* ── the edges: exactly three weights, because a glance sorts three ── */
@@ -3475,3 +3479,76 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-ichip-sweep { font-style: normal; margin-left: 4px; font-size: 9.5px;
   letter-spacing: 0.02em; color: #9fb0bd; }
 .k-ichip-atk .k-ichip-sweep { opacity: 0.92; }
+
+
+/* ── THE DECK ─────────────────────────────────────────────────────────────
+   The run's actual shape, top down: three heroes down the left and the five
+   cards each carries to the right. Fifteen slots, and until now the only view
+   of a card outside a fight was whichever one a scene happened to be offering. */
+#k-deck { position: absolute; inset: 0; width: 932px; height: 430px; overflow: hidden;
+  background: radial-gradient(120% 90% at 50% 0%, #191520, #0b0910 70%);
+  color: #cfc8ba; font-family: var(--serif, Georgia, serif); z-index: 40; }
+#k-deck > header { position: absolute; left: 20px; right: 20px; top: 13px; z-index: 3;
+  display: flex; align-items: baseline; gap: 12px; }
+#k-deck > header b { font: 600 17px/1 var(--serif, Georgia, serif); letter-spacing: 0.28em;
+  color: #e8cf95; }
+#k-deck-sub { font: 600 8.5px/1 var(--serif, Georgia, serif); letter-spacing: 0.24em;
+  color: #8d8478; }
+#k-deck-close { margin-left: auto; padding: 5px 13px; border-radius: 3px; cursor: pointer;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(201,164,92,0.34);
+  color: #cbbf9f; font-family: inherit; font-size: 9px; letter-spacing: 0.24em; }
+#k-deck-close:hover { color: #f4e6c4; border-color: rgba(240,207,146,0.7); }
+/* the three rows take the left of the board; five cards plus a portrait need
+   about 520 of the 892 available, and the rest is where the bench opens */
+#k-deck-rows { position: absolute; left: 20px; top: 42px; z-index: 2;
+  display: flex; flex-direction: column; gap: 5px; }
+/* one row per hero: who they are, then what they carry */
+.k-dk-row { display: flex; align-items: center; gap: 12px; }
+.k-dk-who { width: 106px; flex: none; display: grid;
+  grid-template-columns: 34px 1fr; column-gap: 8px; align-items: center; }
+.k-dk-who img { grid-row: 1 / span 2; width: 34px; height: 34px; border-radius: 50%;
+  object-fit: cover; object-position: 50% 16%; border: 1px solid rgba(201,164,92,0.5);
+  background: #1b1820; filter: brightness(1.35) contrast(1.08); }
+.k-dk-who b { font: 600 11px/1 var(--serif, Georgia, serif); letter-spacing: 0.2em;
+  color: #efe6d4; }
+/* the bond readout, beside the two people it is between */
+.k-dk-bonds { display: flex; gap: 5px; margin-top: 3px; }
+.k-dk-bond { display: inline-flex; align-items: baseline; gap: 3px;
+  font: 700 8px/1 var(--serif, Georgia, serif); letter-spacing: 0.06em; color: #9a9080; }
+.k-dk-bond i { font-style: normal; font-size: 7.5px; color: #7d7466; }
+.k-dk-bond-full { color: #e0c084; }
+.k-dk-bond-full i { color: #f0d488; }
+.k-dk-cards { display: flex; gap: 6px; }
+.k-dk-slot, .k-dk-alt { background: none; border: 0; padding: 0; cursor: pointer;
+  font-family: inherit; position: relative;
+  /* the card is 104x164 and five of them plus a portrait have to fit 892px of
+     row, three rows deep on a 430px board — 0.72 is what that allows */
+  width: 75px; height: 118px; }
+.k-card-dk { transform: scale(0.72) !important; transform-origin: top left;
+  transition: filter 140ms ease; }
+.k-dk-slot:hover .k-card-dk, .k-dk-alt:hover .k-card-dk { filter: brightness(1.2); }
+.k-dk-on .k-card-dk { filter: brightness(1.3); }
+.k-dk-on::after { content: ''; position: absolute; inset: -3px 0 -3px -3px;
+  width: 3px; border-radius: 2px; background: #f0d488;
+  box-shadow: 0 0 9px rgba(240,212,136,0.8); }
+/* what else this hero could carry — only once a slot has been tapped, because a
+   shelf of spare cards on screen at all times is the clutter this replaces */
+/* ON THE RIGHT, NOT ALONG THE BOTTOM. A bottom sheet would have printed over
+   Mira's row — the third of three, and the one a player is as likely to be
+   reconsidering as either of the others. The rows only use the left 57% of the
+   board, so the bench opens into the space that was already empty. */
+#k-deck-bench { position: absolute; left: 560px; right: 20px; top: 42px; bottom: 14px;
+  z-index: 3; padding: 12px 14px; border-radius: 4px; overflow: auto;
+  background: linear-gradient(180deg, rgba(20,17,26,0.96), rgba(12,10,16,0.98));
+  border: 1px solid rgba(201,164,92,0.28);
+  box-shadow: -10px 0 28px rgba(0,0,0,0.6);
+  animation: k-dk-in 240ms cubic-bezier(.2,.85,.3,1) both; }
+@keyframes k-dk-in { from { opacity: 0; transform: translateX(14px); } }
+.k-dk-ask, .k-dk-none { margin: 0 0 7px; font: 600 9px/1.4 var(--serif, Georgia, serif);
+  letter-spacing: 0.22em; color: #8d8478; }
+.k-dk-ask b { color: #e8cf95; }
+.k-dk-none { display: flex; flex-direction: column; gap: 3px; margin: 0; }
+.k-dk-none b { font-size: 10px; letter-spacing: 0.24em; color: #e8cf95; }
+.k-dk-none span { font: italic 400 11px/1.3 var(--serif, Georgia, serif);
+  letter-spacing: 0; text-transform: none; color: #9a9080; }
+.k-dk-alts { display: flex; gap: 6px; flex-wrap: wrap; }

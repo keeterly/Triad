@@ -2291,3 +2291,41 @@ wandered out of the tube is told so rather than silently given nothing.
 Measured after: `followDrift 0` off the rail, `endDrift 0` at the mouth, progress
 `0` while astray and `1` after walking it, `boardMoved false`, `heroDragging
 false`. Three new checks hold all of it.
+
+## Build 84 — a door onto the deck, and a header that is where you are, not what you own
+
+**The header.** Three bond chips reading `0/12` sat across the top of the chart
+— permanent furniture for a number that moves once, at a fight's end. The
+reading has to exist (a fork that offers BOND +6 is unpriceable against a
+threshold you have never seen) but not there: it lives beside the two people it
+is between, on the deck screen. Embers moved to the left with the region and the
+stop count, because where you are and what you carry are the same kind of fact.
+What is on the right is two doors: **the deck**, drawn as a fan of cards because
+Spire taught every player of this genre what that icon means, and **a menu**,
+which is where the mute went and where the next setting will go.
+
+**The deck screen.** Three heroes down the left, the five cards each carries to
+the right. Fifteen slots is the run's actual shape and there was nowhere in the
+game to look at it — the only view of a card outside a fight was whichever one a
+scene happened to be offering. Tapping a slot opens what that hero has set down,
+and picking one trades the two.
+
+The bench sits on the **right**, not along the bottom: a bottom sheet would have
+printed over Mira's row, the third of three and as likely to be the one being
+reconsidered as either of the others. The rows only use the left 57% of the
+board, so it opens into space that was already empty.
+
+### The rules change this required, stated plainly
+
+A swapped-out card used to be **written over and gone** — `list[ix] = newCard`,
+and the old name never appeared again. That made every trade permanent, and it
+made "another one they own" a set that did not exist. There is a bench now: five
+slots per hero is untouched, but the card that steps out is put down rather than
+destroyed.
+
+**This softens a cost the swap screen was built around.** Its own copy asks
+"which of these fifteen leaves forever?" — and the answer is now "none of them,
+it goes on the shelf". That is a deliberate consequence of being able to swap
+freely from a deck view, not an oversight, and it is the one thing in this build
+worth a second opinion: if trades should stay one-way, the deck screen becomes
+read-only and the bench holds only what a scene displaced.

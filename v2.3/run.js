@@ -959,6 +959,13 @@
       bonds: { 'ash|elin': 0, 'ash|mira': 0, 'elin|mira': 0 },
       levels: { 'ash|elin': 0, 'ash|mira': 0, 'elin|mira': 0 },
       roster: null,                               // set on boot from the base 15
+      // WHAT THEY OWN BUT ARE NOT CARRYING. A swapped-out card used to be
+      // written over and gone — `list[ix] = newCard` and the old name never
+      // appeared again — which made every trade permanent and made "the cards
+      // they own" a set the player could not look at, because it did not
+      // exist. It exists now: the deck screen is a door onto it, and the five
+      // slots are still five, so the trade is still a trade.
+      bench: { ash: [], elin: [], mira: [] },
       flash: null,                                // the receipt from the last stop
       pending: null,                              // a stop entered but not finished
       camped: 0, campDone: null,                  // the fire only mends once per visit
@@ -1009,7 +1016,7 @@
 
   // ── the screen ────────────────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
-  const SCREENS = { title: 'k-title', map: 'k-map', combat: 'k-stage', camp: 'k-camp', scene: 'k-scene', swap: 'k-swap', wake: 'k-wake', mark: 'k-mark' };
+  const SCREENS = { title: 'k-title', map: 'k-map', combat: 'k-stage', camp: 'k-camp', scene: 'k-scene', swap: 'k-swap', wake: 'k-wake', mark: 'k-mark', deck: 'k-deck' };
   // WHICH SCREEN IS UP IS ALSO WHICH MUSIC IS PLAYING, and this is the only
   // function that answers the first question — so it answers the second too.
   // Scattering cues through the map, the camp, the scene and the swap would
@@ -1238,13 +1245,17 @@
         + '<span class="k-mp-hp"><b>' + hp + '</b>/' + max + '</span>'
         + '<span class="k-mp-bar"><i style="width:' + pct + '%"></i></span></div>';
     }).join('');
-    renderBonds();
   }
 
   // THREE PAIRS, THREE FILLS, AND THE NUMBER THAT MATTERS. A bond level is worth
   // a card AND a mark, and both thresholds are printed so the fill has a scale:
   // 7/12 says how far and how much further. Levelled pairs read as done rather
   // than as a bar stuck at the end.
+  // …AND IT NO LONGER DRAWS ON THE MAP. Three chips of "0/12" across the top of
+  // the chart was permanent furniture for a number that moves at a fight's end;
+  // the reading lives beside the heroes it is between, on the deck screen. The
+  // function stays because it still guards on its box and costs nothing, and
+  // because the header may yet want a compact bond mark that is not three chips.
   function renderBonds() {
     const box = $('k-map-bonds'); if (!box || !RUN) return;
     const art = { ash: 'kai', elin: 'elin', mira: 'mira' };
@@ -2302,6 +2313,142 @@
       + '<em>' + K.effectText(c.base) + '</em></span>'
       + '<span class="k-sw-who">' + who + '</span>';
   }
+  // ── THE BENCH ────────────────────────────────────────────────────────────
+  // Five slots per hero, always — that rule is the deck's whole shape and does
+  // not move. What changes is where a card goes when it steps out of one.
+  function bench() {
+    if (!RUN) return { ash: [], elin: [], mira: [] };
+    if (!RUN.bench) RUN.bench = { ash: [], elin: [], mira: [] };
+    ['ash', 'elin', 'mira'].forEach(h => { if (!Array.isArray(RUN.bench[h])) RUN.bench[h] = []; });
+    return RUN.bench;
+  }
+  function benchPut(hero, id) {
+    if (!id) return;
+    const b = bench();
+    if (b[hero].indexOf(id) < 0) b[hero].push(id);
+  }
+  function benchTake(id) {
+    const b = bench();
+    ['ash', 'elin', 'mira'].forEach(h => {
+      const i = b[h].indexOf(id); if (i >= 0) b[h].splice(i, 1);
+    });
+  }
+  // What this hero could put in a slot instead of what is in it: whatever they
+  // have set down, minus anything already being carried by anyone.
+  function benchFor(hero) {
+    const carried = window.K.rosterIds(RUN.roster);
+    return bench()[hero].filter(id => carried.indexOf(id) < 0);
+  }
+
+  // ── THE DECK SCREEN ──────────────────────────────────────────────────────
+  // The run's actual shape, top down: three heroes down the left and the five
+  // cards each of them carries to the right. Fifteen slots, and until now there
+  // was nowhere in the game to look at them — the only view of a card outside a
+  // fight was whichever one a scene happened to be offering.
+  // A FAN OF CARDS and three bars. The deck's door has to look like a deck —
+  // Spire taught every player of this genre what that icon means — and the
+  // settings' door has to look like the one thing everybody already knows.
+  const FAN_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true">'
+    + '<rect x="8.6" y="4.2" width="11" height="15.4" rx="2" transform="rotate(14 14 12)"'
+    + ' fill="none" stroke="currentColor" stroke-width="1.6"/>'
+    + '<rect x="6.5" y="4.2" width="11" height="15.4" rx="2"'
+    + ' fill="#17141b" stroke="currentColor" stroke-width="1.6"/>'
+    + '<rect x="4.4" y="4.2" width="11" height="15.4" rx="2" transform="rotate(-14 10 12)"'
+    + ' fill="#17141b" stroke="currentColor" stroke-width="1.6"/></svg>';
+  const BARS_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true">'
+    + '<path d="M4 7 H20 M4 12 H20 M4 17 H20" fill="none" stroke="currentColor"'
+    + ' stroke-width="1.9" stroke-linecap="round"/></svg>';
+  function toggleMenu() {
+    const m = $('k-menu'); if (!m) return;
+    m.classList.toggle('k-hidden');
+  }
+  function closeMenu() { const m = $('k-menu'); if (m) m.classList.add('k-hidden'); }
+
+  let _deckPick = null;             // { hero, id } — the slot being reconsidered
+  function openDeck() {
+    if (!RUN) return false;
+    _deckPick = null;
+    screen('deck'); renderDeck();
+    return true;
+  }
+  function closeDeck() { _deckPick = null; toMap(); }
+  function renderDeck() {
+    const K = window.K, box = $('k-deck-rows'); if (!box || !RUN) return;
+    const bs = bench();
+    const owned = ['ash', 'elin', 'mira'].reduce((n, h) => n + bs[h].length, 0);
+    $('k-deck-sub').textContent = 'FIVE EACH' + (owned ? ' \u00b7 ' + owned + ' SET DOWN' : '');
+    box.innerHTML = ['ash', 'elin', 'mira'].map(h => {
+      const c = CAST[h];
+      // the bond a hero is in, beside the hero — the readout the header used to
+      // carry, now next to the two people it is actually between
+      // RUN.bonds, not pairBond — the second is the CURRENT FIGHT's tally and
+      // the first is what the road carries. renderBonds always read the road's;
+      // reaching for the fight's here would have shown zeros on every map.
+      const bonds = PAIRS.filter(p => p.split('|').indexOf(h) >= 0).map(p => {
+        const pts = (RUN.bonds && RUN.bonds[p]) || 0;
+        const lv = bondLevel(pts);
+        const done = lv >= BOND_STEPS.length;
+        const need = done ? BOND_STEPS[BOND_STEPS.length - 1] : BOND_STEPS[lv];
+        const other = p.split('|').filter(x => x !== h)[0];
+        return '<span class="k-dk-bond' + (done ? ' k-dk-bond-full' : '') + '">'
+          + CAST[other].n[0] + '<i>' + (done ? '\u25c8' : Math.min(pts, need) + '/' + need) + '</i></span>';
+      }).join('');
+      return '<div class="k-dk-row" data-hero="' + h + '">'
+        + '<div class="k-dk-who"><img src="../art/' + c.art + '.webp" alt="">'
+        + '<b>' + c.n + '</b><span class="k-dk-bonds">' + bonds + '</span></div>'
+        + '<div class="k-dk-cards">'
+        + (RUN.roster[h] || []).map(id =>
+            '<button type="button" class="k-dk-slot'
+            + (_deckPick && _deckPick.hero === h && _deckPick.id === id ? ' k-dk-on' : '')
+            + '" data-hero="' + h + '" data-id="' + id + '">'
+            + K.staticCardHTML(id, { sigil: (RUN.sigils || {})[id] || null, cls: 'k-card-dk' })
+            + '</button>').join('')
+        + '</div></div>';
+    }).join('');
+    box.querySelectorAll('.k-dk-slot').forEach(b =>
+      b.addEventListener('click', (e) => { e.stopPropagation(); tapSlot(b.dataset.hero, b.dataset.id); }));
+    renderDeckBench();
+  }
+  // WHAT ELSE THIS HERO COULD BE CARRYING. It only opens when a slot has been
+  // tapped, because a shelf of spare cards on screen at all times is the
+  // clutter this screen exists to replace.
+  function renderDeckBench() {
+    const K = window.K, box = $('k-deck-bench'); if (!box) return;
+    if (!_deckPick) { box.classList.add('k-hidden'); box.innerHTML = ''; return; }
+    const alts = benchFor(_deckPick.hero);
+    box.classList.remove('k-hidden');
+    if (!alts.length) {
+      box.innerHTML = '<p class="k-dk-none"><b>'
+        + K.CARD_DEFS[_deckPick.id].name.toUpperCase() + '</b>'
+        + '<span>' + CAST[_deckPick.hero].n + ' has nothing else set down to carry instead.</span></p>';
+      return;
+    }
+    box.innerHTML = '<p class="k-dk-ask">SWAP <b>'
+      + K.CARD_DEFS[_deckPick.id].name.toUpperCase() + '</b> FOR</p><div class="k-dk-alts">'
+      + alts.map(id => '<button type="button" class="k-dk-alt" data-id="' + id + '">'
+          + K.staticCardHTML(id, { sigil: (RUN.sigils || {})[id] || null, cls: 'k-card-dk' })
+          + '</button>').join('') + '</div>';
+    box.querySelectorAll('.k-dk-alt').forEach(b =>
+      b.addEventListener('click', (e) => { e.stopPropagation(); deckSwap(b.dataset.id); }));
+  }
+  function tapSlot(hero, id) {
+    _deckPick = (_deckPick && _deckPick.hero === hero && _deckPick.id === id)
+      ? null : { hero, id };
+    renderDeck();
+  }
+  function deckSwap(newId) {
+    if (!_deckPick) return;
+    const list = RUN.roster[_deckPick.hero];
+    const ix = list.indexOf(_deckPick.id);
+    if (ix < 0) return;
+    if (benchFor(_deckPick.hero).indexOf(newId) < 0) return;   // not theirs to take
+    benchPut(_deckPick.hero, list[ix]);
+    list[ix] = newId;
+    benchTake(newId);
+    _deckPick = null;
+    save(); renderDeck();
+  }
+
   function confirmSwap() {
     if (!_swapPick || !_pendingCard) return;
     const list = RUN.roster[_swapPick.hero];
@@ -2318,7 +2465,10 @@
       if (b === 'map') return toMap();
       return endBondChain();
     }
+    // the card that steps out is put down, not destroyed
+    benchPut(_swapPick.hero, list[ix]);
     list[ix] = _pendingCard;
+    benchTake(_pendingCard);
     RUN.flash = { icon: 'camp', tone: 'gold', title: window.K.CARD_DEFS[_pendingCard].name.toUpperCase() + ' — LEARNED',
       sub: _swapPick.hero.toUpperCase() + ' gives up ' + window.K.CARD_DEFS[_swapPick.id].name + ' to carry it.',
       gain: '5/5/5', gainSub: 'the deck never grows' };
@@ -2459,6 +2609,26 @@
     if (skip) skip.addEventListener('click', (e) => { e.stopPropagation(); sceneSkip(); });
     const sw = $('k-swap-go');
     if (sw) sw.addEventListener('click', (e) => { e.stopPropagation(); confirmSwap(); });
+    // THE TWO DOORS THE HEADER NOW HAS
+    const dk = $('k-deck-btn-map');
+    if (dk) {
+      dk.innerHTML = FAN_SVG;
+      dk.addEventListener('click', (e) => { e.stopPropagation(); closeMenu(); openDeck(); });
+    }
+    const dkx = $('k-deck-close');
+    if (dkx) dkx.addEventListener('click', (e) => { e.stopPropagation(); closeDeck(); });
+    const mb = $('k-menu-btn');
+    if (mb) {
+      mb.innerHTML = BARS_SVG;
+      mb.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(); });
+    }
+    // a menu that will not close is a menu that is in the way
+    document.addEventListener('click', (e) => {
+      const m = $('k-menu');
+      if (!m || m.classList.contains('k-hidden')) return;
+      if (m.contains(e.target) || (mb && mb.contains(e.target))) return;
+      closeMenu();
+    });
     const mute = $('k-mute');
     if (mute) {
       const paint = () => {
@@ -2566,6 +2736,8 @@
 
   window.R = {
     boot, toTitle, beginFromTitle, renderBonds,
+    openDeck, closeDeck, renderDeck, deckSwap, tapSlot, bench, benchFor,
+    deckPick: () => _deckPick, toggleMenu, closeMenu,
     active: () => !!RUN && !RUN.over,
     state: () => RUN,
     map: () => (RUN ? RUN.map : []),

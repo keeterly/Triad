@@ -376,7 +376,11 @@ const { boot } = require('./harness.cjs');
       window.R.render();
       const stage = document.getElementById('k-map').getBoundingClientRect();
       const out = {};
-      ['k-map-prog', 'k-map-party', 'k-map-bonds', 'k-map-kizuna', 'k-embers', 'k-mute']
+      // the bond chips left the header for the deck screen, and the mute went
+      // into the menu behind it — what remains up here is where you are, who
+      // you have, what you carry, and two doors
+      ['k-map-prog', 'k-embers', 'k-map-party', 'k-map-kizuna',
+       'k-deck-btn-map', 'k-menu-btn']
         .forEach(id => {
           const e = document.getElementById(id);
           if (!e || e.classList.contains('k-hidden')) return;
@@ -577,6 +581,64 @@ const { boot } = require('./harness.cjs');
       /deeper nodes/i.test(memory.rule) && /\+1/.test(memory.cost),
       JSON.stringify(memory));
     await reset(11);
+  }
+
+  // ═══ B2 · THE DECK — the run's actual shape, and a door onto it ═══
+  console.log('\n── the deck ──');
+  {
+    const deck = await J(() => {
+      window.R.openDeck();
+      const rows = [...document.querySelectorAll('.k-dk-row')];
+      const st = document.getElementById('k-deck').getBoundingClientRect();
+      return {
+        open: !document.getElementById('k-deck').classList.contains('k-hidden'),
+        rows: rows.length,
+        perRow: rows.map(r => r.querySelectorAll('.k-dk-slot').length),
+        heroes: rows.map(r => (r.querySelector('.k-dk-who b') || {}).textContent),
+        // the bond readout the header gave up lives here, beside the two people
+        // it is between — two chips per hero, six in all
+        bonds: document.querySelectorAll('.k-dk-bond').length,
+        // and nothing hangs off the board
+        off: rows.filter(r => { const b = r.getBoundingClientRect();
+          return b.right > st.right + 0.5 || b.bottom > st.bottom + 0.5; }).length,
+        benchShut: document.getElementById('k-deck-bench').classList.contains('k-hidden'),
+      };
+    });
+    check('DECK: three heroes down the left and the five cards each carries to the right',
+      deck.open && deck.rows === 3 && deck.perRow.join() === '5,5,5'
+      && deck.heroes.join() === 'ASH,ELIN,MIRA' && deck.off === 0,
+      JSON.stringify(deck));
+    check('DECK: the bond reading moved here — two chips per hero, beside the people it is between',
+      deck.bonds === 6, JSON.stringify({ bonds: deck.bonds }));
+    check('DECK: the bench stays shut until a slot is tapped — no shelf of spares on screen',
+      deck.benchShut === true, JSON.stringify({ shut: deck.benchShut }));
+
+    // A CARD THAT STEPS OUT IS PUT DOWN, NOT DESTROYED. Written against the old
+    // code this goes red: `list[ix] = newCard` overwrote the slot and the old
+    // name never appeared again, so "another one they own" was a set that did
+    // not exist.
+    const swap = await J(() => {
+      const st = window.R.state();
+      st.bench = { ash: ['guardcut'], elin: [], mira: [] };
+      st.roster.ash = ['cleave', 'cstance', 'crosssever', 'lastlight', 'shieldsong'];
+      window.R.renderDeck();
+      document.querySelector('.k-dk-slot[data-hero="ash"]').click();
+      const alts = [...document.querySelectorAll('.k-dk-alt')].map(e => e.dataset.id);
+      const before = st.roster.ash.slice();
+      document.querySelector('.k-dk-alt').click();
+      return { alts, before, after: window.R.state().roster.ash.slice(),
+               bench: window.R.bench().ash.slice(),
+               slots: window.R.state().roster.ash.length,
+               valid: window.K.rosterValid(window.R.state().roster) };
+    });
+    check('DECK: tapping a slot offers what that hero has set down, and only that',
+      swap.alts.join() === 'guardcut', JSON.stringify({ offered: swap.alts }));
+    check('DECK: swapping trades the two — the card that steps out is put down, not destroyed',
+      swap.after[0] === 'guardcut' && swap.bench.indexOf('cleave') >= 0
+      && swap.slots === 5 && swap.valid,
+      JSON.stringify({ before: swap.before[0], after: swap.after[0],
+                       bench: swap.bench, slots: swap.slots, valid: swap.valid }));
+    await J(() => window.R.closeDeck());
   }
 
   // ═══ C · TRAVELLING ═══
