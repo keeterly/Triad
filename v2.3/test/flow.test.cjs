@@ -928,13 +928,35 @@ const { boot } = require('./harness.cjs');
       dirge.dirge <= 0 || (/guard/i.test(dirge.text) && /break/i.test(dirge.text)),
       JSON.stringify(dirge));
 
-    const cue = await J(() => {
+    // THE CUE TEACHES ONCE AND THEN GETS OUT OF THE PAINTING. It used to be
+    // three gold arrows standing permanently in the middle of the battlefield
+    // saying a thing that is true on every turn of every fight, and the middle
+    // of the battlefield is the one part of this screen meant to be a picture.
+    // Written against the old code this goes red on `restVisible`: the cue was
+    // opacity 0.75 at all times, so there was no turn on which it was quiet.
+    const cue = await J(async () => {
       const rows = [...document.querySelectorAll('.k-hero .k-hero-row')];
-      return { n: rows.length, cues: rows.filter(r => r.querySelector('.k-movecue')).length,
-               words: rows.map(r => (r.querySelector('b') || {}).textContent).join(',') };
+      const vis = () => [...document.querySelectorAll('.k-movecue')]
+        .filter(c => +getComputedStyle(c).opacity > 0.05).length;
+      const out = { n: rows.length, cues: rows.filter(r => r.querySelector('.k-movecue')).length,
+                    words: rows.map(r => (r.querySelector('b') || {}).textContent).join(','),
+                    turn: window.K.state().turn, taught: vis() };
+      // …past the opening turn it goes quiet
+      window.K.state().turn = 3; window.K.render();
+      await new Promise(r => setTimeout(r, 220));
+      out.restVisible = vis();
+      // …and comes back for the figure the finger is on
+      const h = document.querySelector('.k-hero[data-hero="mira"]');
+      h.classList.add('k-hero-drag');
+      await new Promise(r => setTimeout(r, 220));
+      out.onPoint = vis();
+      h.classList.remove('k-hero-drag');
+      return out;
     });
-    check('SAYS: every hero carries a step cue — nothing else said a figure could be moved',
-      cue.n === 3 && cue.cues === 3 && /FRONT/.test(cue.words), JSON.stringify(cue));
+    check('SAYS: every hero carries a step cue, it teaches on turn one, then leaves the board',
+      cue.n === 3 && cue.cues === 3 && /FRONT/.test(cue.words)
+      && cue.taught === 3 && cue.restVisible === 0 && cue.onPoint === 1,
+      JSON.stringify(cue));
 
     // renderHeroes writes the row word on every render; if it ever writes over
     // the whole plate again the cue disappears and only this notices

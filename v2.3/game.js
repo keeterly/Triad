@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 75;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 76;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -4278,16 +4278,19 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
     + '<span class="k-cname' + (c.name.length > 15 ? ' k-cname-vlong' : c.name.length > 10 ? ' k-cname-long' : '') + '">' + c.name + '</span>'
     // THE MARK IS ON THE FACE. A sigil that changed how a card played and did
     // not appear on it would be a rule the player had to remember per card.
-    // THE BANNER IS GONE. A mark used to print a full-width gold ribbon across
-    // the middle of the painting — the loudest object on the card, wider than
-    // the card's own name, and it read as a sticker slapped over the art rather
-    // than as something the card had EARNED. It is a tab down the card's left
-    // edge now, in the mark's own colour, with the mark's glyph struck into the
-    // top of it: the same two facts (what mark, what colour) carried in a
-    // twelfth of the width, on the one edge of the face nothing else uses.
+    // A CHIP, AND IT READS LEFT TO RIGHT. Two treatments have failed here now.
+    // The first was a full-width gold ribbon across the middle of the painting
+    // — the loudest object on the card, wider than its own name, a sticker
+    // rather than something earned. The second traded that for a spine down the
+    // left edge, which fixed the loudness and introduced a worse problem: the
+    // word ran VERTICALLY, and a seven-letter word set at 7px rotated ninety
+    // degrees is not read, it is decoded. Nothing else on this screen asks the
+    // player to tilt their head. It is a small horizontal chip now, tucked under
+    // the cost orb on the dark end of the art — glyph, then name, on one line,
+    // the way every other label in the game is set.
     + (ev.sigil && SIGILS[ev.sigil]
         ? '<span class="k-csig k-csig-' + ev.sigil + '">'
-          + '<i class="k-csig-g">' + icon(SIGILS[ev.sigil].glyph || 'finale') + '</i>'
+          + icon(SIGILS[ev.sigil].glyph || 'finale', 'k-csig-g')
           + '<u>' + SIGILS[ev.sigil].name + '</u></span>' : '')
     // the prose sits in its own inner span: .k-cprose centres its content with
     // flex, and a flex container turns each inline child into an item — which
@@ -4446,6 +4449,11 @@ function renderHeroes() {
     // over the whole plate would delete it every render
     h.querySelector('.k-hero-row b').textContent = C.heroes[id].row.toUpperCase();
   });
+  // TURN ONE TEACHES THE MOVE, and then gets out of the painting's way. The
+  // step cue used to be permanent — three arrows standing in the middle of the
+  // battlefield saying something that is true on every turn of every fight.
+  const st = el('k-stage');
+  if (st) st.classList.toggle('k-teach-move', C.turn <= 1);
 }
 // COMBAT MUST NEVER BE A DEAD END. Inside a run this used to draw nothing at
 // all — the road owns the outcome card — which was right in principle and left

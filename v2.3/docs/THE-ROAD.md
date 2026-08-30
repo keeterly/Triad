@@ -1972,3 +1972,50 @@ one mark it must never be confused with; it is on the diagonal now.
 **And `drawDiscard` was two things in one row.** Inside a 73px face it wrapped at
 the comma and printed "Draw 1" over ", discard 1", which reads as a rendering
 fault rather than as a rule. A row is one clause.
+
+## Build 76 — the third try at the mark, and telling two black coats apart
+
+**The mark chip.** Two treatments failed before this one. The ribbon was a
+full-width gold bar struck across the painting — louder than the card's own
+name. The spine that replaced it fixed the loudness and introduced a worse
+fault: the word ran vertically, and a seven-letter word at 7px turned ninety
+degrees is decoded, not read. Nothing else in this game asks the player to tilt
+their head. It is a small horizontal chip under the cost orb now — glyph, then
+name, on one line, on the dark end of the painting where the art has nothing to
+lose. It floats over the art rather than taking width from the face, so the two
+compensations the spine needed (a 13px inset on the name block, and a whole set
+of step-down name sizes for marked cards) are both gone, and no card name trims.
+
+**Telling Ash and Mira apart.** Measured off the source paintings at 120px, mean
+over every pixel with alpha:
+
+| | mean RGB | luma | saturation |
+|---|---|---|---|
+| Ash | 38,35,35 | 35.8 | 0.236 |
+| Mira | 51,48,50 | 49.1 | 0.141 |
+| Elin | 97,95,92 | 95.8 | 0.092 |
+
+Two of the three are near-neutral blacks **thirteen luma points apart out of
+255** — a five percent difference. At the 33px they are drawn at on the road and
+in the reckoning they are the same object, and only Elin is identifiable, purely
+by being twice as bright. The party already had a colour language — the cards
+tint each owner's frame violet, gold and copper — and the figures were the one
+place it had never been applied.
+
+Grading alone cannot fix it, because there is no hue in a neutral black to push:
+the first attempt bought separation by *darkening* Ash (35.8 → 27.2 luma), which
+trades one problem for another, since contrast() pivots at mid-grey and only
+pushes a dark painting further into the ground. The lever that works is the one
+a painter would reach for — a **coloured rim**, two passes per hero in their own
+colour. With grading and rim together: Ash↔Mira RGB distance **24 → 47**, luma
+gap **13.3 → 25.7**.
+
+This is a mitigation and should be recorded as one. The paintings themselves
+still want a value separation no filter can invent.
+
+**The step cue teaches once.** Three gold arrows stood permanently in the middle
+of the battlefield saying a thing that is true on every turn of every fight, and
+the middle of the battlefield is the one part of that screen meant to be a
+picture. The cue shows on turn one, on the figure the finger is on, and while a
+move is in the air. The check that gates this was verified red against the old
+always-on rule before being kept.
