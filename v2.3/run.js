@@ -2344,14 +2344,40 @@
   // One screen, one decision: the bond decided WHAT was learned, the player
   // decides which card it lands on. Every card is drawn as a card — the whole
   // point is that the player is looking at the thing they are changing.
+  // WHAT PASSED BETWEEN THEM. One line per mark rather than fifteen, with the
+  // two names substituted, because the thing that varies is WHICH TRICK was
+  // taught — the pair is already standing there saying who taught it. Written
+  // so either half of a pair can be A: nobody is described in a way that only
+  // fits one of them, and no line carries a gendered pronoun.
+  const MARK_SAY = {
+    held:    '{A} stops handing {B} everything at once. Some of it keeps.',
+    echo:    'They find the trick of it: {A} moves, and the air is still moving when {B} arrives.',
+    opening: '{B} learns to go first. {A} has been waiting a long time for that.',
+    kindled: 'Neither of them can say what changed. They will both feel it, every time.',
+    bright:  '{A} shows {B} how to spend everything in one breath. It only works once.',
+  };
   function renderMark() {
     const K = window.K, sig = RUN.pendingSigil, def = K.SIGILS[sig];
     if (!def) return leaveMark();
     const pair = _markPair || PAIRS[0];
+    const heroes = pair.split('|');
+    const A = CAST[heroes[0]], B = CAST[heroes[1]];
+    $('k-mark').className = 'k-mk-sig-' + sig;
     $('k-mark-title').textContent = def.name.toUpperCase();
     $('k-mark-line').textContent = def.line;
+    // THE SCENE. The two of them, the mark burning between them, and the road
+    // they are standing on — the same painting the map is drawn over, so the
+    // moment happens somewhere rather than in a void.
+    const bg = $('k-mark-bg-img');
+    if (bg) bg.src = '../art/' + regionOf(RUN.region).art + '.webp';
+    const figs = $('k-mark-cast').querySelectorAll('.k-mkc-fig');
+    if (figs[0]) { figs[0].src = '../art/' + A.art + '.webp'; figs[0].alt = A.n; }
+    if (figs[1]) { figs[1].src = '../art/' + B.art + '.webp'; figs[1].alt = B.n; }
+    const gl = $('k-mark-glyph');
+    if (gl) gl.innerHTML = K.icon(def.glyph || 'finale');
+    $('k-mark-say').textContent = (MARK_SAY[sig] || '')
+      .replace('{A}', A.n).replace('{B}', B.n);
     $('k-mark-ask').textContent = 'WHICH CARD LEARNS IT?';
-    const heroes = pair.split('|');
     // NOBODY LEFT TO TEACH. Six marks is the most a road can grant and a pair
     // owns ten cards, so this cannot happen today — but a screen whose only
     // exit is a button that might all be disabled is one roster change away

@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 74;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 75;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -921,17 +921,28 @@ function intentByTarget() {
 // is the same as the fictional one: they have not been together long enough.
 //
 // One per card, no stacking. The deck does not grow and neither does this.
+// EVERY MARK IS A PROMISE AND, WHERE IT HAS ONE, A PRICE — in that order, in
+// two sentences, never in one sentence with an em-dash apology hanging off it.
+// The old set mixed three voices in five lines: `held` described the card
+// ("Stays in hand"), `opening` described its own rules text ("Its combo counts
+// if…"), and `kindled` addressed nobody. They read as errata. They are written
+// to the player now, they lead with what they buy, and the two that cost
+// something say so in a second sentence where a cost can actually be read.
+//
+// HELD'S PRICE IS REAL and has to survive the rewrite. The next turn draws back
+// up to five, so a card you keep is a card you do not draw — measured, a bot
+// placing it without choosing lost 1.7 points of completion with it.
 const SIGILS = {
-  // HELD SAYS WHAT IT COSTS. "Stays in hand" reads as free, and it is not:
-  // the next turn draws back up to five, so a card you keep is a card you do
-  // not draw. Measured — a bot placing it without choosing lost 1.7 points of
-  // completion with it. A player who picks the card they wanted to keep gains;
-  // one who does not, pays. The face has to make that legible.
-  held:    { name: 'Held',    line: 'Stays in hand when the turn ends \u2014 so you draw one fewer.' },
-  echo:    { name: 'Echo',    line: 'The next card counts as after an ally.' },
-  opening: { name: 'Opening', line: 'Its combo counts if this is the turn\u2019s first card.' },
-  kindled: { name: 'Kindled', line: 'Playing this adds 6 to the bond.' },
-  bright:  { name: 'Bright',  line: 'Half again as strong \u2014 and it leaves the fight.' },
+  held:    { name: 'Held',    glyph: 'guard',
+             line: 'Keep it when the turn ends. You draw one fewer to make room.' },
+  echo:    { name: 'Echo',    glyph: 'follow',
+             line: 'Whatever you play next lands as though an ally moved first.' },
+  opening: { name: 'Opening', glyph: 'move',
+             line: 'Lead the turn with it and its combo is already live.' },
+  kindled: { name: 'Kindled', glyph: 'finale',
+             line: 'They feel it every time it is played. The bond grows by 6.' },
+  bright:  { name: 'Bright',  glyph: 'atk',
+             line: 'Half again as strong. It burns out and leaves the fight.' },
 };
 const SIGIL_KZ = 6;
 const sigilOf = (cardId) => (C && C.sigils ? C.sigils[cardId] : null) || null;
@@ -4123,17 +4134,36 @@ function cardArt(cardId) {
 //
 // The rest were tested at size and left alone: a shield, a drop, a flake, a
 // cross, an arrow and a five-point star all still read.
+// FOUR OF THESE DID NOT SURVIVE THEIR OWN SIZE. Rendered at the 11px they wear
+// on a card face and the 13px they wear in the telegraph, `atk` was a hollow
+// blade outline stroked at 1.9 on a 16-unit box — the outline closed on itself
+// and the most-used mark in the game read as an ankh; `draw` was a card outline
+// with an arrow INSIDE it, which at 11px is a filled rectangle with a smudge in
+// it; `broken` was a bolt thin enough to read as a stray tick; and `heal` was a
+// two-stroke cross with no mass. The rule that came out of laying the whole set
+// out at 11/13/18/34px: a glyph that must read at 11px is FILLED, not stroked —
+// stroke is for marks whose whole meaning is a line (a flake, a chevron, an
+// arrow, three strokes of a hymn), and those are the only four still stroked.
 const ICON_PATHS = {
-  atk:   'M8 1 L9.8 5.6 V9.2 H6.2 V5.6 Z M2.6 9.7 H13.4 M8 9.7 V14.6',           // a sword
+  // AN ANGLED BLADE, NOT AN UPRIGHT ONE. The first filled attempt stood the
+  // sword vertically with a wide crossguard, and at 11px it was a plus sign —
+  // indistinguishable from `heal`, which is the one mark in the set it must
+  // never be confused with. Laid on the diagonal, with a chiselled tip and a
+  // guard narrow enough not to dominate, it reads as a weapon at every size.
+  atk:   'M5.09 9.29 L11.24 3.13 L13.4 2.6 L12.87 4.76 L6.71 10.91 Z'
+       + ' M8.57 11.75 L4.25 7.43 L3.23 8.45 L7.55 12.77 Z'
+       + ' M5.82 11.29 L3.27 13.83 L2.17 12.73 L4.71 10.18 Z',
   guard: 'M8 1 L14 4 V8 Q14 12 8 15 Q2 12 2 8 V4 Z',                  // a shield
-  heal:  'M8 3 V13 M3 8 H13',                                          // a cross
+  heal:  'M6.5 2.2 H9.5 V6.5 H13.8 V9.5 H9.5 V13.8 H6.5 V9.5 H2.2 V6.5 H6.5 Z',   // a cross with body
   bleed: 'M8 2 Q12 8 12 10 A4 4 0 0 1 4 10 Q4 8 8 2 Z',                // a drop
   chill: 'M8 2 V14 M3 5 L13 11 M13 5 L3 11',                           // a flake
   brk:   'M6.2 1.5 L1.5 8 L6.2 14.5 Z M9.8 1.5 L14.5 8 L9.8 14.5 Z',   // split apart
   follow:'M3 3.5 L7.5 8 L3 12.5 M8.5 3.5 L13 8 L8.5 12.5',             // then, and then
   finale:'M8 1 L10 6 L15 6.5 L11.5 10 L12.5 15 L8 12.5 L3.5 15 L4.5 10 L1 6.5 L6 6 Z',
-  broken:'M6 1 L9 7 L5 8 L10 15 L8 9 L12 8 Z',                         // a crack
-  draw:  'M4.4 2.4 H11.6 V14 H4.4 Z M8 11.5 V5.4 M5.5 7.9 L8 5.2 L10.5 7.9', // a card, taken
+  broken:'M9.6 0.8 L3.6 8.8 H7.2 L6 15.2 L12.4 6.8 H8.8 Z',            // a crack, with mass
+  // a card, and the card coming OFF it — the arrow is outside the rectangle so
+  // the two shapes stay two shapes at 11px
+  draw:  'M2.6 5.6 H8.8 V15.2 H2.6 Z M12.1 1.2 L15.6 5.6 H13.3 V11 H10.9 V5.6 H8.6 Z',
   move:  'M2 8 H14 M11 5 L14 8 L11 11',                                // a step
   // THE DIRGE IS NOT BREAK. It wore `brk` — the split-apart glyph the player's
   // own cards use for "2 Break" — so the same mark meant "strip the Regent's
@@ -4142,9 +4172,12 @@ const ICON_PATHS = {
   // over a line nobody gets under.
   dirge: 'M3 2.5 V8 M8 2.5 V10 M13 2.5 V8 M1.5 13 H14.5',
 };
+const STROKE_ICONS = { chill: 1, follow: 1, move: 1, dirge: 1 };
 function icon(name, cls) {
   const d = ICON_PATHS[name]; if (!d) return '';
-  const fill = (name === 'guard' || name === 'bleed' || name === 'brk' || name === 'finale' || name === 'broken');
+  // FILLED IS THE DEFAULT NOW; stroke is the exception, for the four marks whose
+  // whole meaning is a line. See the note above ICON_PATHS.
+  const fill = !STROKE_ICONS[name];
   return '<svg class="k-ico ' + (cls || '') + '" viewBox="0 0 16 16" aria-hidden="true">'
     + '<path d="' + d + '" ' + (fill ? 'fill="currentColor" stroke="none"' : 'fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"')
     + '/></svg>';
@@ -4245,8 +4278,17 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
     + '<span class="k-cname' + (c.name.length > 15 ? ' k-cname-vlong' : c.name.length > 10 ? ' k-cname-long' : '') + '">' + c.name + '</span>'
     // THE MARK IS ON THE FACE. A sigil that changed how a card played and did
     // not appear on it would be a rule the player had to remember per card.
+    // THE BANNER IS GONE. A mark used to print a full-width gold ribbon across
+    // the middle of the painting — the loudest object on the card, wider than
+    // the card's own name, and it read as a sticker slapped over the art rather
+    // than as something the card had EARNED. It is a tab down the card's left
+    // edge now, in the mark's own colour, with the mark's glyph struck into the
+    // top of it: the same two facts (what mark, what colour) carried in a
+    // twelfth of the width, on the one edge of the face nothing else uses.
     + (ev.sigil && SIGILS[ev.sigil]
-        ? '<span class="k-csig k-csig-' + ev.sigil + '">' + SIGILS[ev.sigil].name + '</span>' : '')
+        ? '<span class="k-csig k-csig-' + ev.sigil + '">'
+          + '<i class="k-csig-g">' + icon(SIGILS[ev.sigil].glyph || 'finale') + '</i>'
+          + '<u>' + SIGILS[ev.sigil].name + '</u></span>' : '')
     // the prose sits in its own inner span: .k-cprose centres its content with
     // flex, and a flex container turns each inline child into an item — which
     // silently ate the spaces and printed "9damage."
@@ -4324,7 +4366,10 @@ function prose(effects, plain) {
     if (fx.counterstance) out.push(I('brk') + 'Next parry <b>+2</b> Break.');
     if (fx.intercede) out.push(I('guard') + 'Take their parry window.');
     if (fx.moveSelf) out.push(I('move') + 'Step to the <b>' + fx.moveSelf + '</b>.');
-    if (fx.drawDiscard) out.push(I('draw') + 'Draw <b>1</b>, discard <b>1</b>.');
+    // TWO CLAUSES, BECAUSE IT IS TWO THINGS. As one row this wrapped at the
+    // comma inside a 73px face and printed "Draw 1" over ", discard 1", which
+    // reads as a rendering fault rather than as a rule. A row is one clause.
+    if (fx.drawDiscard) { out.push(I('draw') + 'Draw <b>1</b>.'); out.push(I('draw') + 'Discard <b>1</b>.'); }
     if (fx.draw) out.push(I('draw') + 'Draw <b>' + fx.draw + '</b>.');
   }
   // ONE CLAUSE PER LINE. Run together, a two-effect card wraps wherever the

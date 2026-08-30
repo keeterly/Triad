@@ -1923,3 +1923,52 @@ left (MASH, `.k-pring-burst`) is a different probe with the same disease.
 The lesson is the one this repo keeps relearning: a reproducible-looking failure
 is not a caused failure, and the way to tell them apart is to bisect until the
 change that "causes" it is provably inert.
+
+## Build 75 — the mark stops being a settings panel
+
+**The wording.** Five sigil lines in three different voices: `held` described
+the card ("Stays in hand"), `opening` described its own rules text ("Its combo
+counts if…"), `kindled` addressed nobody. They read as errata. They are written
+to the player now, they lead with what the mark BUYS, and the two that cost
+something say so in a second sentence where a cost can be read rather than in an
+em-dash apology hanging off the end of the promise.
+
+**The banner is a tab.** A mark used to print a full-width gold ribbon across the
+middle of the painting — the loudest object on the card, wider than the card's
+own name, reading as a sticker slapped over the art rather than as something the
+card had earned. It runs down the LEFT EDGE now: a 13px strip in the mark's own
+colour, the mark's glyph struck into the head of it, the name set vertically
+beneath, on the one edge of a 104px face nothing else uses.
+
+Two things that cost measurement. Padding the whole face by the tab's width cost
+Light Through Steel a line — 10px of vertical overflow the unmarked card did not
+have — and narrowing the tab to 9px did not clear it, so width was never the
+problem: the reflow was. Only the name block takes the inset. And a name that
+needed the whole line before losing 13px of it now steps down a size instead of
+ellipsing: LUMEN CASCADE read as LUMEN CASCA… the moment it was marked, which is
+the exact failure `.k-cname-vlong` exists to prevent.
+
+**The mark is a scene.** It was a title, a rules line and two rows of cards on a
+flat void with 170px of nothing between them — a settings panel wearing a serif.
+What is actually happening is that two people who have been through something
+together are teaching each other a trick, so that is what is drawn now: the road
+they are standing on dropped almost to black, the two of them facing each other,
+the mark burning in a medallion between them, and one line saying what passed.
+The cards are the answer to a question the scene asks. One line per mark rather
+than fifteen, with the names substituted — the pair is already standing there
+saying who taught it — and written so either half of a pair can be A.
+
+**The icon set.** Laid out at 11/13/18/34px, four of thirteen did not survive
+their own size: `atk` was a hollow blade outline stroked at 1.9 on a 16-unit box,
+so at 11px the outline closed on itself and the most-used mark in the game read
+as an ankh; `draw` was a card outline with an arrow INSIDE it, which is a filled
+rectangle with a smudge; `broken` was a bolt thin enough to read as a stray tick;
+`heal` was a two-stroke cross with no mass. Rule that came out of it: a glyph
+that must read at 11px is FILLED — stroke is only for marks whose whole meaning
+is a line, and four of thirteen still are. The first filled sword stood upright
+with a wide crossguard and was a PLUS SIGN at 11px, indistinguishable from the
+one mark it must never be confused with; it is on the diagonal now.
+
+**And `drawDiscard` was two things in one row.** Inside a 73px face it wrapped at
+the comma and printed "Draw 1" over ", discard 1", which reads as a rendering
+fault rather than as a rule. A row is one clause.
