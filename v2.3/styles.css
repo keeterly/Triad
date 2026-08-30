@@ -330,6 +330,28 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-ichip b { font-size: 15px; }
 .k-ichip img { width: 17px; height: 17px; border-radius: 50%; object-fit: cover; object-position: top;
   border: 1px solid rgba(201,164,92,0.7); margin-left: 2px; }
+/* WHO, IN WORDS. See renderIntent — a 17px crop of a dark-haired figure on
+   dark armour is not an identification. */
+.k-ichip u { text-decoration: none; margin-left: 4px; font-size: 8.5px;
+  letter-spacing: 0.16em; color: #d9d0be; }
+
+/* …AND THE SAME NUMBER BESIDE THE BAR IT WILL EMPTY. Reading "who takes 13
+   twice" in the top-right corner and "who is at 4 health" in the top-left were
+   two journeys across the screen with a number carried in the head between
+   them. */
+.k-pt-inc { display: inline-block; margin-left: 5px; padding: 0 4px; border-radius: 2px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+  color: #ffd9c2; background: rgba(200,74,58,0.3);
+  border: 1px solid rgba(232,119,106,0.55); }
+.k-pt-hero.k-pt-aimed .k-bar { box-shadow: 0 0 0 1px rgba(232,119,106,0.5); }
+/* A BLOW THAT KILLS IS NOT THE SAME NEWS AS A BLOW THAT HURTS, and a player
+   who cannot see the difference cannot know that this is the turn to Guard, to
+   step back, or to put Elin in front. */
+.k-pt-hero.k-pt-lethal .k-pt-inc { color: #1a0d0b; background: linear-gradient(180deg, #ff9d8c, #e8776a);
+  border-color: rgba(255,200,190,0.9);
+  animation: k-pt-lethal 1.25s ease-in-out infinite; }
+@keyframes k-pt-lethal { 50% { box-shadow: 0 0 14px rgba(232,119,106,0.95); } }
+.k-pt-hero.k-pt-lethal .k-pt-name { color: #ff9d8c; }
 /* each kind of turn has its own colour, so the shape reads before the number */
 /* the KIND is carried by the mark's colour alone now — the filled plate that
    used to sit behind each reading was doing the same job twice, loudly */
@@ -1616,10 +1638,19 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-map-key { position: absolute; right: 20px; bottom: 20px; z-index: 5;
   display: flex; flex-direction: column; gap: 3px; padding: 8px 11px; border-radius: 3px;
   background: rgba(10,9,12,0.62); border: 1px solid rgba(201,164,92,0.16); pointer-events: none; }
-.k-mk-row { display: flex; align-items: center; gap: 8px; }
-.k-mk-row i { width: 13px; height: 13px; display: grid; place-items: center; }
-.k-mk-row i svg { width: 13px; height: 13px; color: var(--tone, #9a9080); }
-.k-mk-row b { font-size: 7.5px; letter-spacing: 0.2em; color: #8d8474; font-weight: 400; }
+/* TWO FEATURES PICKED THE SAME CLASS NAME. This is the map legend's row —
+   "mark" as in the six marks on the chart — and it collided with the MARK
+   SCREEN's `.k-mk-row`, the row of cards a bond's sigil can land on. The
+   legend's child rules therefore applied to every card face on that screen:
+   `b { font-size: 7.5px }` shrank every number and word in the rules block and
+   `i svg { width: 13px }` blew every glyph up to legend size, so DAMAGE
+   rendered as "MAGE", GUARD as "UARD", HEAL as "IEAL", and the combo strips
+   ran outside the card border. Ten unreadable cards on the one screen that
+   sells the game's signature idea. Renamed to what it actually is. */
+.k-key-row { display: flex; align-items: center; gap: 8px; }
+.k-key-row i { width: 13px; height: 13px; display: grid; place-items: center; }
+.k-key-row i svg { width: 13px; height: 13px; color: var(--tone, #9a9080); }
+.k-key-row b { font-size: 9px; letter-spacing: 0.2em; color: #a89e8c; font-weight: 400; }
 .k-node { position: absolute; transform: translate(-50%, -50%); z-index: 3;
   display: flex; flex-direction: column; align-items: center; gap: 4px;
   background: none; border: 0; padding: 0; cursor: pointer; color: inherit;
@@ -1970,7 +2001,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   background: linear-gradient(90deg, rgba(14,12,18,0.9), rgba(14,12,18,0.5));
   border: 1px solid rgba(201,164,92,0.24); overflow: hidden; }
 .k-cr b { flex: none; font-size: 13px; letter-spacing: 0.08em; color: #f0cf92; }
-.k-cr-was { font-size: 11px; color: #6f6858; text-decoration: line-through; white-space: nowrap;
+.k-cr-was { font-size: 11px; color: #8d8474; text-decoration: line-through; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; flex: none; max-width: 230px; }
 .k-cr-arrow { flex: none; color: #8d8474; font-size: 12px; }
 .k-cr-now { flex: 1; min-width: 0; font-size: 11.5px; color: #dcd2be; line-height: 1.25;
@@ -1984,11 +2015,22 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-cr-sealed em { color: #b49ed4; }
 .k-cr-own em { color: #a9c187; }
 
+/* THE WAY OUT MUST NOT LOOK LIKE THE WAY FORWARD. This carried the same
+   gradient, border and weight as the road's TRAVEL button — the styling the
+   player has been trained means "commit" — while the fire's actual commit is
+   TAP AGAIN TO KINDLE, set in 8.5px letterspaced grey-gold inside the strip.
+   So the loudest control on the campfire was the one that leaves it without
+   spending, and a first-timer with embers in hand can very plausibly press it
+   believing they are proceeding. It is a ghost now: still obvious, no longer
+   the thing your eye lands on. */
 #k-camp-leave { position: absolute; right: 18px; bottom: 14px; z-index: 4; height: 42px;
   padding: 0 18px; border-radius: 3px; cursor: pointer;
-  background: linear-gradient(180deg, #3a3040, #241f2c); color: #e8dcc2;
-  border: 1px solid rgba(224,192,132,0.55); font-family: inherit;
-  font-size: 11px; letter-spacing: 0.16em; font-weight: 700; }
+  background: none; color: #9a9080;
+  border: 1px solid rgba(201,164,92,0.24); font-family: inherit;
+  font-size: 10.5px; letter-spacing: 0.16em; font-weight: 400;
+  transition: color 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
+#k-camp-leave:hover, #k-camp-leave:focus-visible { color: #e0c084;
+  border-color: rgba(224,192,132,0.65); box-shadow: 0 0 16px rgba(224,192,132,0.16); }
 #k-camp-leave:active { transform: translateY(1px); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2133,7 +2175,12 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-sc-off { filter: brightness(0.34) saturate(0.4); opacity: 0.7; transform: translateY(10px) scale(0.94); }
 .k-sc-on { transform: translateY(-8px) scale(1.06); filter: brightness(1.1) contrast(1.03); }
 
-#k-scene-plate { position: absolute; left: 50%; bottom: 44px; transform: translateX(-50%); z-index: 5;
+#k-scene-plate {
+  /* A HELD BEAT, NOT A FORM FIELD. The plate carries a min-height so the box
+     does not jump between lines of different lengths — and the text was pinned
+     to its top-left corner, so every short beat left sixty pixels of void under
+     one italic line and read as a rendering failure rather than a pause. */
+  display: flex; flex-direction: column; justify-content: center; position: absolute; left: 50%; bottom: 44px; transform: translateX(-50%); z-index: 5;
   width: 720px; min-height: 92px; padding: 12px 18px 14px; border-radius: 4px;
   background: linear-gradient(180deg, rgba(24,20,30,0.95), rgba(14,12,18,0.97));
   border: 1px solid rgba(165,140,196,0.34); box-shadow: 0 14px 40px rgba(0,0,0,0.7); }
@@ -2779,7 +2826,12 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-reck-title i { font-style: normal; font-size: 8.5px; letter-spacing: 0.28em; color: #7d7466; }
 #k-reck-title b { font-weight: 400; font-size: 15px; letter-spacing: 0.3em; color: #e0c084; }
 /* the plate sits where the hand was, because that is where the eye already is */
-#k-reck-plate { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
+#k-reck-plate {
+  /* A HELD BEAT, NOT A FORM FIELD. The plate carries a min-height so the box
+     does not jump between lines of different lengths — and the text was pinned
+     to its top-left corner, so every short beat left sixty pixels of void under
+     one italic line and read as a rendering failure rather than a pause. */
+  display: flex; flex-direction: column; justify-content: center; position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
   width: 640px; min-height: 84px; padding: 13px 18px 15px; border-radius: 4px;
   background: linear-gradient(180deg, rgba(16,14,20,0.94), rgba(10,9,13,0.97));
   border: 1px solid rgba(201,164,92,0.3); box-shadow: 0 14px 40px rgba(0,0,0,0.7);
@@ -2853,7 +2905,13 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 
 /* ONLY THE TWO WHO ARE TALKING ARE LIT. The third is still standing there —
    this is the same board — but the eye needs telling whose moment this is. */
-.k-hero.k-reck-out { filter: brightness(0.4) saturate(0.4); opacity: 0.6;
+/* PRESENT AND QUIET, NOT DELETED. At brightness 0.4 on sprites that are
+   already near-black, against a pale flooded street, the third of them stopped
+   reading as "the one not talking" and started reading as set dressing — a
+   reviewer mistook Mira for the fallen enemy. On a screen whose entire premise
+   is that there are three of these people, one of them cannot vanish. The
+   emphasis is carried by lighting the SPEAKERS instead. */
+.k-hero.k-reck-out { filter: grayscale(0.5) brightness(0.78); opacity: 0.88;
   transition: filter 520ms ease, opacity 520ms ease; }
 .k-hero.k-reck-in { transition: filter 520ms ease, transform 520ms ease; }
 .k-hero.k-reck-say { filter: drop-shadow(0 0 18px rgba(240,207,146,0.34)); }

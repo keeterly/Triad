@@ -1531,3 +1531,119 @@ run as CONTINUE rather than silently resuming it — which is most of what a tit
 is for, and means the run coming back is something the player asks for. BEGIN
 AGAIN throws the stored road away, because leaving it beside a second run is how
 somebody ends up with two and no way to tell which one they are in.
+
+---
+
+## Build 70 — four playtest agents, an 87-frame filmstrip, and what survived verification
+
+`test/filmstrip.cjs` walks one seed end to end in realtime and photographs every
+state it passes through. Four agents then reviewed those frames against the
+source — combat screen, road/camp/tree, narrative screens, mechanics-vs-StS2 —
+with the browser driven centrally so only one Chromium ever ran.
+
+They returned about thirty findings. This build ships the ones that survived
+verification. **Everything below was measured or read out of the source before
+it was touched**, because the last three passes have each killed a plausible fix
+that turned out to be a harness artifact.
+
+### The road was a corridor, and it was measurable
+
+The lead finding, and the one worth the whole exercise. `buildMap` gave every
+node its straight-ahead edge unconditionally and a *second* exit only 55% of the
+time; the fallback below it repaired the **column** — it guaranteed a crossing
+existed somewhere — and never the **node**. So arriving at a stop that lost its
+coin flip raised `CHOOSE THE NEXT STOP` over a board with one lit coin on it.
+
+Swept over 400 roads: **43% of stops were single-exit, and 31% of arrivals
+offered no choice at all.** Six stops hid that. Eleven made the road read as a
+corridor — which is exactly the failure the forced-crossing rule was written to
+prevent, arriving through the door it left open.
+
+The roll now decides *which* second road, never *whether* there is one. After:
+**8.2% single-exit and 0% dead arrivals** — and every one of those 8.2% is
+column 9, the run-in to the Regent, where a single exit is correct by design.
+Gated over 300 roads.
+
+### The stitch cap was enforced for one pair out of three
+
+`C.turnState.stitchedPairs.push(pairKey)` lived **inside** the Resonance branch,
+so the cap held for exactly one case: `ash|elin`, before Light Through Steel had
+been generated. `ash|mira` and `elin|mira` were never recorded and were paid on
+every adjacency in a turn; `ash|elin` went uncapped for the rest of the fight the
+moment the Resonance card appeared.
+
+Measured: `elin|mira` **2 → 4** across two adjacencies in one turn, `ash|elin`
+**2 → 6** across four. That is Build 62's defect back in the building — a bond
+paid by fight *length* — and it inverted the deck's own incentive, since
+ping-ponging two heroes out-earned spreading across three, the opposite of what
+FINALE asks for.
+
+**The check that guarded it was hollow.** It asserted `bond.stitches` — the
+Resonance counter, which is the one thing correctly capped — and never touched
+`pairBond`, the currency at risk. It also happened to drive the single
+pre-generation `ash|elin` case that worked. It reads points now, and a second
+check covers the two pairs that have no counter to hide behind.
+
+### Two features had the same class name
+
+`.k-mk-row` was the map legend's row *and* the mark screen's row of cards. The
+legend's child rules — `b { font-size: 7.5px }` and `i svg { width: 13px }` —
+were therefore applied to every card face on the mark screen: DAMAGE rendered as
+"MAGE", GUARD as "UARD", HEAL as "IEAL", and the combo strips ran outside the
+card border. Ten unreadable cards on the one screen that sells the game's
+signature idea — a bond putting a permanent state on a card you already carry.
+
+Renamed the legend's to `.k-key-row`. Every rules line reads now, measured at a
+uniform 73px with zero overflow.
+
+### Who is about to be hit
+
+The entire answer lived in a chip row at top-right, and the "to whom" was a
+**17px circular crop of character art** — three dark-haired figures on dark
+armour. `cardFaceHTML` had already reached this exact conclusion for the card
+corner ("at a size where Ash and Mira are one silhouette") and swapped the disc
+for a name; the telegraph kept the disc.
+
+The chip names the hero now — and the same number appears **beside the health bar
+it will empty**, so reading "who takes 13 twice" and "who is at 4 health" is one
+glance instead of two journeys across the screen. A blow that kills marks itself
+differently from a blow that hurts, because that is the difference between a
+turn where you Guard and a turn where you do not.
+
+### Smaller things that were simply wrong
+
+- **The dirge wore the Break glyph.** `INTENT_ICON.dirge = 'brk'` — the same
+  split-apart mark the player's own cards use for "2 Break" — so one screen
+  carried it meaning both "strip the Regent's poise" and "2 unblockable to all
+  three of you". It has its own glyph now.
+- **The crossroads named the wrong pair.** The chip read `closest pair +N`;
+  `takeEvent` applies it through `weakestPair()`, the pair *furthest behind*. It
+  advertised the opposite pair from the one it charges — the single failure the
+  `fxWords` function exists to make impossible. It names them outright now.
+- **Ash was "her" on the second screen of the game** and "he" in every bond
+  scene. And a reckoning whose cast is chosen at runtime asked "what does *she*
+  say to that?" for a pair that is two-thirds of the time not she.
+- **"The bond begins at 45"** set `r.kizuna`. Bond and kizuna are two different
+  currencies with two different readouts, and the awakening taught the wrong word
+  for one of them before the game had taught either.
+- **The campfire's loudest button was the one that leaves it** — same gradient,
+  border and weight as the road's TRAVEL button, i.e. the styling that means
+  "commit", while the fire's actual commit is 8.5px grey-gold text inside a
+  strip. A first-timer with embers in hand could press it believing they were
+  proceeding. It is a ghost button now.
+- **The held beat read as a form field** — one italic line pinned to the top-left
+  of a 92px plate with sixty pixels of void under it. Centred, in both the scene
+  and the reckoning.
+- **The third hero vanished at the reckoning.** At `brightness(0.4)` on sprites
+  already near-black, against a pale flooded street, a reviewer mistook Mira for
+  the fallen enemy. On a screen whose premise is that there are three of these
+  people, one of them cannot disappear.
+
+### What was deliberately NOT acted on
+
+The mechanics audit reported a skill-cliff regression at 8% / 42% / 100%. My own
+measurement of the same build, the same afternoon, gave **17% / 67% / 100%**.
+Both are n=12 with a bot that routes on `Math.random()`. Two samples that far
+apart do not settle a balance number, and the standing task in this repo has said
+so since Build 64: *a bigger sweep before touching another number.* A 40-run
+sweep is running; the elite stays as it is until it lands.

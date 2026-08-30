@@ -160,13 +160,21 @@
   // profile matter on turn one rather than at the third campfire.
   const WAKES = [
     { id: 'kindling', kind: 'plain', who: 'ASH', title: 'KINDLING',
-      line: 'Ash keeps a twist of dry grass in her coat for no reason she can name. '
-          + 'Her mother\u2019s hands, doing this, in a room that is gone. The road will want a fire.',
+      // Ash is he/him in every bond scene ("What does he say to that?", "He
+      // shifts his guard"). This was the one place that said otherwise, and it
+      // is the SECOND screen of the game.
+      line: 'Ash keeps a twist of dry grass in his coat for no reason he can name. '
+          + 'His mother\u2019s hands, doing this, in a room that is gone. The road will want a fire.',
       gain: '+4 embers', apply(r) { r.embers += 4; } },
     { id: 'lastnote', kind: 'plain', who: 'ELIN', title: 'THE LAST NOTE',
       line: 'The three of them held a chord once, at the end of something. Elin never let go of it. '
           + 'It is still there under everything, waiting to be finished.',
-      gain: 'the bond begins at 45', apply(r) { r.kizuna = 45; } },
+      // WHAT IT SETS IS WHAT IT SAYS. These call `r.kizuna`, and every other
+      // surface — the combat bar, the map HUD, the reckoning's own prize band —
+      // calls that KIZUNA. Meanwhile BOND is the separate per-pair ladder the
+      // awakening's "still close" memory moves. Two currencies, one word, on
+      // the second screen a player ever sees.
+      gain: 'kizuna begins at 45', apply(r) { r.kizuna = 45; } },
     { id: 'rest', kind: 'plain', who: 'MIRA', title: 'A NIGHT THAT KEPT',
       line: 'One night nobody woke them. Mira remembers the weight of the other two against her back, '
           + 'and how nothing came. She has been carrying the rest of that night ever since.',
@@ -189,7 +197,7 @@
     { id: 'debt', kind: 'trade', who: 'ELIN', title: 'A DEBT OF BREATH',
       line: 'Reach back far enough and the chord is already ringing. So is everything that was '
           + 'listening to it the first time.',
-      gain: 'the bond begins at 70', cost: 'the Regent wakes with 14 more',
+      gain: 'kizuna begins at 70', cost: 'the Regent wakes with 14 more',
       apply(r) { r.kizuna = 70; r.foeBonus += 14; } },
   ];
   const wakeDef = (id) => WAKES.find(w => w.id === id);
@@ -590,7 +598,10 @@
         { who: A.id, line: 'Yes.' },
         { who: B.id, line: 'You do not get to keep doing that.' },
       ],
-      ask: 'And what does she say to that?',
+      // A LINE WHOSE SPEAKER IS CHOSEN AT RUNTIME CANNOT CARRY A PRONOUN. This
+      // reckoning's cast is whoever stepped in front of whoever, so "she" was
+      // wrong for two thirds of the pairs it can draw.
+      ask: 'And what comes back?',
       picks: (A, B) => [
         { label: '"THEN BE SOMEWHERE ELSE."', say: 'Neither of them means it. Both of them mean it.',
           bond: [A.id, B.id] },
@@ -888,6 +899,20 @@
             n.to.push(pick(alt).id); crossed = true;
           }
         });
+        // A SECOND ROAD OUT IS A FLOOR, NOT A DICE ROLL. The 0.55 above decided
+        // whether a stop forks at all, and the fallback below it repairs the
+        // COLUMN — it guarantees a crossing exists somewhere — never the NODE.
+        // So a stop that lost its coin flip had exactly one exit, and arriving
+        // there raised CHOOSE THE NEXT STOP over a board with one lit coin on
+        // it. Measured across 400 roads: 43% of stops were single-exit and 31%
+        // of arrivals offered no choice at all. Six stops hid it; eleven made
+        // the road read as a corridor. The roll now decides WHICH second road,
+        // never WHETHER there is one.
+        a.forEach((n, i) => {
+          if (n.to.length >= 2) return;
+          const alt = b.filter((t, j) => j !== near(i) && n.to.indexOf(t.id) < 0);
+          if (alt.length) { n.to.push(pick(alt).id); crossed = true; }
+        });
         // THE FALLBACK HAS TO ACTUALLY CROSS. It used to pick a source and a
         // destination independently, so half its outcomes were the
         // straight-ahead edge the base connection had already added — silently
@@ -1148,7 +1173,7 @@
     if (!key || key.dataset.drawn) return;
     key.innerHTML = ['fight', 'elite', 'camp', 'story', 'event', 'boss'].map(id => {
       const k = KIND[id];
-      return '<span class="k-mk-row k-tone-' + k.tone + '">'
+      return '<span class="k-key-row k-tone-' + k.tone + '">'
         + '<i>' + svgIcon(id) + '</i><b>' + k.word + '</b></span>';
     }).join('');
     key.dataset.drawn = '1';
@@ -2016,7 +2041,17 @@
     if (fx.embers)  out.push((fx.embers > 0 ? '+' : '\u2212') + Math.abs(fx.embers) + ' embers');
     if (fx.heal)    out.push('heal ' + fx.heal + ' each');
     if (fx.hurt)    out.push('bleed ' + fx.hurt + ' each');
-    if (fx.bond)    out.push('closest pair +' + fx.bond);
+    // …AND IT NAMES THE PAIR IT ACTUALLY PAYS. This said "closest pair" while
+    // takeEvent applies it through weakestPair() — the pair FURTHEST BEHIND.
+    // The chip advertised the opposite pair from the one it charges, which is
+    // the single failure this whole function exists to make impossible (see the
+    // comment above it). It names them now, so there is nothing left to get
+    // backwards.
+    if (fx.bond) {
+      const w = (RUN && RUN.bonds) ? weakestPair() : null;
+      out.push(w ? CAST[w.split('|')[0]].n + ' & ' + CAST[w.split('|')[1]].n + ' +' + fx.bond
+                 : 'the pair furthest behind +' + fx.bond);
+    }
     if (fx.kizuna)  out.push('kizuna +' + fx.kizuna + '%');
     if (fx.regent)  out.push('the Regent wakes with +' + fx.regent + ' HP');
     return out;

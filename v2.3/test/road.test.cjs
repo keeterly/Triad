@@ -160,6 +160,46 @@ const { boot } = require('./harness.cjs');
       }
       return { bad: bad.length, n: N, sample: bad.slice(0, 4) };
     });
+    // EVERY STOP IS A FORK, and this is the check that was missing when the road
+    // grew. The column-level rule above guarantees a CROSSING exists somewhere
+    // in each column; it never guaranteed that the stop you are standing on has
+    // two roads out of it. Measured across 400 roads before the fix: 43% of
+    // stops were single-exit and 31% of arrivals raised CHOOSE THE NEXT STOP
+    // over a board with one lit coin on it. Six stops hid that; eleven made the
+    // road read as a corridor.
+    //
+    // The one legitimate single exit is the run-in to the Regent: the last
+    // column is one node, so everything feeding it has one road out by design.
+    const exits = await J(() => {
+      const LAST = window.R.STOPS - 1;
+      let nodes = 0, single = 0, arrivals = 0, dead = 0;
+      for (let s2 = 1; s2 <= 300; s2++) {
+        window.R.newRun(s2);
+        const m = window.R.map();
+        m.forEach(n => {
+          if (n.col >= LAST - 1) return;          // the boss and its run-in
+          nodes++;
+          if (n.to.length < 2) single++;
+        });
+        // …and what a player actually MEETS, walking one route
+        let at2 = null;
+        for (let c = 0; c < LAST - 1; c++) {
+          const opts = at2 === null ? m.filter(n => n.col === 0)
+                                    : m.filter(n => at2.to.indexOf(n.id) >= 0);
+          arrivals++;
+          if (opts.length < 2) dead++;
+          at2 = opts[0];
+          if (!at2) break;
+        }
+      }
+      return { nodes, single, arrivals, dead };
+    });
+    check('ROAD: every stop short of the Regent’s run-in is a fork — swept over 300 roads',
+      exits.single === 0 && exits.dead === 0,
+      JSON.stringify({ singleExit: exits.single + '/' + exits.nodes,
+                       arrivalsWithNoChoice: exits.dead + '/' + exits.arrivals }));
+    await reset(11);
+
     check('ROAD: the road is paced — elites placed, fires never more than five columns apart, an early memory, no fight on the Regent’s doorstep',
       pace.bad === 0, pace.bad + ' broken of ' + pace.n + (pace.sample.length ? ' — ' + pace.sample.join(',') : ''));
     await reset(11);
@@ -419,7 +459,7 @@ const { boot } = require('./harness.cjs');
     // choice lives; the vocabulary lives once, off to the side. If the legend
     // is missing a mark, a stop on the road is a symbol nobody ever names.
     const key = await J(() => {
-      const rows = [...document.querySelectorAll('#k-map-key .k-mk-row')];
+      const rows = [...document.querySelectorAll('#k-map-key .k-key-row')];
       const words = rows.map(r => r.querySelector('b').textContent);
       const marks = rows.map(r => r.querySelector('svg').innerHTML);
       const onRoad = new Set([...document.querySelectorAll('#k-map-nodes .k-node')]

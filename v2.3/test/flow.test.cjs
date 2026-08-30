@@ -657,7 +657,13 @@ const { boot } = require('./harness.cjs');
       const chips = [...document.querySelectorAll('#k-intent .k-ichip-atk')].map(c => ({
         n: (c.querySelector('b') || {}).textContent,
         mul: (c.querySelector('i') || {}).textContent || '',
-        face: (c.querySelector('img') || {}).getAttribute('alt'),
+        // WHAT MOVED: the chip carried the target as a 17px circular crop of
+        // their head, so "who is about to be hit" — the single most important
+        // fact on the screen — was seventeen pixels of dark hair on dark
+        // armour. cardFaceHTML had already made this exact call for the card
+        // corner and swapped the disc for a name; the telegraph kept the disc.
+        // It reads the name now, which is also the thing a player reads.
+        face: (c.querySelector('u') || {}).textContent,
       }));
       const it = window.K.currentIntent();
       const total = window.K.intentPreviewDmg();
@@ -1622,15 +1628,55 @@ const { boot } = require('./harness.cjs');
   {
     await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('benediction'); });
     await J(() => { window.K.playCard('lcascade'); window.K.playCard('cleave'); });   // elin → ash: stitch
-    const s1 = await J(() => window.K.state().bond.stitches);
+    const s1 = await J(() => ({ res: window.K.state().bond.stitches,
+                                pair: window.K.state().pairBond['ash|elin'] || 0 }));
     await J(() => { window.K.playCard('mend'); });                                     // ash → elin adjacency again
-    const s2 = await J(() => window.K.state().bond.stitches);
-    check('BOND STITCH: an Ash↔Elin Follow-Up stitches the pair — max 1 per phase',
-      s1 === 1 && s2 === 1, s1 + ',' + s2);
+    const s2 = await J(() => ({ res: window.K.state().bond.stitches,
+                                pair: window.K.state().pairBond['ash|elin'] || 0 }));
+    // THIS CHECK WAS HOLLOW. It read `bond.stitches` — the RESONANCE counter,
+    // which is the one thing the cap was correctly applied to — and never
+    // touched `pairBond`, the currency actually at risk. The only line that
+    // recorded a pair as stitched lived inside the Resonance branch, so the cap
+    // held for exactly one case (ash|elin, before Light Through Steel exists)
+    // and that is precisely the case this check drove. Measured with the guard
+    // removed: elin|mira paid 2 → 4 across two adjacencies in one turn and
+    // ash|elin paid 2 → 6 across four, while this check stayed green.
+    check('BOND STITCH: an Ash↔Elin Follow-Up stitches the pair — max 1 per phase, in POINTS as well as in the counter',
+      s1.res === 1 && s2.res === 1 && s1.pair > 0 && s2.pair === s1.pair,
+      JSON.stringify({ s1, s2 }));
     await J(() => window.K.endTurn({ grades: [] }));
     await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('benediction'); });
     await J(() => { window.K.playCard('lcascade'); window.K.playCard('cleave'); });
     const gen = await S();
+    // …AND FOR THE PAIRS WITH NO COUNTER TO HIDE BEHIND. ash|mira and elin|mira
+    // generate no Resonance card, so nothing about them was ever recorded and
+    // nothing ever checked them. They are the two thirds of the social layer
+    // the old check could not see.
+    const others = await J(async () => {
+      const D = window.K.CARD_DEFS, ids = Object.keys(D);
+      const solo = (who) => ids.filter(i => D[i].owner === who && !D[i].cond);
+      const out = {};
+      for (const [pair, x, y] of [['elin|mira', 'mira', 'elin'], ['ash|mira', 'mira', 'ash']]) {
+        window.K.startCombat({ seed: 3 });
+        window.K.state().ap = 9;
+        window.K.forceHand([solo(x)[0], solo(y)[0], solo(x)[1]]);
+        window.K.playCard(solo(x)[0]); window.K.playCard(solo(y)[0]);
+        const two = window.K.state().pairBond[pair] || 0;
+        window.K.playCard(solo(x)[1]);                       // a second adjacency, same turn
+        out[pair] = { two, three: window.K.state().pairBond[pair] || 0 };
+      }
+      return out;
+    });
+    check('BOND STITCH: the cap holds for the two pairs that have no Resonance counter',
+      Object.values(others).every(o => o.two > 0 && o.three === o.two),
+      JSON.stringify(others));
+    await fresh(41);
+    await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('benediction'); });
+    await J(() => { window.K.playCard('lcascade'); window.K.playCard('cleave'); });
+    await J(() => window.K.endTurn({ grades: [] }));
+    await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('benediction'); });
+    await J(() => { window.K.playCard('lcascade'); window.K.playCard('cleave'); });
+
     check('RESONANCE GENERATED: two stitches put Light Through Steel in the hand',
       gen.bond.stitches === 2 && gen.bond.generated && gen.hand.includes('lightsteel'),
       JSON.stringify(gen.bond) + ' hand=' + gen.hand.join(','));

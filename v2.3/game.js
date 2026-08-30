@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 69;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 70;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1198,14 +1198,28 @@ function playCard(cardId, allyId) {
     // social layer is this gate being opened, not a new system. Combat itself
     // is unchanged: the in-fight Resonance is still the ash|elin climax alone.
     // These points only leave the fight in the summary.
-    if (!C.turnState.stitchedPairs.includes(pairKey)) {
+    // ONE STITCH PER PAIR PER TURN — AND IT HAS TO BE ONE LIST. The cap was
+    // written into `stitchedPairs`, and the only line that ever PUSHED to it
+    // lived inside the Resonance branch below. So the cap held for exactly one
+    // case: ash|elin, before the Resonance card had been generated. ash|mira
+    // and elin|mira were never recorded at all and were paid on every adjacency
+    // in a turn; ash|elin went uncapped for the rest of the fight the moment
+    // Light Through Steel took shape. Measured: elin|mira 2 → 4 across two
+    // adjacencies in one turn, ash|elin 2 → 6 across four.
+    //
+    // That is Build 62's defect back in the building — a bond paid by fight
+    // LENGTH — and it inverts the deck's own incentive, because ping-ponging
+    // two heroes out-earned spreading across three, which is the opposite of
+    // what FINALE asks for. The record is written once, here, and the
+    // Resonance branch reads the same answer instead of keeping its own.
+    const fresh = !C.turnState.stitchedPairs.includes(pairKey);
+    if (fresh) {
+      C.turnState.stitchedPairs.push(pairKey);
       C.pairBond[pairKey] = (C.pairBond[pairKey] || 0) + BOND_PER_STITCH;
       if (C.deeds) C.deeds.stitches[pairKey] = (C.deeds.stitches[pairKey] || 0) + 1;
     }
-    if (pairKey === RESONANCE_PAIR.slice().sort().join('|')
-        && !C.turnState.stitchedPairs.includes(pairKey)
+    if (fresh && pairKey === RESONANCE_PAIR.slice().sort().join('|')
         && !C.bond.generated) {
-      C.turnState.stitchedPairs.push(pairKey);
       C.bond.stitches++;
       fxResonanceCharge();
       if (C.bond.stitches >= 2 && C.hand.length < 7) {
@@ -3736,6 +3750,16 @@ function setBar(bar, pct) {
   ghost._t = setTimeout(() => { ghost.style.width = pct + '%'; }, 190);
 }
 function renderPartyHud() {
+  // what this turn is about to do to each of them, read from the same function
+  // the chip row reads — one source, so the two can never disagree
+  const incoming = {};
+  if (C && C.boss && !C.boss.cancelNext && C.phase !== 'VICTORY' && C.phase !== 'DEFEAT') {
+    try {
+      intentByTarget().forEach(r => { incoming[r.who] = (incoming[r.who] || 0) + r.total; });
+      const dg = dirgeAmount();
+      if (dg > 0) livingHeroes().forEach(id => { incoming[id] = (incoming[id] || 0) + dg; });
+    } catch (e) {}
+  }
   for (const id of Object.keys(C.heroes)) {
     const h = C.heroes[id];
     const row = document.querySelector('.k-pt-hero[data-hero="' + id + '"]');
@@ -3743,7 +3767,16 @@ function renderPartyHud() {
     row.classList.toggle('k-downed', !!h.downed);
     setBar(row.querySelector('.k-bar'), h.hp / h.max * 100);
     row.querySelector('.k-pt-hp').innerHTML = '<b>' + fmtN(h.hp) + '</b> / ' + fmtN(h.max)
-      + (h.guard > 0 ? ' <span class="k-pt-guard">⛨' + fmtN(h.guard) + '</span>' : '');
+      + (h.guard > 0 ? ' <span class="k-pt-guard">⛨' + fmtN(h.guard) + '</span>' : '')
+      + (incoming[id] ? ' <span class="k-pt-inc">\u2726' + fmtN(incoming[id]) + '</span>' : '');
+    // THE THREAT BELONGS BESIDE THE BAR IT WILL EMPTY. The telegraph lived
+    // seven hundred pixels away in the top-right corner, so reading "who takes
+    // 13 twice" and reading "who is at 4 health" were two separate journeys
+    // across the screen, and the player had to hold one of them in their head.
+    // The same number is now in both places: the chip row says what the turn
+    // does, each hero's own row says what it does TO THEM.
+    row.classList.toggle('k-pt-aimed', !!incoming[id] && !h.downed);
+    row.classList.toggle('k-pt-lethal', !h.downed && incoming[id] >= h.hp + h.guard);
   }
   const inter = el('k-intercede');
   if (inter) inter.textContent = C.intercession
@@ -3829,7 +3862,7 @@ function renderBossHud() {
 // guard, a star for a charge, a cross for healing, and the dirge's own mark.
 // No sentence, no name, no counterplay hint: the shape says what kind of turn
 // is coming and the number says how much.
-const INTENT_ICON = { atk: 'atk', guard: 'guard', charge: 'finale', heal: 'heal', dirge: 'brk' };
+const INTENT_ICON = { atk: 'atk', guard: 'guard', charge: 'finale', heal: 'heal', dirge: 'dirge' };
 function renderIntent() {
   const box = el('k-intent'); if (!box) return;
   const it = currentIntent();
@@ -3846,7 +3879,13 @@ function renderIntent() {
       chips.push('<span class="k-ichip k-ichip-atk">' + icon('atk')
         + '<b>' + fmtN(even ? per : row.total) + '</b>'
         + (row.hits.length > 1 && even ? '<i>×' + row.hits.length + '</i>' : '')
-        + '<img src="' + HEROES23[row.who].art + '" alt="' + HEROES23[row.who].name + '">'
+        // A NAME, NOT A 17px CROP OF THEIR HEAD. cardFaceHTML already reached
+        // this conclusion for the card corner — "at a size where Ash and Mira
+        // are one silhouette" — and swapped the disc for a name; the telegraph
+        // kept the disc. Which hero is about to be hit is the single most
+        // important fact on the screen, and it was being carried by seventeen
+        // pixels of dark hair on dark armour.
+        + '<u>' + HEROES23[row.who].name + '</u>'
         + '</span>');
     }
     // the vocabulary is ready for defend and charge turns even though the
@@ -4015,6 +4054,12 @@ const ICON_PATHS = {
   broken:'M6 1 L9 7 L5 8 L10 15 L8 9 L12 8 Z',                         // a crack
   draw:  'M4.4 2.4 H11.6 V14 H4.4 Z M8 11.5 V5.4 M5.5 7.9 L8 5.2 L10.5 7.9', // a card, taken
   move:  'M2 8 H14 M11 5 L14 8 L11 11',                                // a step
+  // THE DIRGE IS NOT BREAK. It wore `brk` — the split-apart glyph the player's
+  // own cards use for "2 Break" — so the same mark meant "strip the Regent's
+  // poise" on a card in hand and "2 unblockable to all three of you" in the
+  // sky, on one screen. A hymn falling on everyone: three descending strokes
+  // over a line nobody gets under.
+  dirge: 'M3 2.5 V8 M8 2.5 V10 M13 2.5 V8 M1.5 13 H14.5',
 };
 function icon(name, cls) {
   const d = ICON_PATHS[name]; if (!d) return '';
