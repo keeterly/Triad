@@ -3531,24 +3531,60 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-dk-on::after { content: ''; position: absolute; inset: -3px 0 -3px -3px;
   width: 3px; border-radius: 2px; background: #f0d488;
   box-shadow: 0 0 9px rgba(240,212,136,0.8); }
-/* what else this hero could carry — only once a slot has been tapped, because a
-   shelf of spare cards on screen at all times is the clutter this replaces */
-/* ON THE RIGHT, NOT ALONG THE BOTTOM. A bottom sheet would have printed over
-   Mira's row — the third of three, and the one a player is as likely to be
-   reconsidering as either of the others. The rows only use the left 57% of the
-   board, so the bench opens into the space that was already empty. */
+/* ── THE READING PANEL ──────────────────────────────────────────────────────
+   The rows are height-limited: three cards deep on a 430px board is already
+   the largest they can be, so the 395px to their right cannot be spent by
+   growing them — centring the rows only moved the void to the left, which a
+   mock showed plainly. The space has to CARRY something, and the thing a
+   player wants beside a shrunk card is the card, read properly. */
 #k-deck-bench { position: absolute; left: 560px; right: 20px; top: 42px; bottom: 14px;
-  z-index: 3; padding: 12px 14px; border-radius: 4px; overflow: auto;
+  z-index: 3; padding: 12px 14px; border-radius: 4px; overflow: hidden;
+  display: flex; flex-direction: column; gap: 8px;
   background: linear-gradient(180deg, rgba(20,17,26,0.96), rgba(12,10,16,0.98));
   border: 1px solid rgba(201,164,92,0.28);
-  box-shadow: -10px 0 28px rgba(0,0,0,0.6);
-  animation: k-dk-in 240ms cubic-bezier(.2,.85,.3,1) both; }
-@keyframes k-dk-in { from { opacity: 0; transform: translateX(14px); } }
-.k-dk-ask, .k-dk-none { margin: 0 0 7px; font: 600 9px/1.4 var(--serif, Georgia, serif);
+  box-shadow: -10px 0 28px rgba(0,0,0,0.6); }
+/* the inspect panel, laid out for a tall column instead of a wide stage */
+/* IT SCROLLS RATHER THAN CUTS. A keyword rule clipped mid-sentence — "it is
+   spent at th" — is worse than one a player has to scroll two lines for: the
+   first looks like the game does not know the rest of its own sentence. */
+.k-dk-read { display: flex; gap: 12px; align-items: flex-start; min-height: 0;
+  overflow-y: auto; overflow-x: hidden; scrollbar-width: thin;
+  scrollbar-color: rgba(201,164,92,0.35) transparent; }
+.k-dk-read::-webkit-scrollbar { width: 4px; }
+.k-dk-read::-webkit-scrollbar-thumb { background: rgba(201,164,92,0.35); border-radius: 2px; }
+.k-dk-read::-webkit-scrollbar-track { background: transparent; }
+/* the cue, and only when there is something under the fold */
+.k-dk-read.k-dk-scrolls { -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 26px), transparent);
+  mask-image: linear-gradient(180deg, #000 calc(100% - 26px), transparent); }
+.k-dk-read .k-insp-wrap { width: 104px; height: 164px; flex: none; display: block; }
+.k-dk-read .k-insp-card { transform: none; animation: none; }
+.k-dk-read .k-insp-side { width: auto; flex: 1; min-width: 0; gap: 6px; padding-bottom: 0; }
+.k-dk-read .k-insp-who { font-size: 9px; letter-spacing: 0.18em; }
+.k-dk-read .k-insp-now { font-size: 11px; line-height: 1.32; }
+.k-dk-read .k-insp-keys { gap: 5px; margin-top: 6px; }
+.k-dk-read .k-insp-key span { font-size: 9.5px; line-height: 1.34; }
+.k-dk-read .k-insp-key b { font-size: 9px; }
+.k-dk-read .k-insp-sig { margin-top: 4px; }
+.k-dk-read .k-insp-sig span { font-size: 10px; }
+.k-dk-read .k-insp-cond span { font-size: 9.5px; }
+/* …and under it, what could take this card's place */
+.k-dk-swap { margin-top: auto; flex: none;
+  border-top: 1px solid rgba(201,164,92,0.2); padding-top: 8px; }
+.k-dk-ask { margin: 0 0 6px; font: 600 8px/1 var(--serif, Georgia, serif);
   letter-spacing: 0.22em; color: #8d8478; }
 .k-dk-ask b { color: #e8cf95; }
-.k-dk-none { display: flex; flex-direction: column; gap: 3px; margin: 0; }
-.k-dk-none b { font-size: 10px; letter-spacing: 0.24em; color: #e8cf95; }
-.k-dk-none span { font: italic 400 11px/1.3 var(--serif, Georgia, serif);
-  letter-spacing: 0; text-transform: none; color: #9a9080; }
-.k-dk-alts { display: flex; gap: 6px; flex-wrap: wrap; }
+.k-dk-alts { display: flex; gap: 6px; }
+.k-dk-none { margin: 0; font: italic 400 10px/1.4 var(--serif, Georgia, serif); color: #7d7466; }
+
+/* ── PRESS AND HOLD ─────────────────────────────────────────────────────────
+   The same blow-up combat draws, on the same 420ms. A gesture that works in a
+   fight and does nothing on the deck screen is worse than no gesture at all. */
+/* HARDER THAN COMBAT'S DIM, ON PURPOSE. Combat blurs a dark painted board;
+   this blurs a lit panel that is already showing the same card's rules, and at
+   0.42 the two readings printed over each other as a double image. */
+#k-deck.k-inspecting > *:not(#k-deck-focus) { filter: brightness(0.22) saturate(0.55);
+  transition: filter 140ms ease; }
+#k-deck-focus { position: absolute; inset: 0; z-index: 60; display: flex;
+  align-items: center; justify-content: center; gap: 34px; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, rgba(8,7,10,0.86), rgba(8,7,10,0.95)); }
+#k-deck-focus.k-hidden { display: none; }

@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 85;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 86;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -5332,17 +5332,21 @@ function keywordsOf(effects, card) {
   return [...k];
 }
 
-function openInspect(cardId) {
-  _focus = cardId;
-  const ev = evaluateCard(cardId);
+// THE INSPECT PANEL, BUILT ONCE. The deck screen shows the same reading of a
+// card that combat's press-and-hold does, and two copies of a rules panel is
+// how a game ends up explaining the same keyword two different ways. This is
+// the one place that decides what a card SAYS; `openInspect` fills it from
+// live combat and `staticInspectHTML` fills it from the card alone.
+//   ev   — an evaluation (real, or the synthetic one staticCardHTML uses)
+//   who  — the line above the rules; combat adds the row the hero stands in,
+//          the deck screen cannot, because off the board there is no row.
+//   hint — the footer; the gesture differs between the two callers.
+function inspectHTML(ev, who, hint) {
   const c = ev.card;
   const ownerArt = HEROES23[primaryHero(c)].art;
-  const who = isPairCard(c) ? ownerHeroes(c).map(h => HEROES23[h].name).join(' + ') + ' · Bond'
-    : HEROES23[c.owner].name + ' · ' + HEROES23[c.owner].cls + ' · ' + C.heroes[c.owner].row + ' row';
   const gem = ev.condActive && ev.currentCost !== c.cost
     ? ev.currentCost + '<s>' + c.cost + '</s>' : String(ev.currentCost);
-  const f = el('k-focus');
-  f.innerHTML = '<div class="k-insp-wrap"><div class="k-insp-card">'
+  return '<div class="k-insp-wrap"><div class="k-insp-card">'
     + cardFaceHTML(c, ev, gem, ownerArt) + '</div></div>'
     + '<div class="k-insp-side">'
     + '<div class="k-insp-who">' + who + '</div>'
@@ -5356,9 +5360,13 @@ function openInspect(cardId) {
           + SIGILS[ev.sigil].name.toUpperCase() + '</b>'
           + '<span>' + SIGILS[ev.sigil].line + '</span></div>' : '')
     + '<div class="k-insp-now"><em>Resolves now</em>' + prose(ev.resolvedEffects) + '</div>'
+    // ACTIVE / NOT YET IS A READING OF A TURN IN PROGRESS. On the deck screen
+    // there is no turn, so every condition read "not yet" — which is not a
+    // neutral default, it is a false claim about a fight that is not happening.
+    // `condLive` is false there and the label states the rule and stops.
     + (c.cond ? '<div class="k-insp-cond' + (ev.condActive ? ' on' : '') + '">'
-        + '<b>' + (COND_LABEL[c.cond.type] || c.cond.type) + ' — '
-        + (ev.condActive ? 'ACTIVE' : 'not yet') + '</b>'
+        + '<b>' + (COND_LABEL[c.cond.type] || c.cond.type)
+        + (ev.condLive === false ? '' : ' — ' + (ev.condActive ? 'ACTIVE' : 'not yet')) + '</b>'
         + '<span>' + (COND_RULE[c.cond.type] || '') + '</span>'
         // WHAT IT PAYS, spelled out where there is room for it. The face carries
         // the keyword and the number; this is the place a player asks what the
@@ -5372,9 +5380,36 @@ function openInspect(cardId) {
           + '<span>' + KEYWORD_RULE[k][1] + '</span></div>').join('') + '</div>';
       })()
     // two lines of hint under a panel that now also carries the mark was a line
-    // too many — the same two things, in half the words
-    + '<div class="k-insp-hint">release to close · drag to play</div>'
+    // too many — the same two things, in half the words. The words themselves
+    // belong to the CALLER: "drag to play" is a lie on a screen with no board.
+    + (hint ? '<div class="k-insp-hint">' + hint + '</div>' : '')
     + '</div>';
+}
+// WHO A CARD BELONGS TO, without asking the board. A pair card names both.
+function inspectWho(c, row) {
+  if (isPairCard(c)) return ownerHeroes(c).map(h => HEROES23[h].name).join(' + ') + ' \u00b7 Bond';
+  return HEROES23[c.owner].name + ' \u00b7 ' + HEROES23[c.owner].cls
+    + (row ? ' \u00b7 ' + row + ' row' : '');
+}
+// THE SAME PANEL, WITHOUT A FIGHT. Built on the synthetic evaluation
+// `staticCardHTML` uses, so the deck screen and the card preview cannot drift
+// apart: nothing here reads `C`.
+function staticInspectHTML(id, opts) {
+  const o = opts || {};
+  const c = o.def || cardDef(id);
+  if (!c) return '';
+  const sigil = o.sigil || null;
+  const ev = { cardId: id, card: c, condActive: false, condLive: false,
+               currentCost: c.cost, sigil,
+               resolvedEffects: sigil === 'bright' ? brighten(c.base) : c.base };
+  return inspectHTML(ev, inspectWho(c, null), o.hint || '');
+}
+function openInspect(cardId) {
+  _focus = cardId;
+  const ev = evaluateCard(cardId);
+  const f = el('k-focus');
+  f.innerHTML = inspectHTML(ev, inspectWho(ev.card, C.heroes[ev.card.owner] && C.heroes[ev.card.owner].row),
+                            'release to close \u00b7 drag to play');
   f.classList.remove('k-hidden');
   el('k-stage').classList.add('k-inspecting');
 }
@@ -5602,7 +5637,7 @@ window.K = {
   _fxHitResolved: (id, taken, negated, flawless) => fxHitResolved(id, taken, negated, flawless),
   MUSIC, MUSIC_SRC, musicOn, musicPref, musicSet, gridStart, ICON_PATHS, icon, SFX, sfx,
   intentByTarget, ROW_LETTER,
-  FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, staticCardHTML,
+  FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, staticCardHTML, staticInspectHTML,
   cam, bgParallax, SIGILS, sigilOf, brighten,
   BOND_CARDS, BOND_IDS, baseRoster, rosterIds, rosterValid, SLOTS_PER_HERO,
   ownerHeroes, primaryHero, isPairCard, pairOf,

@@ -2373,14 +2373,28 @@
   }
   function closeMenu() { const m = $('k-menu'); if (m) m.classList.add('k-hidden'); }
 
-  let _deckPick = null;             // { hero, id } — the slot being reconsidered
+  let _deckPick = null;             // { hero, id } — the card the panel is reading
+  // THE PANEL IS NEVER EMPTY. It used to open with nothing selected, which left
+  // 42% of the board — 395 x 374px, measured — holding nothing at all, and then
+  // a tap opened a drawer that was 8% full. Both halves of that are the same
+  // mistake: treating "no selection" as a state worth drawing. There is no such
+  // state now. Opening the screen reads Ash's first card, and every tap moves
+  // the reading. The gold bar down a card's left edge means "this is the one
+  // the panel is describing" — not "this is armed for something".
   function openDeck() {
     if (!RUN) return false;
-    _deckPick = null;
+    _deckPick = firstPick();
     screen('deck'); renderDeck();
     return true;
   }
-  function closeDeck() { _deckPick = null; toMap(); }
+  function firstPick() {
+    for (const h of ['ash', 'elin', 'mira']) {
+      const id = (RUN.roster[h] || [])[0];
+      if (id) return { hero: h, id };
+    }
+    return null;
+  }
+  function closeDeck() { _deckPick = null; deckBlur(); toMap(); }
   function renderDeck() {
     const K = window.K, box = $('k-deck-rows'); if (!box || !RUN) return;
     const bs = bench();
@@ -2414,35 +2428,108 @@
             + '</button>').join('')
         + '</div></div>';
     }).join('');
-    box.querySelectorAll('.k-dk-slot').forEach(b =>
-      b.addEventListener('click', (e) => { e.stopPropagation(); tapSlot(b.dataset.hero, b.dataset.id); }));
-    renderDeckBench();
+    box.querySelectorAll('.k-dk-slot').forEach(b => {
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (_held) return;                    // that was a hold, not a tap
+        tapSlot(b.dataset.hero, b.dataset.id);
+      });
+      bindHold(b, b.dataset.id);
+    });
+    renderDeckPanel();
   }
-  // WHAT ELSE THIS HERO COULD BE CARRYING. It only opens when a slot has been
-  // tapped, because a shelf of spare cards on screen at all times is the
-  // clutter this screen exists to replace.
-  function renderDeckBench() {
+  // ── the right-hand panel ────────────────────────────────────────────────
+  // WHAT THIS CARD IS, AND WHAT COULD TAKE ITS PLACE. Two jobs, one panel,
+  // because they are the same question asked twice: a player looking at a slot
+  // wants to know what is in it and what else could be. It used to answer only
+  // the second, and only after a tap, which is why the screen was mostly empty.
+  //
+  // The reading is `staticInspectHTML` — the SAME panel combat's press-and-hold
+  // draws, built from the card alone. Two rules panels would drift; one cannot.
+  function renderDeckPanel() {
     const K = window.K, box = $('k-deck-bench'); if (!box) return;
     if (!_deckPick) { box.classList.add('k-hidden'); box.innerHTML = ''; return; }
-    const alts = benchFor(_deckPick.hero);
     box.classList.remove('k-hidden');
-    if (!alts.length) {
-      box.innerHTML = '<p class="k-dk-none"><b>'
-        + K.CARD_DEFS[_deckPick.id].name.toUpperCase() + '</b>'
-        + '<span>' + CAST[_deckPick.hero].n + ' has nothing else set down to carry instead.</span></p>';
-      return;
-    }
-    box.innerHTML = '<p class="k-dk-ask">SWAP <b>'
-      + K.CARD_DEFS[_deckPick.id].name.toUpperCase() + '</b> FOR</p><div class="k-dk-alts">'
-      + alts.map(id => '<button type="button" class="k-dk-alt" data-id="' + id + '">'
-          + K.staticCardHTML(id, { sigil: (RUN.sigils || {})[id] || null, cls: 'k-card-dk' })
-          + '</button>').join('') + '</div>';
-    box.querySelectorAll('.k-dk-alt').forEach(b =>
-      b.addEventListener('click', (e) => { e.stopPropagation(); deckSwap(b.dataset.id); }));
+    const alts = benchFor(_deckPick.hero);
+    const name = K.CARD_DEFS[_deckPick.id].name.toUpperCase();
+    box.innerHTML = '<div class="k-dk-read">'
+      + K.staticInspectHTML(_deckPick.id, { sigil: (RUN.sigils || {})[_deckPick.id] || null })
+      + '</div>'
+      + '<div class="k-dk-swap">'
+      + '<p class="k-dk-ask">SWAP <b>' + name + '</b> FOR</p>'
+      + (alts.length
+          ? '<div class="k-dk-alts">'
+            + alts.map(id => '<button type="button" class="k-dk-alt" data-id="' + id + '">'
+                + K.staticCardHTML(id, { sigil: (RUN.sigils || {})[id] || null, cls: 'k-card-dk' })
+                + '</button>').join('') + '</div>'
+          // AN HONEST DEAD END. "Nothing else set down" told the player the
+          // shelf was empty but not why, which on a screen whose whole subject
+          // is a bench reads like a fault. It is not one: the party owns
+          // fifteen cards and is carrying fifteen cards.
+          : '<p class="k-dk-none">Nothing is set down. All fifteen are being carried \u2014 '
+            + 'a card reaches the bench when a scene or a fire hands ' + CAST[_deckPick.hero].n
+            + ' one to carry instead.</p>')
+      + '</div>';
+    box.querySelectorAll('.k-dk-alt').forEach(b => {
+      b.addEventListener('click', (e) => { e.stopPropagation(); if (!_held) deckSwap(b.dataset.id); });
+      bindHold(b, b.dataset.id);
+    });
+    // A CUT SENTENCE THAT DOES NOT LOOK SCROLLABLE READS AS A FAULT. Guard's
+    // rule is four lines and the column holds three, so the panel ends mid-word
+    // — fine if the player can see there is more, indefensible if they cannot.
+    // The cue is set from the measurement rather than guessed from the card,
+    // because whether it overflows depends on the mark and the keywords too.
+    const read = box.querySelector('.k-dk-read');
+    if (read) read.classList.toggle('k-dk-scrolls', read.scrollHeight > read.clientHeight + 1);
   }
+
+  // ── press and hold: the card, at the size a card should be read at ────────
+  // THE SAME GESTURE COMBAT USES, to the millisecond. A player learns "hold to
+  // read it properly" once, in a fight, and it has to still be true here — a
+  // gesture that works on one screen and does nothing on the next is worse
+  // than no gesture, because the player stops trusting the first one.
+  let _held = false, _holdT = null;
+  const DECK_HOLD = 420;                       // combat's figure, not a new one
+  function bindHold(btn, id) {
+    const go = (e) => {
+      _held = false;
+      clearTimeout(_holdT);
+      _holdT = setTimeout(() => { _held = true; deckFocus(id); }, DECK_HOLD);
+      try { btn.setPointerCapture(e.pointerId); } catch (_) {}
+    };
+    const stop = () => { clearTimeout(_holdT); if (_held) deckBlur(); };
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    btn.addEventListener('pointerdown', go);
+    btn.addEventListener('pointerup', stop);
+    btn.addEventListener('pointercancel', stop);
+    // A FINGER THAT WANDERS IS STILL HOLDING. Combat cancels a hold at 14px
+    // because the same gesture also drags a card onto a foe; nothing here is
+    // draggable, so wandering off the card should not snatch the reading away.
+    btn.addEventListener('pointerleave', () => { if (!_held) clearTimeout(_holdT); });
+  }
+  function deckFocus(id) {
+    const K = window.K, f = $('k-deck-focus'); if (!f) return;
+    f.innerHTML = K.staticInspectHTML(id, { sigil: (RUN.sigils || {})[id] || null,
+                                            hint: 'release to close' });
+    f.classList.remove('k-hidden');
+    $('k-deck').classList.add('k-inspecting');
+  }
+  function deckBlur() {
+    const f = $('k-deck-focus'); if (!f) return;
+    f.classList.add('k-hidden'); f.innerHTML = '';
+    $('k-deck').classList.remove('k-inspecting');
+    // cleared on the NEXT frame: the click that follows a release fires first,
+    // and a tap that was really a hold must not also change the selection
+    setTimeout(() => { _held = false; }, 0);
+  }
+
+  // A TAP MOVES THE READING. It used to toggle — tapping the selected card
+  // again cleared it — which was the only way a player could reach the empty
+  // state this screen no longer has. There is always exactly one card being
+  // read, so a tap on the one already being read is a no-op.
   function tapSlot(hero, id) {
-    _deckPick = (_deckPick && _deckPick.hero === hero && _deckPick.id === id)
-      ? null : { hero, id };
+    if (_deckPick && _deckPick.hero === hero && _deckPick.id === id) return;
+    _deckPick = { hero, id };
     renderDeck();
   }
   function deckSwap(newId) {
@@ -2745,7 +2832,8 @@
 
   window.R = {
     boot, toTitle, beginFromTitle, renderBonds,
-    openDeck, closeDeck, renderDeck, deckSwap, tapSlot, bench, benchFor,
+    openDeck, closeDeck, renderDeck, renderDeckPanel, deckSwap, tapSlot, bench, benchFor,
+    deckFocus, deckBlur,
     deckPick: () => _deckPick, toggleMenu, closeMenu,
     active: () => !!RUN && !RUN.over,
     state: () => RUN,

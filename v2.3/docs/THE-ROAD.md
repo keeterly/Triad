@@ -2390,3 +2390,88 @@ receipt may well come back somewhere narrower — but it is worth recording that
 the swap screen's `k-swap-ask`, which a player *does* read, was the only one of
 the three that was live. Ripping out the flash system or reviving it is a scope
 decision, not a copy fix, so it is flagged here rather than done.
+
+---
+
+## Build 86 — the deck screen stops being mostly empty
+
+Playtested the deck screen against the report that "the card selection is weird
+— a lot of wasted space when nothing is selected". Both halves measured true,
+and they are the same mistake twice:
+
+| | before |
+|---|---|
+| board the rows use | **537 of 932px** — 395 x 374px holding nothing |
+| the drawer, once a card was tapped | **352 x 374px, 8% full** |
+
+Tapping a card with nothing benched produced a 131,648px² panel containing one
+sentence. That is the screenshot the report came with.
+
+### What the mock killed first
+
+The obvious fix — centre the rows so the board is balanced — was rendered and
+thrown away: it moves the void from the right to the left, and leaves the
+left-anchored title stranded 400px from the content it titles. The rows cannot
+grow into the space either; three rows of cards on a 430px board is already the
+largest they fit, so the width is not theirs to take.
+
+**The space needed CONTENT, not a re-balance.** And the content a player wants
+beside a card shrunk to 0.72 is that card, read properly.
+
+### The panel
+
+The right 352px is now the selected card's own reading — `staticInspectHTML`,
+**the same panel combat draws on a press-and-hold** — with the swap offer as a
+strip beneath it. Two jobs in one panel, because they are the same question
+asked twice: a player looking at a slot wants to know what is in it and what
+else could be. It used to answer only the second, and only after a tap.
+
+**There is no unselected state any more.** Opening the screen reads Ash's first
+card; a tap moves the reading; tapping the card already being read is a no-op
+rather than a way back to a blank board. Fill went **8% → 53%** on open and
+**83%** with alternates, nothing overflowing.
+
+Two things the first render got wrong and the screenshot caught:
+
+- **Guard's rule was cut mid-word** — "it is spent at th". It scrolls now, and
+  the fade cue is set from a measurement (`scrollHeight > clientHeight`) rather
+  than guessed per card, because whether it overflows depends on the mark and
+  the keywords too. A cut sentence with no sign there is more reads as a fault.
+- **Every condition said "NOT YET"** — the static evaluation has `condActive:
+  false`, so on a screen with no turn in progress the panel made a false claim
+  about a fight that is not happening. `condLive: false` states the rule and
+  stops.
+
+### Press and hold
+
+The same blow-up combat opens, on the same 420ms, built from the same function.
+A gesture that works in a fight and does nothing on the next screen is worse
+than no gesture, because the player stops trusting the first one. The scrim is
+darker here than in combat (0.22 vs 0.42) — combat dims a painted board, this
+dims a lit panel already showing the same card's rules, and at combat's value
+the two readings printed over each other as a double image.
+
+`openInspect` and the deck screen now share one builder. Two rules panels would
+drift; one cannot. The footer text is the caller's — "drag to play" is a lie on
+a screen with no board.
+
+### Checks, and why three of them drive the mouse
+
+Ten new checks. Three of them move a real mouse rather than calling `.click()`,
+because **`element.click()` fires no pointerdown at all** — a hold that also
+fired the tap underneath it would pass every synthetic check and still be
+broken in the hand. That is exactly the shape of the "the entire frame moves"
+bug from Build 83. They assert: a quick tap moves the reading and opens nothing;
+a hold opens that card's blow-up and the release does **not** also select it;
+holding a bench card reads it while tapping it trades it.
+
+Gated red by removing the swallow — and the first attempt at that gate *crashed*
+rather than failing, because once the hold traded the card away the locator had
+nothing to find. A check that aborts the suite instead of reporting is not a
+check, so `at()` returns null now and the failure says "the bench emptied — the
+hold traded it".
+
+One check was rewritten rather than kept: `DECK: the bench stays shut until a
+slot is tapped` asserted the old design and was right to at the time. What it
+protected against — clutter with nothing to say — is what its replacement
+measures.

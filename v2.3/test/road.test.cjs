@@ -610,8 +610,15 @@ const { boot } = require('./harness.cjs');
       JSON.stringify(deck));
     check('DECK: the bond reading moved here — two chips per hero, beside the people it is between',
       deck.bonds === 6, JSON.stringify({ bonds: deck.bonds }));
-    check('DECK: the bench stays shut until a slot is tapped — no shelf of spares on screen',
-      deck.benchShut === true, JSON.stringify({ shut: deck.benchShut }));
+    // THIS CHECK USED TO ASSERT THE OPPOSITE, and it was right to at the time:
+    // the drawer stayed shut so a shelf of spare cards was not on screen at all
+    // times. The design moved. Keeping "no selection" as a state meant 42% of
+    // the board held nothing until a tap, and then held a drawer that was 8%
+    // full — so there is no unselected state now, and the panel is the card's
+    // own reading rather than a shelf. What the old check was protecting
+    // against — clutter with nothing to say — is what the new one measures.
+    check('DECK: the panel is open from the first frame, reading the card it has selected',
+      deck.benchShut === false, JSON.stringify({ shut: deck.benchShut }));
 
     // A CARD THAT STEPS OUT IS PUT DOWN, NOT DESTROYED. Written against the old
     // code this goes red: `list[ix] = newCard` overwrote the slot and the old
@@ -638,6 +645,147 @@ const { boot } = require('./harness.cjs');
       && swap.slots === 5 && swap.valid,
       JSON.stringify({ before: swap.before[0], after: swap.after[0],
                        bench: swap.bench, slots: swap.slots, valid: swap.valid }));
+
+    // ═══ THE PANEL DOES REAL WORK ═══
+    // Written against Build 85 these go red: the screen opened with nothing
+    // selected (395 x 374px of board holding nothing, measured), and a tap
+    // opened a drawer that was 8% full. The panel is the card's own reading
+    // now, and it is never empty.
+    const panel = await J(() => {
+      window.R.closeDeck(); window.R.openDeck();          // a fresh open
+      const p = document.getElementById('k-deck-bench');
+      const b = p.getBoundingClientRect();
+      const read = p.querySelector('.k-dk-read');
+      const swap = p.querySelector('.k-dk-swap');
+      const ink = [read, swap].filter(Boolean).reduce((a, k) => {
+        const r = k.getBoundingClientRect(); return a + r.width * r.height; }, 0);
+      const over = [read, swap].filter(Boolean).filter(k => {
+        const r = k.getBoundingClientRect();
+        return r.bottom > b.bottom + 0.5 || r.right > b.right + 0.5; }).length;
+      return { pick: window.R.deckPick(), shut: p.classList.contains('k-hidden'),
+               hasRead: !!read, hasSwap: !!swap, over,
+               fillPct: Math.round(ink / (b.width * b.height) * 100),
+               // the reading must be THIS card's, not a placeholder — asked by
+               // name against the card the panel says it has selected
+               names: !!(read && window.R.deckPick()
+                 && read.textContent.toLowerCase()
+                      .indexOf(window.K.CARD_DEFS[window.R.deckPick().id].name.toLowerCase()) >= 0),
+               // and it must not claim a turn state on a screen with no turn
+               live: read ? /NOT YET|ACTIVE/i.test(read.textContent) : false };
+    });
+    check('DECK: opening reads a card straight away — there is no empty state to waste the board on',
+      !panel.shut && !!panel.pick && panel.hasRead && panel.hasSwap && panel.over === 0,
+      JSON.stringify({ pick: panel.pick, shut: panel.shut, over: panel.over }));
+    check('DECK: the panel carries the card\u2019s own reading, and fills the space it takes',
+      panel.names && panel.fillPct >= 40,
+      JSON.stringify({ named: panel.names, fillPct: panel.fillPct }));
+    check('DECK: no condition claims ACTIVE or NOT YET where there is no turn to read',
+      panel.live === false, JSON.stringify({ liveClaim: panel.live }));
+
+    // ═══ PRESS AND HOLD ═══
+    // The gesture combat teaches has to still work here. Red before this build:
+    // there was no blow-up on the deck screen at all.
+    const held = await J(() => {
+      const deck = document.getElementById('k-deck').getBoundingClientRect();
+      window.R.deckFocus('cstance');
+      const f = document.getElementById('k-deck-focus');
+      const card = f.querySelector('.k-insp-card');
+      const side = f.querySelector('.k-insp-side');
+      const cb = card && card.getBoundingClientRect();
+      const sb = side && side.getBoundingClientRect();
+      const r = { open: !f.classList.contains('k-hidden'),
+        dimmed: document.getElementById('k-deck').classList.contains('k-inspecting'),
+        // the card is BIGGER here than in the row — that is the whole point
+        bigger: cb ? cb.width > 150 : false,
+        offBoard: !cb || !sb || cb.top < deck.top - 0.5 || cb.bottom > deck.bottom + 0.5
+                  || sb.right > deck.right + 0.5,
+        // the footer must not offer a gesture this screen does not have
+        hint: (f.querySelector('.k-insp-hint') || {}).textContent || '' };
+      window.R.deckBlur();
+      r.shutAfter = document.getElementById('k-deck-focus').classList.contains('k-hidden');
+      return r;
+    });
+    check('DECK: press and hold opens the same blow-up combat does, on the board and bigger than the row',
+      held.open && held.dimmed && held.bigger && !held.offBoard && held.shutAfter,
+      JSON.stringify(held));
+    check('DECK: the blow-up does not offer "drag to play" on a screen with no board',
+      /release to close/i.test(held.hint) && !/drag/i.test(held.hint),
+      JSON.stringify({ hint: held.hint }));
+
+    // ═══ REAL FINGERS ═══
+    // Every check above taps with element.click(), which fires no pointerdown
+    // at all — so a hold that also fires the tap under it would pass all of
+    // them and still be broken in the hand. That exact shape of bug (a gesture
+    // measured only through synthetic clicks) is what put "the entire frame
+    // moves" into a shipped build. These drive the mouse.
+    // A MISSING TARGET IS A RESULT, NOT A CRASH. When the swallow is removed the
+    // hold's release trades the bench card away, `.k-dk-alt` stops existing and
+    // a bare locator throws — which aborts the suite instead of reporting the
+    // bug. Returning null lets the check say what happened.
+    const at = async (sel) => {
+      try {
+        const b = await H.page.locator(sel).first().boundingBox({ timeout: 2000 });
+        return b ? { x: b.x + b.width / 2, y: b.y + b.height / 2 } : null;
+      } catch (_) { return null; }
+    };
+    await J(() => {
+      const st = window.R.state();
+      st.bench = { ash: ['cleave'], elin: [], mira: [] };
+      st.roster.ash = ['guardcut', 'cstance', 'crosssever', 'lastlight', 'shieldsong'];
+      window.R.openDeck();
+    });
+    await sleep(160);
+    {
+      const p = await at('.k-dk-slot[data-hero="mira"]');
+      await H.page.mouse.move(p.x, p.y); await H.page.mouse.down();
+      await H.page.waitForTimeout(90); await H.page.mouse.up();
+      await sleep(160);
+      const tap = await J(() => ({ pick: window.R.deckPick(),
+        shut: document.getElementById('k-deck-focus').classList.contains('k-hidden') }));
+      check('DECK: a quick tap moves the reading and opens no blow-up',
+        !!tap.pick && tap.pick.hero === 'mira' && tap.shut, JSON.stringify(tap));
+    }
+    {
+      const p = await at('.k-dk-slot[data-hero="ash"]');
+      await H.page.mouse.move(p.x, p.y); await H.page.mouse.down();
+      await H.page.waitForTimeout(560);
+      const during = await J(() => ({
+        open: !document.getElementById('k-deck-focus').classList.contains('k-hidden'),
+        name: (document.querySelector('#k-deck-focus .k-cname') || {}).textContent || '' }));
+      await H.page.mouse.up();
+      await sleep(200);
+      const after = await J(() => ({ pick: window.R.deckPick(),
+        shut: document.getElementById('k-deck-focus').classList.contains('k-hidden') }));
+      // THE RELEASE FIRES A CLICK. If it is not swallowed, holding a card to
+      // read it also selects it — the gesture quietly doing a second thing.
+      check('DECK: a hold opens that card\u2019s blow-up, and the release does not also select it',
+        during.open && /guarding/i.test(during.name)
+        && after.shut && after.pick && after.pick.hero === 'mira',
+        JSON.stringify({ during, after }));
+    }
+    {
+      await J(() => document.querySelector('.k-dk-slot[data-hero="ash"]').click());
+      await sleep(160);
+      const before = await J(() => window.R.state().roster.ash.slice());
+      const p = await at('.k-dk-alt');
+      if (p) {
+        await H.page.mouse.move(p.x, p.y); await H.page.mouse.down();
+        await H.page.waitForTimeout(560); await H.page.mouse.up();
+        await sleep(200);
+      }
+      const held = await J(() => window.R.state().roster.ash.slice());
+      const q = await at('.k-dk-alt');
+      if (q) {
+        await H.page.mouse.move(q.x, q.y); await H.page.mouse.down();
+        await H.page.waitForTimeout(90); await H.page.mouse.up();
+        await sleep(200);
+      }
+      const tapped = await J(() => window.R.state().roster.ash.slice());
+      check('DECK: holding a bench card reads it; tapping it is what trades it',
+        !!p && !!q && held.join() === before.join() && tapped.join() !== held.join(),
+        JSON.stringify({ before: before[0], afterHold: held[0], afterTap: tapped[0],
+                         gone: !q ? 'the bench emptied — the hold traded it' : '' }));
+    }
     await J(() => window.R.closeDeck());
   }
 
