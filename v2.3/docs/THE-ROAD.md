@@ -2475,3 +2475,96 @@ One check was rewritten rather than kept: `DECK: the bench stays shut until a
 slot is tapped` asserted the old design and was right to at the time. What it
 protected against — clutter with nothing to say — is what its replacement
 measures.
+
+---
+
+## Build 87 — a gold card, and motion that arrives
+
+Two notes: the deck selection should highlight the card in gold rather than
+paint a yellow bar beside it, and the game's animations "just snap with no ease
+in and out".
+
+### The bar, and why the snap was structural
+
+The marker was a 3px bar in `::after` — a cursor BESIDE the card rather than a
+state OF it, which is what a list has and a board does not. The card is what
+was chosen, so the card is what changes now: a gold rim, a warm bloom off the
+face, and 5px of lift. Four treatments were mocked; the one that also dimmed
+the other fourteen was thrown away, because a deck screen exists to be read
+across.
+
+The easing half turned out not to be a curve problem at all. Measured:
+
+```
+survives: false          ← every tap rebuilt all fifteen cards
+cardTransition: " / "    ← and the card declared no transition anyway
+```
+
+`tapSlot` called `renderDeck()`, which rewrote the whole row. **A CSS
+transition needs the same node to still be there when the class changes**, so
+every transition on the selection was dead on arrival — no easing curve could
+have fixed it, because none of them ever ran. A tap toggles a class now and
+repaints only the panel; the rows are rebuilt when the *roster* changes, which
+is when they actually differ. The lift then interpolates across 14 frames.
+
+### The motion pass
+
+50 transitions and 120 animations across a dozen hand-written curves, **36 of
+them on the bare `ease` keyword** — `cubic-bezier(.25,.1,.25,1)`, which leaves
+fast and arrives fast, so a 120ms one reads as a cut. Three tokens now:
+
+```
+--ease-out: cubic-bezier(.2,.8,.3,1)      arriving
+--ease-in-out: cubic-bezier(.4,0,.2,1)    moving between two states
+--ease-soft: cubic-bezier(.25,.6,.3,1)    long, quiet fades
+```
+
+Every transition takes `--ease-out`; one-shot animations take it too; infinite
+pulses take `ease-in-out`, because an asymmetric curve shows a seam at the loop.
+Screens no longer cut — `screen()` toggles `display:none`, which nothing can
+fade, so the arriving screen plays a 260ms entry instead (the title and the
+stage are excluded; both already have an entrance).
+
+**What is deliberately NOT eased.** The parry ring's close, the hold drain and
+the beat pulse are CLOCKS — the player reads them to time an input, and easing
+a clock makes it lie about how much time is left. Those stay linear, and so do
+the infinite shimmers. There is a check that says so.
+
+### The check that caught its own silence
+
+The first motion check walked `document.styleSheets` and reported a clean
+sweep. Its companion integrity check reported this:
+
+```
+{"rules":237,"withTransition":0,"withAnimation":0}
+```
+
+237 rules read, **zero transitions found** — in a file with 51. A declaration
+written as `transition: filter 220ms var(--ease-out)` is *pending
+substitution*: the CSSOM returns EMPTY STRING for every longhand of it. So the
+scan saw nothing and called it clean. It reads the shipped file over HTTP now.
+
+That is the whole argument for pairing a finding with a proof that the
+instrument was looking: **an empty scan and a clean one produce identical
+output.**
+
+Two of the new checks were also too weak to survive their own gate:
+
+- The gold check matched the colour `240, 212, 136` — which the RESTING state
+  also declares, at zero alpha, so the gold has something to interpolate from.
+  It passed on a card whose gold had been deleted. It requires opaque gold now.
+- "Arrives on a curve" read the transition *declaration*, so it stayed green
+  through the gate that restored the rebuild. It samples the lift across real
+  frames instead: `steps: 1` is a snap, `steps: 14` is a curve.
+
+### One flake, root-caused rather than re-run
+
+`PARRY: pressing way early nudges` went red once under load and clean three
+times alone. Not a regression — a keyframe curve cannot decide whether a press
+is early — but a real race worth closing. "Way early" means more than 260ms
+before the note lands, and the check polled in 10ms steps and then slept a
+further 60ms before pressing, into a lead not much longer than the window
+itself. Under load the press landed INSIDE the window, graded normally, and the
+check reported a missing nudge for a feature that works. It presses on the next
+frame now and reports the margin it achieved: **7ms after the ring, down from
+~70+**.

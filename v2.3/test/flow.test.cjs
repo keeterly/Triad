@@ -2918,15 +2918,29 @@ const { boot } = require('./harness.cjs');
       // merely late. Three separate parry checks were wandering in and out of
       // red on exactly this, never the same one twice, which is the signature
       // of a racing probe rather than a broken feature. Poll for the thing.
-      for (let i = 0; i < 200 && !document.querySelector('.k-pring'); i++) {
-        await new Promise(res => setTimeout(res, 10));
+      // PRESS AS EARLY AS THE RING EXISTS. "Way early" is more than 260ms
+      // before the note lands, and this used to poll in 10ms steps and then
+      // sleep a further 60ms before pressing — so the press went in up to
+      // ~70ms + overshoot into a lead that is not much longer than the window
+      // itself. Under load that lands INSIDE the window, the note grades
+      // normally, and the check reports a missing nudge for a feature that
+      // works. Seen once in a loaded run, three times clean alone; the margin
+      // was the bug, not the nudge. Poll finely and press on the next frame.
+      const t0 = performance.now();
+      for (let i = 0; i < 500 && !document.querySelector('.k-pring'); i++) {
+        await new Promise(res => setTimeout(res, 4));
       }
-      await new Promise(res => setTimeout(res, 60));   // …and let it settle in
+      const sawRing = performance.now() - t0;
+      await new Promise(res => requestAnimationFrame(res));   // laid out, no more
+      const pressedAt = performance.now() - t0;
       const st = document.getElementById('k-stage');
       st.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 400, clientY: 200, pointerId: 3 }));
       await new Promise(res => setTimeout(res, 60));
       return { stillLive: !!st.querySelector('.k-pring'),
-               nudged: !!st.querySelector('.k-grade-early') || !!st.querySelector('.k-pr-early') };
+               nudged: !!st.querySelector('.k-grade-early') || !!st.querySelector('.k-pr-early'),
+               // how long after the ring appeared the press actually went in —
+               // if this is ever near 260 the margin has gone, not the feature
+               afterRingMs: Math.round(pressedAt - sawRing) };
     });
     check('PARRY: pressing way early nudges and keeps listening — the note is not spent',
       early.stillLive && early.nudged, JSON.stringify(early));

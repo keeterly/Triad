@@ -2383,6 +2383,7 @@
   // the panel is describing" — not "this is armed for something".
   function openDeck() {
     if (!RUN) return false;
+    closeMenu();          // it does not belong to this screen
     _deckPick = firstPick();
     screen('deck'); renderDeck();
     return true;
@@ -2530,7 +2531,17 @@
   function tapSlot(hero, id) {
     if (_deckPick && _deckPick.hero === hero && _deckPick.id === id) return;
     _deckPick = { hero, id };
-    renderDeck();
+    // A TAP DOES NOT REBUILD THE ROWS. It used to call renderDeck(), which
+    // re-wrote all fifteen cards — and a CSS transition needs the SAME NODE to
+    // still be there when the class changes, so every transition on the
+    // selection was dead on arrival. No easing curve could have fixed that;
+    // none of them ever ran. The rows only change when the ROSTER changes.
+    markPick();
+    renderDeckPanel();
+  }
+  function markPick() {
+    document.querySelectorAll('.k-dk-slot').forEach(b => b.classList.toggle('k-dk-on',
+      !!_deckPick && b.dataset.hero === _deckPick.hero && b.dataset.id === _deckPick.id));
   }
   function deckSwap(newId) {
     if (!_deckPick) return;
@@ -2832,7 +2843,7 @@
 
   window.R = {
     boot, toTitle, beginFromTitle, renderBonds,
-    openDeck, closeDeck, renderDeck, renderDeckPanel, deckSwap, tapSlot, bench, benchFor,
+    openDeck, closeDeck, renderDeck, renderDeckPanel, markPick, deckSwap, tapSlot, bench, benchFor,
     deckFocus, deckBlur,
     deckPick: () => _deckPick, toggleMenu, closeMenu,
     active: () => !!RUN && !RUN.over,

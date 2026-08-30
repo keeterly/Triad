@@ -712,6 +712,60 @@ const { boot } = require('./harness.cjs');
       /release to close/i.test(held.hint) && !/drag/i.test(held.hint),
       JSON.stringify({ hint: held.hint }));
 
+    // ═══ THE SELECTION IS THE CARD ═══
+    // Red before this build twice over: the marker was a 3px bar in ::after
+    // rather than anything on the card, and a tap called renderDeck(), which
+    // rewrote all fifteen nodes — so no transition on the selection could ever
+    // run. The second is the one that matters: an easing curve on a node that
+    // is destroyed and rebuilt is decoration on a corpse.
+    await J(() => {
+      document.querySelectorAll('.k-dk-slot')[7].dataset.probe = 'same-node';
+      document.querySelector('.k-dk-slot[data-hero="mira"]').click();
+    });
+    // READ IT SETTLED. The gold now GROWS in over 220ms, so a reading taken in
+    // the same tick as the click catches the resting state.
+    await sleep(400);
+    const sel = await J(() => {
+      const again = document.querySelectorAll('.k-dk-slot');
+      const on = document.querySelector('.k-dk-on');
+      const cs = getComputedStyle(on.querySelector('.k-card-dk'));
+      // THE COLOUR ALONE IS NOT THE CHECK. The resting state declares the same
+      // three shadows at zero alpha so the gold has something to interpolate
+      // FROM — which means matching "240, 212, 136" passes on an unselected
+      // card too. It caught the gate green when the gold had been removed.
+      // Opaque gold, or it did not arrive.
+      const gold = /rgb\(240,\s*212,\s*136\)/.test(cs.boxShadow)
+        || /rgba\(240,\s*212,\s*136,\s*(0\.[5-9]\d*|1)\)/.test(cs.boxShadow);
+      return { survives: !!(again[7] && again[7].dataset.probe === 'same-node'),
+               bar: getComputedStyle(on, '::after').content, gold,
+               shadow: cs.boxShadow.slice(0, 60) };
+    });
+    check('DECK: a tap keeps the cards it is not changing — the rows are not rebuilt',
+      sel.survives, JSON.stringify({ survives: sel.survives }));
+    check('DECK: the selected card goes gold, and it is the card that changes, not a bar beside it',
+      sel.gold && sel.bar === 'none',
+      JSON.stringify({ gold: sel.gold, bar: sel.bar, shadow: sel.shadow }));
+
+    // …AND IT ACTUALLY MOVES. A declared transition on a node that gets rebuilt
+    // is decoration on a corpse, and a check that reads the DECLARATION cannot
+    // tell the two apart — it stayed green through the gate that restored the
+    // rebuild. Sample the lift across real frames instead: one value means it
+    // snapped, several mean it eased.
+    const curve = await J(() => new Promise(res => {
+      const out = []; const t0 = performance.now();
+      document.querySelector('.k-dk-slot[data-hero="ash"]').click();
+      const on = document.querySelector('.k-dk-on');
+      const tick = () => {
+        out.push(+new DOMMatrixReadOnly(getComputedStyle(on).transform).m42.toFixed(2));
+        if (performance.now() - t0 < 260) requestAnimationFrame(tick);
+        else res({ steps: new Set(out).size, first: out[0], last: out[out.length - 1] });
+      };
+      requestAnimationFrame(tick);
+    }));
+    check('DECK: the gold lifts on a curve across real frames, not between two of them',
+      curve.steps >= 5 && curve.last <= -4.5,
+      JSON.stringify(curve));
+
     // ═══ REAL FINGERS ═══
     // Every check above taps with element.click(), which fires no pointerdown
     // at all — so a hold that also fires the tap under it would pass all of
@@ -1351,6 +1405,51 @@ const { boot } = require('./harness.cjs');
   check('ROAD: the music button shows the player\u2019s choice, not whether audio is live',
     !!mute && mute.pref === true && mute.on === false && mute.muted === false,
     JSON.stringify(mute));
+
+  // ═══ E · MOTION ═══
+  // THE PASS HAS TO STAY DONE. A single hand-written `ease` added later is
+  // invisible in review and reads as a snap in the hand, so the rule is
+  // asserted against the live stylesheet rather than trusted to discipline.
+  // READ THE FILE THAT SHIPS, not the CSSOM. A declaration written as
+  // `transition: filter 220ms var(--ease-out)` is "pending substitution": the
+  // OM returns EMPTY STRING for every longhand of it, so a scan over
+  // `rule.style` sees no transitions at all and reports a clean sweep it never
+  // performed. The integrity check below caught exactly that — 237 rules read,
+  // 0 transitions found — which is why it is here.
+  const motion = await J(async () => {
+    const css = await (await fetch('styles.css')).text();
+    const decls = (re) => (css.match(re) || []);
+    const trans = decls(/transition:[^;{}]*/g);
+    const anims = decls(/animation:[^;{}]*/g);
+    const bareEase = /(?<![-\w])ease(?![-\w(])/;
+    return {
+      bytes: css.length,
+      transitions: trans.length,
+      animations: anims.length,
+      bareTransitions: trans.filter(t => bareEase.test(t)).slice(0, 4),
+      bareAnimations: anims.filter(a => bareEase.test(a)).slice(0, 4),
+      // the three the player reads as a clock
+      clocks: ['k-prclose', 'k-hold-drain', 'k-beatpulse']
+        .map(c => (anims.find(a => a.indexOf(c) >= 0) || '(missing) ' + c).trim()),
+      tokens: /--ease-out:/.test(css) && /--ease-in-out:/.test(css),
+    };
+  });
+  // AN EMPTY SCAN LOOKS EXACTLY LIKE A CLEAN ONE. If the file could not be
+  // read, "no bare ease found" is silence, not a finding.
+  check('MOTION: the stylesheet is actually being read — the scan is not silently empty',
+    motion.bytes > 40000 && motion.transitions > 40 && motion.animations > 100 && motion.tokens,
+    JSON.stringify({ bytes: motion.bytes, transitions: motion.transitions,
+                     animations: motion.animations, tokens: motion.tokens }));
+  check('MOTION: nothing moves on the bare `ease` keyword — every state change is on a named curve',
+    motion.bareTransitions.length === 0 && motion.bareAnimations.length === 0,
+    JSON.stringify({ transitions: motion.bareTransitions, animations: motion.bareAnimations }));
+  // A CLOCK MUST NOT BE EASED. The parry ring, the hold drain and the beat are
+  // read to time an input; a curve on one makes it lie about the time left.
+  check('MOTION: the three clocks are still linear — easing a clock makes it lie',
+    motion.clocks.length === 3 && motion.clocks.every(c => /linear/.test(c)),
+    JSON.stringify(motion.clocks));
+
+
 
   // ═══ F · THE BENCH SURVIVES THE TAB ═══
   // A BENCH THAT DOES NOT SURVIVE A RELOAD IS NOT A BENCH, it is a receipt the
