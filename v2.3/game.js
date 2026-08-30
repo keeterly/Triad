@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 79;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 80;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -397,7 +397,7 @@ const REGENT_INTENTS = [
   { id: 'flurry', name: 'Grief in Threes', kind: 'attack', sub: [1, 0.75],
     hits: [
       { dmg: [7, 10], target: 'mira', notes: ['tap', 'tap', 'tap'], beats: [0, 0.5, 1] },
-      { dmg: [7, 10], target: 'elin', notes: ['tap', 'slide:U'], beats: [0, 1] },
+      { dmg: [7, 10], target: 'elin', notes: ['tap', 'trace:angle'], beats: [0, 1] },
       { dmg: [7, 10], target: 'ash',  notes: ['burst'] },
     ] },
   // THE RISING DIRGE — the Regent's own, and the only intent whose hits get
@@ -406,7 +406,13 @@ const REGENT_INTENTS = [
   { id: 'crescendo', name: 'The Rising Dirge', kind: 'attack',
     hits: [
       { dmg: [8, 11],  target: 'elin', notes: ['tap', 'tap'], beats: [0, 2] },
-      { dmg: [10, 14], target: 'ash',  notes: ['slide:R', 'tap', 'tap'], beats: [0, 1.5, 2.5] },
+      // THE ARC IS THE REGENT'S OWN. It REPLACES the slide that stood here
+      // rather than joining it: a new note kind is a change to how hard the
+      // fight is to play, and adding one to the deepest intent in the bestiary
+      // would have moved the ladder as well as the vocabulary. Same count, same
+      // beats, one harder gesture — and it is on the middle hit, which had the
+      // most runway to begin with.
+      { dmg: [10, 14], target: 'ash',  notes: ['trace:arc', 'tap', 'tap'], beats: [0, 1.5, 2.5] },
       { dmg: [12, 16], target: 'mira', notes: ['feint', 'hold'], beats: [0, 1.5] },
     ] },
 ];
@@ -2434,12 +2440,38 @@ function beatClose() {
 //   feint      the ring hesitates mid-close, then snaps — punishes autopilot
 //   bait       a crossed red ring you must NOT touch; discipline is the parry
 const BURST_TAPS = 3;
-const NOTE_WORD = { tap: 'TAP', slide: 'SLIDE', hold: 'HOLD', burst: 'MASH', feint: 'WAIT', bait: 'DON\u2019T' };
+const NOTE_WORD = { tap: 'TAP', slide: 'SLIDE', hold: 'HOLD', burst: 'MASH', feint: 'WAIT',
+                    bait: 'DON\u2019T', trace: 'TRACE' };
+// ═════════════════════════════════════════════════════════════════════════════
+// THE TRACE — press, follow the figure, release on the beat.
+// ═════════════════════════════════════════════════════════════════════════════
+// The other six notes are all ONE decision: when to touch, or which way to
+// shove. A trace is the first note that asks the hand to do something with a
+// SHAPE in it — the finger goes down, travels a figure the ring has drawn for
+// it, and the grade is taken on the release. It is the hardest note in the
+// vocabulary by construction, so it gets the most runway to be read.
+//
+// Waypoints are in ring-local units on [-1, 1], scaled by TRACE_R. The finger
+// has to come within TRACE_TOL of each in ORDER — no scoring of curvature, no
+// path-similarity metric, because a player cannot see either of those and a
+// grade they cannot see coming is a grade they will call unfair.
+const TRACE_R = 52, TRACE_TOL = 34;
+const TRACE_SHAPES = {
+  // a rainbow: down-left, over the top, down-right
+  arc:   { word: 'ARC',   pts: [[-1, 0.34], [-0.55, -0.62], [0.55, -0.62], [1, 0.34]] },
+  // a V: in from the left, down to the point, back out to the right
+  angle: { word: 'ANGLE', pts: [[-0.92, -0.66], [0, 0.7], [0.92, -0.66]] },
+  // a long stroke corner to corner — a slide that has to be FINISHED
+  line:  { word: 'LINE',  pts: [[-0.95, 0.62], [0, 0], [0.95, -0.62]] },
+};
 // What a note says at the GRADEABLE INSTANT, which for two of the six kinds is
 // not the verb it arrived with. A burst returns null — its label is a live
 // tally and overwriting it blinded the first tap.
 function liveLabel(kind, verb) {
   if (kind === 'burst') return null;
+  // a trace is mid-figure when the beat arrives; its own label is a live
+  // progress reading, so the ring must not overwrite it (same rule as burst)
+  if (kind === 'trace') return null;
   if (kind === 'hold') return 'RELEASE!';     // graded on the release, not the press
   if (kind === 'feint') return 'NOW!';        // WAIT was the read; this is the answer
   return verb + (kind === 'bait' ? '' : '!');
@@ -2474,7 +2506,11 @@ const SLIDE_LEAD_MS = 120;
 // Beats of runway a note gets before it lands. A tap needs one; anything you
 // must READ before you can answer it — an arrow, a crossed ring, a flurry —
 // spawns earlier so the read and the answer are not the same half-second.
-const NOTE_LEAD = { slide: 1.7, bait: 1.7, burst: 1.6, feint: 1.3 };
+// A TRACE GETS THE MOST RUNWAY IN THE VOCABULARY. It is the only note whose
+// answer takes real time to PERFORM rather than to decide — the figure has to
+// be walked, and a hand given a slide's runway to walk an arc is being asked to
+// start before it has finished reading.
+const NOTE_LEAD = { trace: 2.3, slide: 1.7, bait: 1.7, burst: 1.6, feint: 1.3 };
 // A breath between the hits of a volley. Six notes back-to-back is a wall; the
 // same six in phrases of two with a rest between them is a bar.
 const REST_BEATS = 1;
@@ -2536,13 +2572,30 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
     // a moving lens can never leave the ring behind
     if (whoId) { ring.dataset.hero = whoId;
                  ring.dataset.ox = ox || 0; ring.dataset.oy = oy || 0; }
+    // A FIGURE YOU CANNOT SEE IS A FIGURE YOU CANNOT WALK. The trace draws its
+    // own waypoints and the path between them, so the ask is legible from the
+    // frame it spawns rather than being a word the player has to have learned.
+    const shape = kind === 'trace' ? (TRACE_SHAPES[dir] || TRACE_SHAPES.arc) : null;
+    const traceSVG = () => {
+      const S = TRACE_R, V = S + 14;              // half-size of the guide box
+      const px = ([x, y]) => [(x * S + V).toFixed(1), (y * S + V).toFixed(1)];
+      const d = shape.pts.map((p, i) => (i ? 'L' : 'M') + px(p).join(' ')).join(' ');
+      return '<svg class="k-pr-trace" viewBox="0 0 ' + (V * 2) + ' ' + (V * 2) + '" aria-hidden="true">'
+        + '<path class="k-pr-tpath" d="' + d + '"/>'
+        + shape.pts.map((p, i) => { const [cx, cy] = px(p);
+            return '<circle class="k-pr-tdot" data-i="' + i + '" cx="' + cx + '" cy="' + cy
+              + '" r="' + (i === 0 ? 6.5 : 5) + '"/>'; }).join('')
+        + '</svg>';
+    };
     const glyph = kind === 'bait' ? '<span class="k-pr-x">' + SKULL_SVG + '</span>'
+      : kind === 'trace' ? traceSVG()
       : dir ? '<span class="k-pr-arrow">' + DIR_ARROW[dir] + '</span>'
       : kind === 'burst' ? '<span class="k-pr-burst"></span>' : '';
     // The verb is on screen from the first frame. It used to read "3/6" until
     // the ring went live, which told you WHEN but never WHAT, and left the read
     // and the answer sharing one window.
-    const verb = NOTE_WORD[kind] + (dir ? ' ' + DIR_ARROW[dir] : '');
+    const verb = kind === 'trace' ? NOTE_WORD.trace + ' ' + shape.word
+      : NOTE_WORD[kind] + (dir ? ' ' + DIR_ARROW[dir] : '');
     ring.innerHTML = '<span class="k-pr-target"></span><span class="k-pr-close"></span>'
       + glyph + '<span class="k-pr-lbl">' + verb + '</span>'
       + (total > 1 ? '<span class="k-pr-n">' + idx + '/' + total + '</span>' : '');
@@ -2556,6 +2609,25 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
     ring.dataset.n = idx - 1; ring.dataset.total = total;
     if (dir) ring.dataset.dir = dir;
     let done = false, downAt = null, taps = 0, wrongAt = null, owned = false;
+    // how far along the figure the finger has got, and where the ring is on
+    // screen — the waypoints are ring-local, the finger is not
+    let leg = 0;
+    const traceHit = (cx, cy) => {
+      const rb = ring.getBoundingClientRect();
+      const k = rb.width ? rb.width / ring.offsetWidth : 1;   // the lens may be scaling us
+      const ox = rb.left + rb.width / 2, oy = rb.top + rb.height / 2;
+      while (leg < shape.pts.length) {
+        const [wx, wy] = shape.pts[leg];
+        if (Math.hypot(cx - (ox + wx * TRACE_R * k), cy - (oy + wy * TRACE_R * k)) > TRACE_TOL * k) break;
+        leg++;
+        const dot = ring.querySelector('.k-pr-tdot[data-i="' + (leg - 1) + '"]');
+        if (dot) dot.classList.add('on');
+        ring.style.setProperty('--trace', (leg / shape.pts.length).toFixed(2));
+        lbl.textContent = leg >= shape.pts.length ? 'RELEASE!'
+          : NOTE_WORD.trace + ' ' + leg + '/' + shape.pts.length;
+        if (leg >= shape.pts.length) ring.classList.add('k-pr-traced');
+      }
+    };
     // This note's claim on the finger: the arbiter hands each press to whichever
     // live note its timestamp is nearest to, and a note only listens while it
     // is registered. `finish` deregisters it.
@@ -2622,10 +2694,15 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
         if (taps >= BURST_TAPS) tryGrade();
         return;
       }
+      // a trace begins at its first waypoint, so the press itself is the first
+      // leg — a player who stabs the middle of the ring has not started it
+      if (kind === 'trace') { traceHit(e.clientX, e.clientY); return; }
       if (kind === 'tap' || kind === 'feint') tryGrade();
     };
     const onMove = function (e) {
-      if (!owned || downAt == null || kind !== 'slide') return;
+      if (!owned || downAt == null) return;
+      if (kind === 'trace') { traceHit(e.clientX, e.clientY); return; }
+      if (kind !== 'slide') return;
       const dx = e.clientX - ring._dx, dy = e.clientY - ring._dy;
       const at = Math.max(downAt, performance.now() - SLIDE_LEAD_MS);
       if (dirOK(dir, dx, dy)) { tryGrade(at); return; }
@@ -2640,6 +2717,12 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
     const onUp = function () {
       // a hold is graded on RELEASE, so it may only grade a press it owned
       if (kind === 'hold' && owned && downAt != null) tryGrade();
+      // A TRACE IS GRADED ON THE RELEASE TOO, and only once the figure is
+      // walked. Releasing part-way through is not a miss on its own — the timer
+      // below decides that — because a hand that lifts early and puts itself
+      // back down still has until the beat to finish, and punishing the lift
+      // would make a two-legged figure a one-attempt note.
+      if (kind === 'trace' && owned && downAt != null && leg >= shape.pts.length) tryGrade();
       downAt = null; owned = false;
     };
     stage.addEventListener('pointerdown', onDown, true);
@@ -2653,6 +2736,11 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
         const g = parryGrade(wrongAt - t0 - dur);
         return finish(g ? DEMOTE[g] : 'miss');
       }
+      // A FIGURE HALF-WALKED IS NOT NOTHING. A trace that reached the last leg
+      // and simply did not get released pays one grade, the same way a slide
+      // that went the wrong way and corrected does; anything less than that is
+      // a miss, because a finger that touched one dot has not traced anything.
+      if (kind === 'trace' && leg >= shape.pts.length - 1 && leg > 1) return finish('good');
       finish('miss');
     }, dur + PARRY_GOOD_MS + 30);
   });
@@ -4223,10 +4311,13 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
       + (COND_LABEL[c.cond.type] || c.cond.type)
       + (ev.condActive ? '<i class="k-combo-state">ON</i>' : '') + '</span>'
       + '<span class="k-combo-pay">' + condReward(c, ev.sigil) + '</span></span>'
+    // EXHAUST SAID ITSELF TWICE. The tag read EXHAUST and the line under it
+    // read "Leaves the fight when played." — twenty-nine characters, the longest
+    // line in the deck, restating a keyword directly above it. The word stands
+    // alone now and the sentence lives in the pickup panel with the others.
     : c.exhaust
-      ? '<span class="k-combo k-combo-exh on"><span class="k-combo-tag">'
-        + icon('finale') + 'Exhaust<i class="k-combo-state">ON</i></span>'
-        + '<span class="k-combo-pay">Leaves the fight when played.</span></span>'
+      ? '<span class="k-combo k-combo-exh on k-combo-bare"><span class="k-combo-tag">'
+        + icon('finale') + 'Exhaust</span></span>'
       : '';
   void COND_LABEL;
   // THE ART ZONE CARRIES THE CARD'S VERB, not the hero's face a second time.
@@ -4387,15 +4478,19 @@ function prose(effects, plain) {
     if (fx.brk) out.push(I('brk') + '<b>' + fx.brk + '</b> Break.');
     if (fx.guardSelf) out.push(I('guard') + '<b>' + fmtN(fx.guardSelf) + '</b> Guard.');
     if (fx.guardAll) out.push(I('guard') + '<b>' + fmtN(fx.guardAll) + '</b> Guard to all.');
-    if (fx.guardAlly) out.push(I('guard') + '<b>' + fmtN(fx.guardAlly) + '</b> Guard to an ally.');
-    if (fx.guardLowest) out.push(I('guard') + '<b>' + fmtN(fx.guardLowest) + '</b> Guard to the lowest ally.');
+    if (fx.guardAlly) out.push(I('guard') + '<b>' + fmtN(fx.guardAlly) + '</b> Guard \u00b7 ally.');
+    if (fx.guardLowest) out.push(I('guard') + '<b>' + fmtN(fx.guardLowest) + '</b> Guard \u00b7 lowest.');
     if (fx.heal) out.push(I('heal') + 'Heal <b>' + fmtN(fx.heal) + '</b>.');
     if (fx.healAll) out.push(I('heal') + 'Heal <b>' + fmtN(fx.healAll) + '</b> to all.');
     if (fx.bleed) out.push(I('bleed') + '<b>' + fmtN(fx.bleed) + '</b> Bleed.');
     if (fx.chill) out.push(I('chill') + '<b>' + fmtN(fx.chill) + '</b> Chill.');
-    if (fx.counterstance) out.push(I('brk') + 'Next parry <b>+2</b> Break.');
-    if (fx.intercede) out.push(I('guard') + 'Take their parry window.');
-    if (fx.moveSelf) out.push(I('move') + 'Step to the <b>' + fx.moveSelf + '</b>.');
+    if (fx.counterstance) out.push(I('brk') + 'Parry <b>+2</b> Break.');
+    // A KEYWORD, NOT A SENTENCE. Twenty-three characters of prose on a 94px
+    // line for a rule that is the same every time it appears. The word goes on
+    // the face and the rule goes where the player is already looking when they
+    // want it — the panel that opens when the card is picked up.
+    if (fx.intercede) out.push(I('guard') + 'Intercede.');
+    if (fx.moveSelf) out.push(I('move') + 'Step <b>' + fx.moveSelf + '</b>.');
     // TWO CLAUSES, BECAUSE IT IS TWO THINGS. As one row this wrapped at the
     // comma inside a 73px face and printed "Draw 1" over ", discard 1", which
     // reads as a rendering fault rather than as a rule. A row is one clause.
@@ -5097,6 +5192,11 @@ const KEYWORD_RULE = {
   chill: ['Chill', 'The foe\u2019s NEXT hit lands softer. One hit only — the first one spends it.'],
   bleed: ['Bleed', 'Ticks at the start of the foe\u2019s turn, then weakens by one. It stacks with itself.'],
   dirge: ['The dirge', 'The hymn settles on all three of them after the blows. No timing answers it — only Guard, healing, and STAGGERING her before she sings.'],
+  // THE TWO THE FACE STOPPED SPELLING OUT. Both were full sentences on a 94px
+  // line saying the same thing every time they appeared, which is the exact
+  // shape of a keyword.
+  intercede: ['Intercede', 'Step into the blow meant for someone else. You answer its parry window instead of them, and whatever Guard is on you is what absorbs it.'],
+  exhaust: ['Exhaust', 'Played once and gone — it leaves the fight rather than going to the discard, so it will not come back around this fight.'],
 };
 // which of them a given card actually puts on the board
 function keywordsOf(effects, card) {
@@ -5116,7 +5216,9 @@ function keywordsOf(effects, card) {
     if (fx.heal || fx.healAll) k.add('heal');
     if (fx.chill) k.add('chill');
     if (fx.bleed) k.add('bleed');
+    if (fx.intercede) k.add('intercede');
   }
+  if (card && card.exhaust) k.add('exhaust');
   return [...k];
 }
 
@@ -5147,7 +5249,11 @@ function openInspect(cardId) {
     + (c.cond ? '<div class="k-insp-cond' + (ev.condActive ? ' on' : '') + '">'
         + '<b>' + (COND_LABEL[c.cond.type] || c.cond.type) + ' — '
         + (ev.condActive ? 'ACTIVE' : 'not yet') + '</b>'
-        + '<span>' + (COND_RULE[c.cond.type] || '') + '</span></div>' : '')
+        + '<span>' + (COND_RULE[c.cond.type] || '') + '</span>'
+        // WHAT IT PAYS, spelled out where there is room for it. The face carries
+        // the keyword and the number; this is the place a player asks what the
+        // number is FOR, and it was the one thing the panel did not answer.
+        + '<em class="k-insp-pay">' + condReward(c, ev.sigil) + '</em></div>' : '')
     + (() => {
         const ks = keywordsOf(ev.resolvedEffects, c);
         if (!ks.length) return '';
@@ -5380,6 +5486,7 @@ window.K = {
   _setPhase: setPhase,          // test-only: end a fight without playing it out
   // test-only: the words a note wears on arrival vs at the gradeable instant,
   // read from the function the note itself calls rather than restated here
+  TRACE_SHAPES, TRACE_R, TRACE_TOL,
   _noteWords: () => ({ feint: NOTE_WORD.feint, bait: NOTE_WORD.bait,
                        feintLive: liveLabel('feint', NOTE_WORD.feint),
                        holdLive: liveLabel('hold', NOTE_WORD.hold),

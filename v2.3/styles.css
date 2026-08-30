@@ -1308,6 +1308,37 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
      which pushed every pair card's title down a line */
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .k-cname { text-align: left; padding-left: 2px; color: #fff8ea; }
+/* ── THE TRACE ────────────────────────────────────────────────────────────
+   The figure the note is asking for, drawn inside its ring: a dim path with a
+   dot at every waypoint, and each dot lighting as the finger reaches it. The
+   whole point is that the ask is legible from the frame the ring spawns —
+   TRACE ARC is a phrase you have to have learned; a rainbow with three dots on
+   it is not. */
+.k-pr-trace { position: absolute; left: 50%; top: 50%; width: 132px; height: 132px;
+  transform: translate(-50%, -50%); overflow: visible; pointer-events: none; z-index: 2; }
+.k-pr-tpath { fill: none; stroke: rgba(232,220,196,0.34); stroke-width: 2.4;
+  stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 5 7; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.9)); }
+.k-pr-tdot { fill: rgba(20,17,22,0.9); stroke: rgba(232,220,196,0.55); stroke-width: 1.8;
+  transition: fill 120ms ease, stroke 120ms ease, r 120ms ease; }
+.k-pr-tdot.on { fill: #f0d488; stroke: #fff4d4; }
+/* the figure finished, waiting on the release — the same language RELEASE!
+   speaks on a hold, so a player who has learned one has learned both */
+.k-pring-trace.k-pr-traced .k-pr-tpath { stroke: rgba(240,212,136,0.85); stroke-dasharray: none; }
+.k-pring-trace.k-pr-traced { animation: k-pr-tready 0.62s ease-in-out infinite; }
+@keyframes k-pr-tready { 50% { filter: drop-shadow(0 0 12px rgba(240,212,136,0.75)); } }
+/* a trace needs the room its figure occupies, and its ring is the widest of the
+   seven — the guide is 132px across where a tap's ring is 74 */
+.k-pring-trace .k-pr-lbl { white-space: nowrap; }
+
+/* a combo strip with nothing under its tag must not reserve the room for a
+   line that is no longer there — see the EXHAUST note in cardFaceHTML */
+.k-combo-bare { padding-bottom: 3px; }
+.k-combo-bare .k-combo-tag { margin-bottom: 0; }
+/* what the combo PAYS, on the detail view, where the sentence fits */
+.k-insp-pay { display: block; margin-top: 4px; font-style: normal;
+  font-size: 11.5px; line-height: 1.3; color: #e8dfc8; }
+.k-insp-pay b { color: #fff3d0; }
 /* the mark, named and explained, on the detail view */
 .k-insp-sig { margin: 7px 0 0; padding: 6px 8px 7px; border-radius: 3px;
   background: rgba(255,255,255,0.045);
@@ -1324,9 +1355,19 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-sig-bright  { --sig: #f4e3a6; } .k-csig-bright  { --sig: #f4e3a6; }
 /* the edge is tinted too, so a marked card is findable in a fan without
    reading five strips */
+/* THE BORDER SAYS TREATED; THE FOLD SAYS TREATED WITH WHAT. Arena marks a
+   treated card on its outline, and mocked side by side that is the half that
+   does the work a corner cannot: an outline is findable in a fan without the
+   eye landing on any particular part of the card, which is exactly the read you
+   need when five cards overlap. Dropping the fold and keeping only the border
+   was mocked too, and it loses the identity — every mark becomes the same card
+   in a different hue. So both, each doing its own job: the rim and the inner
+   hairline both take the mark's colour, and the corner still names it. */
 .k-card-sig { box-shadow: 0 0 0 1.5px var(--sig, #e0c084),
-  0 0 14px color-mix(in srgb, var(--sig, #e0c084) 40%, transparent),
+  0 0 14px color-mix(in srgb, var(--sig, #e0c084) 45%, transparent),
   0 6px 16px rgba(0,0,0,0.55); }
+.k-card-sig::before { border-color: var(--sig, #e0c084); border-width: 1.5px;
+  inset: 3px; opacity: 0.55; }
 /* THE BAND'S HEIGHT COMES OUT OF THE ART — and now it does so by not having a
    height in the flow at all. The old arrangement kept the band as a block and
    bought its room by pushing the title down, which was the same trade dressed

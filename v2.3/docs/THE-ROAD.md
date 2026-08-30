@@ -2140,3 +2140,52 @@ not cancel an in-flight `runVolleyRhythm`: the old bar goes on posting rings ont
 the new fight's stage and driving the lens home between them. The check waits for
 twenty consecutive ring-free samples before starting its own fight. Four
 consecutive 223/223 runs.
+
+## Build 80 — the keyword and the rule part company, and the trace
+
+**Card bloat: the face keeps the keyword, the pickup panel takes the sentence.**
+Measured across the deck first. The longest line on any card was
+`Leaves the fight when played.` at twenty-nine characters — a full sentence
+restating the keyword EXHAUST directly above it. Next was
+`5 Guard to the lowest ally` at twenty-six, then `Take their parry window` at
+twenty-three for a rule that reads the same every time it appears, which is the
+exact shape of a keyword.
+
+- EXHAUST stands alone; its sentence moved to the panel
+- `Take their parry window` → **Intercede**, a new keyword with its rule in the panel
+- `5 Guard to the lowest ally` → `5 Guard · lowest`
+- `Next parry +2 Break` → `Parry +2 Break`
+- `Step to the front` → `Step front`
+
+Longest face line: **29 → 19 characters.** And the panel gained the thing it had
+never carried — what the combo actually *pays*, which is the question a player
+opens it to ask.
+
+**The mark moves to the border.** Arena marks a treated card on its outline, and
+mocked side by side that is the half a corner cannot do: an outline is findable
+in a fan without the eye landing on any particular part of the card. Dropping the
+fold and keeping only the border was mocked too and loses the identity — every
+mark becomes the same card in a different hue. So both, each doing its own job.
+
+**The trace — press, walk the figure, release.** The other six notes are all one
+decision: when to touch, or which way to shove. This is the first that asks the
+hand to do something with a *shape* in it. Three figures — an arc, an angle and
+a long line — drawn as waypoints on `[-1,1]` scaled into the ring, each lighting
+as the finger reaches it, in order. No path-similarity metric and no curvature
+score, because a player cannot see either of those, and a grade they cannot see
+coming is a grade they will call unfair.
+
+It grades on the release like a hold, it gets the most runway in the vocabulary
+(2.3 beats — it is the only note whose answer takes time to *perform* rather than
+to decide), and a figure walked to its last waypoint but never released pays one
+grade rather than missing outright.
+
+**It REPLACES a slide in both intents it appears in** — the Regent's Rising Dirge
+and the revenant's Grief in Threes — rather than joining them. A new note kind is
+a change to how hard a fight is to play, and adding one to the deepest intent in
+the bestiary would have moved the ladder as well as the vocabulary. Same count,
+same beats, one harder gesture.
+
+One thing to be honest about: the bot grades every note by a flat per-note skill
+number regardless of kind, so no sim in this repo can tell you whether a trace is
+harder for a *hand* than the slide it replaced. That needs a human.
