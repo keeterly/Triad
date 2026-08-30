@@ -1321,23 +1321,39 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    can be fair: you are never asked to guess where it wants you to go.
    The svg is positioned by the ring's own script — it hangs above the ring and
    to whichever side the rail sweeps — so it has no left/top of its own here. */
-.k-pr-rail { position: absolute; overflow: visible; pointer-events: none; z-index: 1; }
-.k-pr-railbed { fill: none; stroke: rgba(232,220,196,0.22); stroke-width: 3;
-  stroke-linecap: round; stroke-dasharray: 4 8;
-  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.9)); }
-/* the run fills in behind the ring: one dash pattern the length of the path,
+/* UNDER THE RING, NOT OVER IT. The tube's start cap sits exactly where the ring
+   is — that is the point, the ring is the thing that swept it — but painted on
+   top the two outlines crossed and the pair read as a knot rather than as a
+   circle about to set off. The rail goes under, and the ring gets a dark hub so
+   the tube's lines do not show through the middle of it. */
+.k-pr-rail { position: absolute; overflow: visible; pointer-events: none; z-index: 0; }
+.k-pr-target, .k-pr-close { z-index: 2; }
+.k-pr-hub { position: absolute; left: 0; top: 0; width: 58px; height: 58px;
+  border-radius: 50%; transform: translate(-50%, -50%); z-index: 1;
+  background: radial-gradient(circle at 50% 45%, rgba(14,11,17,0.94), rgba(10,8,13,0.82) 72%,
+    rgba(10,8,13,0) 100%); }
+/* the tube the ring will fill on its way — dark, so the silhouette reads over
+   a painted board rather than dissolving into it */
+.k-pr-railtube { fill: none; stroke: rgba(10,8,13,0.5); stroke-linecap: round;
+  stroke-linejoin: round; }
+/* THE SWEPT SILHOUETTE: the ring's own outline dragged to the mouth. Painted
+   through a mask of (full-width stroke MINUS three-pixels-narrower stroke), so
+   what lands is exactly the two edges and the two round caps — the shape the
+   ring makes on its way, which is the shape the note is asking for. */
+.k-pr-railbed { fill: rgba(232,220,196,0.28);
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.95)); }
+/* the run fills the tube in behind the ring: one dash the length of the path,
    with the offset driven by --rail */
-.k-pr-railrun { fill: none; stroke: #f0d488; stroke-width: 3.4; stroke-linecap: round;
-  stroke-dasharray: 1000; stroke-dashoffset: calc(1000px - var(--rail, 0) * 1000px);
-  filter: drop-shadow(0 0 6px rgba(240,212,136,0.8)); }
-.k-pr-railend { fill: none; stroke: rgba(232,220,196,0.5); stroke-width: 2;
-  stroke-dasharray: 3 5; }
-.k-pr-railpip { fill: rgba(232,220,196,0.55); }
-/* held: the ring has been taken hold of and the rail brightens under it */
-.k-pring-trace.k-pr-held .k-pr-railbed { stroke: rgba(240,212,136,0.4); }
+.k-pr-railrun { fill: none; stroke: rgba(240,212,136,0.3); stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1000; stroke-dashoffset: calc(1000px - var(--rail, 0) * 1000px); }
+/* the berth at the far end — the tube's own cap, given a centre to aim at */
+.k-pr-railpip { fill: rgba(232,220,196,0.6); }
+/* held: the ring has been taken hold of and the silhouette brightens under it */
+.k-pring-trace.k-pr-held .k-pr-railbed { fill: rgba(240,212,136,0.5); }
 /* arrived at the mouth — the same word a hold uses, so a player who has
    learned one has learned both */
-.k-pring-trace.k-pr-traced .k-pr-railend { stroke: #f0d488; stroke-dasharray: none; }
+.k-pring-trace.k-pr-traced .k-pr-railbed { fill: rgba(240,212,136,0.8); }
 .k-pring-trace.k-pr-traced .k-pr-railpip { fill: #fff4d4; }
 .k-pring-trace.k-pr-traced { animation: k-pr-tready 0.62s ease-in-out infinite; }
 @keyframes k-pr-tready { 50% { filter: drop-shadow(0 0 12px rgba(240,212,136,0.75)); } }

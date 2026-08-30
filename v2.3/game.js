@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 81;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 82;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -2470,6 +2470,7 @@ const NOTE_WORD = { tap: 'TAP', slide: 'SLIDE', hold: 'HOLD', burst: 'MASH', fei
 // where this board has room: 466px either side of centre against 135 above a
 // hero's head. The rise is capped at 0.55 so even the back row, which stands
 // highest in the perspective, keeps its whole arc on screen.
+let _railN = 0;                 // mask ids have to be unique per live ring
 const RAIL = 132;               // how far the ring travels, in stage px
 const RAIL_GRAB = 62;           // how near the finger must start to take hold
 const RAIL_HOME = 0.93;         // far enough along to count as arrived
@@ -2614,22 +2615,42 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
     const railSign = kind === 'trace'
       ? (ax > (el('k-stage') ? el('k-stage').offsetWidth / 2 : 466) ? -1 : 1) : 1;
     const rail = kind === 'trace' ? railPoints(shape, railSign) : null;
+    // THE RAIL IS THE RING'S OWN SILHOUETTE, DRAGGED. A dotted line said "a
+    // path goes here"; it did not say what was going to travel it or how much
+    // room that would take. What the note is actually describing is the shape
+    // the ring SWEEPS OUT on its way to the mouth — a tube the width of the
+    // ring, with a round cap at each end, which is the ring at the start and
+    // the ring parked at the finish joined by everything in between.
+    //
+    // SVG has no "outline of a thick stroke", so the outline is a mask: the
+    // path stroked at the ring's full width in white, the same path stroked
+    // three pixels narrower in black, and a rect painted through the hole that
+    // leaves. What survives is exactly the two edges and the two caps.
+    const RING_D = 58;
     const railSVG = () => {
-      const P = 30, W = RAIL + P * 2, H = RAIL * 1.25 + P * 2;
-      // the box hangs above the ring and to whichever side the rail runs
+      const P = RING_D / 2 + 10, W = RAIL + P * 2, H = RAIL * 0.72 + P * 2;
       const ox = railSign > 0 ? P : W - P, oy = H - P;
       const px = ([x, y]) => [(ox + x).toFixed(1), (oy + y).toFixed(1)];
       const d = rail.map((p, i) => (i ? 'L' : 'M') + px(p).join(' ')).join(' ');
       const [ex, ey] = px(rail[rail.length - 1]);
+      const mid = 'rail' + (_railN++);
       return '<svg class="k-pr-rail" viewBox="0 0 ' + W + ' ' + H + '"'
         + ' style="width:' + W + 'px;height:' + H + 'px;'
         + 'left:' + (railSign > 0 ? -P : -(W - P)) + 'px;top:' + (-(H - P)) + 'px" aria-hidden="true">'
-        + '<path class="k-pr-railbed" d="' + d + '"/>'
-        + '<path class="k-pr-railrun" d="' + d + '"/>'
-        // THE MOUTH IS THE SIZE OF THE RING THAT HAS TO LAND IN IT. At r=17
-        // against a 58px ring it read as a dot the ring would swallow rather
-        // than a berth it has to be parked in.
-        + '<circle class="k-pr-railend" cx="' + ex + '" cy="' + ey + '" r="29"/>'
+        + '<defs><mask id="' + mid + '">'
+        + '<path d="' + d + '" fill="none" stroke="#fff" stroke-width="' + RING_D
+        + '" stroke-linecap="round" stroke-linejoin="round"/>'
+        + '<path d="' + d + '" fill="none" stroke="#000" stroke-width="' + (RING_D - 3)
+        + '" stroke-linecap="round" stroke-linejoin="round"/>'
+        + '</mask></defs>'
+        // the tube the ring will fill as it travels — dark, so the outline reads
+        + '<path class="k-pr-railtube" d="' + d + '" stroke-width="' + (RING_D - 3) + '"/>'
+        // …the run, filling the tube in behind the ring
+        + '<path class="k-pr-railrun" d="' + d + '" stroke-width="' + (RING_D - 5) + '"/>'
+        // …and the swept silhouette itself
+        + '<rect class="k-pr-railbed" x="0" y="0" width="' + W + '" height="' + H
+        + '" mask="url(#' + mid + ')"/>'
+        // the berth at the far end is the tube's own end cap, named
         + '<circle class="k-pr-railpip" cx="' + ex + '" cy="' + ey + '" r="3.5"/>'
         + '</svg>';
     };
@@ -2642,7 +2663,8 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
     // and the answer sharing one window.
     const verb = kind === 'trace' ? NOTE_WORD.trace + ' ' + shape.word
       : NOTE_WORD[kind] + (dir ? ' ' + DIR_ARROW[dir] : '');
-    ring.innerHTML = '<span class="k-pr-target"></span><span class="k-pr-close"></span>'
+    ring.innerHTML = (kind === 'trace' ? '<span class="k-pr-hub"></span>' : '')
+      + '<span class="k-pr-target"></span><span class="k-pr-close"></span>'
       + glyph + '<span class="k-pr-lbl">' + verb + '</span>'
       + (total > 1 ? '<span class="k-pr-n">' + idx + '/' + total + '</span>' : '');
     stage.appendChild(ring);

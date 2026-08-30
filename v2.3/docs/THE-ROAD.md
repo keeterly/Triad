@@ -2226,3 +2226,39 @@ against 135 above a hero's head. Swept every hero × every row × every shape ×
 both sweep directions: **zero rails leave the board.** The mouth was also drawn
 at r=17 against a 58px ring, which read as a dot the ring would swallow rather
 than a berth it has to be parked in.
+
+## Build 82 — the rail is the ring's own silhouette
+
+A dotted line said *a path goes here*. It did not say what was going to travel
+it, or how much room that would take. What the note is actually describing is
+the shape the ring **sweeps out** on its way to the mouth — a tube the width of
+the ring with a round cap at each end, which is the ring at the start and the
+ring parked at the finish, joined by everything in between.
+
+SVG has no "outline of a thick stroke", so the outline is a mask: the path
+stroked at the ring's full width in white, the same path stroked three pixels
+narrower in black, and a rect painted through the hole that leaves. What
+survives is exactly the two edges and the two caps. The tube body sits behind it
+in near-black so the silhouette reads over a painted board, and the run fills
+that tube in behind the ring as it travels.
+
+Two things fell out of drawing it:
+
+- **it had to go UNDER the ring.** The tube's start cap sits exactly where the
+  ring is — that is the point, the ring is the thing that swept it — but painted
+  on top the two outlines crossed and the pair read as a knot rather than as a
+  circle about to set off. The rail is beneath now, and the ring gained a dark
+  hub so the tube's lines do not show through its middle.
+- **the mouth stopped being a separate circle.** It was drawn at r=17 against a
+  58px ring, which read as a dot the ring would swallow. The tube's own end cap
+  *is* the berth; all it needed was a pip at its centre to aim at.
+
+### And the trace check had the LENS disease
+
+It came back `{}` on every field — which is what `JSON.stringify` prints when a
+probe returned `{found:false}` and the detail line asks for fields that were
+never set. Same cause as Build 79's parry flake: `endTurn` is a no-op unless the
+phase is PLAYER_READY, and `startCombat` does not cancel an in-flight volley, so
+a block that opens while the previous bar is still unwinding never spawns a ring
+of its own and then measures whatever is on screen. Twenty consecutive ring-free
+samples before it starts, the same fix, and two clean 227/227 runs.

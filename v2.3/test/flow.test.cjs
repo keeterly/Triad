@@ -2936,7 +2936,20 @@ const { boot } = require('./harness.cjs');
   await fresh(7);
   {
     const tr = await J(async () => {
+      // WAIT FOR QUIET FIRST — the same lesson the LENS check taught. `endTurn`
+      // is a no-op unless the phase is PLAYER_READY, and `startCombat` does not
+      // cancel an in-flight volley, so a block that opens while the previous
+      // bar is still unwinding never spawns a ring of its own and then measures
+      // whatever is on screen. Twenty consecutive ring-free samples.
+      let quiet = 0;
+      for (let i = 0; i < 400 && quiet < 20; i++) {
+        quiet = document.querySelector('.k-pring') ? 0 : quiet + 1;
+        await new Promise(res => setTimeout(res, 8));
+      }
       window.K.startCombat({ seed: 7 });
+      for (let i = 0; i < 60 && window.K.state().phase !== 'PLAYER_READY'; i++) {
+        await new Promise(res => setTimeout(res, 8));
+      }
       window.K.forceIntent('crescendo');
       const done = window.K.endTurn();
       const st = document.getElementById('k-stage');
@@ -2947,11 +2960,22 @@ const { boot } = require('./harness.cjs');
       }
       if (!ring) { await done; return { found: false }; }
       const out = { found: true, verb: ring.querySelector('.k-pr-lbl').textContent.trim(),
-        // the whole journey is drawn before the finger moves: the bed it rides,
-        // the run that fills in behind it, and the mouth it has to reach
+        // THE WHOLE JOURNEY IS DRAWN BEFORE THE FINGER MOVES — and it is drawn
+        // as the shape the RING SWEEPS OUT, not as a line beside it: a tube the
+        // width of the ring with a round cap at each end. `bed` is that
+        // silhouette (a rect painted through a mask of full-width-stroke minus
+        // narrower-stroke), `run` is the fill that follows the ring along it,
+        // and the berth at the far end is the tube's own cap with a pip at its
+        // centre — there is no separate ring drawn there any more, which is
+        // what this check used to look for.
         bed: !!ring.querySelector('.k-pr-railbed'),
         run: !!ring.querySelector('.k-pr-railrun'),
-        mouth: !!ring.querySelector('.k-pr-railend') };
+        mouth: !!ring.querySelector('.k-pr-railpip'),
+        // and the silhouette really is the ring's width, not a hairline
+        sweptW: (() => {
+          const m = ring.querySelector('mask path');
+          return m ? +m.getAttribute('stroke-width') : 0;
+        })() };
       const rb0 = ring.getBoundingClientRect();
       const sb = st.getBoundingClientRect();
       const sign = rb0.left > sb.left + st.offsetWidth / 2 ? -1 : 1;
@@ -2984,9 +3008,11 @@ const { boot } = require('./harness.cjs');
       out.grade = res.grades[2];        // tap, tap, TRACE, tap, tap, feint, hold
       return out;
     });
-    check('TRACE: the note draws the whole journey — the rail, the run and the mouth',
-      tr.found && tr.bed && tr.run && tr.mouth && /TRACE\s+ARC/i.test(tr.verb),
-      JSON.stringify({ verb: tr.verb, bed: tr.bed, run: tr.run, mouth: tr.mouth }));
+    check('TRACE: the rail is the RING\u2019S OWN SILHOUETTE dragged to the mouth, not a line beside it',
+      tr.found && tr.bed && tr.run && tr.mouth && tr.sweptW >= 50
+      && /TRACE\s+ARC/i.test(tr.verb),
+      JSON.stringify({ verb: tr.verb, bed: tr.bed, run: tr.run, mouth: tr.mouth,
+                       sweptWidth: tr.sweptW }));
     check('TRACE: the RING is the handle — reaching for the far end takes no hold',
       tr.grabbedFromAfar === false && tr.held === true,
       JSON.stringify({ afar: tr.grabbedFromAfar, onRing: tr.held }));
