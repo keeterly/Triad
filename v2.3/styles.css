@@ -400,7 +400,16 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    making the whole row two lines tall. */
 #k-intent { flex-wrap: nowrap; white-space: nowrap; gap: 0; align-items: center; }
 .k-ichip { padding: 2px 0; gap: 4px; }
-.k-ichip b { font-size: 15px; }
+/* THE NUMBER LEADS. Mocked at three densities against the actual sky: the
+   reading a player needs first is how much, so it is the largest thing in the
+   chip, the row plate is second, and the mark that says what KIND of blow it is
+   sits at the size of a footnote — it is the least surprising of the three. */
+.k-ichip b { font-size: 18px; }
+.k-ichip .k-ico { width: 11px; height: 11px; opacity: 0.85; }
+/* the two answers to the dirge, as marks rather than as a sentence */
+.k-ichip-ans { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px;
+  opacity: 0.85; }
+.k-ichip-ans .k-ico { width: 10px; height: 10px; }
 .k-ichip img { width: 17px; height: 17px; border-radius: 50%; object-fit: cover; object-position: top;
   border: 1px solid rgba(201,164,92,0.7); margin-left: 2px; }
 /* WHERE, IN ONE CHARACTER. See renderIntent — this was the hero's NAME, which
@@ -763,7 +772,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-crow { display: flex; align-items: center; justify-content: center; gap: 4.5px;
   flex-wrap: wrap; row-gap: 0;
   font-size: 8.4px; font-weight: 600; letter-spacing: 0.035em; text-transform: uppercase;
-  font-style: normal; color: #ded3b8; line-height: 1.15; padding: 3.5px 0;
+  font-style: normal; color: #cabda0; line-height: 1.15; padding: 3.5px 0;
   border-top: 1px solid rgba(201,164,92,0.13);
   text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
 .k-crow:first-child { border-top: 0; }
@@ -777,6 +786,10 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-rows-4 .k-cprose b { font-size: 1.36em; }
 .k-rows-4 .k-cprose .k-ico { width: 8.5px; height: 8.5px; }
 .k-rows-4 .k-combo { padding-top: 2px; }
+/* NOT SMALLER. The base rule two hundred lines down says why: this is the
+   line that names the CONDITION, and it is what a player scans a fan for when
+   they are hunting a combo. A tier pass that quietly undoes a considered
+   decision is a regression wearing a tidy-up's clothes. */
 .k-rows-4 .k-combo-tag { font-size: 6px; }
 .k-rows-4 .k-combo-pay { font-size: 7.3px; line-height: 1.12; }
 /* THE CROWDED CARDS GET THE MARGIN BACK. 5px a side is generous framing on a
@@ -814,8 +827,21 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
      when they are hunting a combo. */
   font-size: 6.6px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
   color: #bbaa85; text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
-.k-combo-state { font-style: normal; font-size: 6px; letter-spacing: 0.1em;
-  padding: 0 2.5px; border-radius: 2px; border: 1px solid rgba(201,164,92,0.45); color: #e0c084; }
+/* THE `ON` BADGE MUST NOT COST A LINE. Swept all 28 cards in all six mark
+   states: Cross Sever with an OPENING mark was the one card that overflowed,
+   by 2px, and only when its combo was live — because `opening` arms a FOLLOW_UP
+   at the top of a turn, the badge appears, and the tag line wraps. The tag is
+   one line by construction now; the badge gives up a pixel of padding and the
+   tracking that was buying it width. */
+/* `flex-wrap` was the wrong lever: the items were never wrapping to a second
+   LINE — the label is a bare text node, so squeezing the row made that one item
+   shrink and its own text wrap inside itself, which is where the 6.3px came
+   from. The text is what has to refuse to wrap. */
+.k-combo-tag { flex-wrap: nowrap; white-space: nowrap; min-width: 0; }
+.k-combo.on .k-combo-tag { letter-spacing: 0.05em; gap: 2px; }
+.k-combo-state { font-style: normal; font-size: 6px; letter-spacing: 0.04em;
+  padding: 0 2px; border-radius: 2px; border: 1px solid rgba(201,164,92,0.45); color: #e0c084;
+  flex: none; }
 .k-combo-pay { font-size: 8.4px; line-height: 1.2; color: #cdc1a4;
   font-weight: 600; letter-spacing: 0.035em; text-transform: uppercase;
   text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
@@ -1258,15 +1284,30 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    the right. The owner line already was that band and its right half was empty.
    The verbs moved down into it, the art got a hairline floor, and the name and
    owner went flush left, which is also where an ellipsis belongs. */
-.k-ctype { top: 59px; right: 6px; }
+.k-ctype { top: 65px; right: 6px; }
 .k-cverb { width: 13px; height: 13px; }
 .k-ctype-two .k-cverb { width: 12px; height: 12px; }
-.k-cwho { text-align: left; padding-left: 2px; padding-right: 32px;
-  border-top: 1px solid rgba(201,164,92,0.26); padding-top: 2px; margin-top: 57px;
+/* THE TIERS SEPARATE BY VALUE, NOT BY SIZE — because the name cannot grow.
+   Measured on Counterstance: name 8.8px, rules label 7.3px, type line 7px.
+   Three tiers inside 1.8px, which is one tier. The obvious fix is to raise the
+   name, and it was mocked: at 11.4px COUNTERSTANCE reads COUNTERSTAN… and
+   LIGHT THROUGH STEEL reads LIGHT THROUGH ST…, which is the exact failure the
+   long-name sizes exist to prevent. The name sizes are already tuned to the
+   line they have. So the OTHER two tiers step back instead: the type line goes
+   small and dim with wide tracking, the combo tag goes smaller again, the name
+   takes the brightest value on the face, and the rules labels give some up.
+   Same hierarchy, bought with contrast rather than with points.
+   …and the band tightening pays for seven more pixels of painting. */
+/* ELIN + MIRA is the longest owner in the deck and it was trimming by a pixel
+   at 0.3em — swept across all 28 cards in all six mark states, which is how a
+   one-pixel trim gets found instead of shipped. */
+.k-cwho { text-align: left; padding-left: 2px; padding-right: 30px;
+  font-size: 6.2px; letter-spacing: 0.24em; color: #7d7157;
+  border-top: 1px solid rgba(201,164,92,0.22); padding-top: 2px; margin-top: 64px;
   /* ASH + ELIN is a two-word owner and the reserved right edge made it wrap,
      which pushed every pair card's title down a line */
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.k-cname { text-align: left; padding-left: 2px; }
+.k-cname { text-align: left; padding-left: 2px; color: #fff8ea; }
 /* the mark, named and explained, on the detail view */
 .k-insp-sig { margin: 7px 0 0; padding: 6px 8px 7px; border-radius: 3px;
   background: rgba(255,255,255,0.045);
@@ -3355,6 +3396,6 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    was a decision nobody knew they were being offered. The mark carries the
    damage it WOULD land for, not a percentage: this deck's rule is that the
    screen shows the number that will actually land. */
-.k-ichip-sweep { font-style: normal; margin-left: 3px; font-size: 9.5px;
+.k-ichip-sweep { font-style: normal; margin-left: 4px; font-size: 9.5px;
   letter-spacing: 0.02em; color: #9fb0bd; }
 .k-ichip-atk .k-ichip-sweep { opacity: 0.92; }

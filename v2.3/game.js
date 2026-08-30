@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 78;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 79;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -3977,9 +3977,12 @@ function renderIntent() {
           + icon(row.sweep ? 'move' : 'atk')
           + '<b>' + fmtN(d) + '</b><u>' + where + '</u>'
           // …and if distance blunts it, say so and say by how much from here
+          // A STEP AND WHAT IT BUYS. This was a curved arrow the eye had to
+          // decode; a plain arrow beside a row letter reads as "step, and it
+          // becomes this" without a legend, which is the whole sentence.
           + (row.sweep && i === 0 && row.back < row.total
               ? '<em class="k-ichip-sweep" title="a sweep — one row back and it lands for '
-                + fmtN(row.back) + '">\u2933' + fmtN(row.back) + '</em>' : '')
+                + fmtN(row.back) + '">\u2192' + fmtN(row.back) + '</em>' : '')
           + '</span>');
       });
     }
@@ -4000,8 +4003,16 @@ function renderIntent() {
     // `if (dirge > 0 && !result.canceled)`. So the chip was telling the player
     // there is nothing to be done about the single largest source of damage in
     // the fight, while two counterplays sat unmentioned. It names them.
+    // THE TWO ANSWERS BECOME THE TWO MARKS THAT ANSWER IT. `Guard or Break`
+    // was eighty-five pixels of prose sitting at the end of a line of marks —
+    // the only sentence on the readout, and the widest thing on it. The shield
+    // and the split are the same two glyphs the player's own cards use for
+    // exactly these two things, so the line stays a line of marks. The words
+    // survive for anyone reading the screen rather than looking at it.
     if (dg > 0) chips.push('<span class="k-ichip k-ichip-dirge">' + icon('dirge')
-      + '<b>' + fmtN(dg) + '</b><u>ALL</u><i>Guard or Break</i></span>');
+      + '<b>' + fmtN(dg) + '</b><u>ALL</u>'
+      + '<span class="k-ichip-ans" title="Guard absorbs it, and Breaking her cancels it">'
+      + icon('guard') + icon('brk') + '<i class="k-sr">Guard or Break</i></span></span>');
   }
   box.innerHTML = chips.join('');
 }

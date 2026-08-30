@@ -2088,3 +2088,55 @@ hero names and a collapsed ×2 spread over 425px — and once Build 77 turned ea
 reading into a mark, a number and one boxed letter, the box was furniture built
 to carry furniture. The readings are dense enough to be their own object; the
 sky goes back to being sky.
+
+## Build 79 — density on the telegraph, tiers on the card, and the parry flake caught
+
+**The telegraph, 425px → 311px.** Mocked at three densities against the actual
+sky rather than guessed. What shipped is the number leading at 18px, the mark
+dropping to footnote size (it is the least surprising of the three readings),
+the row plate second, and two changes that were pure width:
+
+- the sweep rider was a curved arrow the eye had to decode; a plain arrow beside
+  a row letter reads as *step, and it becomes this* without a legend
+- `Guard or Break` was eighty-five pixels of prose sitting at the end of a line
+  of marks — the only sentence on the readout and the widest thing on it. The
+  shield and the split are the same two glyphs the player's own cards use for
+  exactly those two things. The words survive in an `.k-sr` span for anyone
+  reading the screen rather than looking at it.
+
+**The card's tiers separate by value, not by size.** Measured on Counterstance:
+name 8.8px, rules label 7.3px, type line 7px — three tiers inside 1.8px, which
+is one tier. The obvious fix is to raise the name, and it was mocked: at 11.4px
+COUNTERSTANCE reads COUNTERSTAN… and LIGHT THROUGH STEEL reads LIGHT THROUGH
+ST…, the exact failure the long-name sizes exist to prevent. **The name cannot
+grow.** So the other two tiers step back instead — the type line goes small, dim
+and widely tracked, the name takes the brightest value on the face, the rules
+labels give some up — and the tightened band pays for seven more pixels of
+painting. The combo tag was left alone: the rule two hundred lines below it says
+it is what a player scans a fan for, and a tier pass that quietly undoes a
+considered decision is a regression wearing a tidy-up's clothes.
+
+Swept all 28 cards in all six mark states. Two things fell out that would
+otherwise have shipped: ELIN + MIRA trimmed by one pixel on the type line, and
+Cross Sever with an OPENING mark overflowed by two — only when its combo was
+live, because `opening` arms a FOLLOW_UP at the top of a turn and the `ON` badge
+appears. `flex-wrap` was the wrong lever there: the items were never wrapping to
+a second line — the label is a bare text node, so squeezing the row made that
+one item shrink and its own text wrap inside itself.
+
+### The parry flake was a probe reading the previous check's bar
+
+Three parry checks had been taking turns going red for months. The LENS check
+forced an intent and ended a turn **on whatever fight happened to be live** — and
+`endTurn` is a no-op unless the phase is PLAYER_READY, so when the block before
+it left the game mid-enemy-phase the call did nothing, the `.k-pring` on screen
+belonged to the *last* bar, and the sampler measured a camera still in the player
+pose. Reproduced directly: start a bar, wait 900ms, start another, and the first
+samples come back ring-up at dz 26 / yaw 3.4 before the new composition lands at
+t≈50 — which is exactly the failing signature, `leanedIn: false, worstPivot: 3.4`.
+
+Waiting for one quiet instant was not enough either, because `startCombat` does
+not cancel an in-flight `runVolleyRhythm`: the old bar goes on posting rings onto
+the new fight's stage and driving the lens home between them. The check waits for
+twenty consecutive ring-free samples before starting its own fight. Four
+consecutive 223/223 runs.

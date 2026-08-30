@@ -2768,6 +2768,29 @@ const { boot } = require('./harness.cjs');
   await fresh(7);
   {
     const ride = await J(async () => {
+      // THIS CHECK WAS READING THE PREVIOUS CHECK'S BAR. It forced an intent and
+      // ended a turn on whatever fight happened to be live — and `endTurn` is a
+      // no-op unless the phase is PLAYER_READY, so when the block before it left
+      // the game mid-enemy-phase the call did nothing, the `.k-pring` on screen
+      // belonged to the LAST bar, and the sampler measured a camera that was
+      // still in the player pose. Reproduced directly: start a bar, wait 900ms,
+      // start another, and the first samples come back ring-up at dz 26 / yaw
+      // 3.4 before the new composition lands at t≈50. That is the whole flake —
+      // three different parry checks taking turns going red for one reason.
+      // …and waiting for ONE quiet instant was not enough either: `startCombat`
+      // does not cancel an in-flight `runVolleyRhythm`, so the previous bar goes
+      // on posting rings onto the new fight's stage and driving the lens home
+      // between them. The wait is for SUSTAINED quiet — twenty consecutive
+      // samples with no ring — before the new fight starts at all.
+      let quiet = 0;
+      for (let i = 0; i < 400 && quiet < 20; i++) {
+        quiet = document.querySelector('.k-pring') ? 0 : quiet + 1;
+        await new Promise(res => setTimeout(res, 8));
+      }
+      window.K.startCombat({ seed: 7 });
+      for (let i = 0; i < 60 && window.K.state().phase !== 'PLAYER_READY'; i++) {
+        await new Promise(res => setTimeout(res, 8));
+      }
       window.K.forceIntent('hymn');
       window.K.endTurn();
       const cast = document.getElementById('k-cast');
