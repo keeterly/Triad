@@ -2189,3 +2189,40 @@ same beats, one harder gesture.
 One thing to be honest about: the bot grades every note by a flat per-note skill
 number regardless of kind, so no sim in this repo can tell you whether a trace is
 harder for a *hand* than the slide it replaced. That needs a human.
+
+## Build 81 — the ring is the handle
+
+Build 80 got the trace wrong. It drew four small waypoints around the ring and
+asked the finger to touch them in order, which turned one gesture into four
+little ones and left the ring itself — the object the entire parry language is
+built on — sitting still in the middle doing nothing.
+
+**The ring travels now.** Press it, carry it along the rail the note has drawn,
+let go at the mouth. One press, one continuous movement, one release, and the
+thing under the finger is the same circle every other note has taught.
+
+- the rail is a cubic sampled into points, in stage px, offset from where the
+  ring spawns; the finger is *projected* onto it, so the ring cannot leave the
+  rail however wide the hand wanders — the skill is walking it on the beat, not
+  drawing neatly
+- `t` only ever goes forward (with a little give), or a hand could scrub back
+  and forth over the mouth fishing for the beat and the note would stop being a
+  journey
+- the press has to land ON the ring. A stab at the far end is not a grip, it is
+  a guess, and a check now proves reaching for where the ring is *going* does
+  nothing
+- the whole journey is drawn from the frame the note spawns — bed, run and
+  mouth — because a gesture note is only fair if you are never asked to guess
+  where it wants you to go
+- travel is a TRANSFORM, not `left`/`top`: the re-anchor loop rewrites those
+  every frame so a camera move cannot leave a ring behind, and the two would
+  have fought each other sixty times a second
+
+**And the first rail ran off the top of the board.** It swept upward by
+1.06 × RAIL from a head that sits around y=135 on a 430px stage — the screenshot
+showed the ring cut in half by the sky. The sweep is mostly *sideways* now,
+because sideways is where this board has room: 466px either side of centre
+against 135 above a hero's head. Swept every hero × every row × every shape ×
+both sweep directions: **zero rails leave the board.** The mouth was also drawn
+at r=17 against a 58px ring, which read as a dot the ring would swallow rather
+than a berth it has to be parked in.

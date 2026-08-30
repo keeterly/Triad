@@ -1169,7 +1169,12 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-pthread { position: absolute; inset: 0; width: 100%; height: 100%;
   pointer-events: none; z-index: 31; overflow: visible; }
 
-.k-pring { position: absolute; width: 0; height: 0; transform: translate(-50%, -50%);
+/* THE RING CAN TRAVEL. The re-anchor loop owns `left`/`top` — it rewrites them
+   every frame so a camera move cannot leave a ring behind — so a note that
+   carries its ring along a rail has to move by TRANSFORM or the two will fight
+   each other sixty times a second. --tx/--ty are the rail's offset. */
+.k-pring { position: absolute; width: 0; height: 0;
+  transform: translate(calc(-50% + var(--tx, 0px)), calc(-50% + var(--ty, 0px)));
   pointer-events: none; z-index: 34; }
 .k-pr-target { position: absolute; left: 0; top: 0; width: 58px; height: 58px; border-radius: 50%;
   transform: translate(-50%, -50%); border: 2px dashed rgba(255,225,74,0.4);
@@ -1308,27 +1313,34 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
      which pushed every pair card's title down a line */
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .k-cname { text-align: left; padding-left: 2px; color: #fff8ea; }
-/* ── THE TRACE ────────────────────────────────────────────────────────────
-   The figure the note is asking for, drawn inside its ring: a dim path with a
-   dot at every waypoint, and each dot lighting as the finger reaches it. The
-   whole point is that the ask is legible from the frame the ring spawns —
-   TRACE ARC is a phrase you have to have learned; a rainbow with three dots on
-   it is not. */
-.k-pr-trace { position: absolute; left: 50%; top: 50%; width: 132px; height: 132px;
-  transform: translate(-50%, -50%); overflow: visible; pointer-events: none; z-index: 2; }
-.k-pr-tpath { fill: none; stroke: rgba(232,220,196,0.34); stroke-width: 2.4;
-  stroke-linecap: round; stroke-linejoin: round;
-  stroke-dasharray: 5 7; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.9)); }
-.k-pr-tdot { fill: rgba(20,17,22,0.9); stroke: rgba(232,220,196,0.55); stroke-width: 1.8;
-  transition: fill 120ms ease, stroke 120ms ease, r 120ms ease; }
-.k-pr-tdot.on { fill: #f0d488; stroke: #fff4d4; }
-/* the figure finished, waiting on the release — the same language RELEASE!
-   speaks on a hold, so a player who has learned one has learned both */
-.k-pring-trace.k-pr-traced .k-pr-tpath { stroke: rgba(240,212,136,0.85); stroke-dasharray: none; }
+/* ── THE TRACE: THE RING RIDES A RAIL ────────────────────────────────────
+   Press the ring, carry it along the line, let go at the mouth. The rail is
+   drawn from the frame the note spawns — a dim bed, a bright run that fills in
+   behind the ring as it travels, and a mouth at the far end. The whole journey
+   is on screen before the finger moves, which is the only way a gesture note
+   can be fair: you are never asked to guess where it wants you to go.
+   The svg is positioned by the ring's own script — it hangs above the ring and
+   to whichever side the rail sweeps — so it has no left/top of its own here. */
+.k-pr-rail { position: absolute; overflow: visible; pointer-events: none; z-index: 1; }
+.k-pr-railbed { fill: none; stroke: rgba(232,220,196,0.22); stroke-width: 3;
+  stroke-linecap: round; stroke-dasharray: 4 8;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.9)); }
+/* the run fills in behind the ring: one dash pattern the length of the path,
+   with the offset driven by --rail */
+.k-pr-railrun { fill: none; stroke: #f0d488; stroke-width: 3.4; stroke-linecap: round;
+  stroke-dasharray: 1000; stroke-dashoffset: calc(1000px - var(--rail, 0) * 1000px);
+  filter: drop-shadow(0 0 6px rgba(240,212,136,0.8)); }
+.k-pr-railend { fill: none; stroke: rgba(232,220,196,0.5); stroke-width: 2;
+  stroke-dasharray: 3 5; }
+.k-pr-railpip { fill: rgba(232,220,196,0.55); }
+/* held: the ring has been taken hold of and the rail brightens under it */
+.k-pring-trace.k-pr-held .k-pr-railbed { stroke: rgba(240,212,136,0.4); }
+/* arrived at the mouth — the same word a hold uses, so a player who has
+   learned one has learned both */
+.k-pring-trace.k-pr-traced .k-pr-railend { stroke: #f0d488; stroke-dasharray: none; }
+.k-pring-trace.k-pr-traced .k-pr-railpip { fill: #fff4d4; }
 .k-pring-trace.k-pr-traced { animation: k-pr-tready 0.62s ease-in-out infinite; }
 @keyframes k-pr-tready { 50% { filter: drop-shadow(0 0 12px rgba(240,212,136,0.75)); } }
-/* a trace needs the room its figure occupies, and its ring is the widest of the
-   seven — the guide is 132px across where a tap's ring is 74 */
 .k-pring-trace .k-pr-lbl { white-space: nowrap; }
 
 /* a combo strip with nothing under its tag must not reserve the room for a

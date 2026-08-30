@@ -2932,7 +2932,7 @@ const { boot } = require('./harness.cjs');
       early.stillLive && early.nudged, JSON.stringify(early));
   }
   await settle();
-  // ── THE TRACE: press, walk the figure, release ──
+  // ── THE TRACE: the ring IS the handle — grip it, ride the rail, release ──
   await fresh(7);
   {
     const tr = await J(async () => {
@@ -2941,55 +2941,60 @@ const { boot } = require('./harness.cjs');
       const done = window.K.endTurn();
       const st = document.getElementById('k-stage');
       let ring = null;
-      for (let i = 0; i < 400 && !ring; i++) {
+      for (let i = 0; i < 500 && !ring; i++) {
         ring = st.querySelector('.k-pring-trace');
         if (!ring) await new Promise(r => setTimeout(r, 10));
       }
       if (!ring) { await done; return { found: false }; }
       const out = { found: true, verb: ring.querySelector('.k-pr-lbl').textContent.trim(),
-        // THE ASK IS DRAWN, NOT NAMED. "TRACE ARC" is a phrase a player has to
-        // have learned; a rainbow with four dots on it is not, and the dots are
-        // what the finger is aiming at, so they have to exist.
-        dots: ring.querySelectorAll('.k-pr-tdot').length,
-        path: !!ring.querySelector('.k-pr-tpath') };
-      const S = window.K.TRACE_R, pts = window.K.TRACE_SHAPES.arc.pts;
-      const rb = ring.getBoundingClientRect();
-      const ox = rb.left + rb.width / 2, oy = rb.top + rb.height / 2;
-      const at = (i) => ({ x: ox + pts[i][0] * S, y: oy + pts[i][1] * S });
-      const ev = (t, p) => st.dispatchEvent(new PointerEvent(t,
-        { bubbles: true, clientX: p.x, clientY: p.y, pointerId: 44 }));
-      // OUT OF ORDER FIRST: the last waypoint alone must advance nothing, or
-      // the figure is decoration and the note is a hold wearing a picture.
-      ev('pointerdown', at(pts.length - 1));
-      out.skipLit = ring.querySelectorAll('.k-pr-tdot.on').length;
-      ev('pointerup', at(pts.length - 1));
-      // …then walk it properly
-      ev('pointerdown', at(0));
-      out.afterDown = ring.querySelector('.k-pr-lbl').textContent.trim();
-      for (let i = 1; i < pts.length; i++) {
-        ev('pointermove', at(i));
-        await new Promise(r => setTimeout(r, 16));
+        // the whole journey is drawn before the finger moves: the bed it rides,
+        // the run that fills in behind it, and the mouth it has to reach
+        bed: !!ring.querySelector('.k-pr-railbed'),
+        run: !!ring.querySelector('.k-pr-railrun'),
+        mouth: !!ring.querySelector('.k-pr-railend') };
+      const rb0 = ring.getBoundingClientRect();
+      const sb = st.getBoundingClientRect();
+      const sign = rb0.left > sb.left + st.offsetWidth / 2 ? -1 : 1;
+      const pts = window.K.railPoints(window.K.TRACE_SHAPES.arc, sign);
+      const ev = (ty, x, y) => st.dispatchEvent(new PointerEvent(ty,
+        { bubbles: true, clientX: x, clientY: y, pointerId: 61 }));
+      // A STAB AT THE FAR END IS NOT A GRIP. The ring is the handle; reaching
+      // for where it is GOING has to do nothing, or the rail is decoration and
+      // the note is a tap with a picture behind it.
+      ev('pointerdown', rb0.left + pts[pts.length - 1][0], rb0.top + pts[pts.length - 1][1]);
+      out.grabbedFromAfar = ring.classList.contains('k-pr-held');
+      ev('pointerup', rb0.left, rb0.top);
+      // …now take hold of the ring itself and carry it
+      ev('pointerdown', rb0.left, rb0.top);
+      out.held = ring.classList.contains('k-pr-held');
+      for (let i = 4; i < pts.length; i += 4) {
+        ev('pointermove', rb0.left + pts[i][0], rb0.top + pts[i][1]);
+        await new Promise(r => setTimeout(r, 12));
       }
-      out.walked = ring.querySelector('.k-pr-lbl').textContent.trim();
-      out.lit = ring.querySelectorAll('.k-pr-tdot.on').length;
-      out.ready = ring.classList.contains('k-pr-traced');
+      out.rail = +ring.style.getPropertyValue('--rail');
+      out.arrived = ring.classList.contains('k-pr-traced');
+      out.label = ring.querySelector('.k-pr-lbl').textContent.trim();
+      const moved = ring.getBoundingClientRect();
+      out.travelled = Math.round(Math.hypot(moved.left - rb0.left, moved.top - rb0.top));
       // …and it grades on the RELEASE, on the beat
       const wait = +ring.dataset.impact - performance.now();
       if (wait > 0) await new Promise(r => setTimeout(r, wait));
-      ev('pointerup', at(pts.length - 1));
+      ev('pointerup', rb0.left + pts[pts.length - 1][0], rb0.top + pts[pts.length - 1][1]);
       const res = await done;
       out.grade = res.grades[2];        // tap, tap, TRACE, tap, tap, feint, hold
       return out;
     });
-    check('TRACE: the note draws the figure it is asking for, and names it',
-      tr.found && tr.path && tr.dots === 4 && /TRACE\s+ARC/i.test(tr.verb),
-      JSON.stringify({ verb: tr.verb, dots: tr.dots, path: tr.path }));
-    check('TRACE: the waypoints must be walked IN ORDER — the last one alone does nothing',
-      tr.skipLit === 0, JSON.stringify({ litAfterSkip: tr.skipLit }));
-    check('TRACE: walking it lights every waypoint and the ring asks for the release',
-      tr.afterDown === 'TRACE 1/4' && tr.lit === 4 && tr.walked === 'RELEASE!' && tr.ready,
-      JSON.stringify({ down: tr.afterDown, lit: tr.lit, walked: tr.walked, ready: tr.ready }));
-    check('TRACE: a figure walked and released on the beat grades like any other note',
+    check('TRACE: the note draws the whole journey — the rail, the run and the mouth',
+      tr.found && tr.bed && tr.run && tr.mouth && /TRACE\s+ARC/i.test(tr.verb),
+      JSON.stringify({ verb: tr.verb, bed: tr.bed, run: tr.run, mouth: tr.mouth }));
+    check('TRACE: the RING is the handle — reaching for the far end takes no hold',
+      tr.grabbedFromAfar === false && tr.held === true,
+      JSON.stringify({ afar: tr.grabbedFromAfar, onRing: tr.held }));
+    check('TRACE: carrying it along the rail moves the ring and fills the run to the mouth',
+      tr.travelled > 90 && tr.rail >= 0.93 && tr.arrived && tr.label === 'RELEASE!',
+      JSON.stringify({ travelled: tr.travelled, rail: tr.rail,
+                       arrived: tr.arrived, label: tr.label }));
+    check('TRACE: parked at the mouth and released on the beat, it grades like any other note',
       tr.grade && tr.grade !== 'miss', JSON.stringify({ grade: tr.grade }));
   }
   await settle();

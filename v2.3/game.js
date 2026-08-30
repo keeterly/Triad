@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 80;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 81;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -2451,19 +2451,52 @@ const NOTE_WORD = { tap: 'TAP', slide: 'SLIDE', hold: 'HOLD', burst: 'MASH', fei
 // it, and the grade is taken on the release. It is the hardest note in the
 // vocabulary by construction, so it gets the most runway to be read.
 //
-// Waypoints are in ring-local units on [-1, 1], scaled by TRACE_R. The finger
-// has to come within TRACE_TOL of each in ORDER — no scoring of curvature, no
-// path-similarity metric, because a player cannot see either of those and a
-// grade they cannot see coming is a grade they will call unfair.
-const TRACE_R = 52, TRACE_TOL = 34;
+// THE RING IS THE HANDLE. A first pass drew four small waypoints around the
+// ring and asked the finger to touch them in order, which turned one gesture
+// into four little ones and left the ring itself — the object the whole parry
+// language is built on — sitting still in the middle doing nothing. The ring
+// TRAVELS now: press it, drag it along the rail the note has drawn, release it
+// at the far end. One press, one continuous movement, one release, and the
+// thing under the finger is the same circle every other note has taught.
+//
+// A rail is a cubic sampled into points, in stage px, offset from where the
+// ring spawns. The finger's position is projected onto it, so the ring cannot
+// leave the rail however wide the hand wanders — the skill is in walking it on
+// the beat, not in drawing neatly.
+// MEASURED AGAINST THE BOARD, not chosen. The first pass swept the ring
+// upward by 1.06 x RAIL from a head that sits around y=135 on a 430px stage,
+// which carried it clean off the top edge — the screenshot showed the ring cut
+// in half by the sky. The sweep is mostly SIDEWAYS now, because sideways is
+// where this board has room: 466px either side of centre against 135 above a
+// hero's head. The rise is capped at 0.55 so even the back row, which stands
+// highest in the perspective, keeps its whole arc on screen.
+const RAIL = 132;               // how far the ring travels, in stage px
+const RAIL_GRAB = 62;           // how near the finger must start to take hold
+const RAIL_HOME = 0.93;         // far enough along to count as arrived
 const TRACE_SHAPES = {
-  // a rainbow: down-left, over the top, down-right
-  arc:   { word: 'ARC',   pts: [[-1, 0.34], [-0.55, -0.62], [0.55, -0.62], [1, 0.34]] },
-  // a V: in from the left, down to the point, back out to the right
-  angle: { word: 'ANGLE', pts: [[-0.92, -0.66], [0, 0.7], [0.92, -0.66]] },
-  // a long stroke corner to corner — a slide that has to be FINISHED
-  line:  { word: 'LINE',  pts: [[-0.95, 0.62], [0, 0], [0.95, -0.62]] },
+  // over the top and down to the far side — a rainbow laid on its side
+  arc:   { word: 'ARC',
+           c1: [0.10, -0.66], c2: [0.72, -0.66], end: [1.02, -0.08] },
+  // up a little, then a hard turn across — an L on its back
+  angle: { word: 'ANGLE',
+           c1: [0.02, -0.46], c2: [0.10, -0.55], end: [0.98, -0.55] },
+  // one long stroke on the diagonal
+  line:  { word: 'LINE',
+           c1: [0.30, -0.12], c2: [0.60, -0.26], end: [0.96, -0.40] },
 };
+// The rail as a list of points, mirrored when the hero stands on the right of
+// the board so the sweep always runs into open sky rather than off the edge.
+function railPoints(shape, sx) {
+  const B = (a, b, c, d, t) => { const u = 1 - t;
+    return u*u*u*0 + 3*u*u*t*a + 3*u*t*t*c + t*t*t*d; };
+  const pts = [];
+  for (let i = 0; i <= 48; i++) {
+    const t = i / 48;
+    pts.push([sx * RAIL * B(shape.c1[0], 0, shape.c2[0], shape.end[0], t),
+              RAIL * B(shape.c1[1], 0, shape.c2[1], shape.end[1], t)]);
+  }
+  return pts;
+}
 // What a note says at the GRADEABLE INSTANT, which for two of the six kinds is
 // not the verb it arrived with. A burst returns null — its label is a live
 // tally and overwriting it blinded the first tap.
@@ -2572,23 +2605,36 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
     // a moving lens can never leave the ring behind
     if (whoId) { ring.dataset.hero = whoId;
                  ring.dataset.ox = ox || 0; ring.dataset.oy = oy || 0; }
-    // A FIGURE YOU CANNOT SEE IS A FIGURE YOU CANNOT WALK. The trace draws its
-    // own waypoints and the path between them, so the ask is legible from the
-    // frame it spawns rather than being a word the player has to have learned.
+    // A RAIL YOU CANNOT SEE IS A RAIL YOU CANNOT RIDE. The note draws the whole
+    // journey from the frame it spawns — the line the ring will travel and the
+    // mouth it has to reach — so the ask is a picture rather than a word the
+    // player has to have learned.
     const shape = kind === 'trace' ? (TRACE_SHAPES[dir] || TRACE_SHAPES.arc) : null;
-    const traceSVG = () => {
-      const S = TRACE_R, V = S + 14;              // half-size of the guide box
-      const px = ([x, y]) => [(x * S + V).toFixed(1), (y * S + V).toFixed(1)];
-      const d = shape.pts.map((p, i) => (i ? 'L' : 'M') + px(p).join(' ')).join(' ');
-      return '<svg class="k-pr-trace" viewBox="0 0 ' + (V * 2) + ' ' + (V * 2) + '" aria-hidden="true">'
-        + '<path class="k-pr-tpath" d="' + d + '"/>'
-        + shape.pts.map((p, i) => { const [cx, cy] = px(p);
-            return '<circle class="k-pr-tdot" data-i="' + i + '" cx="' + cx + '" cy="' + cy
-              + '" r="' + (i === 0 ? 6.5 : 5) + '"/>'; }).join('')
+    // sweep into open sky: away from whichever edge this hero is standing near
+    const railSign = kind === 'trace'
+      ? (ax > (el('k-stage') ? el('k-stage').offsetWidth / 2 : 466) ? -1 : 1) : 1;
+    const rail = kind === 'trace' ? railPoints(shape, railSign) : null;
+    const railSVG = () => {
+      const P = 30, W = RAIL + P * 2, H = RAIL * 1.25 + P * 2;
+      // the box hangs above the ring and to whichever side the rail runs
+      const ox = railSign > 0 ? P : W - P, oy = H - P;
+      const px = ([x, y]) => [(ox + x).toFixed(1), (oy + y).toFixed(1)];
+      const d = rail.map((p, i) => (i ? 'L' : 'M') + px(p).join(' ')).join(' ');
+      const [ex, ey] = px(rail[rail.length - 1]);
+      return '<svg class="k-pr-rail" viewBox="0 0 ' + W + ' ' + H + '"'
+        + ' style="width:' + W + 'px;height:' + H + 'px;'
+        + 'left:' + (railSign > 0 ? -P : -(W - P)) + 'px;top:' + (-(H - P)) + 'px" aria-hidden="true">'
+        + '<path class="k-pr-railbed" d="' + d + '"/>'
+        + '<path class="k-pr-railrun" d="' + d + '"/>'
+        // THE MOUTH IS THE SIZE OF THE RING THAT HAS TO LAND IN IT. At r=17
+        // against a 58px ring it read as a dot the ring would swallow rather
+        // than a berth it has to be parked in.
+        + '<circle class="k-pr-railend" cx="' + ex + '" cy="' + ey + '" r="29"/>'
+        + '<circle class="k-pr-railpip" cx="' + ex + '" cy="' + ey + '" r="3.5"/>'
         + '</svg>';
     };
     const glyph = kind === 'bait' ? '<span class="k-pr-x">' + SKULL_SVG + '</span>'
-      : kind === 'trace' ? traceSVG()
+      : kind === 'trace' ? railSVG()
       : dir ? '<span class="k-pr-arrow">' + DIR_ARROW[dir] + '</span>'
       : kind === 'burst' ? '<span class="k-pr-burst"></span>' : '';
     // The verb is on screen from the first frame. It used to read "3/6" until
@@ -2609,23 +2655,43 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
     ring.dataset.n = idx - 1; ring.dataset.total = total;
     if (dir) ring.dataset.dir = dir;
     let done = false, downAt = null, taps = 0, wrongAt = null, owned = false;
-    // how far along the figure the finger has got, and where the ring is on
-    // screen — the waypoints are ring-local, the finger is not
-    let leg = 0;
-    const traceHit = (cx, cy) => {
+    // HOW FAR ALONG THE RAIL THE RING HAS BEEN CARRIED. `t` only ever goes
+    // forward: a hand that scrubs back and forth over the mouth would otherwise
+    // be able to fish for the beat, and the note would stop being a journey.
+    let t = 0, held = false;
+    // where the ring's home is on screen right now — the lens moves under it,
+    // so this is read fresh rather than cached at spawn
+    const homeAt = () => {
       const rb = ring.getBoundingClientRect();
-      const k = rb.width ? rb.width / ring.offsetWidth : 1;   // the lens may be scaling us
-      const ox = rb.left + rb.width / 2, oy = rb.top + rb.height / 2;
-      while (leg < shape.pts.length) {
-        const [wx, wy] = shape.pts[leg];
-        if (Math.hypot(cx - (ox + wx * TRACE_R * k), cy - (oy + wy * TRACE_R * k)) > TRACE_TOL * k) break;
-        leg++;
-        const dot = ring.querySelector('.k-pr-tdot[data-i="' + (leg - 1) + '"]');
-        if (dot) dot.classList.add('on');
-        ring.style.setProperty('--trace', (leg / shape.pts.length).toFixed(2));
-        lbl.textContent = leg >= shape.pts.length ? 'RELEASE!'
-          : NOTE_WORD.trace + ' ' + leg + '/' + shape.pts.length;
-        if (leg >= shape.pts.length) ring.classList.add('k-pr-traced');
+      return { x: rb.left, y: rb.top,
+               k: ring.offsetWidth ? rb.width / ring.offsetWidth : 1,
+               // a zero-size element still reports its own position; the ring is
+               // 0x0 by design and its rect IS the home point
+               tx: parseFloat(ring.style.getPropertyValue('--tx')) || 0,
+               ty: parseFloat(ring.style.getPropertyValue('--ty')) || 0 };
+    };
+    const railRide = (cx, cy) => {
+      const h = homeAt();
+      // undo the travel already applied, to get back to the rail's origin
+      const ox = h.x - h.tx, oy = h.y - h.ty;
+      const fx = cx - ox, fy = cy - oy;
+      let best = t, bestD = Infinity;
+      for (let i = 0; i < rail.length; i++) {
+        const u = i / (rail.length - 1);
+        if (u < t - 0.06) continue;             // forward only, with a little give
+        const d = Math.hypot(fx - rail[i][0], fy - rail[i][1]);
+        if (d < bestD) { bestD = d; best = u; }
+      }
+      // the finger has to stay near the rail; wander off and the ring waits
+      if (bestD > RAIL_GRAB * 1.6) return;
+      t = Math.max(t, best);
+      const p = rail[Math.round(t * (rail.length - 1))];
+      ring.style.setProperty('--tx', p[0].toFixed(1) + 'px');
+      ring.style.setProperty('--ty', p[1].toFixed(1) + 'px');
+      ring.style.setProperty('--rail', t.toFixed(3));
+      if (t >= RAIL_HOME && !ring.classList.contains('k-pr-traced')) {
+        ring.classList.add('k-pr-traced');
+        lbl.textContent = 'RELEASE!';
       }
     };
     // This note's claim on the finger: the arbiter hands each press to whichever
@@ -2694,14 +2760,22 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
         if (taps >= BURST_TAPS) tryGrade();
         return;
       }
-      // a trace begins at its first waypoint, so the press itself is the first
-      // leg — a player who stabs the middle of the ring has not started it
-      if (kind === 'trace') { traceHit(e.clientX, e.clientY); return; }
+      // a trace is TAKEN HOLD OF, so the press has to land on the ring itself —
+      // a stab at the far end of the rail is not a grip, it is a guess
+      if (kind === 'trace') {
+        const h = homeAt();
+        if (Math.hypot(e.clientX - h.x, e.clientY - h.y) <= RAIL_GRAB * h.k) {
+          held = true;
+          ring.classList.add('k-pr-held');
+          lbl.textContent = NOTE_WORD.trace;
+        }
+        return;
+      }
       if (kind === 'tap' || kind === 'feint') tryGrade();
     };
     const onMove = function (e) {
       if (!owned || downAt == null) return;
-      if (kind === 'trace') { traceHit(e.clientX, e.clientY); return; }
+      if (kind === 'trace') { if (held) railRide(e.clientX, e.clientY); return; }
       if (kind !== 'slide') return;
       const dx = e.clientX - ring._dx, dy = e.clientY - ring._dy;
       const at = Math.max(downAt, performance.now() - SLIDE_LEAD_MS);
@@ -2722,7 +2796,8 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
       // below decides that — because a hand that lifts early and puts itself
       // back down still has until the beat to finish, and punishing the lift
       // would make a two-legged figure a one-attempt note.
-      if (kind === 'trace' && owned && downAt != null && leg >= shape.pts.length) tryGrade();
+      if (kind === 'trace' && held && t >= RAIL_HOME) tryGrade();
+      if (kind === 'trace') { held = false; ring.classList.remove('k-pr-held'); }
       downAt = null; owned = false;
     };
     stage.addEventListener('pointerdown', onDown, true);
@@ -2740,7 +2815,10 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
       // and simply did not get released pays one grade, the same way a slide
       // that went the wrong way and corrected does; anything less than that is
       // a miss, because a finger that touched one dot has not traced anything.
-      if (kind === 'trace' && leg >= shape.pts.length - 1 && leg > 1) return finish('good');
+      // A RIDE THAT ALMOST ARRIVED IS NOT NOTHING. Carry the ring most of the
+      // way and fail only to let go on the beat and it pays one grade, the same
+      // way a slide that went wrong and corrected does.
+      if (kind === 'trace' && t >= 0.55) return finish('good');
       finish('miss');
     }, dur + PARRY_GOOD_MS + 30);
   });
@@ -5486,7 +5564,7 @@ window.K = {
   _setPhase: setPhase,          // test-only: end a fight without playing it out
   // test-only: the words a note wears on arrival vs at the gradeable instant,
   // read from the function the note itself calls rather than restated here
-  TRACE_SHAPES, TRACE_R, TRACE_TOL,
+  TRACE_SHAPES, RAIL, RAIL_GRAB, RAIL_HOME, railPoints,
   _noteWords: () => ({ feint: NOTE_WORD.feint, bait: NOTE_WORD.bait,
                        feintLive: liveLabel('feint', NOTE_WORD.feint),
                        holdLive: liveLabel('hold', NOTE_WORD.hold),
