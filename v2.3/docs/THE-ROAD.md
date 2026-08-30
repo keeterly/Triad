@@ -1647,3 +1647,73 @@ Both are n=12 with a bot that routes on `Math.random()`. Two samples that far
 apart do not settle a balance number, and the standing task in this repo has said
 so since Build 64: *a bigger sweep before touching another number.* A 40-run
 sweep is running; the elite stays as it is until it lands.
+
+---
+
+## Build 71 — the sweep answers, and the bond gets a face
+
+### What n=40 said
+
+The Build 70 audit's headline was a skill-cliff regression to 8% / 42% / 100%,
+with the second elite named as the cause and a nerf recommended. It was not
+acted on, because a measurement of the same build the same afternoon gave
+17% / 67% / 100% and both were n=12 with a bot routing on `Math.random()`.
+
+Forty runs a skill:
+
+```
+  clumsy    7/40   17.5%
+  ordinary 21/40   52.5%
+  sharp    39/40   97.5%
+```
+
+The §3.1c line (21/57/100) within the noise. **Not a regression.** And the
+elite, specifically — ordinary deaths at n=40:
+
+```
+  wraith    8   42%
+  mourner   7   37%
+  revenant  2   11%   ← the encounter the audit wanted nerfed
+  cultist   2   11%
+```
+
+Exactly backwards from the n=12 claim that it kills twice as often as the
+Regent. Deaths land at columns 4, 5, 7, 8 and 10 across five different foes —
+a distributed curve, which is what Builds 58 and 69 were reaching for.
+
+Two credible reports, one with a file:line for every claim, both built on twelve
+runs. The standing rule since Build 64 — *a bigger sweep before touching another
+number* — is the only reason a working encounter did not get tuned away.
+Recorded as THE-BENCHMARK §3.1d.
+
+### What n=40 confirmed instead
+
+The bond is the run's largest mover — **2.83 / 4.13 / 4.65** cards swapped in,
+each also paying a mark, against **1.48 / 2.38 / 3.90** tree nodes of ten — and
+it had no readout anywhere in the game. The tree has a screen, a tier badge,
+prices and a strip naming every node. The system that changes *more* about the
+party had nothing, so "play Elin straight after Ash to deepen Elin+Ash" was a
+rule you could only learn by reading the source, and the reckoning's fork was
+unpriceable: you cannot weigh BOND +6 against a threshold you have never seen.
+
+Three pair bars now sit in the road header — two faces, a fill, and the number.
+`7/12` says both how far and how much further, which a bare bar cannot. The fill
+measures progress *within the current level*, so crossing one resets it rather
+than creeping toward a far end; a pair with nothing left to give shows the sigil
+instead of a fraction, so a full bar never reads as a bar that is stuck.
+
+### The header could not hold it, and nothing would have said so
+
+Adding those three bars measured the **embers counter out to x=1049 and the mute
+button to x=1090** — both entirely off a fixed 932px header that does not
+scroll. The run's own currency and one of its two controls, gone, with
+everything still on screen looking perfectly fine. That is the failure mode a
+visual review cannot catch, because what remains is not wrong.
+
+The bars were compacted, the party's HP bars gave back 14px each, the all-out
+meter dropped its word for a mark (it is the fourth in a family of bond meters
+now, not a lone gauge that has to introduce itself), and the header's gap went
+14px → 9px. Every piece of it is measured against the board now, and the check
+asserts the board reported a real width first — **the first version of it
+measured while the map was not the screen that was up, got zero for every rect,
+and passed "nothing is off a 0px board" green.**

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=70" />
+  <link rel="stylesheet" href="styles.css?v=71" />
 </head>
 <body>
   <div id="k-scale">
@@ -204,6 +204,17 @@
           <span id="k-map-prog"><i>THE LAMENT</i>STOP 1 OF 6</span>
         </div>
         <div id="k-map-party"></div>
+        <!-- THE BOND HAS TO BE VISIBLE SOMEWHERE. Measured over 40 runs a
+             skill, it is the run's largest mover — 2.83 / 4.13 / 4.65 cards
+             swapped in, each also paying a mark, against 1.48 / 2.38 / 3.90
+             tree nodes — and it had no readout anywhere in the game. The tree
+             has a screen, a tier badge, prices and a strip naming every node;
+             the system that changes MORE about the party had nothing, so
+             "play Elin straight after Ash to deepen Elin+Ash" was a rule you
+             could only learn by reading the source. It also made the
+             reckoning's fork unpriceable: you cannot weigh BOND +6 against a
+             threshold you have never seen. -->
+        <div id="k-map-bonds" aria-label="The bonds between them"></div>
         <!-- what the three of them carry between fights: half the bond
              survives the road, so the all-out is something a run builds -->
         <div id="k-map-kizuna" class="k-hidden" title="Kizuna carried">
@@ -352,8 +363,8 @@
       <button type="button" id="k-swap-go" disabled>CHOOSE A CARD TO GIVE UP</button>
     </section>
   </div>
-  <script src="run.js?v=70"></script>
-  <script src="game.js?v=70"></script>
+  <script src="run.js?v=71"></script>
+  <script src="game.js?v=71"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

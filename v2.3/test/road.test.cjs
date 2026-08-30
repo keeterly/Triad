@@ -356,6 +356,45 @@ const { boot } = require('./harness.cjs');
       }
       return { bad: bad.length, n: N, sample: bad.slice(0, 4) };
     }, envelope);
+    // THE HEADER IS A FIXED 932px AND IT DOES NOT SCROLL. Adding the three bond
+    // bars at Build 71 measured the EMBERS COUNTER out to x=1049 and the mute
+    // button to 1090 — both entirely off the board, on a run's own currency and
+    // one of its two controls, with nothing on screen to say they had gone. A
+    // header that silently drops furniture to make room for a new meter is a
+    // failure no visual check catches, because everything that remains looks
+    // fine. Every piece of it is measured against the board now.
+    //
+    // A FIRST VERSION OF THIS CHECK WAS HOLLOW. It measured while the map was
+    // not the screen that was up, so every getBoundingClientRect came back zero
+    // — including the board's own width — and "nothing is off a 0px board"
+    // passed green. It puts the road on screen first now, and asserts the board
+    // measured its real width before believing anything else it says.
+    const hdr = await J(() => {
+      window.R._set({ bonds: { 'ash|elin': 7, 'ash|mira': 22, 'elin|mira': 34 },
+                      kizuna: 45, embers: 188 });     // the widest each can read
+      window.R.screen('map');
+      window.R.render();
+      const stage = document.getElementById('k-map').getBoundingClientRect();
+      const out = {};
+      ['k-map-prog', 'k-map-party', 'k-map-bonds', 'k-map-kizuna', 'k-embers', 'k-mute']
+        .forEach(id => {
+          const e = document.getElementById(id);
+          if (!e || e.classList.contains('k-hidden')) return;
+          const r = e.getBoundingClientRect();
+          out[id] = { l: Math.round(r.left - stage.left), r: Math.round(r.right - stage.left) };
+        });
+      return { W: Math.round(stage.width), parts: out };
+    });
+    const off = Object.entries(hdr.parts).filter(([, b]) => b.l < 0 || b.r > hdr.W);
+    const lap = Object.entries(hdr.parts).filter(([k, b], i, all) =>
+      all.some(([k2, b2], j) => j > i && b.l < b2.r && b2.l < b.r));
+    check('GLANCE: everything in the road header fits the board, and nothing overlaps anything',
+      hdr.W > 900 && Object.keys(hdr.parts).length >= 5 && off.length === 0 && lap.length === 0,
+      JSON.stringify({ W: hdr.W, measured: Object.keys(hdr.parts).length,
+                       off: off.map(([k, b]) => k + ':' + b.l + '-' + b.r),
+                       overlap: lap.map(([k]) => k) }));
+    await reset(11);
+
     // …AND NONE OVERPRINTS ANOTHER. This is the risk a denser chart introduces
     // and the one the envelope sweep above cannot see: it tests each coin
     // against the furniture and the edges, never against its neighbours. At

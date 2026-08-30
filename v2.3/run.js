@@ -1225,6 +1225,33 @@
         + '<span class="k-mp-hp"><b>' + hp + '</b>/' + max + '</span>'
         + '<span class="k-mp-bar"><i style="width:' + pct + '%"></i></span></div>';
     }).join('');
+    renderBonds();
+  }
+
+  // THREE PAIRS, THREE FILLS, AND THE NUMBER THAT MATTERS. A bond level is worth
+  // a card AND a mark, and both thresholds are printed so the fill has a scale:
+  // 7/12 says how far and how much further. Levelled pairs read as done rather
+  // than as a bar stuck at the end.
+  function renderBonds() {
+    const box = $('k-map-bonds'); if (!box || !RUN) return;
+    const art = { ash: 'kai', elin: 'elin', mira: 'mira' };
+    box.innerHTML = PAIRS.map(k => {
+      const pts = RUN.bonds[k] || 0;
+      const lv = bondLevel(pts);
+      const done = lv >= BOND_STEPS.length;
+      const need = done ? BOND_STEPS[BOND_STEPS.length - 1] : BOND_STEPS[lv];
+      const from = lv === 0 ? 0 : BOND_STEPS[lv - 1];
+      const pct = done ? 100 : Math.max(0, Math.min(100, (pts - from) / (need - from) * 100));
+      const [a, b] = k.split('|');
+      return '<div class="k-mb' + (done ? ' k-mb-full' : '') + '" data-pair="' + k + '"'
+        + ' title="' + PAIR_NAME[k] + '">'
+        + '<span class="k-mb-faces">'
+        + '<img src="../art/' + art[a] + '.webp" alt=""><img src="../art/' + art[b] + '.webp" alt="">'
+        + '</span>'
+        + '<span class="k-mb-bar"><i style="width:' + pct + '%"></i></span>'
+        + '<span class="k-mb-n">' + (done ? '\u25c8' : pts + '/' + need) + '</span>'
+        + '</div>';
+    }).join('');
   }
 
   // THE CARD IS THE CONFIRMATION STEP. A phone map with one-tap travel is a map
@@ -2469,7 +2496,7 @@
   }
 
   window.R = {
-    boot, toTitle, beginFromTitle,
+    boot, toTitle, beginFromTitle, renderBonds,
     active: () => !!RUN && !RUN.over,
     state: () => RUN,
     map: () => (RUN ? RUN.map : []),

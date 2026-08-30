@@ -153,7 +153,7 @@ The `turns per run` column is what makes this a fix rather than a coincidence:
 it is flat across all three bots, so the improvement is not "fights got longer",
 it is "skill now buys the thing skill should buy".
 
-### 3.1c The skill cliff — flattened once, at Build 65, and not finished
+### 3.1c The skill cliff — flattened once, at Build 65 (see 3.1d: re-measured at n=40, Build 70)
 
 ```
   run win rate        clumsy   ordinary   sharp
@@ -194,6 +194,52 @@ roughly 45%, wins about one run in seven — and a wipe costs them the tree, the
 bonds and the memories all at once, because a run that ends at column 2 has
 changed almost nothing. StS's Act 1 is far more forgiving than this, and it is
 the first thing a new player meets.
+
+### 3.1d The n=12 mirage — Build 70
+
+A playtest audit reported the skill cliff had regressed to **8% / 42% / 100%**,
+worse than §3.1c's fixed line, and named the cause: Build 69 put a second elite
+on the road, and the Kneeling Revenant was said to kill *4 of 7* ordinary runs
+against the Regent's 2. The recommended fix was to nerf the revenant.
+
+A measurement of the same build the same afternoon gave **17% / 67% / 100%**.
+Both were `PACE_RUNS=12` with a bot that routes on `Math.random()`. Two samples
+that far apart do not settle anything, so neither was acted on.
+
+**n=40, per skill:**
+
+```
+  skill      won    nodes kindled   cards swapped in   embers left   turns
+  clumsy    7/40   17.5%     1.48         2.83            12.13      21.6
+  ordinary 21/40   52.5%     2.38         4.13            17.07      27.7
+  sharp    39/40   97.5%     3.90         4.65            23.05      25.6
+```
+
+**17.5 / 52.5 / 97.5** — the §3.1c line (21/57/100) within the noise of a
+random-routing bot, not a regression. And on the elite specifically, ordinary
+deaths at n=40:
+
+```
+  wraith    8   42%      ← the ordinary fight foe, spread across the road
+  mourner   7   37%
+  revenant  2   11%      ← the elite the audit wanted nerfed
+  cultist   2   11%
+```
+
+Exactly backwards. The elite ends 11% of ordinary runs; the Regent ends 37%.
+Nerfing it would have made the game worse for no reason. Deaths land at columns
+4, 5, 7, 8 and 10 across five different foes — a distributed curve, which is
+what Builds 58 and 69 were reaching for and is the opposite of a cliff.
+
+**The lesson is the process, not the number.** Two credible-sounding reports,
+one of them with a file:line for every claim, both built on twelve runs. The
+standing rule in this repo since Build 64 — *a bigger sweep before touching
+another number* — is the only reason a real mechanic did not get tuned away on
+the strength of noise.
+
+What n=40 **does** confirm: the bond is the run's largest mover (2.83 / 4.13 /
+4.65 cards swapped in, each also paying a mark) and beats the tree (1.48 / 2.38 /
+3.90 nodes of ten) at every skill. It has no readout anywhere in the game.
 
 ### 3.2 There is no ember sink but the tree
 

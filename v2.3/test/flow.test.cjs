@@ -1769,7 +1769,16 @@ const { boot } = require('./harness.cjs');
       // failed the moment the dirge had to admit it cannot be parried. The
       // rule is now stated directly: every word on the telegraph must come
       // from the allow-list, so a name or a hint sentence still fails it.
-      const OK_WORDS = ['all', 'no', 'parry'];
+      // …and REWRITTEN AGAIN at Build 71. The allow-list existed to keep the
+      // telegraph from growing back into the prose banner it replaced — a name,
+      // a hint sentence, a rule restated. It also forbade the one word the
+      // telegraph most needs: WHO. The target was carried instead by a 17px
+      // circular crop of character art, three dark-haired figures on dark
+      // armour, which cardFaceHTML had already rejected for the card corner on
+      // exactly those grounds. The rule it was always really about — no
+      // sentences, no restated rules — holds with the three heroes' names
+      // added, and nothing else.
+      const OK_WORDS = ['all', 'no', 'parry', 'ash', 'elin', 'mira'];
       const words = (document.getElementById('k-intent').textContent.match(/[A-Za-z]+/g) || []);
       const noWords = words.every(w => OK_WORDS.indexOf(w.toLowerCase()) >= 0);
       const noBanner = !document.getElementById('k-int-notes') && !document.getElementById('k-int-hint')
@@ -1855,7 +1864,8 @@ const { boot } = require('./harness.cjs');
         // no single chip is expected to equal it any more
         perTargetSums: window.K.intentByTarget().reduce((n, r) => n + r.total, 0)
           === window.K.intentPreviewDmg(),
-        hasTargetFace: !!document.querySelector('#k-intent .k-ichip-atk img'),
+        // the target is NAMED now, not cropped — see OK_WORDS above
+        hasTargetFace: !!document.querySelector('#k-intent .k-ichip-atk u'),
         hasDirge: !!document.querySelector('#k-intent .k-ichip-dirge') };
     });
     check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; telegraph is icon chips above the Regent; no card clipped',
