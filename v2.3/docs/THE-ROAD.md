@@ -2019,3 +2019,41 @@ the middle of the battlefield is the one part of that screen meant to be a
 picture. The cue shows on turn one, on the figure the finger is on, and while a
 move is in the air. The check that gates this was verified red against the old
 always-on rule before being kept.
+
+## Build 77 — the telegraph names a place, not a person
+
+The chip named the hero each blow was aimed at — nine letters of ASH/ELIN/MIRA
+per blow — and with three blows plus a dirge the readout ran 425px of sky. The
+name was also the wrong axis. Rows are EXCLUSIVE in this game: `moveHero` trades
+places, one hero per row, always. So a row letter identifies the target exactly
+as precisely, in one character instead of nine, **and** it names the thing the
+player can actually act on. Where a name tells you who is about to be hurt, a
+row tells you what stepping would do about it.
+
+`F / M / B`, not the `F / C / B` the first sketch used: the floor of the
+battlefield already has FRONT, MID and BACK painted on it, and a legend that
+disagrees with the board is worse than no legend.
+
+**Repeats are spelled out.** `9 ×2` was a compression bought at name-width, where
+a second chip was unaffordable. At three characters two chips fit, and two marks
+in a row is how a player counts blows without doing arithmetic. The Hymn reads
+`⚔9 F  ⚔9 F  ⚔9 B` — which is exactly the "Sword F Sword F" shape.
+
+**One symbol per kind of blow**, and this deck has exactly two reachable kinds
+plus the hymn: an ordinary strike, and a SWEEP — the one that standing further
+back blunts. That distinction is already in the rules and the player already has
+to act on it, so it is the one the marks carry. Inventing Magic/Special
+categories the engine does not have would have put a lie on the most important
+line of the turn.
+
+Swept every intent in the bestiary at both phases: widest readout 410px, none
+off the 932 board. The middle dots went with the names — every reading now ends
+in a boxed letter, which is its own seam.
+
+### The probe that measured its own concatenation
+
+`noWords` read the whole container's `textContent` and matched `[A-Za-z]+`. The
+row plate and the counterplay hint are adjacent spans with no whitespace between
+them, so it glued `ALL` to `Guard` and reported a word nobody had written. It
+reads element by element now. Three of the four new telegraph checks were
+verified red against the old naming rule before being kept.

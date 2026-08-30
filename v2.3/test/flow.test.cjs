@@ -663,11 +663,28 @@ const { boot } = require('./harness.cjs');
         // armour. cardFaceHTML had already made this exact call for the card
         // corner and swapped the disc for a name; the telegraph kept the disc.
         // It reads the name now, which is also the thing a player reads.
+        // …AND THE NAME BECAME A PLACE. Rows are exclusive — moveHero trades
+        // places, one hero per row — so the row identifies the target exactly,
+        // in ONE character instead of nine, and names the thing the player can
+        // actually act on. Three blows plus a dirge ran 425px of sky with names
+        // on them.
         face: (c.querySelector('u') || {}).textContent,
       }));
       const it = window.K.currentIntent();
       const total = window.K.intentPreviewDmg();
-      return { rows, chips, hits: it.hits.length, total };
+      const letters = {}; ['ash', 'elin', 'mira'].forEach(id => {
+        letters[id] = window.K.ROW_LETTER[window.K.state().heroes[id].row];
+      });
+      // the letter is LIVE: step the hero the first blow is aimed at and the
+      // chip has to follow them, or it is a label rather than a readout
+      const first = rows[0].who;
+      const was = letters[first];
+      window.K.moveHero(first);
+      const moved = [...document.querySelectorAll('#k-intent .k-ichip-atk u')]
+        .map(u => u.textContent);
+      const nowRow = window.K.ROW_LETTER[window.K.state().heroes[first].row];
+      return { rows, chips, hits: it.hits.length, total, letters,
+               live: { first, was, nowRow, moved, changed: was !== nowRow } };
     });
     // The Hymn strikes Ash twice and Elin once. The old chip read the VOLLEY
     // TOTAL with the FIRST target's face — so Elin's player was given no sign
@@ -803,22 +820,35 @@ const { boot } = require('./harness.cjs');
     await fresh(7);
     await J(() => { window.K.startCombat({ seed: 7 }); window.K.forceIntent('hymn'); });
 
-    check('TELEGRAPH: one chip per hero struck, not one chip for the volley',
-      tel.chips.length === tel.rows.length && tel.rows.length >= 2,
-      JSON.stringify({ chips: tel.chips.length, targets: tel.rows.length }));
-    check('TELEGRAPH: every hero the blow reaches has their own face on it',
-      tel.rows.every(r => tel.chips.some(c => c.face && c.face.toUpperCase() === r.who.toUpperCase())),
-      JSON.stringify({ rows: tel.rows.map(r => r.who), faces: tel.chips.map(c => c.face) }));
-    // "8 ×2" must mean eight apiece — the same grammar the player's own cards
-    // use ("4 damage ×2"). Two readings of one convention on one screen is
-    // what this fix exists to end.
-    check('TELEGRAPH: a number beside ×n is PER HIT, the same as it is on a card',
-      tel.chips.every((c, i) => {
-        const r = tel.rows.find(x => x.who.toUpperCase() === (c.face || '').toUpperCase());
-        if (!r) return false;
-        if (!c.mul) return +c.n === r.total;
-        return +c.n === r.hits[0] && c.mul === '×' + r.hits.length;
-      }), JSON.stringify({ chips: tel.chips, rows: tel.rows }));
+    // ONE CHIP PER BLOW, NOT PER TARGET. Repeats used to collapse to "9 ×2"
+    // because at name-width a second chip was unaffordable; at three characters
+    // two chips fit, and two marks in a row is how a player counts blows
+    // without doing arithmetic. The Hymn strikes Ash twice and Elin once, so
+    // this is three chips reading 9F 9F 9M — not two.
+    check('TELEGRAPH: one chip per BLOW — a hero struck twice shows two marks, not a ×2',
+      tel.chips.length === tel.hits && tel.hits >= 3
+      && tel.chips.every(c => !c.mul),
+      JSON.stringify({ chips: tel.chips.length, hits: tel.hits,
+                       muls: tel.chips.map(c => c.mul) }));
+    // A PLACE, NOT A PERSON. Written against the old code this goes red twice
+    // over: `face` was ASH/ELIN/MIRA, which is neither one character nor a row.
+    check('TELEGRAPH: each blow names the ROW it lands in, in one character, never a hero',
+      tel.chips.length > 0
+      && tel.chips.every(c => /^[FMB]$/.test((c.face || '').trim()))
+      && tel.rows.every(r => tel.chips.some(c => c.face === tel.letters[r.who])),
+      JSON.stringify({ faces: tel.chips.map(c => c.face), letters: tel.letters }));
+    // …and it is a READOUT, not a label: step the target and the letter follows,
+    // because that is the whole reason a row beats a name here.
+    check('TELEGRAPH: the row letter is live — moving the target moves the reading',
+      tel.live.changed && tel.live.moved.indexOf(tel.live.nowRow) >= 0
+      && tel.live.moved.indexOf(tel.live.was) < 0,
+      JSON.stringify(tel.live));
+    // the numbers are still PER BLOW, the same grammar the player's own cards
+    // use — each chip carries what that one blow lands for
+    check('TELEGRAPH: every chip carries what THAT blow lands for',
+      tel.rows.every(r => r.hits.every(d =>
+        tel.chips.some(c => c.face === tel.letters[r.who] && +c.n === d))),
+      JSON.stringify({ chips: tel.chips, rows: tel.rows }));
     check('TELEGRAPH: the per-target numbers still add up to the volley',
       tel.rows.reduce((n, r) => n + r.total, 0) === tel.total,
       JSON.stringify({ sum: tel.rows.reduce((n, r) => n + r.total, 0), total: tel.total }));
@@ -1970,9 +2000,20 @@ const { boot } = require('./harness.cjs');
       // added, and nothing else.
       // 'guard' and 'break' join the list at Build 72: the dirge chip names the
       // two counterplays that reach it instead of saying `no parry`.
-      const OK_WORDS = ['all', 'or', 'guard', 'break', 'ash', 'elin', 'mira'];
-      const words = (document.getElementById('k-intent').textContent.match(/[A-Za-z]+/g) || []);
-      const noWords = words.every(w => OK_WORDS.indexOf(w.toLowerCase()) >= 0);
+      // …AND THE THREE HERO NAMES LEAVE IT AT BUILD 77. The target is a row
+      // letter now — rows are exclusive, so one character says it exactly — and
+      // the names are not merely no longer needed, they are forbidden: three
+      // nine-letter names is the 425px of sky this readout is climbing out of.
+      const OK_WORDS = ['all', 'or', 'guard', 'break', 'f', 'm', 'b'];
+      // PER ELEMENT, not off the raw textContent. The row plate and the
+      // counterplay hint are adjacent spans with no whitespace between them, so
+      // reading the container whole glued ALL to Guard and reported a word
+      // nobody wrote. The probe was measuring its own concatenation.
+      const iEl = document.getElementById('k-intent');
+      const words = [...iEl.querySelectorAll('b, u, i, em')]
+        .flatMap(e => e.textContent.match(/[A-Za-z]+/g) || []);
+      const noWords = words.every(w => OK_WORDS.indexOf(w.toLowerCase()) >= 0)
+        && !/ash|elin|mira/i.test(iEl.textContent);
       const noBanner = !document.getElementById('k-int-notes') && !document.getElementById('k-int-hint')
         && !document.getElementById('k-int-name');
       const rows = document.querySelectorAll('.k-pt-hero').length;

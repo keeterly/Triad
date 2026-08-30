@@ -391,11 +391,13 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-ichip .k-ico { width: 13px; height: 13px; margin: 0; opacity: 1; }
 .k-ichip b { font-size: 16px; font-weight: 600; color: #f2e9d6; line-height: 1;
   text-shadow: 0 1px 4px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.8); }
-/* a middle dot between readings, the way the concept sets them */
-.k-ichip + .k-ichip::before { content: '·'; color: rgba(180,166,138,0.55);
-  font-size: 13px; margin: 0 8px 0 2px; }
-.k-ichip i { font-style: normal; font-size: 9px; letter-spacing: 0.08em; color: #b0a894;
-  white-space: nowrap; }
+/* THE DOTS WENT WITH THE NAMES. A middle dot separated readings back when each
+   one ended in a nine-letter name and the eye needed help finding the seam;
+   every reading now ends in a boxed letter, which is a seam. Two dots and their
+   twenty pixels of margin were buying nothing. */
+.k-ichip + .k-ichip { margin-left: 11px; }
+.k-ichip i { font-style: normal; font-size: 8px; letter-spacing: 0.06em; color: #a09889;
+  white-space: nowrap; margin-left: 5px; }
 /* ONE LINE, however many targets. The telegraph carries a chip per hero now,
    so it has to stay compact: the dirge's "all · no parry" was wrapping and
    making the whole row two lines tall. */
@@ -404,10 +406,17 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-ichip b { font-size: 15px; }
 .k-ichip img { width: 17px; height: 17px; border-radius: 50%; object-fit: cover; object-position: top;
   border: 1px solid rgba(201,164,92,0.7); margin-left: 2px; }
-/* WHO, IN WORDS. See renderIntent — a 17px crop of a dark-haired figure on
-   dark armour is not an identification. */
-.k-ichip u { text-decoration: none; margin-left: 4px; font-size: 8.5px;
-  letter-spacing: 0.16em; color: #d9d0be; }
+/* WHERE, IN ONE CHARACTER. See renderIntent — this was the hero's NAME, which
+   is nine letters of the wrong axis: rows are exclusive, so the row identifies
+   the target exactly, in one character, and names the thing the player can act
+   on. Set as a small plate so it reads as a position marker rather than as a
+   word that happens to be short. */
+.k-ichip u { text-decoration: none; margin-left: 4px;
+  font: 700 8.5px/1 var(--serif, Georgia, serif); letter-spacing: 0.06em;
+  color: #efe6d4; padding: 2px 3.5px 2.5px; border-radius: 2px;
+  background: rgba(255,255,255,0.09); border: 1px solid rgba(232,220,196,0.22); }
+/* the dirge reaches everyone, so its plate says so rather than naming a row */
+.k-ichip-dirge u { letter-spacing: 0.14em; font-size: 7.5px; }
 
 /* …AND THE SAME NUMBER BESIDE THE BAR IT WILL EMPTY. Reading "who takes 13
    twice" in the top-right corner and "who is at 4 health" in the top-left were

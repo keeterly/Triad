@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 76;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 77;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1360,6 +1360,9 @@ const KIZUNA_PER_DAMAGE = 0.45;       // a 15-damage FINALE is worth ~7
 const KIZUNA_TURNED = 10;             // a whole string read clean
 const KIZUNA_FLAWLESS = 17;
 const ROWS = ['front', 'mid', 'back'];
+// One character per row, and the same three the floor is painted with — the
+// telegraph names a PLACE rather than a person now (see renderIntent).
+const ROW_LETTER = { front: 'F', mid: 'M', back: 'B' };
 const ROW_SHELTER = { front: 1, mid: 0.62, back: 0.3 };
 const MOVE_COST = 1;
 // ONE HERO TO A LANE. Three of them could stand in the front row at once,
@@ -3948,24 +3951,37 @@ function renderIntent() {
     // ONE CHIP PER TARGET, and the number on it is what THAT hero takes.
     // A hero struck twice reads "8 ×2" meaning eight apiece — the same grammar
     // the player's own cards use.
+    // A PLACE, NOT A PERSON. The chip named the hero it was aimed at — nine
+    // letters of ASH/ELIN/MIRA per blow — and with three blows plus a dirge the
+    // readout ran 425px across the sky. The name was also the wrong axis: rows
+    // are EXCLUSIVE in this game (moveHero TRADES PLACES, one hero per row), so
+    // a row letter identifies the target just as precisely in one character AND
+    // names the thing the player can actually act on. F/M/B rather than the
+    // F/C/B a first sketch used, because the floor of the battlefield already
+    // has FRONT, MID and BACK painted on it and a legend that disagrees with
+    // the board is worse than no legend.
+    //
+    // And repeats are SPELLED OUT rather than collapsed to ×2. At name-width a
+    // second chip was unaffordable and "9 ×2" was the compression that bought
+    // room; at three characters two chips fit, and two marks in a row is how a
+    // player counts blows without doing arithmetic.
     for (const row of intentByTarget()) {
-      const per = row.hits[0];
-      const even = row.hits.every(d => d === per);
-      chips.push('<span class="k-ichip k-ichip-atk">' + icon('atk')
-        + '<b>' + fmtN(even ? per : row.total) + '</b>'
-        + (row.hits.length > 1 && even ? '<i>×' + row.hits.length + '</i>' : '')
-        // A NAME, NOT A 17px CROP OF THEIR HEAD. cardFaceHTML already reached
-        // this conclusion for the card corner — "at a size where Ash and Mira
-        // are one silhouette" — and swapped the disc for a name; the telegraph
-        // kept the disc. Which hero is about to be hit is the single most
-        // important fact on the screen, and it was being carried by seventeen
-        // pixels of dark hair on dark armour.
-        + '<u>' + HEROES23[row.who].name + '</u>'
-        // …and if distance blunts it, say so and say by how much from here
-        + (row.sweep && row.back < row.total
-            ? '<em class="k-ichip-sweep" title="a sweep — one row back and it lands for '
-              + fmtN(row.back) + '">\u2933' + fmtN(row.back) + '</em>' : '')
-        + '</span>');
+      const where = ROW_LETTER[C.heroes[row.who].row] || '?';
+      row.hits.forEach((d, i) => {
+        chips.push('<span class="k-ichip k-ichip-atk">'
+          // THE SYMBOL SAYS WHAT KIND OF BLOW IT IS, and this deck has exactly
+          // two kinds of reachable blow plus the hymn: an ordinary strike, and
+          // a SWEEP, which is the one that standing further back blunts. That
+          // is a distinction the rules already make and the player already has
+          // to act on, so it is the one the marks carry.
+          + icon(row.sweep ? 'move' : 'atk')
+          + '<b>' + fmtN(d) + '</b><u>' + where + '</u>'
+          // …and if distance blunts it, say so and say by how much from here
+          + (row.sweep && i === 0 && row.back < row.total
+              ? '<em class="k-ichip-sweep" title="a sweep — one row back and it lands for '
+                + fmtN(row.back) + '">\u2933' + fmtN(row.back) + '</em>' : '')
+          + '</span>');
+      });
     }
     // the vocabulary is ready for defend and charge turns even though the
     // Regent has none yet — an intent carrying `guard` or `charge` shows one
@@ -3985,7 +4001,7 @@ function renderIntent() {
     // there is nothing to be done about the single largest source of damage in
     // the fight, while two counterplays sat unmentioned. It names them.
     if (dg > 0) chips.push('<span class="k-ichip k-ichip-dirge">' + icon('dirge')
-      + '<b>' + fmtN(dg) + '</b><i>all · Guard or Break</i></span>');
+      + '<b>' + fmtN(dg) + '</b><u>ALL</u><i>Guard or Break</i></span>');
   }
   box.innerHTML = chips.join('');
 }
@@ -5334,7 +5350,7 @@ window.K = {
   _fxNoteGrade: (grade, kind) => fxNoteGrade(null, 400, 200, grade, kind),
   _fxHitResolved: (id, taken, negated, flawless) => fxHitResolved(id, taken, negated, flawless),
   MUSIC, MUSIC_SRC, musicOn, musicPref, musicSet, gridStart, ICON_PATHS, icon, SFX, sfx,
-  intentByTarget,
+  intentByTarget, ROW_LETTER,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, staticCardHTML,
   cam, bgParallax, SIGILS, sigilOf, brighten,
   BOND_CARDS, BOND_IDS, baseRoster, rosterIds, rosterValid, SLOTS_PER_HERO,
