@@ -2262,3 +2262,32 @@ phase is PLAYER_READY, and `startCombat` does not cancel an in-flight volley, so
 a block that opens while the previous bar is still unwinding never spawns a ring
 of its own and then measures whatever is on screen. Twenty consecutive ring-free
 samples before it starts, the same fix, and two clean 227/227 runs.
+
+## Build 83 — the ring goes where the finger goes, and nothing else takes the finger
+
+Two faults, and the first one was not the trace's at all.
+
+**Pressing a note was grabbing the hero under it.** The rings sit over the
+figures, and `.k-hero` carries its own drag handler — so a press on a ring also
+fired the hero's `pointerdown`: the rows lifted out of the ground, the move hint
+came up, and `setPointerCapture` took the pointer. Touching a note made the whole
+board move. It is gated now, and the gate is **the phase and the DOM, not
+`_live`** — the first guard read `_live.length`, and that is a running array a
+note removes itself from, so one leaked entry would kill hero movement for the
+rest of the fight. That is a worse bug than the one being fixed. A hero can only
+be moved on your own turn anyway (`moveReason` has always said so), and a ring
+in the document is a fact that cannot go stale.
+
+**And the ring was rubber-banding to the curve.** The first pass projected the
+finger onto the rail and snapped the ring to the nearest point on it, so the
+circle slid out from under the fingertip on every cut corner — the thing you
+were holding was not where you were holding it. It follows the hand one to one
+now, capped so it cannot be carried somewhere the note never asked for, and the
+rail decides separately whether the journey *counted*: progress only advances
+while the finger is inside the tube. So the arc still has to be walked, the
+circle is never anywhere except under the hand carrying it, and a hand that has
+wandered out of the tube is told so rather than silently given nothing.
+
+Measured after: `followDrift 0` off the rail, `endDrift 0` at the mouth, progress
+`0` while astray and `1` after walking it, `boardMoved false`, `heroDragging
+false`. Three new checks hold all of it.

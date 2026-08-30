@@ -2991,6 +2991,26 @@ const { boot } = require('./harness.cjs');
       // …now take hold of the ring itself and carry it
       ev('pointerdown', rb0.left, rb0.top);
       out.held = ring.classList.contains('k-pr-held');
+      // NOTHING ELSE MAY TAKE THE FINGER. The rings sit over the heroes and a
+      // hero carries its own drag, so pressing a note was also grabbing the
+      // figure under it — the rows lifted, the move hint came up, and the whole
+      // board moved when all the player did was touch a ring.
+      out.boardMoved = document.getElementById('k-stage').classList.contains('k-moving');
+      out.heroDragging = !!document.querySelector('.k-hero.k-hero-drag');
+      // THE RING SITS UNDER THE FINGER, wherever the finger goes. A first pass
+      // projected the finger onto the curve and snapped the ring to it, so the
+      // circle slid out from under the fingertip on every cut corner — the
+      // thing you were holding was not where you were holding it. Carried well
+      // off the rail it still tracks the hand, says it has strayed, and refuses
+      // to count the journey.
+      {
+        const offX = rb0.left + 40, offY = rb0.top + 55;
+        ev('pointermove', offX, offY);
+        const off = ring.getBoundingClientRect();
+        out.followDrift = Math.round(Math.hypot(off.left - offX, off.top - offY));
+        out.astray = ring.classList.contains('k-pr-astray');
+        out.railOffRail = +ring.style.getPropertyValue('--rail');
+      }
       for (let i = 4; i < pts.length; i += 4) {
         ev('pointermove', rb0.left + pts[i][0], rb0.top + pts[i][1]);
         await new Promise(r => setTimeout(r, 12));
@@ -3000,6 +3020,9 @@ const { boot } = require('./harness.cjs');
       out.label = ring.querySelector('.k-pr-lbl').textContent.trim();
       const moved = ring.getBoundingClientRect();
       out.travelled = Math.round(Math.hypot(moved.left - rb0.left, moved.top - rb0.top));
+      const last = pts[pts.length - 1];
+      out.endDrift = Math.round(Math.hypot(moved.left - (rb0.left + last[0]),
+                                           moved.top - (rb0.top + last[1])));
       // …and it grades on the RELEASE, on the beat
       const wait = +ring.dataset.impact - performance.now();
       if (wait > 0) await new Promise(r => setTimeout(r, wait));
@@ -3016,10 +3039,17 @@ const { boot } = require('./harness.cjs');
     check('TRACE: the RING is the handle — reaching for the far end takes no hold',
       tr.grabbedFromAfar === false && tr.held === true,
       JSON.stringify({ afar: tr.grabbedFromAfar, onRing: tr.held }));
+    check('TRACE: taking hold of a note grabs NOTHING else — no hero, no board move',
+      tr.boardMoved === false && tr.heroDragging === false,
+      JSON.stringify({ boardMoved: tr.boardMoved, heroDragging: tr.heroDragging }));
+    check('TRACE: the ring sits under the finger even off the rail, and says the journey has strayed',
+      tr.followDrift <= 2 && tr.astray === true && tr.railOffRail === 0,
+      JSON.stringify({ drift: tr.followDrift, astray: tr.astray, progress: tr.railOffRail }));
     check('TRACE: carrying it along the rail moves the ring and fills the run to the mouth',
-      tr.travelled > 90 && tr.rail >= 0.93 && tr.arrived && tr.label === 'RELEASE!',
-      JSON.stringify({ travelled: tr.travelled, rail: tr.rail,
-                       arrived: tr.arrived, label: tr.label }));
+      tr.travelled > 90 && tr.rail >= 0.93 && tr.arrived && tr.label === 'RELEASE!'
+      && tr.endDrift <= 2,
+      JSON.stringify({ travelled: tr.travelled, rail: tr.rail, arrived: tr.arrived,
+                       label: tr.label, endDrift: tr.endDrift }));
     check('TRACE: parked at the mouth and released on the beat, it grades like any other note',
       tr.grade && tr.grade !== 'miss', JSON.stringify({ grade: tr.grade }));
   }

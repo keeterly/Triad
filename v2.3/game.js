@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 82;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 83;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -2692,11 +2692,24 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
                tx: parseFloat(ring.style.getPropertyValue('--tx')) || 0,
                ty: parseFloat(ring.style.getPropertyValue('--ty')) || 0 };
     };
+    // THE RING GOES WHERE THE FINGER GOES. The first pass projected the finger
+    // onto the rail and snapped the ring to the nearest point on the curve,
+    // which meant the circle slid away from under the fingertip whenever the
+    // hand cut a corner — the thing you were holding was not where you were
+    // holding it. It follows the finger directly now, one to one, and the RAIL
+    // is what decides whether the journey counted: progress only advances while
+    // the finger is inside the tube, so the arc still has to be walked, but the
+    // circle is never anywhere except under the hand that is carrying it.
     const railRide = (cx, cy) => {
       const h = homeAt();
-      // undo the travel already applied, to get back to the rail's origin
-      const ox = h.x - h.tx, oy = h.y - h.ty;
-      const fx = cx - ox, fy = cy - oy;
+      const ox = h.x - h.tx, oy = h.y - h.ty;      // the rail's origin on screen
+      let fx = (cx - ox) / (h.k || 1), fy = (cy - oy) / (h.k || 1);
+      // it cannot be carried off to somewhere the note never asked for
+      const far = Math.hypot(fx, fy), cap = RAIL * 1.35;
+      if (far > cap) { fx *= cap / far; fy *= cap / far; }
+      ring.style.setProperty('--tx', fx.toFixed(1) + 'px');
+      ring.style.setProperty('--ty', fy.toFixed(1) + 'px');
+      // …and separately, how far along the tube the hand has actually got
       let best = t, bestD = Infinity;
       for (let i = 0; i < rail.length; i++) {
         const u = i / (rail.length - 1);
@@ -2704,13 +2717,10 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
         const d = Math.hypot(fx - rail[i][0], fy - rail[i][1]);
         if (d < bestD) { bestD = d; best = u; }
       }
-      // the finger has to stay near the rail; wander off and the ring waits
-      if (bestD > RAIL_GRAB * 1.6) return;
-      t = Math.max(t, best);
-      const p = rail[Math.round(t * (rail.length - 1))];
-      ring.style.setProperty('--tx', p[0].toFixed(1) + 'px');
-      ring.style.setProperty('--ty', p[1].toFixed(1) + 'px');
+      if (bestD <= RAIL_GRAB) t = Math.max(t, best);
       ring.style.setProperty('--rail', t.toFixed(3));
+      // off the rail: the ring is still under the finger, but it says so
+      ring.classList.toggle('k-pr-astray', bestD > RAIL_GRAB && t < RAIL_HOME);
       if (t >= RAIL_HOME && !ring.classList.contains('k-pr-traced')) {
         ring.classList.add('k-pr-traced');
         lbl.textContent = 'RELEASE!';
@@ -5431,6 +5441,19 @@ function bindChrome() {
     const rows = () => document.querySelectorAll('#k-rows .k-row');
     h.addEventListener('pointerdown', (e) => {
       if (!C) return;
+      // A PARRY BAR OWNS THE FINGER. The rings sit over the heroes, and a hero
+      // carries its own drag — so pressing a ring was ALSO grabbing the figure
+      // underneath it: the rows lifted out of the ground, the move hint came
+      // up, and setPointerCapture took the pointer. Pressing a note made the
+      // whole board move.
+      // GATED ON THE PHASE AND THE DOM, NOT ON `_live`. The first guard read
+      // `_live.length`, and that list is a running array a note removes itself
+      // from — one leaked entry and hero movement is dead for the rest of the
+      // fight, which is a worse bug than the one being fixed. A hero can only
+      // be moved on your own turn anyway (moveReason has always said so), and a
+      // ring in the document is a fact that cannot go stale.
+      if (C.phase !== 'PLAYER_READY') return;
+      if (document.querySelector('.k-pring')) return;
       const who = h.dataset.hero;
       sx = e.clientX; sy = e.clientY; live = true;
       const why = moveReason(who);

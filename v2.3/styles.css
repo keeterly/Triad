@@ -1351,6 +1351,13 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-pr-railpip { fill: rgba(232,220,196,0.6); }
 /* held: the ring has been taken hold of and the silhouette brightens under it */
 .k-pring-trace.k-pr-held .k-pr-railbed { fill: rgba(240,212,136,0.5); }
+/* CARRIED OFF THE RAIL. The ring stays under the finger wherever the hand goes
+   — that is the whole point of it being the handle — but the journey only
+   counts inside the tube, so a hand that has wandered out of it needs to be
+   told, not silently given nothing. */
+.k-pring-trace.k-pr-astray .k-pr-target { border-color: rgba(200,120,110,0.6); }
+.k-pring-trace.k-pr-astray .k-pr-hub { background: radial-gradient(circle at 50% 45%,
+  rgba(30,14,14,0.94), rgba(16,8,10,0.82) 72%, rgba(16,8,10,0) 100%); }
 /* arrived at the mouth — the same word a hold uses, so a player who has
    learned one has learned both */
 .k-pring-trace.k-pr-traced .k-pr-railbed { fill: rgba(240,212,136,0.8); }
