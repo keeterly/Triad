@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 77;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 78;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -5123,6 +5123,15 @@ function openInspect(cardId) {
     + cardFaceHTML(c, ev, gem, ownerArt) + '</div></div>'
     + '<div class="k-insp-side">'
     + '<div class="k-insp-who">' + who + '</div>'
+    // THE MARK'S NAME LIVES HERE NOW. The face carries the fold — a glyph and a
+    // colour, the way a set symbol does — and a symbol on its own cannot state
+    // a rule. Arena puts the symbol on the card and the reminder text on the
+    // detail view; this is the detail view.
+    + (ev.sigil && SIGILS[ev.sigil]
+        ? '<div class="k-insp-sig k-csig-' + ev.sigil + '">'
+          + '<b>' + icon(SIGILS[ev.sigil].glyph || 'finale')
+          + SIGILS[ev.sigil].name.toUpperCase() + '</b>'
+          + '<span>' + SIGILS[ev.sigil].line + '</span></div>' : '')
     + '<div class="k-insp-now"><em>Resolves now</em>' + prose(ev.resolvedEffects) + '</div>'
     + (c.cond ? '<div class="k-insp-cond' + (ev.condActive ? ' on' : '') + '">'
         + '<b>' + (COND_LABEL[c.cond.type] || c.cond.type) + ' — '
@@ -5135,7 +5144,9 @@ function openInspect(cardId) {
           '<div class="k-insp-key">' + icon(k) + '<b>' + KEYWORD_RULE[k][0] + '</b>'
           + '<span>' + KEYWORD_RULE[k][1] + '</span></div>').join('') + '</div>';
       })()
-    + '<div class="k-insp-hint">release to close · drag the card to play it</div>'
+    // two lines of hint under a panel that now also carries the mark was a line
+    // too many — the same two things, in half the words
+    + '<div class="k-insp-hint">release to close · drag to play</div>'
     + '</div>';
   f.classList.remove('k-hidden');
   el('k-stage').classList.add('k-inspecting');

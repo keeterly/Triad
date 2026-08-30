@@ -2057,3 +2057,34 @@ row plate and the counterplay hint are adjacent spans with no whitespace between
 them, so it glued `ALL` to `Guard` and reported a word nobody had written. It
 reads element by element now. Three of the four new telegraph checks were
 verified red against the old naming rule before being kept.
+
+## Build 78 — the corner fold, and the type line it needed
+
+**Four treatments, and only the fourth is on the frame.** A full-width ribbon
+across the painting (too loud). A spine down the left edge with the word set
+vertically (a seven-letter word at 7px turned ninety degrees is decoded, not
+read). A chip on the art (readable, but sitting on the one thing the face has
+that nothing else does). The fold takes the single square of a card that is
+frame rather than image.
+
+**And the fold could not have the corner, because the verb marks were in it.**
+Arena's answer to exactly this is the TYPE LINE: a band between art and rules
+carrying what the card *is* on the left and the set symbol on the right. The
+owner line already was that band and its right half was empty. So the verbs moved
+down into it, the art got a hairline floor, and the name and owner went flush
+left — which is also where an ellipsis belongs, and is why LIGHT THROUGH STEEL
+now sets on one line where centring it needed two.
+
+The fold is glyph and colour only. A symbol cannot state a rule, so the mark's
+NAME and its sentence moved to the inspect panel — which is again what Arena
+does: symbol on the card, reminder text on the detail view. Without that step
+the fold would have been a colour the player had no way to look up. The detail
+panel is sixteen pixels wider to carry it, and its hint lost half its words.
+
+**The telegraph loses its plate.** Build 74 gave it a box and a NEXT caption
+because the marks were bare glyphs on a painted sky and would not hold. That was
+solving the wrong half. What could not hold was the CONTENT — three nine-letter
+hero names and a collapsed ×2 spread over 425px — and once Build 77 turned each
+reading into a mark, a number and one boxed letter, the box was furniture built
+to carry furniture. The readings are dense enough to be their own object; the
+sky goes back to being sky.

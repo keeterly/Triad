@@ -367,20 +367,17 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    a plate and a name now: a hairline box under the Regent's own bar, captioned
    with what it IS, so the row of marks stops being decoration in the sky and
    starts being the enemy's declared turn. */
+/* NO PLATE. Build 74 gave the telegraph a box and a NEXT caption because the
+   marks were bare glyphs on a painted sky and would not hold. That was solving
+   the wrong half: what could not hold was the CONTENT — three nine-letter hero
+   names and a collapsed ×2 spread over 425px — and once each reading became a
+   mark, a number and one boxed letter, the box was furniture built to carry
+   furniture. The readings are dense enough to be their own object now, so the
+   sky goes back to being sky. What the plate was really providing is kept as
+   text weight: each reading's own shadow, and the row letter's plate. */
 #k-intent { position: absolute; right: 18px; top: 92px; max-width: 620px;
   display: flex; gap: 6px; align-items: center; justify-content: flex-end;
-  z-index: 11; pointer-events: none;
-  padding: 4px 10px 5px 9px; border-radius: 3px;
-  background: linear-gradient(180deg, rgba(18,14,12,0.9), rgba(10,8,7,0.94));
-  border: 1px solid rgba(201,164,92,0.24);
-  box-shadow: 0 4px 14px rgba(0,0,0,0.6), inset 0 1px 0 rgba(232,220,196,0.05); }
-/* the caption. NEXT, because that is the one word that says why the row of
-   numbers under the Regent matters more than any other row on the screen */
-#k-intent::before { content: 'NEXT'; flex: none; font-size: 7.5px; font-weight: 600;
-  letter-spacing: 0.26em; color: #8d8474; margin-right: 9px;
-  padding-right: 9px; border-right: 1px solid rgba(201,164,92,0.2);
-  align-self: stretch; display: flex; align-items: center; }
-/* an empty telegraph must not draw an empty box */
+  z-index: 11; pointer-events: none; }
 #k-intent:empty { display: none; }
 /* ONE LINE, NOT A ROW OF BADGES. Three filled pills with rims were the
    loudest thing on the board after the boss herself — and they are a READOUT,
@@ -1098,7 +1095,9 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
     linear-gradient(172deg, #d3ccba 0%, #c6bda8 55%, #b3a88e 100%);
   border: 1px solid #6f6753; box-shadow: 0 18px 40px rgba(0,0,0,0.8); text-align: center; }
 @keyframes k-insp { from { opacity: 0; transform: scale(1.5); } }
-.k-insp-side { width: 208px; display: flex; flex-direction: column; gap: 9px; }
+/* wider by sixteen pixels, because the detail view carries one more block
+   now — the mark's name and its rule, which the fold on the face cannot state */
+.k-insp-side { width: 224px; display: flex; flex-direction: column; gap: 9px; }
 .k-insp-who { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #c9a45c; }
 .k-insp-now { font-size: 13px; line-height: 1.35; color: #e8dfc8; }
 .k-insp-now em { display: block; font-style: normal; font-size: 8.5px; letter-spacing: 0.18em;
@@ -1232,27 +1231,51 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    104px one: seven marked cards began clipping their last clause the moment the
    face got shorter. Lifted out of flow it sits across the dark end of the
    painting, above the owner's name, and takes nothing from the words at all. */
-/* A CHIP, SET LEFT TO RIGHT. Two treatments have failed here. The ribbon was a
-   full-width gold bar struck across the painting — louder than the card's own
-   name, a sticker rather than something earned. The spine that replaced it
-   fixed the loudness and introduced a worse fault: the word ran VERTICALLY, and
-   a seven-letter word at 7px turned ninety degrees is decoded, not read.
-   Nothing else in this game asks the player to tilt their head. The mark is a
-   small horizontal chip now, tucked under the cost orb on the dark end of the
-   painting where the art has nothing to lose: glyph, then name, on one line.
-   It floats over the art rather than taking width from the face, so the card's
-   own name keeps its full size and nothing trims — the name step-downs the
-   spine needed are gone with it. It is findable in a fan because the card's rim
-   carries the same colour. */
-.k-csig { position: absolute; left: 5px; top: 25px; z-index: 3;
-  display: inline-flex; align-items: center; gap: 3px;
-  padding: 1.5px 4px 1.5px 3px; border-radius: 2px; color: #17110a;
-  background: linear-gradient(180deg, var(--sig, #e0c084),
-    color-mix(in srgb, var(--sig, #e0c084) 80%, #000));
-  box-shadow: 0 1px 5px rgba(0,0,0,0.8); }
-.k-csig .k-csig-g { flex: none; width: 7px; height: 7px; margin: 0; opacity: 0.85; }
-.k-csig u { text-decoration: none; font: 700 6.2px/1 var(--serif, Georgia, serif);
-  letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap; }
+/* A CORNER FOLD, THE WAY A SET SYMBOL IS A CORNER. Three treatments failed
+   before this one: a full-width ribbon across the painting (too loud), a spine
+   down the left edge with the word set vertically (unreadable), and a chip on
+   the art (readable, but sitting on the picture, which is the one thing the
+   face has that nothing else does). The fold takes the one square of a card
+   that is frame rather than image, carries the mark's glyph and its colour, and
+   touches nothing. The card's rim already carries the same colour, so a marked
+   card is findable in a fan; the mark's NAME and rule move to the inspect
+   panel, which is Arena's answer too — a symbol on the face, reminder text on
+   the detail view. */
+.k-csig { position: absolute; right: 0; top: 0; width: 26px; height: 26px; z-index: 3;
+  display: flex; justify-content: flex-end; align-items: flex-start;
+  padding: 0; border-radius: 0 5px 0 0; color: #17110a;
+  clip-path: polygon(100% 0, 100% 100%, 0 0);
+  background: linear-gradient(215deg, color-mix(in srgb, var(--sig, #e0c084) 92%, #fff),
+    color-mix(in srgb, var(--sig, #e0c084) 62%, #000)); }
+.k-csig u { display: none; }
+.k-csig .k-csig-g { width: 8.5px; height: 8.5px; margin: 2.5px 2.5px 0 0;
+  filter: drop-shadow(0 0 2px rgba(0,0,0,0.35)); }
+
+/* ── THE TYPE LINE ────────────────────────────────────────────────────────
+   The fold wants the top-right corner and the verb marks were sitting in it.
+   Arena solves this exact problem with a type line: a band between the art and
+   the rules that carries what the card IS on the left and the set symbol on
+   the right. The owner line already was that band and its right half was empty.
+   The verbs moved down into it, the art got a hairline floor, and the name and
+   owner went flush left, which is also where an ellipsis belongs. */
+.k-ctype { top: 59px; right: 6px; }
+.k-cverb { width: 13px; height: 13px; }
+.k-ctype-two .k-cverb { width: 12px; height: 12px; }
+.k-cwho { text-align: left; padding-left: 2px; padding-right: 32px;
+  border-top: 1px solid rgba(201,164,92,0.26); padding-top: 2px; margin-top: 57px;
+  /* ASH + ELIN is a two-word owner and the reserved right edge made it wrap,
+     which pushed every pair card's title down a line */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-cname { text-align: left; padding-left: 2px; }
+/* the mark, named and explained, on the detail view */
+.k-insp-sig { margin: 7px 0 0; padding: 6px 8px 7px; border-radius: 3px;
+  background: rgba(255,255,255,0.045);
+  border-left: 2px solid var(--sig, #e0c084); }
+.k-insp-sig b { display: flex; align-items: center; gap: 5px; font-weight: 700;
+  font-size: 9.5px; letter-spacing: 0.22em; color: var(--sig, #e0c084); }
+.k-insp-sig b svg { width: 11px; height: 11px; margin: 0; }
+.k-insp-sig span { display: block; margin-top: 3px; font-size: 11px; line-height: 1.32;
+  color: #b6ab97; }
 .k-sig-held    { --sig: #bcd3ea; } .k-csig-held    { --sig: #bcd3ea; }
 .k-sig-echo    { --sig: #c9b4e4; } .k-csig-echo    { --sig: #c9b4e4; }
 .k-sig-opening { --sig: #e9d49a; } .k-csig-opening { --sig: #e9d49a; }
@@ -3314,7 +3337,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* …and the hint is pinned to the panel's foot rather than flowing after the
    keywords, which pushed it 95px down into the hand band on a card with two of
    them and wrapped it to an orphan line. */
-.k-insp-side { position: relative; padding-bottom: 22px; }
+.k-insp-side { position: relative; padding-bottom: 20px; }
 .k-insp-hint { position: absolute; left: 0; right: 0; bottom: 0; }
 .k-insp-keys { display: flex; flex-direction: column; gap: 7px; margin-top: 10px;
   padding-top: 9px; border-top: 1px solid rgba(201,164,92,0.18); }
