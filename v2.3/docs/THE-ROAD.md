@@ -1717,3 +1717,74 @@ now, not a lone gauge that has to introduce itself), and the header's gap went
 asserts the board reported a real width first — **the first version of it
 measured while the map was not the screen that was up, got zero for every rect,
 and passed "nothing is off a 0px board" green.**
+
+---
+
+## Build 72 — what the screen tells you, and the fix that told you twice
+
+Six findings the last two audits left verified but unbuilt, each measured before
+it was touched — and then re-reviewed by a fresh agent, which found that one of
+the fixes had introduced a worse problem than the one it solved.
+
+### The five that were simply wrong
+
+- **The AP pips were captioned DECK.** Measured: the pip row ends at bottom 330,
+  the deck pile's caption starts at 335 — five pixels apart and overlapping
+  horizontally, so three diamonds and the word DECK read as one labelled
+  control, and the pips, which have no caption of their own, borrowed the wrong
+  one. Lifted clear: the gap is 27px.
+- **The Poise gauge counted down, unnumbered.** Twelve lit pips meant "furthest
+  from Staggered" — backwards from every stagger bar a player has met — and with
+  no number, three turns of chipping looked identical to none. The pool is POISE
+  and what your cards deal is BREAK, which is the grammar the card faces already
+  use; a full bar now honestly means intact, and it reads `12/12`.
+- **The dirge denied it had an answer.** The chip said `all · no parry`, which is
+  true and is not the whole truth: Guard absorbs it, and STAGGERING her cancels
+  the entire action, hymn included. On the single largest source of damage in
+  the fight, half a truth reads as "there is nothing to be done".
+- **The telegraph overflowed the board.** Centred on a fixed x, it grew outward
+  in both directions — 4 of 17 intents ended at x=943 on a 932px board, and
+  naming the targets made it worse because a name is wider than the 17px
+  portrait crop it replaced. Right-anchored, it cannot: 0 of 17 overflow, with
+  249px of headroom. A centred readout of variable width will always find a case
+  that does not fit.
+- **The game had no rules text.** `COND_RULE` explained a card's condition and
+  that was the whole rulebook — Break, Guard, Bleed, Chill and the dirge were
+  bolded numbers with no definition anywhere in the build. The keywords a card
+  uses are spelled out beside it in the inspect panel now, at the moment the
+  player is looking at that card and asking what it does.
+
+### The fix that told you twice
+
+The incoming-damage badge — added at Build 70 so the threat sits beside the
+health bar it will empty — folded the dirge into a single total. So Ash's row
+read a flat `✦12` while the telegraph beside it read `9 ASH` and `3 all`.
+
+**Two authoritative numbers for one event, which is worse than the
+seven-hundred-pixel journey the badge was added to remove.** The code comment
+said the two "can never disagree", and that was true of the data and false of
+the display. It prints the sum as its parts now — `✦18+3` — the same two figures
+the chip row shows, in the same order.
+
+The same mistake had a second face: `.k-pt-aimed` was keyed on total incoming,
+and every foe in the bestiary carries a dirge that reaches everyone, so all
+three rows wore the aimed outline on every turn of every fight. A highlight
+that is always on is chrome, and it drowned the turn where somebody genuinely
+is the target. It means aimed now — measured on the Hymn, which strikes Ash
+twice and Elin once and leaves Mira alone: two rows outlined, not three.
+
+### And bigger was not enough
+
+The lane word is the cue for the biggest defensive lever in the game — standing
+back cuts a sweep by 70% for 1 of 3 AP — and it was 7px of the dimmest grey on
+the board. Making it 9.5px and brighter did not achieve the stated goal, because
+at `bottom: -16px` the label hangs under the figure's feet and **the two heroes
+nearest the camera have their feet inside the hand**: MID at y256 and FRONT at
+y278, against a hand that begins at y253. Two of the three were painted behind
+the cards, and the only one a player ever saw was whoever stood in the back —
+which reads as a note about that one hero rather than as evidence that a lane
+system exists at all. The label sits on the figure now. All three clear the hand.
+
+That one is worth keeping in mind: the fix was applied, the measurement of the
+thing changed confirmed it, and the goal was still not met, because the property
+that mattered was one nobody had measured.

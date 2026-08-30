@@ -100,8 +100,23 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-shadow { position: absolute; left: 50%; bottom: -3px; transform: translateX(-50%);
   width: 86%; height: 8px; border-radius: 50%;
   background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 72%); }
-.k-hero-row { position: absolute; left: 50%; bottom: -16px; transform: translateX(-50%);
-  font-size: 7px; letter-spacing: 0.18em; color: #8e8574; }
+/* THE BIGGEST DEFENSIVE LEVER, AT SEVEN PIXELS OF THE DIMMEST GREY ON THE
+   BOARD. Standing back cuts a sweep by 70% (ROW_SHELTER) for 1 of 3 AP, and the
+   only static cue for where anyone stands was 7px at rgb(142,133,116) — the
+   least readable text on the screen, and legible only DURING A PARRY, when the
+   board dims and you can no longer act on it. A first-timer can finish several
+   fights without learning that lanes exist.
+
+   AND BIGGER WAS NOT ENOUGH. At `bottom: -16px` the label hangs under the
+   figure's feet, and the two heroes standing nearest the camera have their feet
+   INSIDE the hand — measured, MID at y256 and FRONT at y278 against a hand that
+   begins at y253. So two of the three labels were painted behind the cards and
+   the only one a player ever saw was whoever stood in the back, which reads as
+   a note about that one hero rather than as evidence a lane system exists. The
+   label sits on the figure now, where the figure is. */
+.k-hero-row { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
+  font-size: 9.5px; letter-spacing: 0.18em; color: #b3a893;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.8), 0 0 14px rgba(0,0,0,0.9); }
 .k-hero { cursor: grab; touch-action: none; }
 .k-hero.k-hero-drag { cursor: grabbing; z-index: 8; }
 .k-hero.k-hero-drag img { filter: drop-shadow(0 12px 18px rgba(0,0,0,0.82)) brightness(1.14); }
@@ -305,8 +320,16 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* clear of the Break row above it — the chips used to print straight over the
    pips, so the one number telling you how hard the next blow lands sat on top
    of the one meter telling you how close the Regent was to breaking */
-#k-intent { position: absolute; left: 765px; top: 94px; transform: translateX(-50%);
-  display: flex; gap: 6px; align-items: center; z-index: 11; pointer-events: none; }
+/* IT GROWS LEFTWARD FROM A FIXED RIGHT EDGE, rather than outward from a fixed
+   centre. Centred on x=765 the row was 356px wide on a three-target intent that
+   also carries a dirge, which put its right edge at 943 on a 932 board — 4 of
+   the 17 intents in the bestiary, hanging 11px off the screen. Naming the
+   targets made it worse, because a name is wider than the 17px portrait crop it
+   replaced. A centred readout of variable width will always find a case that
+   does not fit; anchored right, it cannot. */
+#k-intent { position: absolute; right: 18px; top: 94px; max-width: 620px;
+  display: flex; gap: 6px; align-items: center; justify-content: flex-end;
+  z-index: 11; pointer-events: none; }
 /* ONE LINE, NOT A ROW OF BADGES. Three filled pills with rims were the
    loudest thing on the board after the boss herself — and they are a READOUT,
    not a call to action. Naked marks and numbers on a hairline read faster and
@@ -326,7 +349,6 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    making the whole row two lines tall. */
 #k-intent { flex-wrap: nowrap; white-space: nowrap; gap: 0; align-items: center; }
 .k-ichip { padding: 2px 0; gap: 4px; }
-.k-ichip img { width: 14px; height: 14px; margin-left: 3px; }
 .k-ichip b { font-size: 15px; }
 .k-ichip img { width: 17px; height: 17px; border-radius: 50%; object-fit: cover; object-position: top;
   border: 1px solid rgba(201,164,92,0.7); margin-left: 2px; }
@@ -343,6 +365,12 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
   color: #ffd9c2; background: rgba(200,74,58,0.3);
   border: 1px solid rgba(232,119,106,0.55); }
+/* the dirge's share, printed as a RIDER on the aimed number rather than as a
+   second number — 9+3, the same two figures the telegraph shows */
+.k-pt-inc s { text-decoration: none; opacity: 0.72; font-weight: 400; font-size: 9px; }
+/* …and Guard is a different SHAPE, not merely a different colour: it is the one
+   chip on the row that is good news, sitting next to the one that is not */
+.k-pt-guard { border-radius: 7px; }
 .k-pt-hero.k-pt-aimed .k-bar { box-shadow: 0 0 0 1px rgba(232,119,106,0.5); }
 /* A BLOW THAT KILLS IS NOT THE SAME NEWS AS A BLOW THAT HURTS, and a player
    who cannot see the difference cannot know that this is the turn to Guard, to
@@ -365,7 +393,12 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* AP. The number alone made you compare it to a maximum you had to remember;
    the pips under it show the whole budget, so "2 of 3 left" reads without
    arithmetic and a spent turn is visible from across the screen. */
-#k-ap { position: absolute; left: 24px; bottom: 100px; width: 66px; z-index: 13;
+/* THE PIPS WERE CAPTIONED "DECK". Measured: the AP pip row ends at bottom 330
+   and the deck pile's caption starts at 335 — five pixels apart and overlapping
+   horizontally — so the three diamonds and the word DECK read as one labelled
+   control, and the pips, which have no caption of their own, borrowed the wrong
+   one. Lifted clear of the pile. */
+#k-ap { position: absolute; left: 24px; bottom: 122px; width: 66px; z-index: 13;
   display: flex; flex-direction: column; align-items: center; gap: 7px; }
 /* THE CHROME IS HAIRLINES. A filled gold coin was the brightest object on a
    board whose whole language is thin rules and small caps; a ring reads the
@@ -2305,7 +2338,6 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    circle at the end of a 23px pill, and its gold ring broke the chip's rounded
    corner — it read as an accident rather than as a badge. Smaller, with the
    chip given room on that side. */
-.k-ichip img { width: 15px; height: 15px; margin-left: 4px; }
 .k-ichip-atk { padding-right: 5px; }
 
 /* THE ROAD: standing on a stop and being able to reach it were near-twins —
@@ -3036,3 +3068,23 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    second one illegibly. */
 #k-title-foot { display: none; }
 @keyframes k-tt-fade { from { opacity: 0; } }
+
+
+/* THE KEYWORDS A CARD ACTUALLY USES, beside the card, at the moment the player
+   is looking at it and asking what it does. See KEYWORD_RULE — before this the
+   game's entire rulebook was COND_RULE, which explains a card's condition and
+   nothing else, so Break, Guard, Bleed, Chill and the dirge were bolded numbers
+   with no definition anywhere in the build. */
+/* …and the hint is pinned to the panel's foot rather than flowing after the
+   keywords, which pushed it 95px down into the hand band on a card with two of
+   them and wrapped it to an orphan line. */
+.k-insp-side { position: relative; padding-bottom: 22px; }
+.k-insp-hint { position: absolute; left: 0; right: 0; bottom: 0; }
+.k-insp-keys { display: flex; flex-direction: column; gap: 7px; margin-top: 10px;
+  padding-top: 9px; border-top: 1px solid rgba(201,164,92,0.18); }
+.k-insp-key { display: grid; grid-template-columns: 15px 1fr; column-gap: 7px; row-gap: 2px;
+  align-items: start; }
+.k-insp-key svg { grid-row: 1; width: 13px; height: 13px; color: #c9a45c; margin-top: 1px; }
+.k-insp-key b { grid-column: 2; font-size: 10px; letter-spacing: 0.16em; color: #e0c084;
+  font-weight: 400; }
+.k-insp-key span { grid-column: 2; font-size: 10.5px; line-height: 1.42; color: #a79c88; }

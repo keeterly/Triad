@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 71;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 72;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -3752,14 +3752,23 @@ function setBar(bar, pct) {
 function renderPartyHud() {
   // what this turn is about to do to each of them, read from the same function
   // the chip row reads — one source, so the two can never disagree
-  const incoming = {};
+  // AIMED AND SHARED ARE TWO DIFFERENT FACTS AND THE BADGE HAS TO SAY BOTH.
+  // A first pass folded the dirge into one total, so Ash's row read a flat 12
+  // while the telegraph beside it read `9 ASH` and `3 all` — two authoritative
+  // numbers for one event, which a player cannot reconcile and which is worse
+  // than the seven-hundred-pixel journey the badge was added to remove. It
+  // prints the sum as its parts now: 9+3, the same two numbers the chip row
+  // shows, in the same order.
+  const aimed = {}, shared = {};
   if (C && C.boss && !C.boss.cancelNext && C.phase !== 'VICTORY' && C.phase !== 'DEFEAT') {
     try {
-      intentByTarget().forEach(r => { incoming[r.who] = (incoming[r.who] || 0) + r.total; });
+      intentByTarget().forEach(r => { aimed[r.who] = (aimed[r.who] || 0) + r.total; });
       const dg = dirgeAmount();
-      if (dg > 0) livingHeroes().forEach(id => { incoming[id] = (incoming[id] || 0) + dg; });
+      if (dg > 0) livingHeroes().forEach(id => { shared[id] = dg; });
     } catch (e) {}
   }
+  const incoming = {};
+  Object.keys(C.heroes).forEach(id => { incoming[id] = (aimed[id] || 0) + (shared[id] || 0); });
   for (const id of Object.keys(C.heroes)) {
     const h = C.heroes[id];
     const row = document.querySelector('.k-pt-hero[data-hero="' + id + '"]');
@@ -3768,14 +3777,23 @@ function renderPartyHud() {
     setBar(row.querySelector('.k-bar'), h.hp / h.max * 100);
     row.querySelector('.k-pt-hp').innerHTML = '<b>' + fmtN(h.hp) + '</b> / ' + fmtN(h.max)
       + (h.guard > 0 ? ' <span class="k-pt-guard">⛨' + fmtN(h.guard) + '</span>' : '')
-      + (incoming[id] ? ' <span class="k-pt-inc">\u2726' + fmtN(incoming[id]) + '</span>' : '');
+      + (incoming[id] ? ' <span class="k-pt-inc">\u2726'
+          // a hero nobody is aiming at reads the shared number alone, not "0+3"
+          + (aimed[id] ? fmtN(aimed[id]) + (shared[id] ? '<s>+' + fmtN(shared[id]) + '</s>' : '')
+                       : fmtN(shared[id] || 0))
+          + '</span>' : '');
     // THE THREAT BELONGS BESIDE THE BAR IT WILL EMPTY. The telegraph lived
     // seven hundred pixels away in the top-right corner, so reading "who takes
     // 13 twice" and reading "who is at 4 health" were two separate journeys
     // across the screen, and the player had to hold one of them in their head.
     // The same number is now in both places: the chip row says what the turn
     // does, each hero's own row says what it does TO THEM.
-    row.classList.toggle('k-pt-aimed', !!incoming[id] && !h.downed);
+    // AND THE OUTLINE MEANS AIMED, NOT MERELY PRESENT. Every foe in the
+    // bestiary carries a dirge and the dirge reaches everyone, so keying this
+    // on `incoming` lit all three rows on every turn of every fight — a
+    // highlight that is always on is chrome, and it drowned the one turn where
+    // somebody genuinely is the target.
+    row.classList.toggle('k-pt-aimed', !!aimed[id] && !h.downed);
     row.classList.toggle('k-pt-lethal', !h.downed && incoming[id] >= h.hp + h.guard);
   }
   const inter = el('k-intercede');
@@ -3833,6 +3851,14 @@ function renderBossHud() {
   el('k-bflag').textContent = '';
   const bw = document.querySelector('#k-boss-hud .k-break-wrap');
   if (bw) bw.classList.toggle('k-is-stag', stag);
+  // A GAUGE THAT COUNTS DOWN HAS TO SAY SO, AND SAY BY HOW MUCH. Twelve lit
+  // pips meant "furthest from Staggered" — backwards from every stagger bar a
+  // player has met, and unnumbered, so three turns of chipping looked identical
+  // to none. The pool is POISE and the thing your cards deal is BREAK, which is
+  // the grammar the card faces already use ("2 Break"); a full bar now honestly
+  // means intact. The number is the half a pip row cannot give.
+  const bn = el('k-brk-n');
+  if (bn) bn.textContent = stag ? '' : fmtN(C.boss.brk) + '/' + fmtN(C.boss.breakMax);
   el('k-turn-n').textContent = C.turn;
   // THE BREAK GAUGE ONLY EVER FLASHED AS A WHOLE. Knocking a pip out is the
   // single most consequential thing a support card does, and it was a silent
@@ -3900,8 +3926,13 @@ function renderIntent() {
     // that only Guard and healing reach it. Earlier builds carried the word
     // UNPARRYABLE on the old intent banner; the chip telegraph dropped it and
     // never put it back.
-    if (dg > 0) chips.push('<span class="k-ichip k-ichip-dirge">' + icon('brk')
-      + '<b>' + fmtN(dg) + '</b><i>all · no parry</i></span>');
+    // …AND IT HAS TWO ANSWERS, WHICH "no parry" DENIES. Guard absorbs it
+    // (see endTurn), and BROKEN cancels the whole action, hymn included —
+    // `if (dirge > 0 && !result.canceled)`. So the chip was telling the player
+    // there is nothing to be done about the single largest source of damage in
+    // the fight, while two counterplays sat unmentioned. It names them.
+    if (dg > 0) chips.push('<span class="k-ichip k-ichip-dirge">' + icon('dirge')
+      + '<b>' + fmtN(dg) + '</b><i>all · Guard or Break</i></span>');
   }
   box.innerHTML = chips.join('');
 }
@@ -4918,6 +4949,47 @@ function commitCard(cardId, allyId) {
 // MTG ARENA INSPECT — hold a card and it blows up, centred and legible, over a
 // dimmed board. Release to put it back. It never commits the card: playing is
 // dragging, so inspecting can never cost you a turn by accident.
+// THE GAME HAD NO RULES TEXT. `COND_RULE` explained a card's CONDITION and
+// that was the entire rulebook: Break, Guard, Bleed, Chill and the dirge appear
+// on card faces as bolded numbers with no definition anywhere in game.js, run.js
+// or index.html. A player could reach the Regent without ever being told that
+// Guard is spent at end of turn, that the dirge cannot be parried, or — the one
+// that decides fights — that emptying her Poise cancels her whole next action,
+// the hymn included.
+//
+// It lives in the inspect panel rather than in a glossary nobody opens: the
+// keywords a card actually uses are spelled out beside it, at the moment the
+// player is looking at that card and asking what it does.
+const KEYWORD_RULE = {
+  brk:   ['Break', 'Strips the foe\u2019s Poise. Empty it and they are STAGGERED: their next action dies unsung — the dirge with it — and they take +25% until it refills.'],
+  guard: ['Guard', 'Absorbed before health, and it is one of only two things that answer the dirge. It is spent at the end of your turn, so it is worth exactly the turn you bank it for.'],
+  heal:  ['Heal', 'Health back, up to the hero\u2019s maximum. Nothing carries over.'],
+  chill: ['Chill', 'The foe\u2019s NEXT hit lands softer. One hit only — the first one spends it.'],
+  bleed: ['Bleed', 'Ticks at the start of the foe\u2019s turn, then weakens by one. It stacks with itself.'],
+  dirge: ['The dirge', 'The hymn settles on all three of them after the blows. No timing answers it — only Guard, healing, and STAGGERING her before she sings.'],
+};
+// which of them a given card actually puts on the board
+function keywordsOf(effects, card) {
+  const k = new Set();
+  // WHAT THE FACE PRINTS, NOT ONLY WHAT RESOLVES THIS INSTANT. Reading
+  // `resolvedEffects` alone meant a card whose Break lives in its conditional
+  // half explained fewer keywords than the card in front of it was showing —
+  // and a sleeping condition is exactly the state a new player reads it in.
+  const all = (effects || []).slice()
+    .concat((card && card.base) || [])
+    .concat((card && card.cond && card.cond.bonus) || []);
+  for (const fx of all) {
+    // Counterstance's whole effect is a flag; its face still prints BREAK
+    if (fx.counterstance) k.add('brk');
+    if (fx.brk) k.add('brk');
+    if (fx.guardSelf || fx.guardAll || fx.guardAlly || fx.guardLowest) k.add('guard');
+    if (fx.heal || fx.healAll) k.add('heal');
+    if (fx.chill) k.add('chill');
+    if (fx.bleed) k.add('bleed');
+  }
+  return [...k];
+}
+
 function openInspect(cardId) {
   _focus = cardId;
   const ev = evaluateCard(cardId);
@@ -4937,6 +5009,13 @@ function openInspect(cardId) {
         + '<b>' + (COND_LABEL[c.cond.type] || c.cond.type) + ' — '
         + (ev.condActive ? 'ACTIVE' : 'not yet') + '</b>'
         + '<span>' + (COND_RULE[c.cond.type] || '') + '</span></div>' : '')
+    + (() => {
+        const ks = keywordsOf(ev.resolvedEffects, c);
+        if (!ks.length) return '';
+        return '<div class="k-insp-keys">' + ks.map(k =>
+          '<div class="k-insp-key">' + icon(k) + '<b>' + KEYWORD_RULE[k][0] + '</b>'
+          + '<span>' + KEYWORD_RULE[k][1] + '</span></div>').join('') + '</div>';
+      })()
     + '<div class="k-insp-hint">release to close · drag the card to play it</div>'
     + '</div>';
   f.classList.remove('k-hidden');
@@ -5118,7 +5197,7 @@ window.K = {
     const ix = REGENT_INTENTS.findIndex(i => i.id === id);
     if (ix >= 0) { C.boss.intentIx = ix; renderAll(); }
   },
-  parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
+  KEYWORD_RULE, keywordsOf, parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
   // test-only: the deeds ledger is what the reckoning is allowed to talk
   // about, so its two writers are drivable directly rather than only through a
   // whole fight that happens to produce the situation

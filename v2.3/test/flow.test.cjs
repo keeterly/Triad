@@ -673,6 +673,89 @@ const { boot } = require('./harness.cjs');
     // TOTAL with the FIRST target's face — so Elin's player was given no sign
     // they were targeted at all, and an StS-trained player read the total as
     // landing on Ash.
+    // EVERY INTENT IN THE BESTIARY, AGAINST THE BOARD. The telegraph was centred
+    // on a fixed x, so its width grew outward in both directions — and a
+    // three-target intent that also carries a dirge measured 356px wide, ending
+    // at x=943 on a 932 board. Four of the seventeen intents hung off the screen,
+    // and naming the targets (see OK_WORDS above) made it worse, because a name
+    // is wider than the 17px portrait crop it replaced. A centred readout of
+    // variable width will always find a case that does not fit; this sweeps for
+    // that case rather than waiting to meet it.
+    const fits = await J(async () => {
+      const bad = [];
+      let n = 0;
+      for (const f of Object.keys(window.K.FOES)) {
+        window.K.startCombat({ foe: window.K.FOES[f], seed: 3 });
+        for (const id of window.K.FOES[f].intents) {
+          try { window.K.forceIntent(id); } catch (e) { continue; }
+          await new Promise(r => setTimeout(r, 20));
+          n++;
+          const st = document.getElementById('k-stage').getBoundingClientRect();
+          const r2 = document.getElementById('k-intent').getBoundingClientRect();
+          if (r2.right > st.right + 0.5 || r2.left < st.left - 0.5)
+            bad.push(f + '/' + id + ':' + Math.round(r2.right - st.right));
+        }
+      }
+      return { n, bad, W: Math.round(document.getElementById('k-stage').getBoundingClientRect().width) };
+    });
+    // THE ROW AND THE CHIP MUST NOT DISAGREE. The incoming badge exists so the
+    // threat sits beside the health bar it will empty — and a first pass folded
+    // the dirge into one total, so Ash's row read a flat 12 while the telegraph
+    // beside it read `9 ASH` and `3 all`. Two authoritative numbers for one
+    // event is worse than the journey across the screen the badge removed. And
+    // the AIMED outline has to mean aimed: every foe carries a dirge and the
+    // dirge reaches everybody, so keying it on total incoming lit all three
+    // rows on every turn of every fight, which is chrome.
+    const rows = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      window.K.forceIntent('hymn');           // ash twice, elin once, mira not at all
+      await new Promise(r => setTimeout(r, 60));
+      const by = {};
+      window.K.intentByTarget().forEach(r2 => { by[r2.who] = r2.total; });
+      const dg = window.K.dirgeAmount();
+      const read = {};
+      ['ash', 'elin', 'mira'].forEach(id => {
+        const e = document.querySelector('.k-pt-hero[data-hero="' + id + '"] .k-pt-inc');
+        read[id] = e ? e.textContent.replace(/[^0-9+]/g, '') : null;
+      });
+      return { by, dg, read,
+               aimed: [...document.querySelectorAll('.k-pt-hero.k-pt-aimed')].map(e => e.dataset.hero) };
+    });
+    const want = (id) => (rows.by[id] ? rows.by[id] + '+' + rows.dg : String(rows.dg));
+    check('HUD: each hero’s badge shows the same two numbers the telegraph does — aimed, then shared',
+      ['ash', 'elin', 'mira'].every(id => rows.read[id] === want(id)),
+      JSON.stringify({ read: rows.read, aimed: rows.by, dirge: rows.dg }));
+    check('HUD: the aimed outline means AIMED — not merely alive under a dirge that reaches everyone',
+      rows.aimed.length === Object.keys(rows.by).length
+      && rows.aimed.every(id => rows.by[id] > 0),
+      JSON.stringify({ outlined: rows.aimed, targeted: Object.keys(rows.by) }));
+
+    // THE LANE IS THE BIGGEST DEFENSIVE LEVER AND IT HAS TO BE VISIBLE. Making
+    // the word bigger was not enough: at `bottom: -16px` it hangs under the
+    // figure's feet, and the two heroes nearest the camera have their feet
+    // INSIDE the hand — MID at y256 and FRONT at y278 against a hand beginning
+    // at y253 — so two of the three were painted behind the cards and the only
+    // one ever seen was whoever stood in the back.
+    const lanes = await J(() => {
+      const hand = document.getElementById('k-hand').getBoundingClientRect();
+      return [...document.querySelectorAll('.k-hero')].map(h => {
+        const w = h.querySelector('.k-hero-row'), r = w.getBoundingClientRect();
+        const cs = getComputedStyle(w);
+        return { who: h.dataset.hero, txt: w.textContent.trim(), px: parseFloat(cs.fontSize),
+                 behind: r.top < hand.bottom && r.bottom > hand.top
+                      && r.left < hand.right && r.right > hand.left };
+      });
+    });
+    check('LANES: all three lane words are readable and none is painted behind the hand',
+      lanes.length === 3 && lanes.every(l => l.txt && l.px >= 9 && !l.behind),
+      JSON.stringify(lanes));
+
+    check('TELEGRAPH: every intent in the bestiary fits the board, dirge and three targets and all',
+      fits.W > 900 && fits.n >= 15 && fits.bad.length === 0,
+      JSON.stringify({ measured: fits.n, W: fits.W, off: fits.bad }));
+    await fresh(7);
+    await J(() => { window.K.startCombat({ seed: 7 }); window.K.forceIntent('hymn'); });
+
     check('TELEGRAPH: one chip per hero struck, not one chip for the volley',
       tel.chips.length === tel.rows.length && tel.rows.length >= 2,
       JSON.stringify({ chips: tel.chips.length, targets: tel.rows.length }));
@@ -786,8 +869,17 @@ const { boot } = require('./harness.cjs');
       const t = (document.getElementById('k-intent') || {}).textContent || '';
       return { text: t, dirge: window.K.dirgeAmount() };
     });
-    check('SAYS: the dirge admits it cannot be parried — it looks like every blow that can be',
-      dirge.dirge <= 0 || /no parry/i.test(dirge.text), JSON.stringify(dirge));
+    // WHAT MOVED at Build 72: the chip said `all · no parry`, which is true and
+    // is not the whole truth — and on the single largest source of damage in
+    // the fight, half a truth reads as "there is nothing to be done". There
+    // are two answers. Guard absorbs it, and BROKEN cancels the entire action,
+    // hymn included (`if (dirge > 0 && !result.canceled)`), and neither was
+    // mentioned anywhere in the build. The rule this check is about — the
+    // unparryable blow must not look like the ones you can parry — now holds by
+    // naming what DOES reach it rather than by denying that anything does.
+    check('SAYS: the dirge does not read as a parryable blow — it names the two things that answer it',
+      dirge.dirge <= 0 || (/guard/i.test(dirge.text) && /break/i.test(dirge.text)),
+      JSON.stringify(dirge));
 
     const cue = await J(() => {
       const rows = [...document.querySelectorAll('.k-hero .k-hero-row')];
@@ -1778,7 +1870,9 @@ const { boot } = require('./harness.cjs');
       // exactly those grounds. The rule it was always really about — no
       // sentences, no restated rules — holds with the three heroes' names
       // added, and nothing else.
-      const OK_WORDS = ['all', 'no', 'parry', 'ash', 'elin', 'mira'];
+      // 'guard' and 'break' join the list at Build 72: the dirge chip names the
+      // two counterplays that reach it instead of saying `no parry`.
+      const OK_WORDS = ['all', 'or', 'guard', 'break', 'ash', 'elin', 'mira'];
       const words = (document.getElementById('k-intent').textContent.match(/[A-Za-z]+/g) || []);
       const noWords = words.every(w => OK_WORDS.indexOf(w.toLowerCase()) >= 0);
       const noBanner = !document.getElementById('k-int-notes') && !document.getElementById('k-int-hint')
