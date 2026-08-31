@@ -2933,3 +2933,70 @@ block's opening lines and left an orphan brace — the file no longer parsed.
 Restored from git and re-spliced against the exact end of the block being
 replaced. Cheap here because it failed loudly at `node -c`; the version of this
 mistake that removes a line and still parses is the expensive one.
+
+## Build 93 — the instrument for game feel
+
+No game code changed here. What shipped is a **measurement the project did not
+have**: `test/feel.playtest.cjs`, which walks one map end to end at *player
+speed* and records what a turn is actually made of.
+
+Every other harness boots `?test=1`, which caps every sleep at 24ms so two
+hundred fights fit in a minute. That is exactly right for a suite and useless
+for this question. A parry bar that takes 79ms under test takes **eight and a
+half seconds in a hand**, and no assertion in 500-odd checks would ever have
+noticed, because none of them are allowed to care how long anything takes. So
+this one boots `?realtime=1` and pays the wall-clock.
+
+Per turn it records: cards legal, cards played, combos live, screen elements to
+parse, hand size, AP, decide-ms, watch-ms, and the parry vocabulary of the
+enemy turn that followed.
+
+### What one map said
+
+Region STILLNESS, seed 7 — 23 stops, 11 walked, 5 fights, 31 turns.
+
+```
+THE SPLIT      deciding    162ms/turn    6%
+               watching   2523ms/turn   94%
+DECISION       playable 4.71 · played 3.55 · turns with ONE legal play  0
+THE READ       23.3 things on screen per turn
+PARRY LOAD     1.42 notes per enemy turn
+```
+
+A direct timing of a single enemy turn: **8752 ms**. That is the headline, and
+it is the number the artifact is named for. StS spends ~85% of a turn with the
+player acting; this spends 6%.
+
+### The finding I nearly reported backwards
+
+The same run said combos land **0.26 times per turn** and that 74% of turns
+light none — which reads as a dormant system and would have sent the next build
+at FOLLOW_UP.
+
+It was the bot. It spent AP greedily in hand order, and FOLLOW_UP wants a
+*different hero* to have acted. A control probe over 24 opening hands, playing
+the identical hands with deliberate hero alternation:
+
+```
+greedy      0.33 combos lit per turn
+deliberate  0.92
+```
+
+2.13 of 5 cards in hand carry a combo; all 3 heroes are present. **The system
+works; the instrument was playing badly.** Third time this session a
+measurement was about to be filed as a game fault when it was a harness fault
+— after the "reload wipes the bench" bug that was my own `?test=1` boot, and
+the DILATION drain read on a previous bar's way out. The counter-discipline is
+the same each time: before believing a number, prove the instrument was
+looking.
+
+### One real defect it did find
+
+The note curve is **inverted at the top**. Grief-Wraith (84hp) averages 5.0
+notes per bar and never opens under 4; the Mourning Regent (98hp) averages 4.8
+and can open on 2. The boss is the easier bar.
+
+### `feel.txt` is output, not source
+
+The run dumps its per-turn JSON next to itself. That is a report, and it is in
+`.gitignore` — committing it would make every run a diff.
