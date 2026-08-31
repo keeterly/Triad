@@ -689,6 +689,255 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       JSON.stringify(paid));
   }
 
+  // ═══ THE RECALLS ═══
+  // Build 98. The bond scenes were the game's only developing half, and the
+  // one thing that could open one was two heroes fighting well together. A
+  // party could travel the whole road, put down a thing it had never met and
+  // answer a crossroads at a real cost, and develop NOTHING — the journey was
+  // scenery with a fight in it.
+  //
+  // A recall is that beat with a different key: the ROAD sets it off, one
+  // person remembers, and the fork is a card the same way a bond's fork is.
+  // Everything past the fork is the machinery a bond already built, which is
+  // exactly why these checks are here rather than in a suite of their own.
+  console.log('\n── the recalls ──');
+  {
+    // THE TABLE STATES ITS OWN SHAPE. Nothing below names a memory, a card or
+    // a threshold: a fifth recall, a re-tuned `when` or a swapped card is a
+    // change these checks follow rather than a change they fail.
+    const T = await J(() => window.R.RECALLS.map(r => ({
+      id: r.id, who: r.who, title: r.title,
+      beats: (r.beats || []).length,
+      ask: r.ask, cards: r.picks.map(p => p.card),
+      lines: r.picks.map(p => p.line) })));
+
+    check('RECALL: every memory is one person remembering, with beats, a question and two cards',
+      T.length >= 3
+      && T.every(r => ['ash', 'elin', 'mira'].indexOf(r.who) >= 0)
+      && T.every(r => r.beats >= 3 && /\S/.test(r.title) && /\S/.test(r.ask))
+      && T.every(r => r.cards.length === 2 && r.lines.every(l => /\S/.test(l)))
+      && new Set(T.map(r => r.id)).size === T.length,
+      JSON.stringify(T.map(r => r.id + ':' + r.who + ':' + r.beats)));
+
+    // A MEMORY BELONGS TO THE PERSON HAVING IT. Every card a recall can hand
+    // over is owned by a pair the remembering hero is IN — otherwise Ash
+    // remembers something and Elin and Mira quietly get better at it.
+    const owned = await J(() => window.R.RECALLS.map(r => ({
+      id: r.id, who: r.who,
+      pairs: r.picks.map(p => (window.K.pairOf(p.card) || []).join('|')) })));
+    check('RECALL: every card a memory offers belongs to a pair the rememberer is in',
+      owned.every(r => r.pairs.every(k => k.split('|').indexOf(r.who) >= 0)),
+      JSON.stringify(owned));
+
+    // …AND THE TWO ARE A FORK, NOT A RANKING. Two cards that do the same thing
+    // to different numbers is the direct-upgrade trap the campfire already
+    // fell into once; a fork has to be a question.
+    const shapes = await J(() => window.R.RECALLS.map(r =>
+      r.picks.map(p => window.K.effectText(window.K.CARD_DEFS[p.card].base))));
+    check('RECALL: the two answers are different cards, not two sizes of one',
+      shapes.every(pair => pair[0] !== pair[1]), JSON.stringify(shapes));
+
+    // ── WHAT SETS ONE OFF ──
+    // The ledger is the ONLY input. Asserted both ways: an empty record fires
+    // nothing, and a record with everything in it fires every one of them — so
+    // a `when` that reads something else, or that can never be satisfied by
+    // play, shows up as a memory stuck on one side or the other.
+    const gate = await J(() => {
+      window.R.resetProfile();
+      window.R.newRun(11);
+      const st = window.R.state();
+      const virgin = window.R.pendingRecall();
+      const out = { virgin: virgin ? virgin.id : null, fires: [] };
+      const full = { felled: Object.keys(window.K.FOES), chose: ['x:y'],
+                     brink: ['ash', 'elin', 'mira'], told: [],
+                     deepest: window.R.STOPS - 1, flawless: 3 };
+      for (const rc of window.R.RECALLS) {
+        st.journey = JSON.parse(JSON.stringify(full));
+        let fired = false;
+        try { fired = !!rc.when(st); } catch (_) { fired = false; }
+        out.fires.push({ id: rc.id, fired });
+      }
+      // …and each one is DRIVEN BY THE LEDGER: knock every field back to empty
+      // one at a time and each memory must be turned off by at least one of
+      // them. A `when` that returns a constant survives every other check here.
+      out.reads = window.R.RECALLS.map(rc => {
+        const keys = Object.keys(full).filter(k => k !== 'told');
+        return { id: rc.id, by: keys.filter(k => {
+          st.journey = JSON.parse(JSON.stringify(full));
+          st.journey[k] = Array.isArray(full[k]) ? [] : 0;
+          try { return !rc.when(st); } catch (_) { return false; }
+        }) };
+      });
+      return out;
+    });
+    check('RECALL: an empty record of the journey sets off nothing',
+      gate.virgin === null, JSON.stringify({ virgin: gate.virgin }));
+    check('RECALL: a journey that did everything sets off every one of them',
+      gate.fires.every(f => f.fired), JSON.stringify(gate.fires));
+    check('RECALL: every memory is driven by the ledger and by nothing else',
+      gate.reads.every(r => r.by.length >= 1), JSON.stringify(gate.reads));
+
+    // ── THE DOOR ──
+    // A recall opens on ARRIVAL at the next stop, the same seam a bond uses,
+    // and it holds that stop so the road can come back to it.
+    const opened = await J(() => {
+      window.R.resetProfile();
+      window.R.newRun(11);
+      const st = window.R.state();
+      st.journey = { felled: Object.keys(window.K.FOES), chose: ['x:y'],
+                     brink: ['ash', 'elin', 'mira'], told: [],
+                     deepest: window.R.STOPS - 1, flawless: 3 };
+      const rc = window.R.pendingRecall();
+      const ok = window.R.openRecall('a-stop');
+      const sc = window.R.scene();
+      return { wanted: rc && rc.id, ok, id: sc && sc.id, kind: sc && sc.kind,
+               resume: window.R.state().bondResume,
+               onScene: !document.getElementById('k-scene').classList.contains('k-hidden'),
+               picks: (sc && sc.picks || []).map(p => p.card) };
+    });
+    check('RECALL: it opens as a scene, and remembers the stop it interrupted',
+      opened.ok && opened.kind === 'recall' && opened.id === opened.wanted
+      && opened.onScene && opened.resume === 'a-stop' && opened.picks.length === 2,
+      JSON.stringify(opened));
+
+    // The scene reads as ONE PERSON REMEMBERING: their name over the fork, and
+    // the whole party in the shot so the speaker can light up out of it.
+    const staged = await J(() => {
+      window.R.sceneSkip();
+      return { who: document.getElementById('k-scene-who').textContent.trim(),
+               forks: document.querySelectorAll('#k-scene-fork .k-fork').length,
+               faces: document.querySelectorAll('#k-scene-fork .k-card-fork').length,
+               ask: document.querySelector('#k-scene-fork .k-fork-ask').textContent.trim(),
+               cast: document.querySelectorAll('#k-scene-cast .k-sc-fig').length };
+    });
+    const rememberer = await J((id) => {
+      const rc = window.R.RECALLS.find(r => r.id === id);
+      return ({ ash: 'Ash', elin: 'Elin', mira: 'Mira' })[rc.who];
+    }, opened.id);
+    check('RECALL: the fork names the person remembering and shows both cards as faces',
+      staged.forks === 2 && staged.faces === 2 && /\S/.test(staged.ask)
+      && staged.who.toLowerCase() === rememberer.toLowerCase() && staged.cast === 3,
+      JSON.stringify({ staged, rememberer }));
+
+    // ── THE FORK IS A CARD ──
+    const took = await J(() => {
+      const sc = window.R.scene();
+      const want = sc.picks[0].card;
+      const sigilBefore = window.R.state().pendingSigil;
+      document.querySelector('#k-scene-fork .k-fork').click();
+      const st = window.R.state();
+      return { want, onSwap: !document.getElementById('k-swap').classList.contains('k-hidden'),
+               pending: st.pendingCard, sigil: st.pendingSigil, sigilBefore,
+               told: st.journey.told.slice(),
+               heard: window.R.profile().heard.indexOf(sc.id) >= 0,
+               won: window.R.profile().won.indexOf(want) >= 0 };
+    });
+    check('RECALL: answering hands the card to the swap and writes the memory down',
+      took.onSwap && took.pending === took.want && took.told.indexOf(opened.id) >= 0
+      && took.heard && took.won, JSON.stringify(took));
+    // A BOND LEVEL PAYS TWICE — a card and a mark. A recall pays ONCE. It is
+    // not a bond level and must not quietly hand out a bond level's sigil.
+    check('RECALL: it pays a card and nothing else — no mark, no bond level',
+      !took.sigil && !took.sigilBefore, JSON.stringify({ sigil: took.sigil }));
+
+    const settled = await J(() => {
+      const first = document.querySelector('#k-swap-cols .k-swapcard');
+      if (first) first.click();
+      const go = document.getElementById('k-swap-go');
+      if (go && !go.disabled) go.click();
+      const st = window.R.state();
+      const ids = window.K.rosterIds(st.roster);
+      return { n: ids.length, uniq: new Set(ids).size, has: ids.indexOf(st.pendingCard || '') < 0,
+               carries: ids, owes: st.pendingCard, resume: st.bondResume,
+               slots: ['ash', 'elin', 'mira'].map(h => st.roster[h].length),
+               screen: ['k-stage', 'k-map', 'k-camp', 'k-scene', 'k-swap', 'k-wake', 'k-mark']
+                 .filter(id => !document.getElementById(id).classList.contains('k-hidden')) };
+    });
+    check('RECALL: the trade lands and the road goes on — fifteen cards, one screen, no debt',
+      settled.n === 15 && settled.uniq === 15 && settled.slots.every(n => n === 5)
+      && !settled.owes && !settled.resume && settled.screen.length === 1
+      && settled.carries.indexOf(took.want) >= 0, JSON.stringify(settled));
+
+    // ── ONCE ──
+    // A memory that keeps coming back is not a memory, it is a wall. The
+    // trigger stays true forever, so `told` is the only thing stopping it.
+    const again = await J((id) => {
+      const st = window.R.state();
+      st.journey.deepest = window.R.STOPS - 1;
+      st.journey.chose = ['x:y']; st.journey.brink = ['ash', 'elin', 'mira'];
+      st.journey.felled = Object.keys(window.K.FOES);
+      const next = window.R.pendingRecall();
+      return { told: st.journey.told.slice(), next: next ? next.id : null, was: id };
+    }, opened.id);
+    check('RECALL: a memory already had never comes back, even though its trigger still holds',
+      again.told.indexOf(again.was) >= 0 && again.next !== again.was, JSON.stringify(again));
+
+    // ── AND IT NEVER OFFERS WHAT THEY ALREADY CARRY ──
+    // Same rule as the bond forks, and the same reason: every card a recall
+    // hands over is a card BORROWED HABIT can start a returning player with.
+    const dup = await J(() => {
+      window.R.resetProfile();
+      window.R.newRun(11);
+      const st = window.R.state();
+      st.journey = { felled: Object.keys(window.K.FOES), chose: ['x:y'],
+                     brink: ['ash', 'elin', 'mira'], told: [],
+                     deepest: window.R.STOPS - 1, flawless: 3 };
+      const rc = window.R.pendingRecall();
+      const hero = rc.who;
+      st.roster[hero] = [rc.picks[0].card].concat(st.roster[hero].slice(1));
+      window.R._set({ roster: st.roster });
+      window.R.openRecall(null);
+      const sc = window.R.scene();
+      return { id: rc.id, held: rc.picks[0].card,
+               picks: (sc && sc.picks || []).map(p => p.card) };
+    });
+    check('RECALL: a memory never offers a card the party already carries',
+      dup.picks.length === 1 && dup.picks.indexOf(dup.held) < 0, JSON.stringify(dup));
+
+    // …and when they carry BOTH there is nothing to hand over, so the memory
+    // does not fire at all. A bond scene still pays its level and is worth
+    // playing empty; a recall pays one thing, and a scene that arrives with
+    // empty hands is a scene the player watched for no reason.
+    const empty = await J(() => {
+      window.R.resetProfile();
+      window.R.newRun(11);
+      const st = window.R.state();
+      st.journey = { felled: Object.keys(window.K.FOES), chose: ['x:y'],
+                     brink: ['ash', 'elin', 'mira'], told: [],
+                     deepest: window.R.STOPS - 1, flawless: 3 };
+      const rc = window.R.pendingRecall();
+      const cards = rc.picks.map(p => p.card);
+      st.roster[rc.who] = cards.concat(st.roster[rc.who].slice(cards.length));
+      window.R._set({ roster: st.roster });
+      const next = window.R.pendingRecall();
+      return { was: rc.id, next: next ? next.id : null, cards };
+    });
+    check('RECALL: with both cards already carried the memory holds its tongue',
+      empty.next !== empty.was, JSON.stringify(empty));
+
+    // ── AND A BOND STILL COMES FIRST ──
+    // A bond is a threshold the player watched fill and is waiting on; a
+    // recall is the road paying out on its own. At most one of either per
+    // stop, and the one that was earned wins the tie.
+    const tie = await J(() => {
+      window.R.resetProfile();
+      window.R.newRun(11);
+      const st = window.R.state();
+      st.journey = { felled: Object.keys(window.K.FOES), chose: ['x:y'],
+                     brink: ['ash', 'elin', 'mira'], told: [],
+                     deepest: window.R.STOPS - 1, flawless: 3 };
+      window.R._set({ bonds: { 'ash|elin': 99, 'ash|mira': 0, 'elin|mira': 0 } });
+      const bondsWaiting = window.R.pendingBonds().length;
+      const recallWaiting = !!window.R.pendingRecall();
+      const opened = window.R.openBondScene('s') || window.R.openRecall('s');
+      const sc = window.R.scene();
+      return { bondsWaiting, recallWaiting, opened, kind: sc && sc.kind };
+    });
+    check('RECALL: with a bond and a memory both waiting, the earned one goes first',
+      tie.bondsWaiting >= 1 && tie.recallWaiting && tie.opened && tie.kind === 'bond',
+      JSON.stringify(tie));
+  }
+
   // ═══ THE RECKONING ═══
   // The beat after a fight, and the thing that makes it not a loading screen
   // with dialogue on it: every reckoning is selected by a deed the ENGINE

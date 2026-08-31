@@ -1229,6 +1229,102 @@ const { boot } = require('./harness.cjs');
       JSON.stringify({ over: lost.over }));
   }
 
+  // ═══ E2 · THE JOURNEY LEDGER ═══
+  // Build 98. The road now KEEPS A RECORD of itself — how deep the party got,
+  // what they put down, who nearly went, what they answered — and the recalls
+  // read nothing else. So the ledger is only as good as its four writers, and
+  // a writer that quietly stops firing turns a whole feature off with no
+  // symptom anywhere: the memories simply never arrive and the run looks the
+  // way it always did. Each writer is asserted against a real transition.
+  console.log('\n── the journey ledger ──');
+  {
+    await reset(11);
+    const virgin = await J(() => JSON.parse(JSON.stringify(window.R.state().journey)));
+    check('LEDGER: a new run starts with an empty record of itself',
+      virgin && virgin.felled.length === 0 && virgin.chose.length === 0
+      && virgin.brink.length === 0 && virgin.told.length === 0
+      && virgin.deepest === 0 && virgin.flawless === 0, JSON.stringify(virgin));
+
+    // 1 · DEEPEST is written by travel, and it is a high-water mark rather
+    // than a position — walking back would be the only way a "how far in"
+    // memory could un-happen.
+    const first = await J(() => window.R.reachable()[0]);
+    await J((id) => window.R.travel(id), first);
+    await sleep(420);
+    const oneIn = await J(() => ({ deepest: window.R.state().journey.deepest,
+                                   col: window.R.map().find(n => n.id === window.R.state().at).col }));
+
+    // 2 · FELLED and 3 · FLAWLESS are written by the end of a fight.
+    const foeId = await J(() => window.K.state().foe.id);
+    await finish('victory');
+
+    // …and the mark is a HIGH WATER, so it has to be watched moving. The
+    // trailhead is column 0 — a check that only looked at the first stop would
+    // read the same zero whether travel wrote the field or never touched it.
+    await J(() => window.R.travel(window.R.reachable()[0]));
+    await sleep(420);
+    const twoIn = await J(() => ({ deepest: window.R.state().journey.deepest,
+                                   col: window.R.map().find(n => n.id === window.R.state().at).col }));
+    check('LEDGER: travelling writes how far in they got',
+      oneIn.deepest === oneIn.col && twoIn.deepest === twoIn.col
+      && twoIn.deepest > oneIn.deepest, JSON.stringify({ oneIn, twoIn }));
+    const won = await J(() => JSON.parse(JSON.stringify(window.R.state().journey)));
+    check('LEDGER: putting something down writes it into the record, once',
+      won.felled.length === 1 && won.felled[0] === foeId, JSON.stringify({ foeId, felled: won.felled }));
+    check('LEDGER: a fight nobody was touched in counts as one',
+      won.flawless === 1, JSON.stringify({ flawless: won.flawless }));
+
+    // 4 · CHOSE is written by answering a crossroads. Driven through the same
+    // door the player uses, so a fork that stopped recording would show here.
+    const chose = await J(() => {
+      const st = window.R.state();
+      const before = st.journey.chose.length;
+      const def = window.R.EVENTS[0];
+      window.R.enterEvent({ id: 'x:0', kind: 'event', event: def.id });
+      window.R.sceneSkip();
+      window.R.takeEvent(0);
+      return { before, after: window.R.state().journey.chose.slice() };
+    });
+    check('LEDGER: answering a crossroads writes what they answered',
+      chose.after.length === chose.before + 1 && /:/.test(chose.after[chose.after.length - 1]),
+      JSON.stringify(chose));
+
+    // A STOP IS NEVER EATEN BY WHAT IT EARNED. The depth used to be written on
+    // DEPARTURE, so arriving at the column that crossed a memory's threshold
+    // recorded it and then tested the ledger against it in the same breath —
+    // the memory opened INSTEAD of the stop, and the fight the player had just
+    // chosen never started. The write moved to the moment the stop's business
+    // begins, so what a stop unlocks arrives at the NEXT arrival.
+    await reset(11);
+    const deep = await J(() => {
+      const st = window.R.state();
+      const trigger = window.R.RECALLS.find(r => {
+        const probe = { felled: [], chose: [], brink: [], told: [], deepest: 0, flawless: 0 };
+        if (r.when({ journey: probe })) return false;
+        for (let d = 1; d <= window.R.STOPS; d++) { probe.deepest = d; if (r.when({ journey: probe })) return true; }
+        return false;
+      });
+      let col = 1;
+      for (; col <= window.R.STOPS; col++) {
+        if (trigger.when({ journey: { felled: [], chose: [], brink: [], told: [], deepest: col, flawless: 0 } })) break;
+      }
+      const at = window.R.map().find(n => n.col === col && n.kind !== 'boss');
+      const prev = window.R.map().find(m => m.col === col - 1 && m.to.indexOf(at.id) >= 0);
+      window.R._set({ at: prev.id, path: [prev.id], stop: col });
+      window.R.travel(at.id);
+      return { id: trigger.id, col, kind: at.kind };
+    });
+    await sleep(600);
+    const landed = await J(() => ({
+      deepest: window.R.state().journey.deepest,
+      told: window.R.state().journey.told.slice(),
+      onScene: !document.getElementById('k-scene').classList.contains('k-hidden'),
+    }));
+    check('LEDGER: the stop that crosses a memory’s threshold still gets to happen',
+      !landed.onScene && landed.deepest === deep.col && landed.told.length === 0,
+      JSON.stringify({ deep, landed }));
+  }
+
   // ═══ F · THE BESTIARY IS A LADDER ═══
   console.log('\n── the bestiary ──');
   {
@@ -1313,11 +1409,40 @@ const { boot } = require('./harness.cjs');
       const offered = !!btn;
       if (btn) btn.click();
       const r = window.R.state() || {};
-      return { offered, at: r.at, embers: r.embers, stop: r.stop };
+      return { offered, at: r.at, embers: r.embers, stop: r.stop,
+               journey: JSON.parse(JSON.stringify(r.journey || null)) };
     }, before);
     check('SAVE: a stored run comes back whole — where you stand, and what you carry',
       round.offered && round.at === before.at && round.embers === before.embers && round.stop === before.stop,
-      JSON.stringify(round));
+      JSON.stringify({ at: round.at, embers: round.embers, stop: round.stop }));
+    // …AND THE RECORD OF THE JOURNEY COMES BACK WITH IT. `told` is the only
+    // thing stopping a memory arriving a second time, and every trigger stays
+    // true for the rest of the run — so a ledger that did not survive a reload
+    // would replay the same memory at every stop from there to the Regent.
+    check('SAVE: the record of the journey survives the tab, memories already had included',
+      !!round.journey
+      && round.journey.felled.join() === before.journey.felled.join()
+      && round.journey.told.join() === before.journey.told.join()
+      && round.journey.deepest === before.journey.deepest,
+      JSON.stringify({ before: before.journey, after: round.journey }));
+
+    // A SAVE FROM BEFORE THE LEDGER EXISTED still has to open. Build 97's runs
+    // carry no `journey` at all, and every trigger reads straight into it.
+    const old97 = await J((b) => {
+      const legacy = JSON.parse(JSON.stringify(b));
+      delete legacy.journey;
+      localStorage.setItem('kizuna23.run', JSON.stringify(legacy));
+      window.R.boot({});
+      const btn = document.querySelector('#k-title-go .k-tt-go[data-go="on"]');
+      if (btn) btn.click();
+      const r = window.R.state() || {};
+      return { at: r.at, journey: JSON.parse(JSON.stringify(r.journey || null)),
+               recall: (() => { try { return !!window.R.pendingRecall(); } catch (e) { return 'threw: ' + e.message; } })() };
+    }, before);
+    check('SAVE: a run stored before the ledger existed opens, and simply starts recording',
+      old97.at === before.at && !!old97.journey && old97.journey.felled.length === 0
+      && old97.journey.told.length === 0 && old97.recall === false,
+      JSON.stringify(old97));
   }
 
   // ═══ THE TITLE ═══

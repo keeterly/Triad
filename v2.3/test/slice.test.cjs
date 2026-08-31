@@ -230,43 +230,57 @@ const MAX_TURNS = 30;
     // conversation. Which means the walk can no longer tell a bond from a
     // memory by the screen alone (both are k-scene): it asks the scene what it
     // is.
+    // …AND AT BUILD 98 THERE ARE TWO KINDS OF CONVERSATION. A recall opens at
+    // the same seam, on the same screen, and ends on the same fork — the only
+    // differences are that one person is remembering rather than two talking,
+    // and that it pays a card and NOT a mark. The walk asks the scene which it
+    // is and answers it accordingly; a recall that quietly started paying a
+    // bond level's sigil would fail the assertion below rather than pass a
+    // looser one written to accommodate both.
     let bonds = 0;
-    const isBond = () => J(() => {
+    const convo = () => J(() => {
       const sc = window.R.scene();
-      return !!sc && sc.kind === 'bond';
+      return (sc && (sc.kind === 'bond' || sc.kind === 'recall')) ? sc.kind : null;
     });
-    if (v[0] === 'k-scene' && await isBond()) {
-      while (v[0] === 'k-scene' && await isBond() && bonds < 4) {
-        bonds++;
-        const traded = await J(() => {
-          window.R.sceneSkip();
-          window.R.takeBond(0);
-          const card = window.R.pendingCard();
-          const first = document.querySelector('#k-swap-cols .k-swapcard');
-          const dropped = first ? first.dataset.id : null;
-          if (first) first.click();
-          const go = document.getElementById('k-swap-go');
-          if (go && !go.disabled) go.click();
-          // A BOND LEVEL PAYS TWICE. The swap hands on to the marking screen,
-          // and the walk has to answer it or the fire never opens.
-          const marked = !document.getElementById('k-mark').classList.contains('k-hidden');
-          const mk = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
-          const markedCard = mk ? mk.dataset.id : null;
-          if (mk) mk.click();
-          const r = window.R.state();
-          return { card, dropped, marked, markedCard, sigil: r.sigils[markedCard] || null,
-                   sizes: ['ash', 'elin', 'mira'].map(h => r.roster[h].length),
-                   uniq: new Set(window.K.rosterIds(r.roster)).size };
-        });
-        log.push(`stop ${col}: bond — took ${traded.card}, gave up ${traded.dropped}`);
-        check(`SLICE: the bond at stop ${col} trades one for one — still five slots a hero`,
-          traded.sizes.every(n => n === 5) && traded.uniq === 15, JSON.stringify(traded));
-        check(`SLICE: the bond at stop ${col} also marks a card the party already carries`,
-          traded.marked && !!traded.markedCard && !!traded.sigil,
-          JSON.stringify({ marked: traded.marked, card: traded.markedCard, sigil: traded.sigil }));
-        await sleep(300);
-        v = await visible();
-      }
+    let kindNow = v[0] === 'k-scene' ? await convo() : null;
+    while (kindNow && bonds < 6) {
+      bonds++;
+      const traded = await J((k) => {
+        window.R.sceneSkip();
+        if (k === 'recall') window.R.takeRecall(0); else window.R.takeBond(0);
+        const card = window.R.pendingCard();
+        const first = document.querySelector('#k-swap-cols .k-swapcard');
+        const dropped = first ? first.dataset.id : null;
+        if (first) first.click();
+        const go = document.getElementById('k-swap-go');
+        if (go && !go.disabled) go.click();
+        // A BOND LEVEL PAYS TWICE. The swap hands on to the marking screen,
+        // and the walk has to answer it or the fire never opens. A RECALL PAYS
+        // ONCE, so for one of those the marking screen must not be there at all.
+        // ASK THE SCREEN, NOT THE DOM. The marking screen's buttons stay in the
+        // document once it has been used, so reading them while it is hidden
+        // reported the LAST bond's mark as this scene's — a recall that pays
+        // nothing looked exactly like one that had quietly paid a sigil.
+        const marked = !document.getElementById('k-mark').classList.contains('k-hidden');
+        const mk = marked ? document.querySelector('#k-mark-cols .k-mk:not([disabled])') : null;
+        const markedCard = mk ? mk.dataset.id : null;
+        if (mk) mk.click();
+        const r = window.R.state();
+        return { card, dropped, marked, markedCard, sigil: (markedCard && r.sigils[markedCard]) || null,
+                 sizes: ['ash', 'elin', 'mira'].map(h => r.roster[h].length),
+                 uniq: new Set(window.K.rosterIds(r.roster)).size };
+      }, kindNow);
+      log.push(`stop ${col}: ${kindNow} — took ${traded.card}, gave up ${traded.dropped}`);
+      check(`SLICE: the ${kindNow} at stop ${col} trades one for one — still five slots a hero`,
+        traded.sizes.every(n => n === 5) && traded.uniq === 15, JSON.stringify(traded));
+      check(`SLICE: the ${kindNow} at stop ${col} pays exactly what its kind pays`,
+        kindNow === 'bond'
+          ? (traded.marked && !!traded.markedCard && !!traded.sigil)
+          : (!traded.marked && !traded.markedCard),
+        JSON.stringify({ kind: kindNow, marked: traded.marked, card: traded.markedCard, sigil: traded.sigil }));
+      await sleep(300);
+      v = await visible();
+      kindNow = v[0] === 'k-scene' ? await convo() : null;
     }
     const want = kind === 'camp' ? 'k-camp'
       : (kind === 'story' || kind === 'event') ? 'k-scene' : 'k-stage';

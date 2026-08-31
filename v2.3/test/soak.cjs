@@ -189,7 +189,7 @@ const MAX_TURNS = 24;
   });
 
   // ── a run ────────────────────────────────────────────────────────────────
-  let finished = 0, wiped = 0, reloaded = 0, mysteries = 0, bonds = 0, recks = 0;
+  let finished = 0, wiped = 0, reloaded = 0, mysteries = 0, bonds = 0, recalls = 0, recks = 0;
   // …AND WHAT THE FIRES ACTUALLY BOUGHT. Counted across the whole soak because
   // a single fire buying nothing is ordinary (an empty purse, a sealed tier),
   // and every fire in every run buying nothing is a broken harness that reports
@@ -257,22 +257,33 @@ const MAX_TURNS = 24;
       // The cap stays because a stuck scene must still be caught, but it is no
       // longer four: a pair crossing TWO thresholds queues twice, and after
       // several straight wins each paying a reckoning, several deep is ordinary.
-      const isBond = () => J(() => { const sc = window.R.scene(); return !!sc && sc.kind === 'bond'; });
+      //
+      // …AND AT BUILD 98 THERE ARE TWO KINDS OF IT. A recall opens at the same
+      // seam and ends on the same fork; the walk answers whichever it meets and
+      // counts them apart, because "the road never opened a memory in four
+      // whole runs" and "the road opened one and it worked" are the two
+      // outcomes this loop exists to tell apart.
+      const convo = () => J(() => {
+        const sc = window.R.scene();
+        return (sc && (sc.kind === 'bond' || sc.kind === 'recall')) ? sc.kind : null;
+      });
       let guard = 0;
-      while (screen === 'k-scene' && await isBond() && guard++ < 14) {
+      let kindNow = screen === 'k-scene' ? await convo() : null;
+      while (kindNow && guard++ < 14) {
         deepestBond = Math.max(deepestBond, guard);
-        bonds++;
+        if (kindNow === 'recall') recalls++; else bonds++;
         await J(() => { window.R.sceneSkip(); });
         await sleep(160);
-        await step('bond fork');
+        await step(kindNow + ' fork');
         await J(() => {
           const f = [...document.querySelectorAll('#k-scene-fork .k-fork')];
           f[Math.floor(Math.random() * f.length)].click();
         });
         await sleep(260);
-        screen = await step('bond swap');
-        screen = await clearDebts('bond payout', screen);
-        note('bond');
+        screen = await step(kindNow + ' swap');
+        screen = await clearDebts(kindNow + ' payout', screen);
+        note(kindNow);
+        kindNow = screen === 'k-scene' ? await convo() : null;
       }
 
       if (kind === 'camp') {
@@ -405,7 +416,7 @@ const MAX_TURNS = 24;
 
   console.log('\n── the soak ──');
   console.log(`    ${RUNS} runs · ${finished} reached the Regent and won · ${wiped} wiped`);
-  console.log(`    ${reloaded} mid-run reloads · ${mysteries} crossroads · ${bonds} bond scenes · ${recks} reckonings`
+  console.log(`    ${reloaded} mid-run reloads · ${mysteries} crossroads · ${bonds} bond scenes · ${recalls} recalls · ${recks} reckonings`
     + `\n    deepest queue of conversations at one stop: ${deepestBond}`
     + `\n    memories kindled across every fire: ${kindledTotal}`);
 
@@ -417,6 +428,14 @@ const MAX_TURNS = 24;
     `won ${finished} · wiped ${wiped} · reloads ${reloaded} · crossroads ${mysteries}`);
   check('SOAK: …and it actually SPENT at the fires — a walk that kindles nothing is a broken walk',
     kindledTotal >= 1, 'kindled ' + kindledTotal + ' across ' + RUNS + ' runs');
+  // THE SAME RULE FOR THE ROAD'S OTHER PAYOUT. Every recall trigger is a fact a
+  // walk to the Regent produces on its own — a crossroads answered, four
+  // columns of depth — so a full soak that never opened one is not a run of
+  // luck, it is a feature that has quietly stopped firing. Asserted the way the
+  // fires are: the walk must be seen DOING it, not merely found not to have
+  // broken while it did nothing.
+  check('SOAK: …and the road actually REMEMBERED something — a walk with no recall is a broken walk',
+    recalls >= 1, recalls + ' recalls across ' + RUNS + ' runs');
   check('SOAK: not one page error across every run',
     H.errs.length === 0, H.errs.slice(0, 3).join(' | ') || 'clean');
 

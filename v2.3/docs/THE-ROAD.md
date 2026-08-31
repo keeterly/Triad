@@ -3571,3 +3571,120 @@ screen that will never be painted are the same DOM, and the second look separate
 them (a slow paint is noted in the trail rather than silently absorbed). If the
 original hit was a paint race, that is now labelled; if it is a real lock, it is
 now diagnosable. Neither is a fix and it is not being recorded as one.
+
+---
+
+## Build 98 — the road remembers
+
+**The gap.** The game had exactly one developing half — the bond scenes — and
+exactly one thing that could open one: two heroes fighting well together often
+enough to cross a threshold. So a party could travel to the bottom of the
+Cinders, put down a thing it had never met, watch somebody nearly go, and
+answer a crossroads at a real cost, and develop **nothing**. Everything that
+happened *on* the road was scenery with a fight in it.
+
+A recall is that beat in a different key. The road sets it off, **one** person
+remembers, and the fork is a card the same way a bond's fork is a card.
+
+### The journey ledger
+
+Four facts, written by four transitions, and the memories read nothing else:
+
+| field | written by | what it is |
+| --- | --- | --- |
+| `deepest` | `enterStop` | how far into the region they have walked — a high water, not a position |
+| `felled` | `onFightEnd` | what they have put down, once each |
+| `brink` | `onFightEnd` | who dropped to a quarter or less, ever |
+| `chose` | `takeEvent` | which crossroads, answered which way (`toll:PAY THE BOWL`) |
+| `flawless` | `onFightEnd` | fights nobody was touched in |
+
+`when` is a pure function of that ledger, which is what lets a check drive every
+memory without walking a road — and what lets the checks assert *both* ways:
+an empty record sets off nothing, a record that did everything sets off all of
+them, and knocking each field back to empty must turn at least one memory off.
+A `when` that returned a constant would pass every other check in the file.
+
+### The four
+
+| memory | who | what sets it off | the fork |
+| --- | --- | --- | --- |
+| HOW FAR IN | Ash | four columns deep | plant himself (Last Vigil) / stop counting (Gravebloom) |
+| SHE KNEW THAT ONE | Mira | a wraith felled | come apart on purpose (Cut the Cord) / not be where it lands (Cold Mercy) |
+| THE COUNT | Elin | anyone on the brink | keep everyone standing (Shieldsong) / find the worst one (A Quiet Word) |
+| WHAT IT COST | Ash | a crossroads answered | pay up front (Ashen Oath) / cover the one who did not choose (Shield the Blade) |
+
+Every card a memory offers is owned by a pair the rememberer is **in** —
+otherwise Ash remembers something and the other two quietly get better at it.
+
+### A second door into a room that was already built
+
+Everything past the fork is the bond machinery: the scene, the card faces, the
+swap that makes room, the profile that outlives the run. What is genuinely new
+is 90 lines. The two real differences are asserted rather than assumed:
+
+- **A bond pays twice, a recall pays once.** A bond level hands over a card
+  *and* a mark. A recall hands over a card. The slice's walk answers whichever
+  it meets and checks that each paid exactly its own price.
+- **A recall with empty hands does not fire.** A bond scene still plays when the
+  party already carries both its cards, because the level is the payout and the
+  scene is the story beat. A recall's only payout is the card, so it holds its
+  tongue and stays available in case a later swap frees one.
+
+A bond still goes first when both are waiting: a bond is a threshold the player
+watched fill and is waiting on, a recall is the road paying out on its own.
+
+### The bug the campfire suite found
+
+The depth was written in `travel()`, on departure. So arriving at the column
+that crossed a memory's threshold recorded it and then tested the ledger against
+it **in the same breath** — the memory opened *instead* of the stop, and the
+fight the player had just chosen never started. The camp suite caught it as
+"the next fight opens with the deck the fire built", failing with a card face
+from the fight before.
+
+The write moved into `enterStop`, which is the one funnel every stop passes
+through, chain or no chain. Now there is a single seam: **a stop writes what it
+did as its business begins, and whatever that unlocks arrives at the next
+arrival** — exactly where a bond level already lands. That ordering is now a
+check of its own, derived from the table: it finds whichever memory a depth can
+set off, walks to the column that sets it off, and asserts the stop still
+happens.
+
+### What it looks like on a road
+
+A seed-11 walk, start to Regent: bonds at stops 2, 5, 6 and 7; recalls at 3 and
+8. **Nine of eleven stops now carry a developing beat**, against four before.
+The other two memories did not fire — no wraith was met and nobody hit the
+brink — which is the point of a conditional trigger rather than a schedule.
+
+### A migration that was written and never called
+
+`withJourney` existed from the first commit of this build — every trigger reads
+straight into `RUN.journey`, so a Build-97 save with no ledger would have thrown
+on the first fight it finished. It was defined and then **never wired to
+`load()`**. A check that stores a legacy run and boots it found it in one line.
+
+`load()` is the single door onto a stored run, which is the only reason a
+one-line migration is enough — and the reason the miss was invisible until
+something asked.
+
+### Where it stands
+
+| suite | |
+| --- | --- |
+| flow | 250/250 |
+| road | 94/94 (+8) |
+| bond | 62/62 (+15) |
+| slice | 59/59 (+4) |
+| camp | 45/45 |
+| music | 22/22 · beat 10/10 |
+| soak | **10 runs, 5/5, 0 page errors** — 7 reached the Regent, 42 bond scenes, **24 recalls**, 21 memories kindled |
+
+The soak's new gate is the one that matters: *a walk with no recall is a broken
+walk*. Every trigger is a fact a walk to the Regent produces on its own, so a
+full soak that never opened a memory is not bad luck — it is a feature that has
+quietly stopped firing, and that is exactly the failure this project keeps
+finding a build too late.
+
+The intermittent soft-lock from Build 97 did not appear in these ten runs. That
+is not evidence it is fixed; it was one in roughly thirty before.

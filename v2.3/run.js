@@ -305,6 +305,90 @@
   function heard(id) { return PROFILE.heard.indexOf(id) >= 0; }
   function won(id) { return PROFILE.won.indexOf(id) >= 0; }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // THE RECALLS — a memory the ROAD sets off, not the fighting
+  // ═══════════════════════════════════════════════════════════════════════
+  // The bond scenes are the game's developing half and there was exactly one
+  // thing that could open one: two heroes acting well together often enough to
+  // cross a threshold. So a party that travelled a long way, put down something
+  // it had never met, and answered a crossroads in a way that cost them
+  // something developed NOTHING. The journey was scenery with a fight in it.
+  //
+  // A recall is the same beat with a different key. Everything downstream is
+  // shared — the scene, the fork, the card, the swap that makes room for it,
+  // the profile that remembers it after the run dies — so this is a second
+  // DOOR into a room that was already built, not a second room.
+  //
+  // `when` reads the journey ledger and nothing else. It is a pure function of
+  // the run, which is what lets a check drive it without walking a road.
+  const RECALLS = [
+    // ── A PLACE ──
+    { id: 'rc-deep', who: 'ash', title: 'HOW FAR IN',
+      when: (r) => r.journey.deepest >= 4,
+      beats: [
+        { who: null,  line: 'The light has not changed in hours. It is not that it is dark — it is that it is the SAME, and has been, for longer than a day should hold still.' },
+        { who: 'ash', line: 'I used to be able to tell how far we had come by how tired I was.' },
+        { who: 'mira', line: 'And now?' },
+        { who: 'ash', line: 'Now I am tired the same amount I was at the gate. That is the part I do not like.' },
+      ],
+      ask: 'What does he do with that?',
+      picks: [
+        { line: 'He plants himself and lets it come to him.', card: 'lastvigil',
+          after: 'If the road will not end, he will simply stop moving first.' },
+        { line: 'He stops counting and keeps walking.', card: 'gravebloom',
+          after: 'Whatever this place is taking, he decides not to notice it going.' },
+      ] },
+    // ── A MONSTER ──
+    { id: 'rc-wraith', who: 'mira', title: 'SHE KNEW THAT ONE',
+      when: (r) => r.journey.felled.indexOf('wraith') >= 0,
+      beats: [
+        { who: null,   line: 'It came apart the way wet paper does. Mira does not look away from where it was for a long time after there is nothing there.' },
+        { who: 'elin', line: 'You have seen one before.' },
+        { who: 'mira', line: 'I have BEEN one before. For about a week. It is not a thing you catch, it is a thing you agree to.' },
+        { who: 'elin', line: '…and you disagreed.' },
+        { who: 'mira', line: 'Somebody disagreed on my behalf. I never found out who.' },
+      ],
+      ask: 'What does she take from it?',
+      picks: [
+        { line: 'The trick of coming apart on purpose.', card: 'cutthecord',
+          after: 'Open it, step out of reach — and the line moves with her.' },
+        { line: 'The trick of not being where the grief lands.', card: 'coldmercy',
+          after: 'Slow the song before it reaches anyone.' },
+      ] },
+    // ── AN INTERACTION: somebody nearly lost ──
+    { id: 'rc-brink', who: 'elin', title: 'THE COUNT',
+      when: (r) => r.journey.brink.length >= 1,
+      beats: [
+        { who: null,   line: 'Nobody died. Elin has said so twice, which is once more than she needed to.' },
+        { who: 'elin', line: 'I keep a number. I have kept it since before either of you.' },
+        { who: 'ash',  line: 'Of what?' },
+        { who: 'elin', line: 'Of the ones I got to in time. It is not a large number and I do not intend to stop adding to it.' },
+      ],
+      ask: 'What does she reach for?',
+      picks: [
+        { line: 'The thing that keeps everyone standing.', card: 'shieldsong',
+          after: 'Nobody strikes. The whole line simply stops being open.' },
+        { line: 'The thing that finds the one who is worst.', card: 'quietword',
+          after: 'Cover the one who needs it, and find the next answer.' },
+      ] },
+    // ── A DECISION ──
+    { id: 'rc-chose', who: 'ash', title: 'WHAT IT COST',
+      when: (r) => r.journey.chose.length >= 1,
+      beats: [
+        { who: null,   line: 'The crossroads is a long way behind them. Ash is still doing the arithmetic on it.' },
+        { who: 'ash',  line: 'I want it written down somewhere that we chose that.' },
+        { who: 'mira', line: 'Nobody is writing anything down.' },
+        { who: 'ash',  line: 'Then I will remember it, and you can all be furious with me later when I bring it up.' },
+      ],
+      ask: 'What does he carry out of it?',
+      picks: [
+        { line: 'The willingness to pay up front.', card: 'ashenoath',
+          after: 'Everything, at once, and nothing held back.' },
+        { line: 'The habit of covering the one who did not choose.', card: 'shieldblade',
+          after: 'He stands in front. She works behind him.' },
+      ] },
+  ];
+
   // ── the bond scenes ──────────────────────────────────────────────────────
   // Six: three pairs, two levels each. Every one ends in a fork, and the fork
   // IS the card — the same two people at the same point in their story, taken
@@ -1031,6 +1115,17 @@
       foeBonus: 0,                                // HP the Regent woke up with
       wakePair: null,                             // the pair STILL CLOSE names
       seen: [],                                   // the memories this run has heard
+      // ── WHAT THE ROAD HAS ACTUALLY DONE ──────────────────────────────────
+      // The only thing that could make one of them remember was bond points,
+      // which come from fighting well — so a run that travelled widely and
+      // fought plainly developed nothing, and the journey itself was scenery.
+      // This is the ledger a memory can be triggered ON: a place reached, a
+      // thing put down, a decision taken, somebody nearly lost.
+      //
+      // Every field is fed from something the game ALREADY emits — the fight
+      // summary's deeds ledger and the crossroads' own answer — so this
+      // invents no currency and nothing new has to be remembered to write.
+      journey: { felled: [], chose: [], brink: [], told: [], deepest: 0, flawless: 0 },
       reckSeen: [],                               // the reckonings it has already spoken
       tier: 1,                                    // raised by MEMORY stops (Build 28)
       hp: null,                                   // null = everyone is whole
@@ -1039,12 +1134,28 @@
     };
   }
   function save() { try { localStorage.setItem(RUN_KEY, JSON.stringify(RUN)); } catch (_) {} }
+  // A RUN SAVED BEFORE THE LEDGER EXISTED STILL LOADS. Anything reading
+  // `RUN.journey.felled` on a Build-97 save would throw on the first stop, and
+  // the reload path is the one every soak run walks.
+  function withJourney(r) {
+    if (r && !r.journey) r.journey = { felled: [], chose: [], brink: [], told: [], deepest: 0, flawless: 0 };
+    if (r && r.journey) {
+      for (const k of ['felled', 'chose', 'brink', 'told']) if (!Array.isArray(r.journey[k])) r.journey[k] = [];
+      for (const k of ['deepest', 'flawless']) if (typeof r.journey[k] !== 'number') r.journey[k] = 0;
+    }
+    return r;
+  }
   function load() {
     try {
       const raw = localStorage.getItem(RUN_KEY);
       if (!raw) return null;
       const r = JSON.parse(raw);
-      return (r && r.map && r.map.length) ? r : null;
+      // EVERY DOOR ONTO A STORED RUN IS THIS ONE, which is the only reason the
+      // migration can live in one place. It was written and then never called
+      // for a build, and the road suite caught it: a Build-97 save came back
+      // with no `journey` at all, and the first fight it finished would have
+      // thrown on `J.felled`.
+      return (r && r.map && r.map.length) ? withJourney(r) : null;
     } catch (_) { return null; }
   }
   function clear() { try { localStorage.removeItem(RUN_KEY); } catch (_) {} }
@@ -1466,10 +1577,28 @@
   // that stop's own business, at most one. Eleven stops carry the developing
   // half of the game between them instead of three.
   function enter(n) {
-    if (n.kind !== 'boss' && openBondScene(n.id)) return;
+    // A BOND FIRST, THEN A RECALL. A bond is a threshold the player watched
+    // fill and is waiting on; a recall is the road paying out on its own, and
+    // the gaps between bonds are exactly where it belongs. At most one of
+    // either per stop, so over a road they interleave rather than queue.
+    if (n.kind !== 'boss' && (openBondScene(n.id) || openRecall(n.id))) return;
     enterStop(n);
   }
   function enterStop(n) {
+    // HOW FAR INTO THIS PLACE THEY HAVE COME. A region is chosen at the top of
+    // a run and never changes, so "you are in the Cinders" is true on stop one
+    // and says nothing; how DEEP into it they have walked is the fact a memory
+    // of a place can hang on.
+    //
+    // WRITTEN HERE, NOT IN travel(), and the difference is a whole beat. Set
+    // on departure, arriving at the fourth column recorded the fourth column
+    // and then immediately checked the ledger against it — so the memory of
+    // how far in they had come opened INSTEAD of the stop that earned it, and
+    // the fight the player had chosen never started. Every trigger now shares
+    // one seam: a stop writes what it did as its business begins, and whatever
+    // that unlocks arrives at the NEXT arrival, which is exactly where a bond
+    // level already lands.
+    if (RUN.journey) RUN.journey.deepest = Math.max(RUN.journey.deepest || 0, n.col || 0);
     if (n.kind === 'camp') return enterCamp(n);
     if (n.kind === 'story') return enterStory(n);
     if (n.kind === 'event') return enterEvent(n);
@@ -1503,6 +1632,14 @@
     RUN.pending = null;
     RUN.last = sum;
     RUN.hp = sum.partyHp;
+    // WHAT THIS FIGHT PUT IN THE LEDGER. Read off the summary the engine
+    // already builds rather than counted again here: a second tally of the
+    // same events is a second tally that can disagree with the first.
+    const J = RUN.journey;
+    if (sum.outcome === 'victory' && sum.foe && J.felled.indexOf(sum.foe) < 0) J.felled.push(sum.foe);
+    const d = sum.deeds || {};
+    (d.brink || []).forEach(h => { if (J.brink.indexOf(h) < 0) J.brink.push(h); });
+    if (sum.outcome === 'victory' && d.untouched) J.flawless++;
     RUN.kizuna = Math.round((sum.kizuna || 0) * KIZUNA_CARRY);
     // the fight's bonds bank into the run
     for (const k of PAIRS) RUN.bonds[k] = (RUN.bonds[k] || 0) + ((sum.pairBond || {})[k] || 0);
@@ -1789,6 +1926,63 @@
     // Nothing to hand over — they already carry everything this scene could
     // give — so the level pays its other half and the road goes on.
     if (!card) { save(); if (!openMark(pair)) endBondChain(); return; }
+    openSwap(card, after, null);
+  }
+
+  // ── the recalls ──────────────────────────────────────────────────────────
+  // A recall is offered when the ledger says so AND there is still something
+  // it could hand over. That second half matters: a bond scene pays a level
+  // and a mark even when both its cards are already carried, so it is worth
+  // playing empty — a recall pays ONE thing, and a memory that arrives with
+  // nothing in its hands is a scene the player watched for no reason. It
+  // simply does not fire, and stays available in case a later swap frees it.
+  function pendingRecall() {
+    if (!RUN || !RUN.journey) return null;
+    const held = new Set(window.K.rosterIds(RUN.roster));
+    const told = RUN.journey.told || [];
+    for (const rc of RECALLS) {
+      if (told.indexOf(rc.id) >= 0) continue;
+      let fires = false;
+      try { fires = !!rc.when(RUN); } catch (_) { fires = false; }
+      if (!fires) continue;
+      if (!rc.picks.some(p => !held.has(p.card))) continue;
+      return rc;
+    }
+    return null;
+  }
+  // Same shape as openBondScene, and deliberately so — everything downstream
+  // (the beats, the fork, the swap, the profile) is the machinery a bond scene
+  // already built. The differences are the two this scene actually has: one
+  // person is remembering rather than two talking, and the payout is the card
+  // and nothing else.
+  function openRecall(resume) {
+    const rc = pendingRecall();
+    if (!rc) return false;
+    RUN.bondResume = resume || null;
+    const held = new Set(window.K.rosterIds(RUN.roster));
+    _scene = { ...rc, kind: 'recall' };
+    _scene.picks = rc.picks.filter(p => !held.has(p.card));
+    _beat = 0;
+    save();
+    screen('scene');
+    renderScene();
+    openSplash(_scene);
+    return true;
+  }
+  function takeRecall(ix) {
+    if (!_scene || _scene.kind !== 'recall') return;
+    const pick = _scene.picks[ix]; if (!pick) return;
+    const J = RUN.journey;
+    if (J.told.indexOf(_scene.id) < 0) J.told.push(_scene.id);
+    // The profile remembers a recall exactly the way it remembers a bond: the
+    // scene was heard, the card was won. BORROWED HABIT reads one list.
+    if (!heard(_scene.id)) PROFILE.heard.push(_scene.id);
+    if (pick.card && !won(pick.card)) PROFILE.won.push(pick.card);
+    saveProfile();
+    const card = pick.card, after = pick.after;
+    closeScene();
+    save();
+    if (!card) return endBondChain();
     openSwap(card, after, null);
   }
 
@@ -2123,7 +2317,8 @@
       + '<div class="k-spl-veil"></div>'
       + '<div class="k-spl-t"><b>' + (sc.title || 'A MEMORY') + '</b>'
       + '<span>' + (sc.kind === 'event' ? 'A CROSSROADS'
-                  : sc.kind === 'bond' ? 'WHAT THEY CARRY' : 'A MEMORY') + '</span></div>';
+                  : sc.kind === 'bond' ? 'WHAT THEY CARRY'
+                  : sc.kind === 'recall' ? 'SOMETHING COMES BACK' : 'A MEMORY') + '</span></div>';
     setSceneArt(sp.querySelector('img'), sc);
     // re-trigger the entrance even when two scenes open back to back
     sp.classList.remove('k-spl-in'); void sp.offsetWidth; sp.classList.add('k-spl-in');
@@ -2185,7 +2380,7 @@
     const done = _beat >= beats.length;
     $('k-scene').classList.toggle('k-sc-done', done);
     $('k-scene').classList.toggle('k-sc-myst', _scene.kind === 'event');
-    const forking = done && (_scene.kind === 'bond' || _scene.kind === 'event');
+    const forking = done && (_scene.kind === 'bond' || _scene.kind === 'event' || _scene.kind === 'recall');
     $('k-scene').classList.toggle('k-sc-fork', forking);
     const forkBox = $('k-scene-fork');
     if (forkBox) {
@@ -2237,12 +2432,15 @@
               + (p.card ? window.K.staticCardHTML(p.card, { cls: 'k-card-fork' }) : '')
               + '</button>').join('')
           + '</div>';
+        const take = _scene.kind === 'recall' ? takeRecall : takeBond;
         forkBox.querySelectorAll('.k-fork').forEach(b =>
-          b.addEventListener('click', (e) => { e.stopPropagation(); takeBond(+b.dataset.ix); }));
+          b.addEventListener('click', (e) => { e.stopPropagation(); take(+b.dataset.ix); }));
       }
     }
     if (forking) {
-      who.textContent = _scene.kind === 'event' ? '' : (PAIR_NAME[_scene.pair] || '');
+      who.textContent = _scene.kind === 'event' ? ''
+        : _scene.kind === 'recall' ? (CAST[_scene.who] ? CAST[_scene.who].n : '')
+        : (PAIR_NAME[_scene.pair] || '');
       who.classList.remove('k-hidden');
       box.className = 'k-sc-line k-sc-narr';
       box.textContent = '';
@@ -2298,6 +2496,9 @@
     const beats = sceneBeats();
     const done = _beat >= beats.length;
     const speaker = done ? null : (beats[_beat].who || null);
+    // WHO IS IN THE SHOT. A bond is a two-hander; a recall is one person
+    // remembering with whoever happens to answer them, so the whole party
+    // stands there and the speaker lights up out of it.
     const inShot = _scene.kind === 'bond' ? _scene.pair.split('|') : ['elin', 'ash', 'mira'];
     const order = ['elin', 'ash', 'mira'].filter(h => inShot.indexOf(h) >= 0);
     cast.innerHTML = order.map(id => {
@@ -2317,7 +2518,7 @@
     // choice is the exit, and tapping past it would be a stop that resolved
     // itself. Named positively: an unrecognised kind must fall through to the
     // payout, never get stuck in front of a fork that is not there.
-    if ((_scene.kind === 'bond' || _scene.kind === 'event') && _beat >= n) return;
+    if ((_scene.kind === 'bond' || _scene.kind === 'event' || _scene.kind === 'recall') && _beat >= n) return;
     if (_beat < n) { _beat++; renderScene(); return; }
     finishScene();
   }
@@ -2391,6 +2592,10 @@
   function takeEvent(ix) {
     if (!_scene || _scene.kind !== 'event' || RUN.over) return;
     const p = _scene.picks[ix]; if (!p) return;
+    // A DECISION IS A THING THAT HAPPENED. Recorded as the crossroads and the
+    // answer, so a memory can be triggered on having chosen at all, or on
+    // having chosen a particular way.
+    RUN.journey.chose.push(_scene.id + ':' + (p.label || ix));
     const fx = p.fx;
     if (fx.embers) RUN.embers = Math.max(0, RUN.embers + fx.embers);
     if (fx.heal || fx.hurt) {
@@ -3111,6 +3316,7 @@
     RECKONINGS, pickReckoning, openReckoning, takeReckoning, enterEvent,
     reckoning: () => _reck, reckNext, closeReck, TREE, treeNode, kindle, apBonusOf, openBranch, closeBranch, campOpen: () => _campOpen, tapMemory, focusMemory, sitDown, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
     pendingBonds, openBondScene, takeBond, confirmSwap, renderSwap,
+    RECALLS, pendingRecall, openRecall, takeRecall,
     WAKES, wakeOffer, takeWake, renderWake, wakeDef, wakePair,
     SIGIL_BY_PAIR, sigilFor, renderMark, placeSigil, openMark, leaveMark,
     swapPick: () => _swapPick, pendingCard: () => _pendingCard,
