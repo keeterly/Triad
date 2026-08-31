@@ -1290,6 +1290,69 @@ const { boot } = require('./harness.cjs');
       Object.values(load.perHero).every(n => n <= 3) && load.count <= 8
       && load.kinds.length <= 4,
       JSON.stringify({ perHero: load.perHero, total: load.count, keywords: load.kinds }));
+    // …AND THE BUDGET HAS TO SURVIVE THE ROAD. `LOAD` measures the cards a run
+    // STARTS with, because that is what `evaluateCard` returns on a fresh
+    // combat — so for eleven builds the sharpened faces were outside it
+    // entirely. That was harmless while every upgrade was the same card with a
+    // bigger number, and stopped being harmless the moment Build 96 rewrote
+    // them as role changes: two of them ADD a clause to a card that had none.
+    //
+    // The looser ceiling is deliberate and it is the whole shape of the
+    // progression: a deck is meant to get more interesting as a player chooses
+    // to make it so, and every clause here was PAID for at a fire. What may not
+    // move is the vocabulary — a fully sharpened deck must still teach exactly
+    // the four keywords the starting deck taught, or the road has smuggled in a
+    // fifth without anyone deciding to.
+    const grown = await J(() => {
+      const ids = Object.keys(window.K.CARD_UPS);
+      window.K.startCombat({ seed: 5, upgrades: ids });      // every node bought
+      const ALL = ['cleave','guardcut','cstance','crosssever','lastlight','lcascade','mend',
+        'frostbind','sgrace','intercession','serrate','qthrow','twinfang','backstab','execute'];
+      const perHero = {}, kinds = new Set();
+      let count = 0, changed = 0;
+      for (const id of ALL) {
+        const c = window.K.evaluateCard(id).card;
+        const own = window.K.CARD_DEFS[id].owner;
+        perHero[own] = (perHero[own] || 0) + (c.cond ? 1 : 0);
+        if (c.cond) { count++; kinds.add(c.cond.type); }
+        // …AND EVERY SHARPENED CARD IS A DIFFERENT CARD, NOT A BIGGER ONE.
+        // Two ways to qualify, and both are real:
+        //
+        //   IT CHANGED SHAPE — different atoms, a different condition, or a
+        //   different kind of reward. The bonus atoms count: Last Light+ keeps
+        //   its base and its FINALE and adds Guard to what the finale pays,
+        //   which the first version of this check could not see because it only
+        //   looked at `.base` — it reported 6 of 9 and three false negatives.
+        //
+        //   IT TRADED SOMETHING AWAY — its cold face got WORSE. Execute+ is the
+        //   one card here whose change is purely numeric, and it is 6 cold /14
+        //   live becoming 4 cold /19 live: not a bigger execute, a sharper one,
+        //   and a card you now hold rather than play. A pure buff in every
+        //   state is the thing this rule exists to refuse.
+        const up = window.K.CARD_UPS[id];
+        if (up) {
+          const base = window.K.CARD_DEFS[id];
+          const atoms = (fx) => (fx || []).map(f => Object.keys(f).sort().join('+')).sort().join(',');
+          const shape = (x) => [atoms(x.base), x.cond && x.cond.type, x.cond && x.cond.reward,
+                                x.cond && atoms(x.cond.bonus)].join('|');
+          const cold = (x) => (x.base || []).reduce((n, f) =>
+            n + Object.values(f).reduce((m, v) => m + (typeof v === 'number' ? v : 0), 0), 0);
+          if (shape(up) !== shape(base) || cold(up) < cold(base)) changed++;
+        }
+      }
+      return { perHero, count, kinds: [...kinds].sort(), ups: Object.keys(window.K.CARD_UPS).length, changed };
+    });
+    check('LOAD: a fully sharpened deck still teaches four keywords and no more',
+      grown.kinds.length <= 4 && Object.values(grown.perHero).every(n => n <= 4)
+      && grown.count <= 10,
+      JSON.stringify({ perHero: grown.perHero, total: grown.count, keywords: grown.kinds }));
+    // A NUMBER GOING UP IS NOT A CARD. Every upgrade has to change the card's
+    // SHAPE — the atoms it resolves, the condition it asks for, or the kind of
+    // reward it pays — rather than only the size of what it already did.
+    check('DECK: every sharpened card is a different card, not a bigger one',
+      grown.changed === grown.ups,
+      grown.changed + ' of ' + grown.ups + ' change shape');
+
     check('LOAD: a keyword states its own rule — the name alone teaches nothing',
       /After an Ally/.test(taught.tag || '') && /different hero/.test(taught.rule || ''),
       JSON.stringify(taught));
@@ -2429,7 +2492,13 @@ const { boot } = require('./harness.cjs');
         .map(i => i.getAttribute('src'));
       const one = document.querySelector('#k-hand .k-card[data-card="cleave"]');
       const img = one.querySelector('.k-cbg'), plate = one.querySelector('.k-cart');
-      const ir = img.getBoundingClientRect(), pr = plate.getBoundingClientRect();
+      // LAYOUT SIZE, NOT SCREEN SIZE. The hand is a FAN — every card carries a
+      // rotate and a 3D lean — and `getBoundingClientRect` returns the
+      // axis-aligned box AROUND a rotated element, which is wider and shorter
+      // than the element is. Measured that way a 0.75 painting reads as 0.85
+      // and the card looks like it is cropping something it is not.
+      const ir = { width: img.offsetWidth, height: img.offsetHeight };
+      const pr = { width: plate.offsetWidth, height: plate.offsetHeight };
       // THE WHOLE DECK IS PAINTED NOW. This used to assert that a bond card
       // FALLS BACK to its owner's portrait, which was true and worth asserting
       // while the twelve bond cards had no art of their own. They do now, so
@@ -2440,8 +2509,25 @@ const { boot } = require('./harness.cjs');
       return {
         srcs, distinct: new Set(srcs).size,
         painted: /cards\/cleave\.webp$/.test(srcs[0]),
-        // the painting is dropped in whole: same box as the plate, no blow-up
-        fills: Math.abs(ir.height - pr.height) < 2 && Math.abs(ir.width - pr.width) < 2,
+        // THE PAINTING IS DROPPED IN WHOLE — and "whole" means its own shape,
+        // not the plate's. This asserted the image box EQUALS the plate box,
+        // which is what `height: 100%` gave it and is exactly the bug: the
+        // paintings are 420x560 (0.75) and the faces have drifted narrower —
+        // 0.68 in the hand, 0.63 on the inspect panel — so filling the plate
+        // meant `cover` cutting 16% off the card you press and hold to READ,
+        // eight per cent from each side. On Quick Throw that is the raised
+        // dagger and the trailing cloak.
+        //
+        // What must hold is that the picture spans the plate's WIDTH and keeps
+        // its own ratio, so nothing is cropped on either axis. The lower band
+        // of the face is under the text box either way.
+        fills: Math.abs(ir.width - pr.width) < 2
+               && Math.abs(ir.width / ir.height - img.naturalWidth / img.naturalHeight) < 0.02
+               && ir.height <= pr.height + 1,
+        _fill: { iw: Math.round(ir.width), ih: Math.round(ir.height),
+                 pw: Math.round(pr.width), ph: Math.round(pr.height),
+                 nat: img.naturalWidth + 'x' + img.naturalHeight,
+                 ratio: +(ir.width / ir.height).toFixed(3) },
         deck: every.length,
         unpainted: every.filter(c => !c.art).map(c => c.id),
         allDistinct: new Set(every.map(c => c.art)).size,
@@ -2454,7 +2540,7 @@ const { boot } = require('./harness.cjs');
       art.distinct === 5 && art.painted && art.fills
       && art.unpainted.length === 0 && art.allDistinct === art.deck
       && art.unknownFallsBack,
-      JSON.stringify({ distinct: art.distinct, fills: art.fills, deck: art.deck,
+      JSON.stringify({ distinct: art.distinct, fills: art.fills, fill: art._fill, deck: art.deck,
         unpainted: art.unpainted, allDistinct: art.allDistinct,
         fallbackWired: art.unknownFallsBack }));
 

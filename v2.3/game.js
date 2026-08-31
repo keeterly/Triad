@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 95;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 96;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -161,24 +161,60 @@ const CARD_DEFS = {
 // spent itself reducing the reading load of fifteen cards, and answering a
 // progression system by handing the player eighteen would undo it.
 const CARD_UPS = {
-  // Ash — the plain hard hit gets harder, the chain hits harder, the finisher ends it
-  cleave:      { name: 'Cleave+',        cost: 1, target: 'enemy', base: [{ dmg: 10 }], cond: null },
-  crosssever:  { name: 'Cross Sever+',   cost: 2, target: 'enemy', base: [{ dmg: 11 }, { brk: 3 }],
-                 cond: { type: 'FOLLOW_UP', reward: 'cost', costTo: 1 } },
-  lastlight:   { name: 'Last Light+',    cost: 1, target: 'enemy', base: [{ dmg: 6 }],
-                 cond: { type: 'FINALE', reward: 'output', bonus: [{ dmg: 14 }, { brk: 3 }] } },
-  // Elin — the mend, the setup, the strike that shelters
-  mend:        { name: 'Mend+',          cost: 1, target: 'party', base: [{ heal: 9 }],
-                 cond: { type: 'FINALE', reward: 'output', bonus: [{ healAll: 7 }] } },
-  sgrace:      { name: 'Shared Grace+',  cost: 1, target: 'party', base: [{ guardAll: 5 }, { brk: 3 }], cond: null },
-  lcascade:    { name: 'Lumen Cascade+', cost: 1, target: 'enemy', base: [{ dmg: 6 }, { guardLowest: 7 }],
+  // ── ASH ──
+  // THE PLAIN HIT BECOMES THE STAGGER. 7 damage to 10 damage is a number going
+  // up; this is a different tool. Poise is the resource two of Mira's cards are
+  // waiting on, and nothing in Ash's hand fed it cheaply — Cross Sever costs 2
+  // and Shared Grace is Elin's. Sharpened Cleave is the 1 AP card that opens the
+  // Regent up, which is what makes Twin Fang+ and Execute go off.
+  cleave:      { name: 'Cleave+',        cost: 1, target: 'enemy', base: [{ dmg: 7 }, { brk: 3 }], cond: null },
+  // THE CHAIN STOPS COSTING ANYTHING. Its combo already paid in cost — the one
+  // card in the deck expensive enough for `reward: 'cost'` to mean something —
+  // so sharpening it sharpens the thing it already does: after an ally the
+  // whole 2 AP comes back, and a 2-cost card in a 3 AP turn becomes free.
+  crosssever:  { name: 'Cross Sever+',   cost: 2, target: 'enemy', base: [{ dmg: 9 }, { brk: 2 }],
+                 cond: { type: 'FOLLOW_UP', reward: 'ap', ap: 2 } },
+  // THE FINISHER COVERS THE RETREAT. Same closing blow, and the round it closes
+  // now ends with the party braced — so spending the whole turn on the line
+  // stops meaning walking into the next bar with nothing left.
+  lastlight:   { name: 'Last Light+',    cost: 1, target: 'enemy', base: [{ dmg: 5 }],
+                 cond: { type: 'FINALE', reward: 'output',
+                         bonus: [{ dmg: 10 }, { brk: 2 }, { guardAll: 5 }] } },
+  // ── ELIN ──
+  // THE MEND CYCLES. Heal 6 to heal 9 is three health; this is a card. Elin
+  // becomes the hero who keeps the turn going, which is the role the refund on
+  // Lumen Cascade already hints at and nothing else in her hand supported.
+  mend:        { name: 'Mend+',          cost: 1, target: 'party', base: [{ heal: 6 }, { draw: 1 }],
+                 cond: { type: 'FINALE', reward: 'output', bonus: [{ healAll: 5 }] } },
+  // THE SETUP SETS UP TWO THINGS. It armed the BROKEN payoffs; now it also
+  // slows the blow that is coming, so one card answers both halves of a turn.
+  sgrace:      { name: 'Shared Grace+',  cost: 1, target: 'party',
+                 base: [{ guardAll: 3 }, { brk: 2 }, { chill: 4 }], cond: null },
+  // THE LINE-ENABLER ALSO FINDS THE LINE. It was already the card that makes a
+  // three-hero turn affordable; sharpened, the turn it pays for also refills.
+  lcascade:    { name: 'Lumen Cascade+', cost: 1, target: 'enemy',
+                 base: [{ dmg: 4 }, { guardLowest: 4 }, { draw: 1 }],
                  cond: { type: 'FOLLOW_UP', reward: 'ap', ap: 1 } },
-  // Mira — the double, the two-beat plan, the execution
-  twinfang:    { name: 'Twin Fang+',     cost: 1, target: 'enemy', base: [{ dmg: 6 }, { dmg: 6 }], cond: null },
-  backstab:    { name: 'Backstab+',      cost: 1, target: 'enemy', base: [{ moveSelf: 'front' }, { dmg: 7 }],
-                 cond: { type: 'BACK_ROW', reward: 'output', bonus: [{ dmg: 7 }] } },
-  execute:     { name: 'Execute+',       cost: 1, target: 'enemy', base: [{ dmg: 7 }],
-                 cond: { type: 'BROKEN_OR_LOW', reward: 'output', bonus: [{ dmg: 12 }] } },
+  // ── MIRA ──
+  // THE DOUBLE LEARNS TO SMELL BLOOD. 4x2 to 6x2 is four damage; this is the
+  // card that turns Ash's stagger into a payoff, and it is the second half of
+  // the loop Cleave+ opens. Its base face is unchanged, so it is still the
+  // plain double when nothing is broken — the clause is upside, not a tax.
+  twinfang:    { name: 'Twin Fang+',     cost: 1, target: 'enemy',
+                 base: [{ dmg: 4 }, { dmg: 4 }],
+                 cond: { type: 'BROKEN_OR_LOW', reward: 'output', bonus: [{ dmg: 6 }] } },
+  // THE TWO-BEAT PLAN LEAVES A WOUND. The bonus was five more damage; it is
+  // bleed now, which is damage that arrives at the TOP of the enemy phase — so
+  // stepping out of the back row pays again a turn later.
+  backstab:    { name: 'Backstab+',      cost: 1, target: 'enemy',
+                 base: [{ moveSelf: 'front' }, { dmg: 5 }],
+                 cond: { type: 'BACK_ROW', reward: 'output', bonus: [{ dmg: 4 }, { bleed: 5 }] } },
+  // THE EXECUTE BECOMES AN EXECUTE. It went 6+8 to 7+12 — better in both
+  // states, which is the least interesting thing an execute can be. Sharpened
+  // it is WORSE cold and far better live: a card you hold rather than a card
+  // you play, and the difference between those two is the whole point of it.
+  execute:     { name: 'Execute+',       cost: 1, target: 'enemy', base: [{ dmg: 4 }],
+                 cond: { type: 'BROKEN_OR_LOW', reward: 'output', bonus: [{ dmg: 15 }] } },
 };
 // A card's face is whatever THIS run has made of it. Every read goes through
 // here — a single site that forgets is a card that lies about itself, which is
@@ -6188,6 +6224,10 @@ window.K = {
   // functions the fight calls, so a check hears what a player would
   _fxNoteGrade: (grade, kind) => fxNoteGrade(null, 400, 200, grade, kind),
   _fxHitResolved: (id, taken, negated, flawless) => fxHitResolved(id, taken, negated, flawless),
+  // WHAT BUILD THIS IS, so the page can notice when the server is ahead of it.
+  // A cached index.html loads a cached game.js and there is no other way for
+  // either to know — see the update check at the foot of index.html.
+  BUILD: V23_BUILD,
   MUSIC, MUSIC_SRC, musicOn, musicPref, musicSet, gridStart, ICON_PATHS, icon, SFX, sfx,
   // test-only: the runway a bar is promised, so a check can assert the RULE
   // (rounding forward never shortens it) instead of restating the number. The
@@ -6196,7 +6236,8 @@ window.K = {
   // there was only a changed constant.
   BEAT_MS, BEAT_LEADIN,
   intentByTarget, ROW_LETTER,
-  FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, staticCardHTML, staticInspectHTML,
+  FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, condText,
+  staticCardHTML, staticInspectHTML,
   cam, bgParallax, SIGILS, sigilOf, brighten,
   BOND_CARDS, BOND_IDS, baseRoster, rosterIds, rosterValid, SLOTS_PER_HERO,
   ownerHeroes, primaryHero, isPairCard, pairOf,

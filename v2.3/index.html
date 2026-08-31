@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=95" />
+  <link rel="stylesheet" href="styles.css?v=96" />
 </head>
 <body>
   <div id="k-scale">
@@ -436,8 +436,48 @@
       <button type="button" id="k-swap-go" disabled>CHOOSE A CARD TO GIVE UP</button>
     </section>
   </div>
-  <script src="run.js?v=95"></script>
-  <script src="game.js?v=95"></script>
+  <!-- ═══ THE PAGE THAT CACHE-BUSTS EVERYTHING ELSE CANNOT BUST ITSELF ═══
+       Every script and stylesheet here carries `?v=<build>`, which is exactly
+       why a stale copy of THIS file is invisible: it happily loads `run.js?v=94`
+       forever, and the game looks like the build it was cached at. It happened
+       — Build 95 shipped, the campfire restructure was on main, and the screen
+       still showed Build 94's four columns.
+
+       The root v1 page has had a poll for this since it shipped; v2.3 never got
+       one, so it had no way to notice. Same shape, reading this version's own
+       key: fetch the manifest with `no-store` (which routes around the HTML
+       cache), compare it to the build compiled into game.js, and if the server
+       is ahead put a tap-to-reload chip on screen. `location.replace` with a
+       fresh query string is what actually gets past a cached document. -->
+  <script id="v23-update-check">
+  (function () {
+    function check() {
+      fetch('../version.json?ts=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (v) {
+          var latest = v && v['v2.3'];
+          var here = (window.K && window.K.BUILD) || 0;
+          if (!latest || !here || latest <= here) return;
+          if (document.getElementById('v23-update-chip')) return;
+          var c = document.createElement('button');
+          c.id = 'v23-update-chip';
+          c.textContent = '\u2726 BUILD ' + latest + ' IS READY \u2014 TAP TO LOAD';
+          c.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);'
+            + 'z-index:99999;cursor:pointer;font-family:Georgia,serif;font-size:12px;'
+            + 'letter-spacing:0.2em;padding:9px 24px;border-radius:999px;color:#1a1206;'
+            + 'background:linear-gradient(180deg,#f0d488,#b09154);'
+            + 'border:1px solid rgba(240,212,136,0.8);box-shadow:0 4px 18px rgba(0,0,0,0.6)';
+          c.onclick = function () { location.replace(location.pathname + '?u=' + latest); };
+          document.body.appendChild(c);
+        }).catch(function () {});
+    }
+    setInterval(check, 60000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
+    setTimeout(check, 2500);
+  })();
+  </script>
+  <script src="run.js?v=96"></script>
+  <script src="game.js?v=96"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

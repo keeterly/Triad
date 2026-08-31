@@ -3369,3 +3369,103 @@ Third harness-fault-mistaken-for-a-game-fault in three builds, and the same
 shape every time: a probe that stopped looking and reported the silence as a
 result. The counter is the same too — make the instrument assert that it saw
 something, not just that it found nothing wrong.
+
+## Build 96 — a sharpened card is a different card, the painting keeps its shape, and the page can tell it is stale
+
+Three things from a play session, and one of them was "your work didn't ship".
+
+### The page that cache-busts everything else could not bust itself
+
+Build 95 was on main, the campfire restructure was in it, and the screen still
+showed Build 94's four columns. Nothing was wrong with the build.
+
+Every script and stylesheet in `v2.3/index.html` carries `?v=<build>` — which is
+exactly why a stale copy of *that file* is invisible: it happily loads
+`run.js?v=94` forever and the game looks like the build it was cached at. The
+root v1 page has polled for this since it shipped. v2.3 never got one, so it had
+no way to notice.
+
+Same poll now, reading this version's own key: `game.js` exports `BUILD`, the
+page fetches the manifest with `no-store` (which routes around the HTML cache),
+and if the server is ahead it puts a tap-to-reload chip on screen.
+
+### The paintings were being cut, and it was the reading view that lost most
+
+Measured, per surface, as a share of the source:
+
+```
+                        frame    source   cut
+  hand card             0.68     0.75     10% off the sides
+  inspect (press-hold)  0.63     0.75     16% off the sides
+```
+
+The paintings are 420×560 and the card faces have drifted narrower, so
+`object-fit: cover` at `height: 100%` was cutting eight per cent off each edge.
+On Quick Throw that is the raised dagger in the top right and the trailing cloak
+on the left — the two things the picture is composed around, gone from the one
+view you open specifically to look at it.
+
+`width: 100%; height: auto`, anchored to the top: the painting keeps its ratio
+and nothing is cut on either axis. It is what `.k-tn-bg` has always done for the
+campfire plates, which is why those never showed it.
+
+**Both times I measured this, the fan lied to me.** `getBoundingClientRect`
+returns the axis-aligned box *around* a rotated element, and every card in the
+hand carries a rotate and a 3D lean — so a 0.75 painting reads as 0.85 and looks
+like it is cropping something it is not. The check uses `offsetWidth`.
+
+### A sharpened card is a different card, not a bigger one
+
+All nine upgrades were the same card with a bigger number — Cleave 7→10, Mend 6→9,
+Twin Fang 4×2→6×2. That is the least interesting thing a deckbuilder can do with
+progression, and it made the campfire's most expensive nodes the least
+interesting choice on it.
+
+Each one changes the card's **role** now:
+
+```
+  Cleave+          7 damage, 3 POISE          the plain hit becomes the stagger
+  Cross Sever+     after an ally: FREE        its 2 AP comes back, not down to 1
+  Last Light+      finale also guards all     the closing blow covers the retreat
+  Mend+            heal 6, DRAW 1             Elin becomes the engine
+  Shared Grace+    …and Chill 4               one card answers both halves of a turn
+  Lumen Cascade+   …and Draw 1                the line it pays for also refills
+  Twin Fang+       BROKEN: +6                 Ash's stagger gets its payoff
+  Backstab+        bonus is Bleed, not damage pays again a turn later
+  Execute+         4 cold / 19 live           a card you hold, not one you play
+```
+
+Cleave+ and Twin Fang+ are the point of the exercise: neither is stronger on its
+own, and together they are a loop the starting deck could not build.
+
+Measured over 60 opening hands, starting deck vs fully sharpened:
+
+```
+  cards that carry a clause   8/15  →  9/15
+  clauses to read per hand    2.48  →  2.87
+  combos lit, deliberate      1.88  →  2.03
+  playing well is worth       x3.77 →  x4.21
+```
+
+**And the honest half of that.** Tools across the whole deck: **15 → 15**. An
+upgrade cannot invent an effect, so "expands the toolkit" was never going to show
+up as a bigger vocabulary. What moves is *who* can reach a tool and at what
+price — Ash gains `guardAll` and gets Poise at 1 AP instead of 2, Elin gains
+`draw` — and **Mira gains no new tool at all**: her three are role changes only.
+That is a real result and it is smaller than the pitch.
+
+Two checks hold the line: every sharpened card must change its atoms, its
+condition, or its kind of reward — *or* give something up (Execute+ is the one
+whose change is purely numeric, and it is worse cold, which is the trade). And a
+fully sharpened deck must still teach **four** keywords and no more. That second
+one closed a real gap: `LOAD` measures the cards a run STARTS with, so for eleven
+builds the sharpened faces were outside the reading-load budget entirely.
+
+### Three checks were restating tables instead of reading them
+
+The same failure shape as last build, three more times. `DEALT` asserted
+`up.dmg === 10` — a test of two constants. `nodeFace` built the campfire's
+before/after from `.base` alone, so Twin Fang+ (identical base, new clause) would
+have shown "4 damage ×2 → 4 damage ×2" and asked five embers for it. And the
+painting check asserted the image box *equals* the plate box, which is the bug
+rather than the contract.

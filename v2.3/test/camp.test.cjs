@@ -283,21 +283,37 @@ const { boot } = require('./harness.cjs');
   // ═══ D · THE BOUGHT CARD IS THE DEALT CARD ═══
   console.log('\n── what the deck actually deals ──');
   {
-    const base = await J(() => {
+    // READ THE FACES, DO NOT RESTATE THEM. This asserted `up.dmg === 10` and
+    // `up.twin === 12` — the numbers Cleave+ and Twin Fang+ happened to carry
+    // — so it was really a test of two constants, and it went red the moment
+    // Build 96 rewrote the upgrades as role changes rather than bigger numbers
+    // (Cleave+ trades three of its damage for Poise; Twin Fang+ keeps its base
+    // and gains a clause). What it is actually for is the SWAP: kindling a node
+    // makes the evaluator resolve the sharpened face, and leaves every other
+    // card alone. That is asserted against the tables themselves.
+    const swap = await J(() => {
+      const face = (id) => {
+        const ev = window.K.evaluateCard(id);
+        return { name: ev.card.name,
+                 eff: JSON.stringify(ev.card.base) + '|' + JSON.stringify(ev.card.cond) };
+      };
       window.K.startCombat({ seed: 3 });
-      const ev = window.K.evaluateCard('cleave');
-      return { name: ev.card.name, dmg: ev.resolvedEffects.reduce((n, f) => n + (f.dmg || 0), 0) };
-    });
-    const up = await J(() => {
+      const before = { cleave: face('cleave'), twin: face('twinfang'), serrate: face('serrate') };
       window.K.startCombat({ seed: 3, upgrades: ['cleave', 'twinfang'] });
-      const c = window.K.evaluateCard('cleave'), t = window.K.evaluateCard('twinfang');
-      return { name: c.card.name, dmg: c.resolvedEffects.reduce((n, f) => n + (f.dmg || 0), 0),
-               twin: t.resolvedEffects.reduce((n, f) => n + (f.dmg || 0), 0),
-               untouched: window.K.evaluateCard('serrate').card.name };
+      const after = { cleave: face('cleave'), twin: face('twinfang'), serrate: face('serrate') };
+      return { before, after,
+               wantCleave: window.K.CARD_UPS.cleave.name,
+               wantTwin: window.K.CARD_UPS.twinfang.name };
     });
     check('DEALT: a kindled node changes the card the evaluator resolves, and only that card',
-      base.dmg === 7 && up.dmg === 10 && up.name === 'Cleave+' && up.twin === 12
-      && up.untouched === 'Serrate', JSON.stringify({ base, up }));
+      swap.after.cleave.name === swap.wantCleave && swap.after.twin.name === swap.wantTwin
+      && swap.after.cleave.eff !== swap.before.cleave.eff
+      && swap.after.twin.eff !== swap.before.twin.eff
+      && swap.after.serrate.eff === swap.before.serrate.eff
+      && swap.after.serrate.name === 'Serrate',
+      JSON.stringify({ cleave: swap.before.cleave.name + ' -> ' + swap.after.cleave.name,
+                       twin: swap.before.twin.name + ' -> ' + swap.after.twin.name,
+                       untouched: swap.after.serrate.name }));
 
     const face = await J(() => {
       window.K.startCombat({ seed: 3, upgrades: ['cleave'] });

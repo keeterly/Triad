@@ -130,8 +130,19 @@
     const K = window.K;
     const base = K.CARD_DEFS ? K.CARD_DEFS[n.card] : null;
     const up = K.CARD_UPS ? K.CARD_UPS[n.card] : null;
-    return { name: (up && up.name) || n.card, from: base ? K.effectText(base.base) : '',
-             to: up ? K.effectText(up.base) : '' };
+    // THE CLAUSE IS PART OF THE FACE. This read only `.base`, which was fine
+    // while every upgrade was the same card with bigger numbers — Build 96
+    // rewrote them as ROLE changes, and two of them change nothing but the
+    // combo: Twin Fang+ has the identical base and learns to punish a Broken
+    // foe. Reading the base alone, the fire showed "4 damage x2 -> 4 damage x2"
+    // and asked five embers for it.
+    const face = (c) => {
+      if (!c) return '';
+      const eff = K.effectText(c.base);
+      const cd = c.cond && K.condText ? K.condText(c) : '';
+      return cd ? eff + ' \u00b7 ' + cd : eff;
+    };
+    return { name: (up && up.name) || n.card, from: face(base), to: face(up) };
   }
 
   // ═══════════════════════════════════════════════════════════════════════

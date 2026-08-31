@@ -782,9 +782,19 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    frame, lit for it, with its subject already in the upper two thirds and its
    lower third already falling to black. It wants to be dropped in whole and
    left alone — a blow-up would push the action out of the top of the card. */
-.k-cart .k-cbg { display: block; position: absolute; inset: 0;
-  width: 100%; height: 100%; left: auto; top: auto; transform: none;
-  object-fit: cover; object-position: 50% 22%;
+/* IT KEEPS ITS OWN SHAPE. Measured: the paintings are 420x560 (0.75) and the
+   card faces have drifted narrower — 0.68 in the hand, 0.63 on the inspect
+   panel — so `cover` at `height: 100%` was cutting 10% off a card in the hand
+   and 16% off the one you press and hold to READ, eight per cent from each
+   side. On Quick Throw that is the raised dagger in the top right and the
+   trailing cloak on the left: the two things the painting is composed around.
+   Width 100%, height auto, anchored to the top — the painting keeps its ratio
+   and nothing is cut. It is what `.k-tn-bg` has always done for the campfire
+   plates, which is why those never showed this. The lower band of the face is
+   under the text box either way. */
+.k-cart .k-cbg { display: block; position: absolute; inset: 0 0 auto 0;
+  width: 100%; height: auto; left: 0; top: 0; transform: none;
+  object-fit: cover; object-position: 50% 0%;
   margin: 0; mix-blend-mode: normal; pointer-events: none;
   /* the paintings are already near-monochrome and low-key, so this is a nudge
      rather than the heavy pull-down the portraits need */
