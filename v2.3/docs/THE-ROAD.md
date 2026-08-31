@@ -3469,3 +3469,105 @@ before/after from `.base` alone, so Twin Fang+ (identical base, new clause) woul
 have shown "4 damage ×2 → 4 damage ×2" and asked five embers for it. And the
 painting check asserted the image box *equals* the plate box, which is the bug
 rather than the contract.
+
+## Build 97 — cards that do a thing instead of a number, and three cards that were lying
+
+The ask: cards that do not deal damage or heal at all, and payoffs that watch
+what has just been *done* rather than what has just been *played*.
+
+### The deck had no way to build that, and the reason is worth naming
+
+Every condition in the deck asked about the HAND — who played last, whether all
+three have acted, what row somebody is standing in. None asked what had been
+DONE to a hero. So a card could not be built to notice a thing another card had
+just set up, and every "combo" was really an ordering puzzle.
+
+Two facts are tracked per turn now, both per-hero, both resetting with the turn
+so a setup and its payoff have to happen in one breath:
+
+```
+  movedBy   heroes standing somewhere they were not
+  wardedBy  heroes who have gained Guard, from any source
+```
+
+and two conditions read them: **JUST MOVED** and **BEHIND A GUARD**.
+
+### Two pairs where neither card is worth much alone
+
+Ten of the twelve bond cards were damage plus a little of something — a sidegrade
+in cost and a same-grade in shape. These four are the first in the deck where
+the interesting play is the *pair*:
+
+```
+  Shieldsong      6 Guard to all. No damage at all.        the setup
+  Last Vigil      6 damage. BEHIND A GUARD: AP comes back.  → free after it
+
+  Cut the Cord    Bleed 5. Step back. A free step for anyone.  the setup
+  Twin Shadow     5 damage. JUST MOVED: +8.                     → 13 after it
+```
+
+Measured, played both ways round: Shieldsong wards all three for zero damage and
+Last Vigil then costs **0 AP**; Cut the Cord steps Mira back and banks a step,
+and Twin Shadow goes **5 → 13**, with the banked step costing **0 AP**.
+
+**A displaced hero counts as having moved.** A step that trades places moves two
+people, and a payoff asking "are you standing somewhere new" has to be true for
+the one who was pushed. Measured: Cut the Cord marks Mira *and* Elin.
+
+### `freeMove` — the rows finally cost something a plan can pay
+
+Three rows have been a lever nobody pulls, and the reason is arithmetic: a step
+costs 1 AP of 3 and the card you would rather have played, and it is capped at
+one a turn. `freeMove` banks a step that costs neither. It is the first atom in
+the deck that changes what the *board* can do rather than what a number is.
+
+### Two new keywords, and the argument for spending them
+
+Build 94 designed a fifth keyword and **cut it**, because the `LOAD` check
+budgets this deck at four and Build 25 measured nine conditional cards as too
+much to read. Build 97 spends two. The case is entirely about where they live:
+
+- The starting fifteen still teach **four**. A new player is taught exactly what
+  they were taught before.
+- JUST MOVED and BEHIND A GUARD arrive only on **bond cards** — earned one at a
+  time, each inside a scene that has stopped the game to explain it, and each
+  arriving next to the card that sets it up.
+
+That is the difference between a fifth keyword in the opening hand and a fifth
+keyword on a card you chose. The two ceilings are asserted separately so the
+distinction cannot rot: the starting deck may never drift past four.
+
+### Three cards were lying about themselves
+
+Chasing the feature turned up a family of shipped bugs — an atom that needs a
+PERSON, with no person handed to it:
+
+- **Cut the Cord**'s "step out of reach" moved nobody. `moveSelf` resolved
+  against `card.owner`, which for a bond card is the string `'ash|mira'`, and
+  `C.heroes['ash|mira']` is undefined.
+- **Last Vigil**'s "from behind a raised shield" gave **zero Guard**, same cause.
+- **Shield the Blade**'s "5 Guard · ally" guarded **nobody**: an ally was only
+  resolved for cards whose *target* is an ally, and it targets the enemy.
+
+The oldest rule in this deck is that a card may not lie about itself, and three
+were. Fixed at the family rather than the instance: a card carries a `selfHero`
+(so Cut the Cord can say the step is Mira's, not the primary owner's), and an
+ally is resolved whenever a card *needs* one, whatever it is aimed at. `BACK_ROW`
+was reading the owner string too — it works today only because the one card
+carrying it is solo.
+
+### And one thing this build did NOT fix
+
+The soak found a soft-lock once in roughly thirty runs — the map on screen with
+nothing clickable, after an elite's reckoning. It did not reproduce across the
+next twenty, and the walk picks its forks with `Math.random()`, so the run that
+found it cannot be replayed. **I do not know whether it is Build 97's.**
+
+What changed is that the next occurrence carries its own post-mortem: the failure
+now dumps the run's `pending`, `over`, `reachable`, which screens are shown, how
+many map nodes are in the DOM and what phase combat thinks it is in. It also
+looks a second time before failing — a screen one frame from being painted and a
+screen that will never be painted are the same DOM, and the second look separates
+them (a slow paint is noted in the trail rather than silently absorbed). If the
+original hit was a paint race, that is now labelled; if it is a real lock, it is
+now diagnosable. Neither is a fix and it is not being recorded as one.

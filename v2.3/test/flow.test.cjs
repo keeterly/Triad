@@ -1353,6 +1353,136 @@ const { boot } = require('./harness.cjs');
       grown.changed === grown.ups,
       grown.changed + ' of ' + grown.ups + ' change shape');
 
+    // ── THE VOCABULARY BUDGET, NOW IN TWO PARTS ────────────────────────────
+    // Build 97 spends two new keywords, and the case for spending them is
+    // entirely about WHERE they live. The starting fifteen still teach four:
+    // a new player is taught exactly what they were taught before. JUST MOVED
+    // and BEHIND A GUARD arrive only on BOND cards — earned one at a time,
+    // each inside a scene that has stopped the game to explain it, and each
+    // arriving next to the card that sets it up.
+    //
+    // That is the difference between a fifth keyword in the opening hand
+    // (which Build 94 measured as too expensive and cut) and a fifth keyword
+    // on a card you chose, at a moment the game is already talking to you.
+    // The two ceilings are asserted separately so the distinction cannot rot:
+    // the starting deck may never drift past four.
+    const pool = await J(() => {
+      const D = window.K.CARD_DEFS;
+      const deck = Object.keys(D).filter(id => D[id].owner !== 'bond'
+        && window.K.BOND_IDS.indexOf(id) < 0);
+      const kinds = (ids) => [...new Set(ids.map(id => D[id].cond && D[id].cond.type)
+        .filter(Boolean))].sort();
+      return { start: kinds(deck), all: kinds(Object.keys(D)),
+               bondsWithClause: window.K.BOND_IDS.filter(id => D[id].cond).length,
+               bonds: window.K.BOND_IDS.length };
+    });
+    // ── A PAIR CARD'S SELF IS A PERSON ─────────────────────────────────────
+    // Shipped broken for two builds: `resolveEffects` resolved self-atoms
+    // against `card.owner`, which for a bond card is the string 'ash|mira', and
+    // `C.heroes['ash|mira']` is undefined — so Cut the Cord's "step out of
+    // reach" moved nobody and Last Vigil's "from behind a raised shield" gave
+    // zero Guard, silently, while both faces said otherwise. The oldest rule in
+    // this deck is that a card may not lie about itself.
+    const pairSelf = await J(() => {
+      const K = window.K;
+      const play = (roster, id) => {
+        K.startCombat({ seed: 3 });
+        const st = K.state(); st.ap = 9;
+        Object.keys(roster).forEach(h => { st.roster[h][0] = roster[h]; });
+        K.forceHand([id, 'cleave', 'mend', 'serrate', 'frostbind']);
+        const g0 = ['ash', 'elin', 'mira'].map(h => st.heroes[h].guard);
+        const before = { rows: { ash: st.heroes.ash.row, mira: st.heroes.mira.row } };
+        K.playCard(id);
+        const s2 = K.state();
+        return { before, rows: { ash: s2.heroes.ash.row, mira: s2.heroes.mira.row },
+                 guardedWho: ['ash', 'elin', 'mira'].filter((h, i) => s2.heroes[h].guard > g0[i]) };
+      };
+      // Cut the Cord names MIRA as its self — she is the one stepping out
+      const cut = play({ ash: 'cutthecord' }, 'cutthecord');
+      // …and the same family, third instance: Shield the Blade targets the
+      // ENEMY and reads "5 Guard · ally", so it resolved with no ally at all.
+      const blade = play({ mira: 'shieldblade' }, 'shieldblade');
+      // …and a pair card must never hand its own guard to one of its owners
+      const bladeOwners = K.ownerHeroes(K.CARD_DEFS.shieldblade);
+      return { cut, blade, bladeOwners };
+    });
+    check('PAIR: a bond card\u2019s self-effects land on a PERSON, and on the one it names',
+      pairSelf.cut.rows.mira !== pairSelf.cut.before.rows.mira
+      && pairSelf.cut.rows.mira === 'back',
+      JSON.stringify({ mira: pairSelf.cut.before.rows.mira + ' -> ' + pairSelf.cut.rows.mira }));
+    check('PAIR: an ally is resolved when a card NEEDS one, whatever the card is aimed at',
+      pairSelf.blade.guardedWho.length === 1
+      && pairSelf.blade.guardedWho.every(h => pairSelf.bladeOwners.indexOf(h) < 0),
+      JSON.stringify({ target: 'enemy', guarded: pairSelf.blade.guardedWho,
+                       owners: pairSelf.bladeOwners }));
+
+    // ── AND THE TWO THINGS THE NEW KEYWORDS WATCH ──────────────────────────
+    // Every other condition in the deck is about play ORDER. These are about
+    // what has been DONE to a hero, which is what lets one card set up another.
+    const pairs = await J(() => {
+      const K = window.K;
+      const dmg = (ev) => ev.resolvedEffects.reduce((n, f) => n + (f.dmg || 0), 0);
+      const arm = (roster, hand) => {
+        K.startCombat({ seed: 3 }); const st = K.state(); st.ap = 9;
+        Object.keys(roster).forEach(h => { st.roster[h][0] = roster[h]; });
+        K.forceHand(hand); return st;
+      };
+      arm({ ash: 'lastvigil', elin: 'shieldsong' },
+          ['shieldsong', 'lastvigil', 'cleave', 'serrate', 'frostbind']);
+      const vCold = K.evaluateCard('lastvigil');
+      K.playCard('shieldsong');
+      const warded = ['ash', 'elin', 'mira'].map(h => K.state().heroes[h].guard);
+      const songDmg = 0;
+      const apMid = K.state().ap;
+      const vWarm = K.evaluateCard('lastvigil');
+      K.playCard('lastvigil');
+      const vigilCost = apMid - K.state().ap;
+
+      arm({ ash: 'cutthecord', mira: 'twinshadow' },
+          ['cutthecord', 'twinshadow', 'cleave', 'mend', 'frostbind']);
+      const sCold = dmg(K.evaluateCard('twinshadow'));
+      const miraWas = K.state().heroes.mira.row;
+      K.playCard('cutthecord');
+      // SNAPSHOT, DO NOT HOLD A HANDLE. `K.state().turnState` is the live
+      // object — reading `.freeMoves` off it after the free step reads the
+      // value the step just spent, so the check reported 0 banked while the
+      // step it was banked for had visibly cost nothing.
+      const banked = K.state().turnState.freeMoves;
+      const sWarm = dmg(K.evaluateCard('twinshadow'));
+      const apB = K.state().ap;
+      const stepped = K.moveHero('elin', 'front');
+      return { vCold: vCold.condActive, vWarm: vWarm.condActive, warded, songDmg, vigilCost,
+               sCold, sWarm, miraWas, miraNow: K.state().heroes.mira.row,
+               movedBy: K.state().turnState.movedBy.slice(), freeMoves: banked,
+               spentTo: K.state().turnState.freeMoves,
+               stepped, stepCost: apB - K.state().ap };
+    });
+    check('SETUP: Shieldsong wards the whole line and deals nothing — and Last Vigil then costs nothing',
+      pairs.songDmg === 0 && pairs.warded.every(g => g >= 6)
+      && pairs.vCold === false && pairs.vWarm === true && pairs.vigilCost === 0,
+      JSON.stringify({ warded: pairs.warded, cold: pairs.vCold, warm: pairs.vWarm,
+                       cost: pairs.vigilCost }));
+    check('SETUP: Cut the Cord moves her, banks a free step, and Twin Shadow doubles behind it',
+      pairs.miraNow === 'back' && pairs.miraNow !== pairs.miraWas
+      && pairs.movedBy.indexOf('mira') >= 0
+      && pairs.freeMoves === 1 && pairs.spentTo === 0
+      && pairs.sWarm > pairs.sCold * 2 && pairs.stepped === true && pairs.stepCost === 0,
+      JSON.stringify({ mira: pairs.miraWas + ' -> ' + pairs.miraNow, movedBy: pairs.movedBy,
+                       shadow: pairs.sCold + ' -> ' + pairs.sWarm,
+                       freeStepCostAp: pairs.stepCost }));
+    // …and the hero who was PUSHED counts as having moved, because they are
+    // standing somewhere they were not.
+    check('SETUP: a hero displaced by somebody else\u2019s step has moved too',
+      pairs.movedBy.length >= 2, pairs.movedBy.join(', '));
+
+    check('LOAD: the starting fifteen still teach four keywords and no more',
+      pool.start.length <= 4, pool.start.join(', '));
+    check('LOAD: …and the two the road can add arrive on bond cards, never in the opening hand',
+      pool.all.length <= 6 && pool.all.length - pool.start.length === 2
+      && pool.all.indexOf('REPOSITIONED') >= 0 && pool.all.indexOf('WARDED') >= 0
+      && pool.start.indexOf('REPOSITIONED') < 0 && pool.start.indexOf('WARDED') < 0,
+      JSON.stringify({ start: pool.start, whole: pool.all }));
+
     check('LOAD: a keyword states its own rule — the name alone teaches nothing',
       /After an Ally/.test(taught.tag || '') && /different hero/.test(taught.rule || ''),
       JSON.stringify(taught));

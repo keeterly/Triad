@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 96;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 97;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -244,11 +244,26 @@ function buildCards(upgrades) {
 // anyway: it is the slot, and the slot belongs to one of the two heroes.
 const BOND_CARDS = {
   // ── ASH + ELIN — the two who have done this before ──
+  // ── THE SHIELD PAIR — a card that only wards, and a card that only pays ──
+  // Ten of the twelve bond cards were damage plus a little of something, which
+  // is a sidegrade in cost and a same-grade in SHAPE: none of them changed what
+  // a turn could be, they changed what a turn was worth. These two are the
+  // first pair in the deck where neither is worth much alone.
+  //
+  // Shieldsong does no damage at all. It is the setup: everyone behind a guard.
   shieldsong:  { owner: 'ash|elin', name: 'Shieldsong', cost: 1, target: 'party',
-                 base: [{ guardAll: 4 }, { heal: 4 }], cond: null,
-                 line: 'Guard the whole line, and mend the worst of it.' },
+                 base: [{ guardAll: 6 }], cond: null,
+                 line: 'Nobody strikes. The whole line simply stops being open.' },
+  // …and Last Vigil is the payoff: a modest blow that costs NOTHING when the
+  // hero throwing it is already behind one. The AP back is the "bonus action" —
+  // guard, then swing, and the swing was free.
+  // …and its face is TWO lines, because the clip check counted three and said
+  // so. It carried a Guard of its own, which was the wrong instinct twice over:
+  // it made a card about already BEING guarded also hand out guard, and it made
+  // the payoff pay for its own setup. It is the blow and the clause now.
   lastvigil:   { owner: 'ash|elin', name: 'Last Vigil', cost: 1, target: 'enemy',
-                 base: [{ dmg: 6 }, { guardSelf: 6 }], cond: null,
+                 base: [{ dmg: 6 }], selfHero: 'ash',
+                 cond: { type: 'WARDED', reward: 'ap', ap: 1 },
                  line: 'A blow struck from behind a raised shield.' },
   gravebloom:  { owner: 'ash|elin', name: 'Gravebloom', cost: 1, target: 'enemy',
                  base: [{ dmg: 5 }, { healAll: 4 }], cond: null,
@@ -260,12 +275,22 @@ const BOND_CARDS = {
   shieldblade: { owner: 'ash|mira', name: 'Shield the Blade', cost: 1, target: 'enemy',
                  base: [{ dmg: 5 }, { guardAlly: 5 }], cond: null,
                  line: 'He stands in front. She works behind him.' },
-  twinshadow:  { owner: 'ash|mira', name: 'Twin Shadow', cost: 1, target: 'enemy',
-                 base: [{ dmg: 5 }, { dmg: 5 }], cond: null,
-                 line: 'Neither of them guards. Neither of them needs to.' },
+  // ── THE POSITION PAIR — a card that only moves, and a card that only pays ──
+  // The three rows have been a lever nobody pulls: a step costs 1 AP and the
+  // card you would rather have played, and it is capped at one a turn. Cut the
+  // Cord does no damage; what it does is give the party a step that costs
+  // neither, which is the first time repositioning has been cheap enough to be
+  // a plan rather than a correction.
   cutthecord:  { owner: 'ash|mira', name: 'Cut the Cord', cost: 1, target: 'enemy',
-                 base: [{ dmg: 4 }, { bleed: 4 }, { moveSelf: 'back' }], cond: null,
-                 line: 'Open it, and step out of reach.' },
+                 base: [{ bleed: 5 }, { moveSelf: 'back' }, { freeMove: 1 }],
+                 selfHero: 'mira',
+                 line: 'Open it, step out of reach — and the line moves with her.' },
+  // …and Twin Shadow is what a step is FOR. Ordinary if she is standing still,
+  // and the best blow in her hand the instant she is not.
+  twinshadow:  { owner: 'ash|mira', name: 'Twin Shadow', cost: 1, target: 'enemy',
+                 base: [{ dmg: 5 }], selfHero: 'mira',
+                 cond: { type: 'REPOSITIONED', reward: 'output', bonus: [{ dmg: 8 }] },
+                 line: 'Neither of them guards. Neither of them needs to.' },
   bothblades:  { owner: 'ash|mira', name: 'Both Blades', cost: 2, target: 'enemy',
                  base: [{ dmg: 9 }, { dmg: 5 }], cond: null,
                  line: 'The heavy one, then the quick one.' },
@@ -884,7 +909,21 @@ function markBrink(id) {
 }
 
 function freshTurnState() {
-  return { actionsPlayed: [], moved: 0, cycled: false, stitchedPairs: [], refunded: 0 };
+  return { actionsPlayed: [], moved: 0, cycled: false, stitchedPairs: [], refunded: 0,
+    // ── WHAT HAS ALREADY HAPPENED TO EACH OF THEM THIS TURN ──────────────────
+    // The deck's conditions all asked about the CARDS: who played last, whether
+    // all three have acted, what row somebody is standing in. None of them
+    // asked what has been DONE to a hero — so a card could not be built to pay
+    // off a thing another card had just set up, and every "combo" was really
+    // about play order.
+    //
+    // These two are the state a payoff can watch. They are per-hero and they
+    // reset with the turn, so a setup card and its payoff have to be played in
+    // the same breath rather than banked.
+    movedBy: [],     // heroes who changed row this turn, however it happened
+    wardedBy: [],    // heroes who gained Guard this turn, from any source
+    freeMoves: 0,    // repositioning the party has been given for nothing
+  };
 }
 
 // WHICH FIGHT THIS IS, counted from the top. Declared here rather than beside
@@ -1236,8 +1275,13 @@ function brighten(effects) {
   });
 }
 
-function evalCondition(cond, ownerId) {
+// `ownerId` is the card's owner — a pair string for a bond card — and `selfId`
+// is the person its self-facing clauses are about. BACK_ROW read the owner and
+// so was already wrong for any pair card that wanted it; the two new ones would
+// have been wrong the same way on the day they shipped.
+function evalCondition(cond, ownerId, selfId) {
   const ts = C.turnState, last = ts.actionsPlayed[ts.actionsPlayed.length - 1];
+  const me = (selfId && C.heroes[selfId]) ? selfId : ownerId;
   switch (cond) {
     case 'FOLLOW_UP':     return !!last && last.ownerId !== ownerId;
     // A FINALE is the LAST BLOW of the round, not something you pay for after
@@ -1255,7 +1299,19 @@ function evalCondition(cond, ownerId) {
     // Movement was a dead lever and "If Broken" was a coin that landed 7% of
     // the time. Tying a card to the row a hero stands in makes the rows worth
     // using and gives the player a condition they can CAUSE.
-    case 'BACK_ROW':      return !!C.heroes[ownerId] && C.heroes[ownerId].row === 'back';
+    case 'BACK_ROW':      return !!C.heroes[me] && C.heroes[me].row === 'back';
+    // ── THE TWO THAT WATCH THE BOARD RATHER THAN THE HAND ────────────────────
+    // Every other condition in this list is about play ORDER — who went last,
+    // whether all three have gone. These are about what has already been DONE
+    // to a hero this turn, which is what makes a setup card and a payoff card
+    // possible: one does a thing, the other notices.
+    //
+    // JUST MOVED — this hero is standing somewhere they were not. True for the
+    // hero who was DISPLACED by the step as well as the one who took it.
+    case 'REPOSITIONED': return ts.movedBy.indexOf(me) >= 0;
+    // BEHIND A GUARD — this hero has been warded this turn, by their own card,
+    // by a party-wide Guard, or by somebody stepping in front of them.
+    case 'WARDED':       return ts.wardedBy.indexOf(me) >= 0;
     // A FIFTH KEYWORD WAS DESIGNED HERE AND CUT. `SAME_HERO` — "this hero has
     // already acted, hit again with them" — is the one condition in the deck's
     // vocabulary that CANNOT be true at the same time as FOLLOW_UP or FINALE,
@@ -1277,7 +1333,8 @@ function evaluateCard(cardId) {
   const card = cardDef(cardId);
   if (!card) return null;
   const sigil = sigilOf(cardId);
-  let condActive = card.cond ? evalCondition(card.cond.type, card.owner) : false;
+  const selfId = selfHeroOf(card);
+  let condActive = card.cond ? evalCondition(card.cond.type, card.owner, selfId) : false;
   // A SIGIL CAN OPEN A CONDITION THE BOARD DID NOT. Both routes are read here
   // rather than inside evalCondition, which stays a pure function of the
   // condition type — a sigil is a fact about one card, not about the rule.
@@ -1484,7 +1541,13 @@ function breakDamage(n) {
 function guardHero(heroId, n) {
   if (C && C.phase !== 'PLAYER_ACTION_RESOLVING') setTimeout(renderPartyHud, 0);
   const h = C.heroes[heroId];
-  if (h && !h.downed) { h.guard += n; if (typeof fxWard === 'function') fxWard(heroId, n); }
+  if (h && !h.downed) {
+    h.guard += n;
+    // …AND IT IS REMEMBERED. One site, so a hero warded by a party-wide Guard,
+    // by an ally's Intercession or by their own card all count the same.
+    if (C.turnState && C.turnState.wardedBy.indexOf(heroId) < 0) C.turnState.wardedBy.push(heroId);
+    if (typeof fxWard === 'function') fxWard(heroId, n);
+  }
 }
 // ownerId: who played the card. allyId: chosen ally for 'ally'-target cards.
 // ONE CARD, ONE NUMBER. A card whose effects carry two damage atoms — a base
@@ -1493,10 +1556,22 @@ function guardHero(heroId, n) {
 // blow it actually was. The HP and the impact still land per atom (Twin Fang
 // really does strike twice); only the NUMBER is summed and shown once.
 let _dmgBatch = null;
-function resolveEffects(effects, ownerId, allyId) {
+// A PAIR CARD'S SELF IS A PERSON, AND FOR TWO BUILDS IT WAS A STRING.
+// `ownerId` here is `card.owner`, which for a bond card is 'ash|mira' — and
+// `C.heroes['ash|mira']` is undefined. So every self-targeted atom on a pair
+// card resolved against nobody and did nothing, silently: Cut the Cord's
+// `moveSelf: 'back'` moved no one, Last Vigil's `guardSelf: 6` gave zero Guard.
+// Both cards say otherwise on their own faces — "step out of reach", "a blow
+// struck from behind a raised shield" — and this deck's oldest rule is that a
+// card may never lie about itself.
+//
+// `selfId` is who the card's SELF atoms belong to. It defaults to the primary
+// owner, and a card may name the other one: Cut the Cord is Ash opening the
+// wound and MIRA stepping out of reach, so it says so.
+function resolveEffects(effects, ownerId, allyId, selfId) {
   const outer = _dmgBatch === null;
   if (outer) _dmgBatch = { n: 0, why: 'hit' };
-  try { resolveEffectsInner(effects, ownerId, allyId); }
+  try { resolveEffectsInner(effects, ownerId, allyId, selfId || ownerId); }
   finally {
     if (outer) {
       const b = _dmgBatch; _dmgBatch = null;
@@ -1504,11 +1579,11 @@ function resolveEffects(effects, ownerId, allyId) {
     }
   }
 }
-function resolveEffectsInner(effects, ownerId, allyId) {
+function resolveEffectsInner(effects, ownerId, allyId, selfId) {
   for (const fx of effects) {
     if (fx.dmg)        dealToBoss(fx.dmg, 'hit', ownerId);
     if (fx.brk)        breakDamage(fx.brk);
-    if (fx.guardSelf)  guardHero(ownerId, fx.guardSelf);
+    if (fx.guardSelf)  guardHero(selfId, fx.guardSelf);
     if (fx.guardAlly && allyId) guardHero(allyId, fx.guardAlly);
     if (fx.guardAll)   livingHeroes().forEach(id => guardHero(id, fx.guardAll));
     if (fx.guardLowest){ const low = livingHeroes().sort((a, b) => C.heroes[a].hp - C.heroes[b].hp)[0];
@@ -1534,7 +1609,12 @@ function resolveEffectsInner(effects, ownerId, allyId) {
         C.pairBond[k] = (C.pairBond[k] || 0) + BOND_PER_SHIELD;
       }
     }
-    if (fx.moveSelf)   placeHero(ownerId, fx.moveSelf);
+    if (fx.moveSelf)   placeHero(selfId, fx.moveSelf);
+    // A REPOSITION THE PARTY DID NOT PAY FOR. Not a move — an ALLOWANCE. Moving
+    // costs 1 AP and is capped at one a turn, which is why the rows have always
+    // been a lever nobody pulls: a step costs a third of the turn and the card
+    // you wanted to play instead. This banks a step that costs neither.
+    if (fx.freeMove)   C.turnState.freeMoves += fx.freeMove;
     if (fx.drawDiscard){ const id = drawOne();
                          if (id) { C.pendingDiscard = true; fxDrawThenAsk(id); } }
     if (fx.draw)       { for (let i = 0; i < fx.draw; i++) {
@@ -1548,9 +1628,21 @@ function resolveEffectsInner(effects, ownerId, allyId) {
   }
 }
 
-function defaultAlly(ownerId) {
-  const others = livingHeroes().filter(id => id !== ownerId);
-  return others.sort((a, b) => C.heroes[a].hp - C.heroes[b].hp)[0] || null;
+// WHICH OF A CARD'S OWNERS ITS SELF-ATOMS BELONG TO. The primary unless the
+// card names the other — Cut the Cord is Ash's opening and Mira's step back.
+function selfHeroOf(card) {
+  if (!card) return null;
+  if (card.selfHero && C.heroes[card.selfHero]) return card.selfHero;
+  return primaryHero(card);
+}
+// AN ALLY IS SOMEBODY THE CARD DOES NOT ALREADY OWN. This filtered on the raw
+// owner id, so for a pair card — whose owner is 'ash|mira' — it filtered nobody
+// out and could hand Ash's own guard to Ash as though he were the ally.
+function defaultAlly(ownerId, card) {
+  const mine = card ? ownerHeroes(card) : [ownerId];
+  const others = livingHeroes().filter(id => mine.indexOf(id) < 0);
+  const pool = others.length ? others : livingHeroes().filter(id => id !== selfHeroOf(card));
+  return pool.sort((a, b) => C.heroes[a].hp - C.heroes[b].hp)[0] || null;
 }
 
 function playCard(cardId, allyId) {
@@ -1562,7 +1654,17 @@ function playCard(cardId, allyId) {
   // played at all — which is the cost of a card two people own.
   if (ownerDown(ev.card)) return false;               // the fallen play nothing
   if (C.ap < ev.currentCost) return false;
-  if (ev.card.target === 'ally' && !allyId) allyId = defaultAlly(owner);
+  // AN ALLY IS RESOLVED WHEN A CARD NEEDS ONE, not when its TARGET happens to
+  // be one. This asked only `target === 'ally'`, so Shield the Blade — which
+  // targets the enemy and reads "5 damage. 5 Guard · ally." — resolved with
+  // `allyId` undefined and guarded nobody, silently, on a face that says
+  // otherwise. Third card found this build with an atom that needs a person and
+  // no person handed to it; the other two were `moveSelf` and `guardSelf` on
+  // pair cards. The fix belongs to the family, not to the instance: whatever
+  // the card is aimed AT, if it does something to an ally it gets one.
+  const needsAlly = ev.card.target === 'ally'
+    || ev.resolvedEffects.some(f => f.guardAlly || f.intercede);
+  if (needsAlly && !allyId) allyId = defaultAlly(owner, ev.card);
   setPhase('PLAYER_ACTION_RESOLVING');
   // THE MARK BELONGS TO ONE PLAY. Left standing, the card drawn two plays ago
   // would still be wearing "this is the new one" while a different card was.
@@ -1635,7 +1737,8 @@ function playCard(cardId, allyId) {
     fxCast(primaryHero(ev.card), _act.tone,
            ev.card.target === 'enemy' ? document.getElementById('k-boss-art') : null);
   }
-  try { resolveEffects(ev.resolvedEffects, owner, allyId); } finally { _act = null; }
+  try { resolveEffects(ev.resolvedEffects, owner, allyId, selfHeroOf(ev.card)); }
+  finally { _act = null; }
   C.turnState.actionsPlayed.push({ cardId, ownerId: owner, condActive: ev.condActive });
   // RALLY pays the bond. CHAIN needs no hand-off: it reads the turn
   // it is written after this card's own condition has already been read.
@@ -1761,15 +1864,24 @@ function placeHero(heroId, row) {
   const other = Object.keys(C.heroes).find(id => id !== heroId && C.heroes[id].row === row);
   const from = h.row;
   h.row = row;
-  if (other) { C.heroes[other].row = from; fxStep(other); }
+  // BOTH OF THEM MOVED. A step that displaces somebody moves two people, and a
+  // payoff that asks "did you just move" has to be true for the one who was
+  // pushed as well as the one who pushed — they are standing somewhere new
+  // either way. This is the single site every move goes through: the AP move,
+  // a card's `moveSelf`, and the road's placements.
+  const mark = (id) => { if (C.turnState && C.turnState.movedBy.indexOf(id) < 0)
+    C.turnState.movedBy.push(id); };
+  mark(heroId);
+  if (other) { C.heroes[other].row = from; mark(other); fxStep(other); }
   fxStep(heroId);
   return other || null;
 }
 function moveReason(heroId) {
   if (!C || C.phase !== 'PLAYER_READY' || C.pendingDiscard) return 'not your turn';
   if (!C.heroes[heroId] || C.heroes[heroId].downed) return 'down';
-  if (C.turnState.moved >= 1) return 'already moved';
-  if (C.ap < MOVE_COST) return 'needs ' + MOVE_COST + ' AP';
+  const free = C.turnState.freeMoves > 0;
+  if (!free && C.turnState.moved >= 1) return 'already moved';
+  if (!free && C.ap < MOVE_COST) return 'needs ' + MOVE_COST + ' AP';
   return null;
 }
 // toRow is optional: called bare it toggles, which is what the tests and the
@@ -1781,7 +1893,10 @@ function moveHero(heroId, toRow) {
   // were only two of them and is still what the printed movement wants
   const want = toRow || ROWS[Math.min(ROWS.length - 1, ROWS.indexOf(h.row) + 1)];
   if (!ROWS.includes(want) || want === h.row) return false;
-  C.ap -= MOVE_COST;
+  // A BANKED STEP IS SPENT BEFORE AP IS. Free first, always — a player who has
+  // been given a step and still has AP should not be charged for it.
+  if (C.turnState.freeMoves > 0) C.turnState.freeMoves--;
+  else C.ap -= MOVE_COST;
   C.turnState.moved++;
   const displaced = placeHero(heroId, want);
   logLine(HEROES23[heroId].name + ' steps to the ' + want + ' row'
@@ -4821,6 +4936,8 @@ const COND_LABEL = {
   // itself, which is the one thing this deck may never do.
   BROKEN_OR_LOW: 'Broken or Low',
   BACK_ROW: 'From the Back',
+  REPOSITIONED: 'Just Moved',
+  WARDED: 'Behind a Guard',
 };
 const COND_RULE = {
   FOLLOW_UP: 'Play this straight after a different hero acts, in the same turn.',
@@ -4828,6 +4945,8 @@ const COND_RULE = {
   BROKEN: 'The Regent must be BROKEN.',
   BROKEN_OR_LOW: 'The Regent must be BROKEN, or under 30% health.',
   BACK_ROW: 'This hero must be standing in the BACK row.',
+  REPOSITIONED: 'This hero must have changed rows already this turn \u2014 pushed counts.',
+  WARDED: 'This hero must have gained Guard already this turn, from any source.',
 };
 // A small, consistent icon vocabulary — the same mark means the same thing on
 // a card, in the inspect panel and in the Regent's intent line.
@@ -4941,7 +5060,8 @@ function icon(name, cls) {
     + '/></svg>';
 }
 const COND_ICON = { FOLLOW_UP: 'follow', FINALE: 'finale', BROKEN: 'broken',
-  BROKEN_OR_LOW: 'broken', BACK_ROW: 'move' };
+  BROKEN_OR_LOW: 'broken', BACK_ROW: 'move',
+  REPOSITIONED: 'move', WARDED: 'guard' };
 
 function cardFaceHTML(c, ev, gem, ownerArt) {
   // THE CARD ANSWERS TWO QUESTIONS, so it is drawn as two blocks. The top is
@@ -5096,7 +5216,7 @@ const VERB_OF = [
   ['guardSelf', 'guard'], ['guardAll', 'guard'], ['guardAlly', 'guard'],
   ['guardLowest', 'guard'], ['intercede', 'guard'],
   ['brk', 'brk'], ['bleed', 'bleed'], ['chill', 'chill'],
-  ['drawDiscard', 'draw'], ['draw', 'draw'], ['moveSelf', 'move'],
+  ['drawDiscard', 'draw'], ['draw', 'draw'], ['moveSelf', 'move'], ['freeMove', 'move'],
 ];
 function cardGlyphs(effects) {
   const out = [];
@@ -5134,6 +5254,7 @@ function prose(effects, plain) {
     // want it — the panel that opens when the card is picked up.
     if (fx.intercede) out.push(I('guard') + 'Intercede.');
     if (fx.moveSelf) out.push(I('move') + 'Step <b>' + fx.moveSelf + '</b>.');
+    if (fx.freeMove) out.push(I('move') + 'A <b>free</b> step for anyone.');
     // TWO CLAUSES, BECAUSE IT IS TWO THINGS. As one row this wrapped at the
     // comma inside a 73px face and printed "Draw 1" over ", discard 1", which
     // reads as a rendering fault rather than as a rule. A row is one clause.

@@ -110,7 +110,37 @@ const MAX_TURNS = 24;
       });
       return { n: els.length, sample: els.slice(0, 3).map(e => (e.className || '').split(' ')[0]) };
     }, screen);
-    if (!live.n) fail(`${where}: nothing to click on ${screen} — soft-lock`);
+    // A RARE SOFT-LOCK HAS TO BE DIAGNOSABLE THE FIRST TIME. This reported
+    // "nothing to click on k-map" and nothing else, which says a screen is dead
+    // without saying what state it died in — and the walk picks its forks with
+    // Math.random(), so the run that found it cannot be replayed. One hit in
+    // roughly thirty runs is exactly the frequency where the next occurrence
+    // has to carry its own post-mortem.
+    //
+    // It also LOOKS AGAIN before failing. A screen that is one frame from being
+    // painted and a screen that will never be painted are the same DOM; a
+    // second look a beat later separates them, and a real lock still fails.
+    if (!live.n) {
+      await new Promise(r => setTimeout(r, 260));
+      const again = await J((id) => {
+        const root = document.getElementById(id);
+        return root ? root.querySelectorAll('.k-node.k-n-open, button:not([disabled])').length : 0;
+      }, screen);
+      if (again) { note('slow-paint:' + screen); return again; }
+      const why = await J(() => {
+        const R = window.R, st = R.state ? R.state() : null;
+        const shown = ['k-stage', 'k-map', 'k-camp', 'k-scene', 'k-swap', 'k-wake', 'k-mark']
+          .filter(id => { const e = document.getElementById(id);
+            return e && !e.classList.contains('k-hidden'); });
+        return { shown, pending: st && st.pending, over: st && st.over,
+                 at: st && st.at, stop: st && st.stop, tier: st && st.tier,
+                 reachable: (R.reachable ? R.reachable() : []).join(','),
+                 nodesInDom: document.querySelectorAll('#k-map .k-node').length,
+                 openInDom: document.querySelectorAll('#k-map .k-n-open').length,
+                 combat: window.K && window.K.state() ? window.K.state().phase : null };
+      });
+      fail(`${where}: nothing to click on ${screen} — soft-lock\n      state: ${JSON.stringify(why)}`);
+    }
     return live.n;
   }
 
