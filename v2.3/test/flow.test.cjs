@@ -1267,10 +1267,27 @@ const { boot } = require('./harness.cjs');
       window.K.render();
       return out;
     });
-    // 15 cards, three heroes: no hero may carry more than two clauses to check,
-    // and the whole deck may not exceed four distinct keywords
-    check('LOAD: at most two conditional cards per hero, and four keywords in the whole deck',
-      Object.values(load.perHero).every(n => n <= 3) && load.count <= 6
+    // 15 cards, three heroes: no hero may carry more than three clauses to
+    // check, and the whole deck may not exceed four distinct KEYWORDS.
+    //
+    // THE COUNT MOVED FROM SIX TO EIGHT AND THE KEYWORDS DID NOT MOVE AT ALL,
+    // and that split is the whole argument. Build 25 set this budget after
+    // measuring nine conditional cards as too much to read; the realtime
+    // playtest then measured the opposite failure at six — deliberate play lit
+    // 0.87 combos a turn, and 74% of turns lit none, so the ordering question
+    // the deck is built on was live in barely half of them.
+    //
+    // Both findings are real, and they are about different costs. A new KEYWORD
+    // is vocabulary: paid once by every player, forever, and it is what made
+    // nine unreadable. A second card wearing a keyword the deck ALREADY teaches
+    // costs a glance. So the two cards added in Build 94 both wear FOLLOW_UP —
+    // the keyword count is untouched at four — and a fifth keyword that was
+    // designed for this build was cut rather than spend the budget (see
+    // evalCondition). Measured over 60 opening hands: clauses per hand 1.88 →
+    // 2.48, combos lit by deliberate play 0.87 → 1.88, and the reward for
+    // playing well rather than greedily widened from x3.25 to x3.77.
+    check('LOAD: at most three conditional cards per hero, and four keywords in the whole deck',
+      Object.values(load.perHero).every(n => n <= 3) && load.count <= 8
       && load.kinds.length <= 4,
       JSON.stringify({ perHero: load.perHero, total: load.count, keywords: load.kinds }));
     check('LOAD: a keyword states its own rule — the name alone teaches nothing',
@@ -1422,9 +1439,15 @@ const { boot } = require('./harness.cjs');
     const turned = await J(async () => {
       const s0 = window.K.state();
       s0.kizuna = 0;
-      window.K.forceIntent('benediction');              // one hit, two notes
+      // THE GRADE LIST IS AS LONG AS THE BAR. It was two literal 'perfect's,
+      // because the intent it named happened to be two notes; Build 94 gave the
+      // Regent a heavier heal and the short list was padded out with misses, so
+      // the string was never read FLAWLESS and the check measured nothing.
+      window.K.forceIntent('dirgesong');
       const before = window.K.state().kizuna;
-      await window.K.endTurn({ grades: ['perfect', 'perfect'] });   // FLAWLESS
+      const all = (window.K.currentIntent().hits || [])
+        .flatMap(h => h.notes.map(() => 'perfect'));
+      await window.K.endTurn({ grades: all });                       // FLAWLESS
       return { before, after: window.K.state().kizuna };
     });
     check('KIZUNA: turning a blow aside charges it — mastery is what builds the ladder',
@@ -1443,11 +1466,105 @@ const { boot } = require('./harness.cjs');
       out.again = await window.K.allOut();
       return out;
     });
+    // …and it LEAVES THEM STRONGER. The all-out used to be a firework: the bar
+    // filled, three of them hit at once, the bar emptied, and the party was in
+    // exactly the state it had been in a second before. For a game whose
+    // premise is team attacks that DEVELOP, that is the premise not happening.
+    // It now raises the party's AP ceiling for the rest of the fight, which is
+    // why this reads 4 where it once read 3.
     check('KIZUNA: full, it becomes a button — all three strike, it costs no AP, and it empties',
       fired.ready && /ALL-OUT/.test(fired.label) && fired.enabled && fired.ok
-      && fired.dealt >= 24 && fired.broke === 4 && fired.spent === 0 && fired.ap === 3
+      && fired.dealt >= 24 && fired.broke === 4 && fired.spent === 0 && fired.ap === 4
       && fired.phase === 'PLAYER_READY' && fired.again === false,
       JSON.stringify(fired));
+
+    // ── THE AP LADDER: three timescales, three different things earned ──────
+    //
+    // Slay the Spire modulates energy with relics and cards; FF7 Rebirth builds
+    // its action economy out of what the party does together. This game's
+    // version is one resource moved on three clocks, each paid for by a
+    // different thing the party is good at:
+    //
+    //   THE TURN   a combo whose reward is its own AP back — order the turn
+    //              right and the turn gets longer.
+    //   THE FIGHT  the all-out raises the ceiling until the fight ends —
+    //              earned by parrying, because kizuna charges from turned
+    //              strings, and it compounds.
+    //   THE ROAD   the campfire's RESOLVE node raises the base for the run.
+    //
+    // Each rung is asserted here except the road's, which camp.test owns.
+    const gear = await J(async () => {
+      window.K.startCombat({ seed: 5 });
+      const st = window.K.state();
+      const base = st.apMax;
+      st.kizuna = 100; st.boss.hp = 400;
+      await window.K.allOut();
+      const one = window.K.state().apMax;
+      // …and it cannot run away with a long fight
+      for (let i = 0; i < 5; i++) {
+        window.K.state().kizuna = 100;
+        window.K._setPhase('PLAYER_READY');
+        await window.K.allOut();
+      }
+      const many = window.K.state().apMax;
+      window.K.startCombat({ seed: 6 });          // …and nothing leaks onto the road
+      return { base, one, many, next: window.K.state().apMax };
+    });
+    check('AP · THE FIGHT: the all-out finds them another gear, capped, and it does not leave the fight',
+      gear.base === 3 && gear.one === 4 && gear.many === 5 && gear.next === 3,
+      JSON.stringify(gear));
+
+    const refund = await J(() => {
+      window.K.startCombat({ seed: 5 });
+      window.K.forceHand(['lcascade', 'cleave', 'serrate', 'mend', 'frostbind']);
+      const cold = window.K.evaluateCard('lcascade');
+      const ap0 = window.K.state().ap;
+      window.K.playCard('lcascade');              // led with it: nothing to follow
+      const afterCold = window.K.state().ap;
+      window.K.startCombat({ seed: 5 });
+      window.K.forceHand(['lcascade', 'cleave', 'serrate', 'mend', 'frostbind']);
+      window.K.playCard('cleave');                // an ally acts first
+      const mid = window.K.state().ap;
+      const warm = window.K.evaluateCard('lcascade');
+      window.K.playCard('lcascade');
+      return { coldLive: cold.condActive, coldRefund: cold.refund, ap0, afterCold,
+               warmLive: warm.condActive, warmRefund: warm.refund,
+               mid, afterWarm: window.K.state().ap };
+    });
+    // ONE A TURN. Measured: uncapped, two refund cards in a hand is two free
+    // cards, and the ~half-parry band moved 59% -> 75% on the refunds alone
+    // (the all-out's gear, for comparison, moved it one point). The cap is what
+    // keeps the refund a line-enabler rather than a way to play the whole hand.
+    const once = await J(() => {
+      window.K.startCombat({ seed: 5 });
+      window.K.state().ap = 9;
+      window.K.forceHand(['cleave', 'lcascade', 'qthrow', 'mend', 'serrate']);
+      window.K.playCard('cleave');                       // an ally acts
+      const first = window.K.evaluateCard('lcascade').refund;
+      window.K.playCard('lcascade');                     // …and is refunded
+      const second = window.K.evaluateCard('qthrow').refund;   // the ally still acted
+      return { first, second, live: window.K.evaluateCard('qthrow').condActive };
+    });
+    check('AP · THE TURN: only the first combo of a turn pays its AP back',
+      once.first === 1 && once.live === true && once.second === 0,
+      JSON.stringify(once));
+
+    check('AP · THE TURN: a combo can pay its own AP back — led with it costs 1, played in the line costs 0',
+      refund.coldLive === false && refund.coldRefund === 0
+      && refund.afterCold === refund.ap0 - 1
+      && refund.warmLive === true && refund.warmRefund === 1
+      && refund.afterWarm === refund.mid,
+      JSON.stringify(refund));
+
+    // AN UPGRADE MAY NEVER TAKE A COMBO AWAY. CARD_UPS entries are whole card
+    // faces rather than deltas, which is what makes them readable — and what
+    // makes it possible to forget a clause and quietly hand the player a
+    // sharpened card that does less. Two of them did exactly that the moment
+    // the combos above landed.
+    const kept = await J(() => window.K.INTENTS && Object.keys(window.K.CARD_UPS)
+      .filter(id => window.K.CARD_DEFS[id].cond && !window.K.CARD_UPS[id].cond));
+    check('DECK: no sharpened card loses the combo its base face carries',
+      kept.length === 0, kept.join(',') || 'none');
 
     // …AND IT PAYS EVERY PAIR THAT THREW IT. The bond used to be bought with
     // fight LENGTH — stitches accrue once per pair per turn — so pace.sim
@@ -1674,7 +1791,7 @@ const { boot } = require('./harness.cjs');
   }
   await fresh(22);
   {
-    await J(() => { window.K.forceHand(['sgrace', 'cleave', 'mend', 'serrate', 'frostbind']); window.K.forceIntent('benediction'); });
+    await J(() => { window.K.forceHand(['sgrace', 'cleave', 'mend', 'serrate', 'frostbind']); window.K.forceIntent('dirgesong'); });
     await J(() => window.K.playCard('sgrace'));
     const g0 = await J(() => { const h = window.K.state().heroes; return [h.ash.guard, h.elin.guard, h.mira.guard]; });
     await J(() => window.K.endTurn({ grades: [] }));
@@ -1802,7 +1919,18 @@ const { boot } = require('./harness.cjs');
   await fresh(37);
   {
     await J(() => { window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'twinfang']); window.K.forceIntent('hymn'); });
-    const raw = await J(() => window.K.currentIntent().hits[0].dmg[0]);
+    // THE RAW IS WHAT THE ENGINE WOULD DEAL, not what the table has written in
+    // it. This read `hits[0].dmg[0]` — the AUTHORED number — and every hit is
+    // then scaled by `TUNE.dmgScale` and the foe's own multiplier before it
+    // lands. The two agreed only while dmgScale was exactly 1.0, so the moment
+    // Build 94 raised it to absorb the AP ladder this check reported the
+    // mitigation maths as broken when the only thing that had changed was the
+    // number it was comparing against.
+    const raw = await J(() => {
+      const it = window.K.currentIntent();
+      return Math.round(it.hits[0].dmg[window.K.state().boss.phase - 1] * window.K.tune().dmgScale
+                        * (window.K.state().foe ? window.K.state().foe.dmgMul : 1));
+    });
     const mixed = await J(async () => {
       const hits = window.K.currentIntent().hits;
       // first string: one great, one miss -> weighted 0.9/2 = 0.45 mitigation
@@ -1848,7 +1976,7 @@ const { boot } = require('./harness.cjs');
   console.log('\n── resonance ──');
   await fresh(41);
   {
-    await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('benediction'); });
+    await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('dirgesong'); });
     await J(() => { window.K.playCard('lcascade'); window.K.playCard('cleave'); });   // elin → ash: stitch
     const s1 = await J(() => ({ res: window.K.state().bond.stitches,
                                 pair: window.K.state().pairBond['ash|elin'] || 0 }));
@@ -1867,7 +1995,7 @@ const { boot } = require('./harness.cjs');
       s1.res === 1 && s2.res === 1 && s1.pair > 0 && s2.pair === s1.pair,
       JSON.stringify({ s1, s2 }));
     await J(() => window.K.endTurn({ grades: [] }));
-    await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('benediction'); });
+    await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('dirgesong'); });
     await J(() => { window.K.playCard('lcascade'); window.K.playCard('cleave'); });
     const gen = await S();
     // …AND FOR THE PAIRS WITH NO COUNTER TO HIDE BEHIND. ash|mira and elin|mira
@@ -1876,7 +2004,15 @@ const { boot } = require('./harness.cjs');
     // the old check could not see.
     const others = await J(async () => {
       const D = window.K.CARD_DEFS, ids = Object.keys(D);
-      const solo = (who) => ids.filter(i => D[i].owner === who && !D[i].cond);
+      // ONE HERO, TWO OF THEIR CARDS. This filtered on `!D[i].cond` — cards
+      // with nothing to read — which had nothing to do with what it is
+      // testing (a stitch is owner adjacency; a condition cannot change who
+      // owns a card) and everything to do with how many plain cards happened
+      // to be in the deck that week. Build 94 gave three vanilla cards a
+      // combo, Mira was left with one, `solo('mira')[1]` came back undefined
+      // and the whole suite crashed inside renderHand. It asks for what it
+      // actually needs now: a hero's own cards, at the cost this turn can pay.
+      const solo = (who) => ids.filter(i => D[i].owner === who && D[i].cost === 1);
       const out = {};
       for (const [pair, x, y] of [['elin|mira', 'mira', 'elin'], ['ash|mira', 'mira', 'ash']]) {
         window.K.startCombat({ seed: 3 });
@@ -1893,10 +2029,10 @@ const { boot } = require('./harness.cjs');
       Object.values(others).every(o => o.two > 0 && o.three === o.two),
       JSON.stringify(others));
     await fresh(41);
-    await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('benediction'); });
+    await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('dirgesong'); });
     await J(() => { window.K.playCard('lcascade'); window.K.playCard('cleave'); });
     await J(() => window.K.endTurn({ grades: [] }));
-    await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('benediction'); });
+    await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('dirgesong'); });
     await J(() => { window.K.playCard('lcascade'); window.K.playCard('cleave'); });
 
     check('RESONANCE GENERATED: two stitches put Light Through Steel in the hand',
@@ -1910,7 +2046,7 @@ const { boot } = require('./harness.cjs');
       && s.exhausted.includes('lightsteel') && !s.discard.includes('lightsteel'),
       JSON.stringify({ dmg: hp0 - s.boss.hp, ex: s.exhausted }));
     await J(() => window.K.endTurn({ grades: [] }));
-    await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('benediction'); });
+    await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('dirgesong'); });
     await J(() => { window.K.playCard('lcascade'); window.K.playCard('cleave'); });
     const again = await S();
     check('ONE AUTHORED CLIMAX: the Resonance never regenerates this encounter',
@@ -1921,10 +2057,16 @@ const { boot } = require('./harness.cjs');
   console.log('\n── the regent ──');
   await fresh(51);
   {
-    await J(() => { window.K.forceIntent('benediction'); window.K.state().boss.hp = 100; window.K.render(); });
+    // THE REGENT'S HEAL IS ITS OWN INTENT NOW. `benediction` was two notes, and
+    // it was the bar dragging the boss's floor down to the Hollow Husk's — the
+    // first fight of a run and the last could open on the same amount. The
+    // Regent sings the Mourning Dirge instead: the same act at the weight of
+    // the thing singing it, five notes, a feint inside it. The Choir of One
+    // keeps the light one, which is the fodder's whole character.
+    await J(() => { window.K.forceIntent('dirgesong'); window.K.state().boss.hp = 100; window.K.render(); });
     await J(() => window.K.endTurn({ grades: [] }));
     const hp = await J(() => window.K.state().boss.hp);
-    check('BENEDICTION: the Regent sings itself whole (+7)', hp === 107, 'hp=' + hp);
+    check('DIRGESONG: the Regent sings itself whole (+7)', hp === 107, 'hp=' + hp);
   }
   await fresh(52);
   {
@@ -2789,7 +2931,17 @@ const { boot } = require('./harness.cjs');
     const syncopated = beat.gaps.some(g => Math.abs(g / 500 - Math.round(g / 500)) > 0.08);
     // …and it BREATHES: six notes end to end is a wall, six in phrases with a
     // rest between hits is a bar you can read your way through.
-    const rests = beat.gaps.filter(g => g > 900).length;
+    //
+    // THE REST IS A BEAT NOW, NOT TWO. The scheduler used to close each hit with
+    // a flat +1 and open the next with a flat +1, and the two stacked into a
+    // full second between every pair of hits regardless of what had just been
+    // asked — 1.5s of an 8s enemy turn, spent on nothing a probe could see (the
+    // rings' runways are long enough that no frame of that gap was ever empty).
+    // Build 94 replaced both with one rule: the gap after a hit is the same
+    // MIN_GAP_AFTER floor that governs two notes inside a hit, never less than
+    // one beat. So the threshold moves with it — a rest is still a rest, it is
+    // just no longer twice as long as the thing it separates.
+    const rests = beat.gaps.filter(g => g > 450).length;
     check('BEAT: the whole volley runs on one 120 BPM clock, and the strings syncopate on it',
       beat.pulse && beat.beatMs === '500ms' && onGrid && syncopated && beat.noTracker,
       JSON.stringify({ pulse: beat.pulse, beat: beat.beatMs, gaps: beat.gaps,
@@ -2862,24 +3014,38 @@ const { boot } = require('./harness.cjs');
   // ── the dilation: pausing animations is not the effect ──
   await fresh(7);
   {
+    // POLL FOR THE DRAIN; DO NOT SLEEP THROUGH IT. This waited for `k-slowmo`,
+    // slept a flat 190ms — "past the 130ms transition" — and read the filter
+    // once. That holds only if the class goes on once and stays on. It does
+    // not: slowmo is per NOTE, so the drain restarts every time the class comes
+    // back, and a single read landing mid-transition reported saturate(0.10)
+    // and (0.13) against a 0.05 target. Build 94's tighter bar made those
+    // restarts more frequent and the single read started losing the race
+    // outright.
+    //
+    // The claim being tested is that the world DRAINS during a bar, not that it
+    // is drained at one arbitrary instant, so it samples across the bar and
+    // keeps the deepest value it saw.
     const dil = await J(async () => {
       window.K.forceIntent('hymn');
       window.K.endTurn();
       const st = document.getElementById('k-stage');
-      let out = null;
-      for (let i = 0; i < 200 && !out; i++) {
+      const bg = document.getElementById('k-backdrop');
+      let best = null, vig = false, sawSlowmo = false;
+      for (let i = 0; i < 400; i++) {
         if (st.classList.contains('k-slowmo')) {
-          await new Promise(r => setTimeout(r, 190));   // past the drain transition
-          const bg = document.getElementById('k-backdrop');
+          sawSlowmo = true;
           const f = getComputedStyle(bg).filter;
           const sat = /saturate\(([\d.]+)\)/.exec(f);
           const br = /brightness\(([\d.]+)\)/.exec(f);
-          out = { sat: sat ? +sat[1] : 1, bright: br ? +br[1] : 1,
-                  vig: getComputedStyle(st, '::before').backgroundImage !== 'none' };
+          const now = { sat: sat ? +sat[1] : 1, bright: br ? +br[1] : 1 };
+          if (!best || now.sat < best.sat) best = now;
+          vig = vig || getComputedStyle(st, '::before').backgroundImage !== 'none';
+          if (best.sat <= 0.06) break;
         }
         await new Promise(r => setTimeout(r, 10));
       }
-      return out || { none: true };
+      return best ? { ...best, vig } : { none: true, sawSlowmo };
     });
     check('DILATION: the world drains and a vignette rushes in — not just paused animation',
       !!dil && !dil.none && dil.sat <= 0.1 && dil.bright <= 0.4 && dil.vig, JSON.stringify(dil));
@@ -2890,7 +3056,7 @@ const { boot } = require('./harness.cjs');
     const gaps = await J(() => {
       const MIN = { tap: 0.5, feint: 1, bait: 1, slide: 1.5, hold: 1.5, burst: 2 };
       const bad = [];
-      for (const id of ['hymn', 'scythe', 'benediction', 'rain']) {
+      for (const id of ['hymn', 'scythe', 'dirgesong', 'rain']) {
         window.K.forceIntent(id);
         for (const h of window.K.currentIntent().hits) {
           const want = h.beats || h.notes.map((_, i) => i);
@@ -3080,13 +3246,24 @@ const { boot } = require('./harness.cjs');
   await fresh(7);
   {
     const dr = await J(async () => {
+      // AGAINST THE CHOIR, NOT THE REGENT. This forced the Regent's heal, and
+      // Build 94 made that heal five notes with the sigil THIRD — so by the
+      // time the ring for it is up, the thrust before it is still live, and
+      // `claimsPress` correctly hands the stroke to the note that is landing
+      // sooner. The draw then read zero points and the check reported that
+      // drawing does not work, when what it had actually done was press during
+      // somebody else's note.
+      //
+      // What this needs is a bar where the draw is the only thing being asked,
+      // and the Choir of One's Benediction is exactly that: lure, then SIGIL.
+      window.K.startCombat({ seed: 7, foe: window.K.FOES.cultist });
       // WAIT FOR QUIET FIRST — the same lesson LENS and TRACE both taught.
       let quiet = 0;
       for (let i = 0; i < 400 && quiet < 20; i++) {
         quiet = document.querySelector('.k-pring') ? 0 : quiet + 1;
         await new Promise(r => setTimeout(r, 5));
       }
-      window.K.forceIntent('benediction');   // lure, then SIGIL
+      window.K.forceIntent('benediction');   // lure, then the SIGIL that closes it
       window.K.endTurn();
       for (let i = 0; i < 300 && !document.querySelector('.k-pring-draw'); i++) {
         await new Promise(r => setTimeout(r, 10));
@@ -3169,10 +3346,17 @@ const { boot } = require('./harness.cjs');
   }
   await settle();
   // ── the note vocabulary: six kinds, each a different ask ──
+  // …AND IT ASKS THE REGENT, so it starts by putting her back on the board.
+  // The DRAW block above swaps in the Choir of One (the only foe left with a
+  // clean two-note draw) and this block inherited it — then asked the Choir for
+  // the Regent's hymn and scythe. Under Build 94 that is four loud console
+  // errors instead of four silent substitutions, which is the entire reason
+  // `forceIntent` learned to shout.
+  await fresh(7);
   {
     const vocab = await J(() => {
       const kinds = new Set();
-      for (const it of ['hymn', 'scythe', 'benediction', 'rain']) {
+      for (const it of ['hymn', 'scythe', 'dirgesong', 'rain']) {
         window.K.forceIntent(it);
         (window.K.currentIntent().hits || []).forEach(h =>
           h.notes.forEach(n => kinds.add(String(n).split(':')[0])));
@@ -3225,7 +3409,7 @@ const { boot } = require('./harness.cjs');
   await fresh(7);
   {
     const bait = await J(async () => {
-      window.K.forceIntent('benediction');          // its first note is a bait
+      window.K.forceIntent('dirgesong');            // its first note is a bait
       const r = window.K.endTurn();
       // WAIT FOR THE RING, DO NOT GUESS AT IT. This slept a flat 620ms and then
       // asked whether the ring was up. Under load — a slower render, a heavier
@@ -3440,8 +3624,21 @@ const { boot } = require('./harness.cjs');
         apBudget: st23.apMax,
         apLit: pips.filter(p => !p.classList.contains('k-ap-off')).length,
         apLeft: st23.ap,
-        // and they sit UNDER the hand, which is where the spending happens
-        apUnderHand: ap.top >= hand.bottom - 2,
+        // …and they sit BELOW THE CARD FACES, which is where the spending
+        // happens. It asked `ap.top >= hand.bottom` — the hand CONTAINER's
+        // bottom — which is a different thing from the cards in it: the fan
+        // arcs up in the middle, so the container's box runs well past the
+        // lowest card and any AP row taller than a hairline failed a test it
+        // was not actually failing. What matters is that no card is painted
+        // over, and that the row is not jammed into the last few pixels of the
+        // stage where a phone puts its home indicator.
+        apUnderHand: ap.top >= Math.max.apply(null,
+          [...document.querySelectorAll('#k-hand .k-card')]
+            .map(c => c.getBoundingClientRect().top)) ,
+        apClearOfCards: ![...document.querySelectorAll('#k-hand .k-card')]
+          .some(c => overlaps(ap, c.getBoundingClientRect())),
+        apOffTheEdge: (st.bottom - ap.bottom) >= 4,
+        apArea: Math.round(ap.width * ap.height),
         apCentred: Math.abs((ap.left + ap.right) / 2 - (hand.left + hand.right) / 2) < 8,
         endTurnAboveDiscard: et.bottom <= x.top,
         noOverlap: !overlaps(ap, d) && !overlaps(ap, x) && !overlaps(et, x)
@@ -3467,13 +3664,48 @@ const { boot } = require('./harness.cjs');
     check('PILES: a draw stack and a discard stack sit in the lower corners, counting live',
       piles.deckLeft && piles.discRight && piles.lowerThird && piles.stacked
       && piles.deckN === piles.stateDeck, JSON.stringify(piles));
+    // THE ROW IS BIGGER THAN A HAIRLINE, and the area is asserted because that
+    // is the finding it answers. The realtime playtest counted 23.3 things to
+    // parse per turn and found the number gating every decision was 41x9px —
+    // 369 square pixels, 0.09% of the board — in the last row of pixels on the
+    // stage. 600 is the floor now: not four times bigger, which was tried and
+    // measured into the centre card of the fan, but enough that it is not the
+    // smallest thing on a screen it is the most important thing on.
     check('BOTTOM BAR: AP is a row of marks under the hand, one per point, and nothing overlaps',
       piles.apMarks === piles.apBudget && piles.apLit === piles.apLeft
-      && piles.apUnderHand && piles.apCentred
+      && piles.apUnderHand && piles.apCentred && piles.apClearOfCards
+      && piles.apOffTheEdge && piles.apArea >= 600
       && piles.endTurnAboveDiscard && piles.noOverlap && piles.swapOnDeck,
       JSON.stringify({ marks: piles.apMarks, budget: piles.apBudget, lit: piles.apLit,
-        left: piles.apLeft, under: piles.apUnderHand, centred: piles.apCentred,
+        left: piles.apLeft, under: piles.apUnderHand, clearOfCards: piles.apClearOfCards,
+        offEdge: piles.apOffTheEdge, area: piles.apArea, centred: piles.apCentred,
         etAbove: piles.endTurnAboveDiscard, clear: piles.noOverlap, swap: piles.swapOnDeck }));
+
+    // …AND IT ANSWERS THE QUESTION THE HAND ACTUALLY ASKS. Not "how much do I
+    // have" — the marks already said that — but "if I play THIS, what is left".
+    // That was arithmetic done in the player's head on every card.
+    const preview = await J(() => {
+      window.K.startCombat({ seed: 4 });
+      window.K.forceHand(['crosssever', 'cleave', 'mend', 'serrate', 'frostbind']);
+      const going = () => document.querySelectorAll('.k-ap-pip.k-ap-going').length;
+      const idle = going();
+      const tap = (id) => {
+        const c = document.querySelector('.k-card[data-card="' + id + '"]');
+        const r = c.getBoundingClientRect();
+        c.dispatchEvent(new PointerEvent('pointerdown',
+          { bubbles: true, clientX: r.left + 20, clientY: r.top + 20, pointerId: 31 }));
+        c.dispatchEvent(new PointerEvent('pointerup',
+          { bubbles: true, clientX: r.left + 20, clientY: r.top + 20, pointerId: 31 }));
+      };
+      tap('cleave');                                   // costs 1
+      const one = going();
+      tap('crosssever');                               // costs 2 cold
+      const two = going();
+      return { idle, one, two, short: document.getElementById('k-ap').classList.contains('k-ap-short') };
+    });
+    check('BOTTOM BAR: holding a card shows which marks it would take, before it takes them',
+      preview.idle === 0 && preview.one === 1 && preview.two === 2,
+      JSON.stringify(preview));
     check('PILES: a played card is seen flying into the discard, and the pile thumps',
       piles.flying >= 1 && piles.thumped && piles.landed && piles.discAfter === '1',
       JSON.stringify({ flying: piles.flying, thump: piles.thumped, after: piles.discAfter }));
@@ -3483,7 +3715,7 @@ const { boot } = require('./harness.cjs');
   {
     const draw = await J(async () => {
       window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'twinfang']);
-      window.K.forceIntent('benediction');
+      window.K.forceIntent('dirgesong');
       window.K.endTurn({ grades: ['miss', 'miss'] });
       const out = { flew: 0, faceDown: 0, grew: false, hidden: false };
       for (let i = 0; i < 200; i++) {
@@ -3531,20 +3763,36 @@ const { boot } = require('./harness.cjs');
   {
     const sweep = await J(async () => {
       window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'twinfang']);
-      window.K.forceIntent('benediction');
+      window.K.forceIntent('dirgesong');
       const held = window.K.state().hand.length;
       window.K.endTurn({ grades: ['miss', 'miss'] });
       // A card must LEAVE the hand as its ghost launches. If the original sits
       // there until the last one has flown, hand + ghosts exceeds what was held
       // and the sweep reads as the hand duplicating itself.
+      // SAMPLE THE GHOSTS, NOT THE PHASE. This gated on
+      // `phase === 'HAND_DISCARDING'`, and Build 94 stopped AWAITING the sweep
+      // — it plays under the foe drawing breath now, because nothing in the
+      // enemy phase reads the hand and the 0.78s it cost was 0.78s of an enemy
+      // turn measured at 7.95s. So the phase is HAND_DISCARDING for a single
+      // frame, `samples` came back 0, and a check that had found a real bug
+      // twice reported nothing at all. What it is actually asserting is a
+      // VISUAL invariant — a card leaves the hand as its ghost launches, so
+      // hand + ghosts never exceeds what was held — and ghosts on screen is
+      // exactly when that can be observed.
+      // …and it stops at the DRAW. Ghosts fly in both directions — the sweep
+      // throws cards to the discard, the top of the next turn pulls five out of
+      // the deck — and a sampler that only looked for `.k-fly` counted the
+      // arriving hand as the leaving one and reported five cards of overflow
+      // that were simply the next turn beginning.
       let over = 0, mid = 0, shrank = false, samples = 0;
-      for (let i = 0; i < 60; i++) {
-        if (window.K.state().phase === 'HAND_DISCARDING') {
-          const fly = document.querySelectorAll('.k-fly').length;
-          const inHand = document.querySelectorAll('#k-hand .k-card').length;
+      for (let i = 0; i < 220; i++) {
+        if (window.K.state().phase === 'HAND_DRAWING') break;
+        const fly = document.querySelectorAll('.k-fly').length;
+        const inHand = document.querySelectorAll('#k-hand .k-card').length;
+        if (fly > 0) {
           mid = Math.max(mid, fly);
           over = Math.max(over, inHand + fly - held);
-          if (fly > 0 && inHand < held) shrank = true;
+          if (inHand < held) shrank = true;
           samples++;
         }
         await new Promise(r => setTimeout(r, 4));
@@ -3690,6 +3938,37 @@ const { boot } = require('./harness.cjs');
     check('FOE: no two opponents play the same hand of intents',
       new Set(Object.values(bestiary.hands)).size === 5,
       JSON.stringify(bestiary.hands));
+
+    // THE NOTE LADDER — what the bar ASKS has to rise with what the foe IS.
+    //
+    // The realtime playtest found this inverted at the top and flat at the
+    // bottom: the Grief-Wraith (84 HP, a third fight) had a floor of 4 notes
+    // while the Mourning Regent (98 HP, the boss) could open a bar on 2. The
+    // first opponent in a run and the last could ask the same amount, and the
+    // curve meant to teach the vocabulary taught nothing.
+    //
+    // The FLOOR is the statistic that matters. A mean is something no player
+    // ever experiences; the lightest bar a foe can open on is the first thing
+    // they meet of it. Both floor and ceiling are asserted non-decreasing down
+    // the ladder, so a future re-deal cannot quietly flatten it again.
+    const rungs = await J(() => {
+      const order = ['husk', 'cultist', 'wraith', 'revenant', 'mourner'];
+      const all = window.K.INTENTS();
+      return order.map(id => {
+        const counts = window.K.FOES[id].intents.map(iid => {
+          const it = all.find(x => x.id === iid);
+          return it ? it.hits.reduce((a, h) => a + h.notes.length, 0) : 0;
+        });
+        return { id, floor: Math.min(...counts), ceil: Math.max(...counts) };
+      });
+    });
+    const rising = (k) => rungs.every((r, i) => i === 0 || r[k] >= rungs[i - 1][k]);
+    check('LADDER: the lightest bar a foe can open on rises with its place in the run',
+      rising('floor') && rungs[0].floor < rungs[4].floor,
+      rungs.map(r => r.id + ' ' + r.floor + '\u2013' + r.ceil).join('  '));
+    check('LADDER: …and so does the heaviest',
+      rising('ceil') && rungs[0].ceil < rungs[4].ceil,
+      rungs.map(r => r.id + ' ' + r.floor + '\u2013' + r.ceil).join('  '));
 
     // A DEAD FOE ENDS THE FIGHT, asserted on the paint rather than only where
     // the damage is dealt. Inside a run combat draws no outcome card — the road
@@ -4068,7 +4347,7 @@ const { boot } = require('./harness.cjs');
       await new Promise(r => setTimeout(r, 60));
       seen.wind = frameNow();
       for (const [intent, state] of [['hymn', 'toll'], ['scythe', 'sweep'],
-                                     ['rain', 'rain'], ['benediction', 'gather']]) {
+                                     ['rain', 'rain'], ['dirgesong', 'gather']]) {
         window.K._fxFoeAct(intent);
         await new Promise(r => setTimeout(r, 60));
         seen[state] = frameNow();
@@ -4130,9 +4409,21 @@ const { boot } = require('./harness.cjs');
       // and not the rain one. That is the entry this check caught, and it was
       // right to: a foe that opens in a posture it is not about to throw is
       // the mismatch this whole build exists to remove.
-      const map = { hymn: 'toll', toll: 'toll', crescendo: 'toll',
-                    scythe: 'sweep', flurry: 'sweep',
-                    rain: 'rain', benediction: 'gather' };
+      // …AND IT IS DERIVED, NOT RESTATED. This was a hand-written table of nine
+      // intents mapped to nine poses, which is a copy of a rule that lives in
+      // `fxFoeAct` — so it went stale the moment Build 94 added two intents to
+      // the bestiary, and the failure it reported ("lash:no-undefined") was the
+      // check being out of date rather than the game being wrong. It now asks
+      // the same two tables the game asks: the intent's FIRST act, and that
+      // act's pose. A new intent is covered the day it is authored.
+      const ACTS = window.K.ACTS, INTENTS = window.K.INTENTS();
+      const poseOf = (iid) => {
+        const it = INTENTS.find(x => x.id === iid);
+        const spec = it && it.hits[0] && it.hits[0].acts && it.hits[0].acts[0];
+        const def = spec && ACTS[String(spec).split(':')[0]];
+        return def ? def.pose.replace('k-foe-', '') : null;
+      };
+      const map = INTENTS.reduce((a, it) => { a[it.id] = poseOf(it.id); return a; }, {});
       const out = {};
       for (const id of ['husk', 'cultist', 'wraith', 'revenant', 'mourner']) {
         window.K.startCombat({ seed: 7, foe: window.K.FOES[id] });

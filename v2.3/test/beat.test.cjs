@@ -153,9 +153,20 @@ const PROBES = `
   await sleep(20000);
   const T = await take();
 
-  // the hand goes one card at a time, not all at once
-  const preBar = at(T, 'parryBar').length ? at(T, 'parryBar')[0].t : Infinity;
-  const swept = at(T, 'hand').filter(e => e.t < preBar);
+  // THE HAND GOES ONE CARD AT A TIME, and it is now timed by the hand rather
+  // than by the parry bar. This took every hand event BEFORE the bar opened,
+  // which worked only while the sweep was awaited ahead of the enemy phase.
+  // Build 94 stopped awaiting it — it plays under the foe drawing breath, which
+  // is 0.78s off an enemy turn measured at 7.95s — so all but the first card
+  // now leaves while the bar is up, and the check saw one card and no gaps.
+  // What it is asserting is that the count comes DOWN in steps, so it follows
+  // the count down and stops where the draw starts putting cards back.
+  const handRun = at(T, 'hand').map(e => ({ t: e.t, n: +JSON.parse(e.v) }));
+  const swept = [];
+  for (const e of handRun) {
+    if (swept.length && e.n >= swept[swept.length - 1].n) break;   // the draw begins
+    swept.push(e);
+  }
   const sweepGaps = swept.slice(1).map((e, i) => e.t - swept[i].t);
   check('BEAT: the hand sweeps into the discard one card at a time',
     swept.length >= 2 && sweepGaps.every(g => g > 40),

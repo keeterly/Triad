@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 92;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 94;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -88,7 +88,14 @@ const CARD_DEFS = {
   lastlight:   { owner: 'ash', name: 'Last Light',    cost: 1, target: 'enemy', base: [{ dmg: 5 }],
                  cond: { type: 'FINALE', reward: 'output', bonus: [{ dmg: 10 }, { brk: 2 }] } },
   // ── Elin — Oracle ──
-  lcascade:    { owner: 'elin', name: 'Lumen Cascade', cost: 1, target: 'enemy', base: [{ dmg: 4 }, { guardLowest: 5 }], cond: null },
+  // THE CARD THAT MAKES THE LINE AFFORDABLE. A FINALE costs the whole turn —
+  // three heroes, three AP — so the finisher was always the last thing that
+  // could happen and a player who reached it had nothing left. One refund in
+  // the MIDDLE of the line changes the arithmetic of the whole plan: Ash, then
+  // this for free, then the finisher, and there is still an AP for a fourth
+  // card. That is the turn this game wanted and could not pay for.
+  lcascade:    { owner: 'elin', name: 'Lumen Cascade', cost: 1, target: 'enemy', base: [{ dmg: 4 }, { guardLowest: 5 }],
+                 cond: { type: 'FOLLOW_UP', reward: 'ap', ap: 1 } },
   // THE SECOND FINALE, so the trio is a fork and not a script: close the round
   // with Ash and it is a killing blow, close it with Elin and the party stands
   // back up. One turn, one finisher, two very different turns.
@@ -106,9 +113,23 @@ const CARD_DEFS = {
   // The deck's only filter: what you play to FIND the hero missing from the
   // round you are building. Nudged to 5 so it is never strictly worse than the
   // vanilla strike while doing that job.
-  qthrow:      { owner: 'mira', name: 'Quick Throw',   cost: 1, target: 'enemy', base: [{ dmg: 5 }, { drawDiscard: true }], cond: null },
+  // …AND THE FILTER PAYS FOR ITSELF. Digging for the hero missing from the round
+  // you are building used to cost an AP, which meant the card that finds the
+  // combo competed with the combo. Played after an ally it is free, so looking
+  // is no longer a turn you spent not acting.
+  qthrow:      { owner: 'mira', name: 'Quick Throw',   cost: 1, target: 'enemy', base: [{ dmg: 5 }, { drawDiscard: true }],
+                 cond: { type: 'FOLLOW_UP', reward: 'ap', ap: 1 } },
   // Two strikes, always. Its Follow-Up landed 97% of the time — a clause that
   // is almost always true is not a decision, it is a thing to read every turn.
+  // STILL PLAIN, AND DELIBERATELY. The first draft of this build gave it the
+  // SAME_HERO fork and the suite caught what that cost: with Quick Throw and
+  // Twin Fang both carrying clauses, Mira had exactly ONE card left with
+  // nothing to read, and a check that needed two of them crashed. Build 25
+  // spent itself cutting the deck's reading load from nine conditional cards
+  // to six; three back is the fix for a combo layer that was too quiet, four
+  // is walking back into the room Build 25 left. The fork lives on Guarding
+  // Cut instead, where it costs the hero who has the most reason to hold
+  // ground rather than the one who already reads four clauses.
   twinfang:    { owner: 'mira', name: 'Twin Fang',     cost: 1, target: 'enemy',
                  base: [{ dmg: 4 }, { dmg: 4 }], cond: null },
   // Backstab already steps Mira across the rows; now the row she steps OUT of
@@ -150,7 +171,8 @@ const CARD_UPS = {
   mend:        { name: 'Mend+',          cost: 1, target: 'party', base: [{ heal: 9 }],
                  cond: { type: 'FINALE', reward: 'output', bonus: [{ healAll: 7 }] } },
   sgrace:      { name: 'Shared Grace+',  cost: 1, target: 'party', base: [{ guardAll: 5 }, { brk: 3 }], cond: null },
-  lcascade:    { name: 'Lumen Cascade+', cost: 1, target: 'enemy', base: [{ dmg: 6 }, { guardLowest: 7 }], cond: null },
+  lcascade:    { name: 'Lumen Cascade+', cost: 1, target: 'enemy', base: [{ dmg: 6 }, { guardLowest: 7 }],
+                 cond: { type: 'FOLLOW_UP', reward: 'ap', ap: 1 } },
   // Mira — the double, the two-beat plan, the execution
   twinfang:    { name: 'Twin Fang+',     cost: 1, target: 'enemy', base: [{ dmg: 6 }, { dmg: 6 }], cond: null },
   backstab:    { name: 'Backstab+',      cost: 1, target: 'enemy', base: [{ moveSelf: 'front' }, { dmg: 7 }],
@@ -334,8 +356,30 @@ const RESONANCE_PAIR = ['ash', 'elin'];
 // as much as a sharp one, so it makes the cliff steeper, not flatter.
 //
 // Three is the number. It triples the low end and does not touch the top.
-const TUNE = { dmgScale: 1.0, dirge: [3, 3], heal: [7, 9], parryKeep: 0.3, bossHp: 168,
-  alloutDmg: 26, alloutBrk: 4 };
+// `alloutAp` is here rather than beside the all-out because it is a BALANCE
+// number, not a rule: Build 94's AP ladder is the largest single power change
+// this deck has taken, and the sim measured it immediately — the ~half-parry
+// band went from inside its 25-55% gate to 81.3%. A number that moves a gate
+// that far has to be drivable from the sim that watches the gate.
+// `dmgScale` is 1.16 rather than 1.0 because Build 94's AP ladder made the party
+// measurably stronger and the world has to absorb exactly that much. Measured at
+// the ~half-parry band, 90 runs a point:
+//
+//     dmgScale   1.00  77.8%      1.16  58.9%
+//                1.08  68.9%      1.24  53.3%
+//
+// Build 93 measured 58.9% on the same bot and seeds, so 1.16 is the point where
+// this build is balance-NEUTRAL. 1.24 would land inside the shipped 25-55% gate
+// and close a drift that predates this build — and that is deliberately not
+// taken here: the band has been adrift since before the AP ladder existed, it
+// wants a full three-band sweep rather than a number picked off a one-band
+// probe, and a build should absorb its own delta and no more.
+//
+// The median winning fight stays at 8 rounds across the whole sweep, which is
+// why this knob and not `bossHp`: more health buys the same winrate by making
+// fights LONGER, and the deck's target is 7-9 rounds.
+const TUNE = { dmgScale: 1.16, dirge: [3, 3], heal: [7, 9], parryKeep: 0.3, bossHp: 168,
+  alloutDmg: 26, alloutBrk: 4, alloutAp: 1 };
 
 const ALLOUT_BASE = { dmg: TUNE.alloutDmg, brk: TUNE.alloutBrk };
 
@@ -433,11 +477,60 @@ const REGENT_INTENTS = [
     hits: [
       { dmg: [8, 12], target: 'elin', acts: ['lure', 'sigil'] },
     ] },
+  // THE LADDER NEEDED A BOTTOM RUNG. Measured across the bestiary, the lightest
+  // bar the FODDER could throw was 2 notes and the lightest the BOSS could
+  // throw was also 2 — so the first thing a player meets and the last thing
+  // they meet could ask exactly the same amount, and the curve that is supposed
+  // to teach the vocabulary was flat at the bottom and inverted at the top.
+  //
+  // The Hollow Husk shared `scythe` with three other foes and could open a
+  // first fight on five notes. This is its own hand instead: three notes, all
+  // of them the two gestures a player already knows on turn one, and a shape
+  // that reads as a shape — high, low, and a jab that arrives late.
+  { id: 'lash', name: 'Grasping Lash', kind: 'attack',
+    hits: [
+      { dmg: [10, 14], target: 'ash',  acts: ['claw:L', 'thrust'], beats: [0, 1.5] },
+      { dmg: [10, 14], target: 'mira', acts: ['thrust'] },
+    ] },
+  // …AND THE CHOIR'S OWN LIGHT HAND. The Lash was dealt to both fodder foes at
+  // first and the suite caught what that meant: `lash` opens on a CLAW, the
+  // Choir of One's sprite sheet has no sweep frames at all — it tolls, it
+  // rains, it gathers — and a foe throwing a blow it has no body for falls back
+  // to its idle loop mid-swing. An intent is not just a damage shape; it is a
+  // list of things the thing on screen has to be able to DO.
+  //
+  // So the Choir gets three notes built only from what it can perform: the
+  // sigil it is already drawing, and one long toll to close.
+  { id: 'keening', name: 'The Keening', kind: 'attack',
+    hits: [
+      { dmg: [9, 13], target: 'elin', acts: ['sigil', 'thrust'], beats: [0, 1.5] },
+      { dmg: [9, 13], target: 'ash',  acts: ['toll'] },
+    ] },
+  // …AND A TOP RUNG. The Regent's benediction was the two-note bar that dragged
+  // the boss's floor down to the Husk's. This is the same act — it sings itself
+  // whole and dares you to interrupt — written at the weight of the thing
+  // singing it: a long gathering figure, a feint inside it, and the sigil at
+  // the end that is the heal actually landing.
+  { id: 'dirgesong', name: 'The Mourning Dirge', kind: 'heal',
+    hits: [
+      { dmg: [7, 10], target: 'elin', acts: ['lure', 'toll'], beats: [0, 1.5] },
+      { dmg: [9, 13], target: 'ash',  acts: ['feint', 'thrust', 'sigil'], beats: [0, 1.5, 3] },
+    ] },
+  // FIVE NOTES, NOT FOUR — and the reason is the boss's floor. The Rain is the
+  // only intent in the bestiary carrying a BURST, so taking it off the Mourning
+  // Regent to keep her floor above the elite's took the whole mash gesture out
+  // of the last fight in the game: four separate checks went red naming the
+  // vocabulary they could no longer find. A boss that cannot throw a flurry is
+  // a worse boss than a boss with a slightly soft floor.
+  //
+  // So the downpour gets the extra note it was always short of — a third rain
+  // on the closing hit, which is what a downpour is — and it can be dealt to
+  // the Regent without pulling her floor under the Revenant's.
   { id: 'rain', name: 'Ashen Rain', kind: 'attack', sub: [1, 0.75],
     hits: [
       { dmg: [9, 13], target: 'ash',  acts: ['rain'] },
       { dmg: [9, 13], target: 'elin', acts: ['rain'] },
-      { dmg: [9, 13], target: 'mira', acts: ['thrust', 'claw:D'], beats: [0, 1.5] },
+      { dmg: [9, 13], target: 'mira', acts: ['thrust', 'claw:D', 'rain'], beats: [0, 1.5, 3.5] },
     ] },
   // THREE MORE HANDS, so that no two opponents play the same one. Four intents
   // shared five ways meant the bestiary's whole promise — "each foe draws from
@@ -497,16 +590,37 @@ deriveNotes(REGENT_INTENTS);
 // Wraith is all sweep and flurry. Damage rides on a single multiplier and the
 // dirge is per-foe, so the ladder from fodder to boss is one number to tune
 // rather than four tables to keep in sync.
+// THE LADDER IS THE FLOOR, NOT THE MEAN. What a player feels from a foe is the
+// LIGHTEST bar it can open on — the mean is a statistic nobody experiences, and
+// tuning against it hid the actual defect: the Grief-Wraith (84 HP, a third
+// fight) had a floor of 4 notes while the Mourning Regent (98 HP, the boss)
+// could open on 2. The first fight and the last could ask the same thing.
+//
+// So each foe's hand is dealt to hold a floor and a ceiling, and both rise:
+//
+//     husk      2 – 3      toll, lash
+//     cultist   2 – 5      benediction, keening, rain
+//     wraith    5 – 6      rain, scythe, flurry
+//     revenant  5 – 6      scythe, flurry, hymn
+//     mourner   5 – 7      scythe, hymn, rain, dirgesong, crescendo
+//
+// THE WRAITH AND THE REVENANT SHARE A RUNG, and that is honest rather than
+// unfinished: what separates an elite from a third fight here is not how many
+// notes it throws but how fast — the Revenant has two phases, and phase 2
+// shortens the beat under everything it plays. The count is the ladder; the
+// tempo is the elite.
+//
+// A check asserts it, so the next hand dealt cannot quietly flatten the curve.
 const FOES = {
   husk:     { id: 'husk', name: 'The Hollow Husk', art: 'foe-husk', tier: 'fight',
               hp: 62, brk: 8, dmgMul: 0.70, dirge: 2, phases: 1, embers: 2,
-              intents: ['toll', 'scythe'] },
+              intents: ['toll', 'lash'] },
   cultist:  { id: 'cultist', name: 'The Choir of One', art: 'foe-cultist', tier: 'fight',
               hp: 76, brk: 9, dmgMul: 0.80, dirge: 2, phases: 1, embers: 2,
-              intents: ['hymn', 'benediction', 'rain'] },
+              intents: ['benediction', 'keening', 'rain'] },
   wraith:   { id: 'wraith', name: 'The Grief-Wraith', art: 'foe-wraith', tier: 'fight',
               hp: 84, brk: 10, dmgMul: 0.86, dirge: 3, phases: 1, embers: 3,
-              intents: ['flurry', 'scythe', 'rain'] },
+              intents: ['rain', 'scythe', 'flurry'] },
   // THE ELITE IS A GAMBLE, NOT A SECOND BOSS. At 116 HP / 0.96 / dirge 3 the
   // run sim measured it costing a ~half-parry party 72 of their 112 health —
   // more than the Regent herself — so the road was decided at stop 3 and the
@@ -515,10 +629,10 @@ const FOES = {
   // the attrition that made it the end of the run.
   revenant: { id: 'revenant', name: 'The Kneeling Revenant', art: 'foe-revenant', tier: 'elite',
               hp: 98, brk: 11, dmgMul: 0.88, dirge: 2, phases: 2, embers: 5,
-              intents: ['toll', 'flurry', 'scythe', 'benediction'] },
+              intents: ['scythe', 'flurry', 'hymn'] },
   mourner:  { id: 'mourner', name: 'The Mourning Regent', art: 'foe-mourner', tier: 'boss',
               hp: null, brk: 12, dmgMul: 1, dirge: null, phases: 2, embers: 8,
-              intents: ['hymn', 'scythe', 'crescendo', 'benediction', 'rain'] },
+              intents: ['scythe', 'hymn', 'rain', 'dirgesong', 'crescendo'] },
 };
 // `hp: null` and `dirge: null` mean "whatever TUNE says" — the boss stays the
 // one encounter the balance sim tunes directly, and the rest are scaled off it.
@@ -734,9 +848,14 @@ function markBrink(id) {
 }
 
 function freshTurnState() {
-  return { actionsPlayed: [], moved: 0, cycled: false, stitchedPairs: [] };
+  return { actionsPlayed: [], moved: 0, cycled: false, stitchedPairs: [], refunded: 0 };
 }
 
+// WHICH FIGHT THIS IS, counted from the top. Declared here rather than beside
+// the animation that reads it, because `startCombat` stamps it and `let` has no
+// hoisted initialisation — the first fight of a session threw on a temporal
+// dead zone when this sat 3200 lines further down.
+let _combatSeq = 0;
 function startCombat(opts) {
   opts = opts || {};
   if (opts.seed != null) setSeed(opts.seed);
@@ -759,6 +878,10 @@ function startCombat(opts) {
   // of modifiers: `vigor` is max HP the party woke up with, `foeBonus` is HP
   // this particular foe woke up with. Both default to nothing.
   const vigor = Math.max(0, opts.vigor || 0);
+  // …and a third: `apBonus` is base AP the party woke up with, which is the
+  // campfire's route into the turn. Same narrow seam, same shape — a named
+  // number, not a bag of modifiers.
+  const apBase = Math.min(AP_CEILING, AP_PER_TURN + Math.max(0, opts.apBonus || 0));
   const hero = (id) => {
     const max = HEROES23[id].maxHp + vigor;
     return { row: HEROES23[id].row0,
@@ -767,6 +890,15 @@ function startCombat(opts) {
   };
   C = {
     phase: 'INTRO',
+    // WHICH FIGHT THIS IS. Build 94 stopped awaiting the end-of-turn hand
+    // sweep so it could play under the foe drawing breath, and that turned an
+    // animation into something that can OUTLIVE its own combat: `fxSweepHand`
+    // reads the global `C`, so a sweep still in flight when the next
+    // startCombat lands was splicing the NEXT fight's hand into the next
+    // fight's discard. The determinism check found it within one build — two
+    // runs of the same seed diverged on the fourth intent — which is exactly
+    // the kind of bug that is unfindable by hand and trivial with a fixed seed.
+    id: (_combatSeq = (_combatSeq || 0) + 1),
     turn: 1,
     foe,
     cards: buildCards(opts.upgrades),
@@ -794,7 +926,7 @@ function startCombat(opts) {
     deeds: freshDeeds(),
     roster: opts.roster && rosterValid(opts.roster) ? JSON.parse(JSON.stringify(opts.roster)) : baseRoster(),
     deck: [], hand: [], discard: [], exhausted: [],
-    ap: AP_PER_TURN, apMax: AP_PER_TURN,
+    ap: apBase, apMax: apBase,
     turnState: freshTurnState(),
     // WHAT THE BOND CHANGED about the cards this party carries. Copied in, so
     // a fight can never write a mark back onto the run.
@@ -1084,6 +1216,20 @@ function evalCondition(cond, ownerId) {
     // the time. Tying a card to the row a hero stands in makes the rows worth
     // using and gives the player a condition they can CAUSE.
     case 'BACK_ROW':      return !!C.heroes[ownerId] && C.heroes[ownerId].row === 'back';
+    // A FIFTH KEYWORD WAS DESIGNED HERE AND CUT. `SAME_HERO` — "this hero has
+    // already acted, hit again with them" — is the one condition in the deck's
+    // vocabulary that CANNOT be true at the same time as FOLLOW_UP or FINALE,
+    // so a hand carrying both would have a genuine fork in it rather than one
+    // ordering with one right answer.
+    //
+    // It is not here because the suite said no. `LOAD` budgets this deck at
+    // four distinct keywords, and that budget is not a guess: Build 25 measured
+    // nine conditional cards out of fifteen and walked it back to six because
+    // every turn had become a reading exercise. A fifth keyword is the most
+    // expensive kind of card change there is — it is vocabulary, paid once by
+    // every player, forever — and it does not belong in the same build as a
+    // retimed enemy turn and three new AP rules. It is worth doing on its own,
+    // against its own measurement of what it costs to read.
     default: return false;
   }
 }
@@ -1112,16 +1258,42 @@ function evaluateCard(cardId) {
       if (last && last.ownerId !== primaryHero(card)) condActive = true;
     }
   }
-  // A conditional card gets a cost reduction OR increased output — never
-  // both. Costs never fall below 1 (deck §3), which is why no sigil touches
-  // cost: almost every card in the deck costs 1, so a discount sigil would be
-  // dead on arrival against that floor.
+  // A conditional card gets a cost reduction OR increased output OR its AP
+  // back — never more than one. Costs never fall below 1 (deck §3), which is
+  // why no sigil touches cost: almost every card in the deck costs 1, so a
+  // discount sigil would be dead on arrival against that floor.
+  //
+  // THE REFUND IS THE THIRD REWARD, and it exists because of that same floor.
+  // A 1-cost card cannot be discounted, so for most of the deck `reward:'cost'`
+  // is unreachable and the only combo payoff available was a bigger number.
+  // Bigger numbers do not change what a turn IS. A refund does: order the turn
+  // correctly and the turn gets longer, which is the thing a deckbuilder is
+  // actually for and the feeling this game did not have. It is bounded by the
+  // conditions themselves — FOLLOW_UP and FINALE both require somebody ELSE to
+  // have acted, so no card can refund itself in a loop.
   const currentCost = Math.max(1,
     (condActive && card.cond.reward === 'cost') ? card.cond.costTo : card.cost);
   let resolvedEffects = (condActive && card.cond.reward === 'output')
     ? [...card.base, ...card.cond.bonus] : card.base.slice();
   if (sigil === 'surge') resolvedEffects = brighten(resolvedEffects);
-  return { cardId, card, condActive, currentCost, resolvedEffects, sigil,
+  // ONE REFUND A TURN, AND THE SIM IS WHY.
+  //
+  // The AP ladder was measured arm by arm against the ~half-parry band, and it
+  // came back the opposite way round from the argument that built it: the
+  // ALL-OUT'S GEAR — the rung this build argues hardest for — is worth ONE
+  // point of winrate (59% -> 60%), because a bot rarely fills the bar twice and
+  // the gear arrives late in an eight-round fight. The two combo REFUNDS, the
+  // small quiet change, are worth SIXTEEN (59% -> 75%).
+  //
+  // Uncapped, two refund cards in one hand is two free cards, and FOLLOW_UP is
+  // satisfied by simply not leading with them — so the ceiling on a good turn
+  // was five cards, not four. Capped at one, the refund stays the thing that
+  // makes a three-hero line affordable and stops being a way to play the whole
+  // hand. It is also a better rule to READ than a rate: "the first one comes
+  // back" is a sentence; "sometimes you get two" is a spreadsheet.
+  const refund = (condActive && card.cond.reward === 'ap' && !C.turnState.refunded)
+    ? (card.cond.ap || 1) : 0;
+  return { cardId, card, condActive, currentCost, resolvedEffects, sigil, refund,
            exhaust: !!card.exhaust || sigil === 'surge' };
 }
 
@@ -1172,6 +1344,16 @@ async function allOut() {
   if (!living.length) return false;
   C.kizuna = 0;
   C.allOuts = (C.allOuts || 0) + 1;
+  // ANOTHER GEAR. Raised here, before the strike, so the pip is already lit
+  // when the camera comes back — and `C.ap` is raised with it rather than
+  // waiting for the refill, because an all-out is not usually the last thing
+  // you want to do in a turn.
+  const gearedUp = TUNE.alloutAp > 0 && C.apMax < AP_CEILING;
+  if (gearedUp) {
+    const was = C.apMax;
+    C.apMax = Math.min(AP_CEILING, C.apMax + TUNE.alloutAp);
+    C.ap += C.apMax - was;
+  }
   // THREE AS ONE PAYS ALL THREE.
   //
   // The bond used to be paid for entirely by fight LENGTH: stitches accrue once
@@ -1205,7 +1387,9 @@ async function allOut() {
     await sleep(150);
   }
   breakDamage(TUNE.alloutBrk);
-  logLine('ALL-OUT — ' + living.length + ' as one.');
+  logLine('ALL-OUT — ' + living.length + ' as one.'
+    + (gearedUp ? ' They find another gear: +' + TUNE.alloutAp + ' AP for the rest of this.' : ''));
+  if (gearedUp) fxApGear();
   if (C.phase !== 'VICTORY') setPhase('PLAYER_READY');
   renderAll();
   return true;
@@ -1334,6 +1518,10 @@ function playCard(cardId, allyId) {
   if (ev.card.target === 'ally' && !allyId) allyId = defaultAlly(owner);
   setPhase('PLAYER_ACTION_RESOLVING');
   C.ap -= ev.currentCost;
+  // THE REFUND LANDS BEFORE THE CARD RESOLVES, so the AP row lights back up on
+  // the same frame the card leaves the hand — a refund the player only notices
+  // two cards later is a rule they have to be told rather than one they see.
+  if (ev.refund) { C.ap += ev.refund; C.turnState.refunded++; fxApRefund(ev.refund); }
   // the ghost leaves from where the card actually sat, so it must be measured
   // BEFORE the hand re-renders
   if (ev.exhaust) fxExhaust(cardId); else flyFromHand(cardId, 'discard');
@@ -1454,6 +1642,36 @@ const BOND_PER_SHIELD = 3;      // Elin stepping into a blow meant for someone e
 // SKILL makes more frequent rather than less. See allOut().
 const BOND_PER_ALLOUT = 4;
 const KIZUNA_MAX = 100;
+// WHAT THE ALL-OUT LEAVES BEHIND. Until now it was a damage spike and nothing
+// else: the bar filled, three of them hit at once, the bar emptied, and the
+// party was in exactly the state it had been in a second earlier. For a game
+// whose premise is "team attacks that DEVELOP over time" that is a firework,
+// not a development.
+//
+// So it raises the party's ceiling for the rest of the fight — one more AP per
+// turn, every turn, permanently until the fight ends. It is the right shape for
+// three reasons the board can already prove:
+//
+//   · It is EARNED BY SKILL. Kizuna charges from turned strings, so a clean bar
+//     buys a bigger turn. Before this, a perfect parry bought survival and
+//     nothing else — the reward for playing the hardest system in the game well
+//     was that less went wrong.
+//   · It COMPOUNDS. More AP is more cards is more damage is more kizuna, so the
+//     second all-out arrives sooner than the first. That rising curve is what a
+//     Slay the Spire run has and this one did not.
+//   · It is legible in one glance, because AP is already a row of marks: a
+//     fourth mark appears and stays.
+//
+// Capped so a long fight cannot run away with it, and it is per-FIGHT —
+// `apMax` is rebuilt by startCombat, so nothing leaks onto the road.
+//
+// THE CEILING IS THE CEILING, HOWEVER YOU REACH IT. A party carrying RESOLVE
+// from the campfire opens at 4, so their FIRST all-out takes them to 5 and
+// their second gears them not at all; a party without it opens at 3 and gets
+// two. That is deliberate and it is visible — the pips simply stop appearing —
+// and it means the road's rung and the fight's rung are two routes to the same
+// place rather than two things that stack into a turn nobody balanced.
+const AP_CEILING = 5;
 // THE ALL-OUT HAS TO BE REACHABLE. A player reported it "broken and doesn't do
 // anything", and both paths into it — the API and a real touch on the bar —
 // fire correctly. What was broken was the ARITHMETIC: at 1/3 per damage and 8
@@ -1526,9 +1744,17 @@ async function endTurn(opts) {
 
   // END OF PLAYER PHASE — the hand sweeps into the discard, one card after
   // another, so the pile visibly grows and the turn has a full stop.
+  //
+  // IT IS NOT AWAITED. The sweep costs 0.78s of an enemy turn measured at 7.95s,
+  // and nothing in the enemy phase reads the hand — the telegraph, the wind-up
+  // and the whole parry bar run against the board, not the cards. So the sweep
+  // now plays UNDER the foe drawing breath, which is where a player is looking
+  // anyway, and the turn stops paying for it twice. It is still awaited before
+  // the draw, because a card cannot fly out of a pile it has not landed in yet.
+  let sweeping = null;
   if (HAND_SWEEP && C.hand.length) {
     setPhase('HAND_DISCARDING');
-    await fxSweepHand();
+    sweeping = fxSweepHand();
   }
 
   // Broken expires here: the meter refills. (The pending cancel still
@@ -1700,6 +1926,7 @@ async function endTurn(opts) {
   livingHeroes().forEach(id => { C.heroes[id].guard = 0; });
   C.counterstance = false;
   setPhase('HAND_DRAWING');
+  if (sweeping) await sweeping;     // the pile has to exist before it is drawn from
   while (C.hand.length < 5) {
     const shuffles = C.reshuffles || 0;
     if (!drawOne()) break;
@@ -2474,7 +2701,15 @@ const MUSIC = (() => {
 
 const beatWait = (ms) => new Promise(r => setTimeout(r, Math.max(0, ms)));
 const BEAT_MS = 500;             // 120 BPM
-const BEAT_LEADIN = 2;           // beats of empty runway before the first note
+// Beats of empty runway before the first note. It was 2 — a full second of an
+// enemy turn spent looking at a bar with nothing in it, before a telegraph the
+// player has already been reading all through their own turn. It is 1.5 now,
+// and it is a FLOOR rather than the whole story: gridStart takes the larger of
+// this and whatever runway the opening note's own kind is owed, so an intent
+// that opens on a DRAW (2.3 beats to walk a figure) still gets its full read.
+// Under the old constant it did not — 2.3 asked, 2 given, and the ring for the
+// hardest note in the vocabulary spawned already closing.
+const BEAT_LEADIN = 1.5;
 const GESTURE_WORD = { tap: 'TAP', slide: 'SLIDE', hold: 'HOLD' };
 let _grid = null;                // { t0, idx } — the live volley's beat clock
 
@@ -2520,22 +2755,23 @@ function parryThread(fromEl, x, y) {
 // still blocked by autoplay, `playing` is false and the grid keeps its old
 // free-running behaviour — the parry has never depended on the music and must
 // not start.
-function gridStart() {
-  const free = performance.now() + BEAT_LEADIN * BEAT_MS;
+function gridStart(leadBeats) {
+  const lead = Math.max(BEAT_LEADIN, leadBeats || 0);
+  const free = performance.now() + lead * BEAT_MS;
   let b = null;
   try { b = MUSIC.beat(); } catch (_) { return free; }
   if (!b || !b.playing) return free;
   const nowSec = b.now();
   // the lead-in, in seconds, rounded UP to the track's next beat — never
   // shortening the runway the hand is promised
-  const target = b.nextGrid(BEAT_LEADIN * BEAT_MS / 1000, b.beatSec);
+  const target = b.nextGrid(lead * BEAT_MS / 1000, b.beatSec);
   const delta = (target - nowSec) * 1000;
   if (!isFinite(delta) || delta < 0) return free;
   return performance.now() + delta;
 }
 
-function beatOpen(totalNotes) {
-  _grid = { t0: gridStart(), idx: 0, note: 0, total: totalNotes };
+function beatOpen(totalNotes, leadBeats) {
+  _grid = { t0: gridStart(leadBeats), idx: 0, note: 0, total: totalNotes };
   const st = el('k-stage'); if (!st) return;
   const pulse = document.createElement('div');
   pulse.id = 'k-beat';
@@ -2682,6 +2918,28 @@ const SLIDE_LEAD_MS = 120;
 const NOTE_LEAD = { draw: 2.3, slide: 1.7, bait: 1.7, burst: 1.6, feint: 1.3 };
 // A breath between the hits of a volley. Six notes back-to-back is a wall; the
 // same six in phrases of two with a rest between them is a bar.
+//
+// IT IS A FLOOR NOW, NOT AN ADDITION. The scheduler used to close each hit with
+// `slot += max(beats) + 1` and then open the next with `slot += REST_BEATS` —
+// two separate paddings that stacked, so consecutive hits sat a full two beats
+// (1.0s) apart no matter what the last gesture was. Measured across the whole
+// bestiary that cost 1.5s on every three-hit intent, and it bought nothing: the
+// rings have long runways, so a probe found ZERO frames between the first ring
+// and the last with nothing on screen. The gap was never air the player could
+// see — it was air they had to sit through at the end.
+//
+// Now one rule spans both cases: the gap after a hit is the same MIN_GAP_AFTER
+// floor that governs the gap between two notes INSIDE a hit, and this is the
+// minimum it may shrink to. A hit that ends on a tap can be answered again
+// quickly; a hit that ends on a hold cannot, and the table already knew that.
+//
+// IT IS A WHOLE BEAT, NOT A HALF, AND THE SUITE IS WHY. The first pass set this
+// to 0.5 and the BEAT check went red: it asserts a real REST between hits,
+// because six notes end to end is a wall whatever the per-gesture floors say.
+// That check is protecting phrasing, not padding — a hit is supposed to read as
+// a phrase — so the rule keeps a full beat of breath and gives back only the
+// half that was pure stacking. Three-hit intents lose two beats rather than
+// three; the bar is still a bar.
 const REST_BEATS = 1;
 // …and a burst gets a whole extra one after it.
 const BURST_REST = 1;
@@ -3075,7 +3333,12 @@ async function runVolleyRhythm(hits, answerers, sub) {
   // from "not registered", which is the worst thing a rhythm read can be.
   const onPress = (e) => pressRipple(e.clientX, e.clientY);
   stage.addEventListener('pointerdown', onPress, true);
-  beatOpen(kinds.length);
+  // THE RUNWAY IS THE OPENING NOTE'S, NOT A CONSTANT. A bar that opens on a
+  // draw needs 2.3 beats before its ring is honest; one that opens on a tap
+  // needs one. Asking for the larger of the two means the leadin can come down
+  // for the common case without shortening the read on the rare hard one.
+  const openLead = NOTE_LEAD[parseNote(kinds[0]).kind] || 1;
+  beatOpen(kinds.length, openLead);
   await beatWait(BEAT_LEADIN * BEAT_MS * 0.5);
 
   const jobs = [];
@@ -3083,7 +3346,6 @@ async function runVolleyRhythm(hits, answerers, sub) {
   for (let hi = 0; hi < hits.length; hi++) {
     const who = answerers[hi];
     const pos = anchorFor(who);
-    if (hi > 0) slot += REST_BEATS;         // a rest between hits, not a wall
     const inHit = hits[hi].notes.length;
     const track = stringTrack(who, inHit);
     if (track) tracks.push(track);
@@ -3138,7 +3400,15 @@ async function runVolleyRhythm(hits, answerers, sub) {
         return g;
       })());
     }
-    slot += Math.max.apply(null, beats.map(b => b == null ? 0 : b)) + 1;
+    // WHERE THE NEXT HIT STARTS. One rule, and it is the one already governing
+    // two notes inside a hit: whatever the last gesture was, the hand needs that
+    // long to finish it — never less than a half-beat of breath. This replaced a
+    // flat `+1` close and a flat `+1` rest that stacked into a full two beats
+    // between every pair of hits regardless of what had just been asked.
+    const lastBeat = Math.max.apply(null, beats.map(b => b == null ? 0 : b));
+    const lastKind = parseNote(hits[hi].notes[inHit - 1]).kind;
+    const close = MIN_GAP_AFTER[lastKind] == null ? 1 : MIN_GAP_AFTER[lastKind];
+    slot = lastBeat + Math.max(REST_BEATS, close / (sub || 1));
     // A MASH NEEDS ITS OWN AIR. Three taps inside one ring while the next note
     // is already closing is not a hard read, it is two hands' worth of work —
     // and the taps meant for the flurry rained on whatever came next.
@@ -3837,6 +4107,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, (typeof window !== 'undefin
 // as the hand duplicating itself rather than emptying.
 async function fxSweepHand() {
   const target = document.getElementById('k-disc-btn');
+  const mine = C.id;                       // the fight this sweep belongs to
   // RETAIN STAYS. The sweep used to shift from the front until the hand was
   // empty; a kept card has to be stepped OVER rather than counted out, or the
   // loop walks off the end of a hand that never empties.
@@ -3848,6 +4119,7 @@ async function fxSweepHand() {
     const node = document.querySelector('.k-card[data-card="' + id + '"]');
     const from = S && node ? boxOf(node, S) : null;
     const html = node ? node.innerHTML : '';
+    if (!C || C.id !== mine) return;    // a new fight started; this hand is gone
     C.hand.splice(C.hand.indexOf(id), 1);
     C.discard.push(id);
     renderHand();                       // the ranks close in the same frame
@@ -3859,6 +4131,7 @@ async function fxSweepHand() {
     await sleep(fastFx() ? 4 : 95);
   }
   await sleep(fastFx() ? 6 : 260);
+  if (!C || C.id !== mine) return;
 }
 // THE DRAW BUILDS THE HAND. Every arriving card used to force a full re-layout
 // with no transition, so the four cards already held SNAPPED to new angles five
@@ -3920,7 +4193,13 @@ async function fxDrawOne() {
       pileThump('deck');
     }
   }
-  await sleep(fastFx() ? 8 : 230);
+  // THE STAGGER IS NOT THE FLIGHT. Each card's flight is 420ms and they overlap
+  // freely; this is only the gap between one leaving the pile and the next. At
+  // 230ms five cards cost 1.15s of a turn in which nothing is playable and
+  // nothing is being decided — the hand is already known, it is arriving. At
+  // 130 the fan still builds card by card and the top of the turn comes half a
+  // second sooner.
+  await sleep(fastFx() ? 8 : 130);
 }
 // THE DIRGE SETTLES; IT DOES NOT DROP. Every other blow in the turn earns its
 // own beat — the volley spaces four hits 330ms apart, each with one number over
@@ -3986,7 +4265,39 @@ async function fxHitResolved(tgtId, taken, negated, flawless) {
     fxDeflect(at, !!flawless);
     sfx('guard', flawless ? 1.2 : 0.9);
   }
-  await sleep(330);
+  // THE BEAT IS AS LONG AS THERE IS SOMETHING TO READ. A blow that landed puts
+  // a number over a hero and drains a bar, and 330ms is the time that takes to
+  // register. A blow TURNED ASIDE has already said everything it is going to
+  // say — the deflect fired the instant the note was read, seconds ago — and
+  // holding the screen for it is charging the player for playing well.
+  //
+  // Which makes the whole enemy turn shorter the better the bar is answered.
+  // That is the right way round: in this game skill is supposed to buy tempo,
+  // and until now a perfect parry and a whiffed one cost exactly the same
+  // wall-clock.
+  await sleep(taken > 0 ? 330 : 170);
+}
+// AP COMES BACK. A refund that only shows up as a mark quietly re-lighting is a
+// rule the player has to be told; this is the mark arriving from the card that
+// paid for it, so the refund reads as a consequence of the play.
+function fxApRefund(n) {
+  const row = el('k-ap-pips'); if (!row) return;
+  const pips = row.querySelectorAll('.k-ap-pip');
+  for (let i = 0; i < n; i++) {
+    const p = pips[Math.max(0, pips.length - 1 - i)];
+    if (!p) continue;
+    p.classList.remove('k-ap-back'); void p.offsetWidth; p.classList.add('k-ap-back');
+    setTimeout(() => p.classList.remove('k-ap-back'), 700);
+  }
+  sfx('resonance', 0.7);
+}
+// …AND THE CEILING RISES. A different beat from a refund on purpose: a refund
+// is one mark blinking back on, this is the whole row growing, and the two must
+// not look alike or the permanent thing reads as the temporary one.
+function fxApGear() {
+  const row = el('k-ap'); if (!row) return;
+  row.classList.remove('k-ap-gear'); void row.offsetWidth; row.classList.add('k-ap-gear');
+  setTimeout(() => row.classList.remove('k-ap-gear'), 1200);
 }
 function testMode() { return /[?&]test=1/.test(location.search); }
 // TEST MODE STRIPS THE TIMING OUT — every sleep is capped at 24ms so two
@@ -4722,6 +5033,18 @@ function faceBase(card, sigil) {
 function condReward(card, sigil) {
   if (!card.cond) return '';
   if (card.cond.reward === 'cost') return 'costs <b>' + card.cond.costTo + '</b> AP.';
+  // THE REFUND SAYS WHAT IT IS ON THE FACE, and it says it SHORT. The first
+  // draft read "free — the AP comes back", and the clip check found Quick Throw
+  // overflowing its own text block: that card already spends two lines saying
+  // it draws one and discards one, and a payoff row half again as long as the
+  // longest one in the deck did not fit. It also could not say "costs 0",
+  // because that is not what happens — the AP is spent and then returned, and
+  // a card in this deck may not lie about its own arithmetic.
+  if (card.cond.reward === 'ap') {
+    const n = card.cond.ap || 1;
+    return n >= card.cost ? 'the AP comes <b>back</b>.'
+                          : '<b>' + n + '</b> AP comes back.';
+  }
   // the combo's own numbers are brightened too — they are numbers this card
   // deals, and evaluateCard brightens the whole resolved list
   const bonus = sigil === 'surge' ? brighten(card.cond.bonus) : card.cond.bonus;
@@ -4738,6 +5061,25 @@ function condText(card) {
 }
 function effectText(effects) { return prose(effects, true).replace(/<[^>]*>/g, ''); }
 function stripTags(html) { return String(html).replace(/<br>/g, ' ').replace(/<[^>]*>/g, ''); }
+// WHAT THIS ONE WOULD COST. The realtime playtest counted 23.3 things on screen
+// to parse per turn and found that the number gating every decision — how much
+// AP is left — was not among the first of them: a 41x9px strip of diamonds in
+// the last row of pixels on the board, 0.09% of the screen, saying a number
+// nothing else on screen repeats.
+//
+// Position was only half of it. The question a hand actually asks is not "how
+// much do I have" but "if I play THIS, what is left for the rest of the turn",
+// and answering that was arithmetic done in the player's head every time. So
+// the marks a card would consume now light as ABOUT TO GO the moment it is
+// picked up, and the ones that would survive stay as they are. The answer is
+// read rather than computed, which is the whole difference between a glance and
+// a pause.
+function apPreview(cardId) {
+  if (!C || !cardId) return 0;
+  const ev = evaluateCard(cardId);
+  if (!ev) return 0;
+  return Math.max(0, ev.currentCost - (ev.refund || 0));
+}
 function renderApDial() {
   if (C && _etArmedTurn !== C.turn) disarmEndTurn();
   el('k-ap-num').textContent = C.ap;
@@ -4745,9 +5087,21 @@ function renderApDial() {
   // …and the pips say what it is OUT OF, so nobody has to remember the budget
   const pips = el('k-ap-pips');
   if (pips) {
+    // a card in the hand under a finger is a spend that has not happened yet
+    const want = C.phase === 'PLAYER_READY' ? apPreview(_sel) : 0;
+    const spending = Math.min(want, C.ap);
     let out = '';
-    for (let i = 0; i < C.apMax; i++) out += '<span class="k-ap-pip' + (i < C.ap ? '' : ' k-ap-off') + '"></span>';
+    for (let i = 0; i < C.apMax; i++) {
+      const lit = i < C.ap;
+      // count the doomed marks from the RIGHT of the lit run, so the ones that
+      // would survive stay put and the eye reads what remains, not what goes
+      const doomed = lit && i >= C.ap - spending;
+      out += '<span class="k-ap-pip' + (lit ? '' : ' k-ap-off')
+           + (doomed ? ' k-ap-going' : '') + '"></span>';
+    }
     pips.innerHTML = out;
+    // the row itself says whether this card is affordable at all
+    el('k-ap').classList.toggle('k-ap-short', !!_sel && want > C.ap);
   }
 }
 function renderPiles() {
@@ -5202,9 +5556,9 @@ function attachCardInput(btn) {
     }
     // A tap that arrives while the hand is still settling from the last play
     // is a tap aimed at a card that has since moved. It selects, never commits.
-    if (handLocked()) { _sel = id; renderHand(); showPick(id); return; }
+    if (handLocked()) { _sel = id; renderHand(); renderApDial(); showPick(id); return; }
     if (_sel === id) { commitCard(id); }
-    else { _sel = id; renderHand(); showPick(id); }
+    else { _sel = id; renderHand(); renderApDial(); showPick(id); }
   });
   btn.addEventListener('pointercancel', () => { clearTimeout(holdT); armed = false; dragging = false;
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
@@ -5228,6 +5582,9 @@ function clearSelection(quiet) {
   if (!_sel) return;
   _sel = null;
   pickClear();
+  // the preview is a claim about a card that is no longer under the finger —
+  // it has to go the moment the selection does, whether the hand redraws or not
+  if (C) renderApDial();
   if (!quiet) renderHand();
 }
 // ═════════════════════════════════════════════════════════════════════════════
@@ -5649,7 +6006,7 @@ function bindChrome() {
       }
     }
     if (_sel && !e.target.closest('.k-card') && !e.target.closest('#k-pick')) {
-      _sel = null; pickClear(); renderHand();
+      _sel = null; pickClear(); renderHand(); renderApDial();
     }
   });
 }
@@ -5701,6 +6058,16 @@ window.K = {
   forceIntent(id) {
     const ix = (C.intents || []).findIndex(i => i.id === id);
     if (ix >= 0) { C.boss.intentIx = ix; renderAll(); return true; }
+    // …AND IT SAYS SO OUT LOUD. Returning false was not enough: every caller in
+    // the suite ignores the return, so when Build 94 re-dealt the bestiary's
+    // intent hands, fourteen checks went on asking the Mourning Regent for a
+    // Benediction she no longer knows — and quietly graded whatever intent
+    // happened to be current instead. Six of them failed with baffling
+    // messages about the wrong note kind; the rest passed while testing
+    // something else. The harness counts a console error as a suite failure,
+    // so a stale name is now loud at the exact line that used it.
+    console.error('forceIntent: ' + C.foe.id + ' has no intent "' + id + '" — '
+      + 'it knows ' + (C.intents || []).map(i => i.id).join(', '));
     return false;
   },
   KEYWORD_RULE, keywordsOf, ROW_SHELTER, parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
@@ -5727,6 +6094,12 @@ window.K = {
   _fxNoteGrade: (grade, kind) => fxNoteGrade(null, 400, 200, grade, kind),
   _fxHitResolved: (id, taken, negated, flawless) => fxHitResolved(id, taken, negated, flawless),
   MUSIC, MUSIC_SRC, musicOn, musicPref, musicSet, gridStart, ICON_PATHS, icon, SFX, sfx,
+  // test-only: the runway a bar is promised, so a check can assert the RULE
+  // (rounding forward never shortens it) instead of restating the number. The
+  // music suite hardcoded 1.0s — BEAT_LEADIN 2 x BEAT_MS 500 — and went red the
+  // moment Build 94 shortened the lead-in, reporting a broken promise where
+  // there was only a changed constant.
+  BEAT_MS, BEAT_LEADIN,
   intentByTarget, ROW_LETTER,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, staticCardHTML, staticInspectHTML,
   cam, bgParallax, SIGILS, sigilOf, brighten,

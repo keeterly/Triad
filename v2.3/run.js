@@ -91,7 +91,22 @@
     { id: 'ash.lastlight',   hero: 'ash',  tier: 3, cost: 5, card: 'lastlight' },
     { id: 'elin.lcascade',   hero: 'elin', tier: 3, cost: 5, card: 'lcascade' },
     { id: 'mira.execute',    hero: 'mira', tier: 3, cost: 5, card: 'execute' },
-    // the shared node: the team attack that develops over time
+    // ── the shared nodes: what all three of them own together ──
+    // NINE OF TEN NODES WERE THE SAME CHOICE. Every tier offered one hero's
+    // card traded for a bigger version of that card, which is a number going up
+    // in three different places — a grid, but not a decision, because nothing
+    // on it changed how a turn is PLAYED. These two do.
+    //
+    // RESOLVE is the run-scale rung of the AP ladder (the other two are the
+    // combo refund, which lasts a turn, and the all-out's gear, which lasts a
+    // fight). One more AP every turn for the rest of the road is the largest
+    // single thing on this tree and it is priced like it: five embers at tier
+    // 2, which is what the DEEPEST card node costs two tiers later. That is the
+    // fork the campfire did not have — nine of its ten nodes were one hero's
+    // card traded for a bigger version of that card, and the price of this one
+    // is a whole tier of sharpening gone.
+    { id: 'all.resolve',     hero: 'all',  tier: 2, cost: 5, ap: 1,
+      name: 'RESOLVE', blurb: 'One more AP, every turn, for the rest of the road.' },
     { id: 'all.crescendo',   hero: 'all',  tier: 3, cost: 6, allout: { dmg: 34, brk: 6 },
       name: 'CRESCENDO', blurb: 'The all-out strikes for 34 and breaks for 6.' },
   ];
@@ -103,6 +118,10 @@
     const n = RUN.nodes.map(treeNode).find(x => x && x.allout);
     return n ? n.allout : null;
   };
+  // Summed rather than found, so a second AP node could be added to the tree
+  // without this becoming the reason it does not work.
+  const apBonusOf = () => RUN.nodes.map(treeNode)
+    .reduce((a, n) => a + ((n && n.ap) || 0), 0);
   // What a node WILL DO, read off the two card faces rather than written twice.
   // A tree that describes its own effects in prose is a tree that goes stale
   // the first time a card is retuned.
@@ -1462,7 +1481,7 @@
     window.K.startCombat({ foe, partyHp: RUN.hp, onEnd: onFightEnd, kizuna: RUN.kizuna || 0,
                            roster: RUN.roster, upgrades: cardUps(), allout: alloutOf(),
                            sigils: RUN.sigils || {},
-                           vigor: RUN.vigor || 0,
+                           vigor: RUN.vigor || 0, apBonus: apBonusOf(),
                            // A DEBT IS SETTLED WITH THE REGENT, not with every
                            // wraith on the way to her. Borrowing against the
                            // whole road would just be a difficulty setting.
@@ -2971,7 +2990,7 @@
     render: renderMap,
     REGIONS, regionOf, EVENTS, eventDef, takeEvent, weakestPair,
     RECKONINGS, pickReckoning, openReckoning, takeReckoning, enterEvent,
-    reckoning: () => _reck, reckNext, closeReck, TREE, treeNode, kindle, tapMemory, focusMemory, sitDown, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
+    reckoning: () => _reck, reckNext, closeReck, TREE, treeNode, kindle, apBonusOf, tapMemory, focusMemory, sitDown, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
     pendingBonds, openBondScene, takeBond, confirmSwap, renderSwap,
     WAKES, wakeOffer, takeWake, renderWake, wakeDef, wakePair,
     SIGIL_BY_PAIR, sigilFor, renderMark, placeSigil, openMark, leaveMark,

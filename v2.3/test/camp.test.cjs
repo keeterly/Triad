@@ -30,20 +30,59 @@ const { boot } = require('./harness.cjs');
   console.log('\n── the shape of the tree ──');
   {
     const T = await J(() => window.R.TREE.map(n => ({ ...n })));
-    check('TREE: ten nodes — three tiers for each of the three, and one they share',
-      T.length === 10 && ['ash', 'elin', 'mira'].every(h => T.filter(n => n.hero === h).length === 3)
-      && T.filter(n => n.hero === 'all').length === 1,
+    check('TREE: eleven nodes — three tiers for each of the three, and two they share',
+      T.length === 11 && ['ash', 'elin', 'mira'].every(h => T.filter(n => n.hero === h).length === 3)
+      && T.filter(n => n.hero === 'all').length === 2,
       T.map(n => n.hero).join(','));
     check('TREE: every hero node sharpens a card the party already owns',
       T.filter(n => n.hero !== 'all').every(n => !!n.card), 'cards: ' + T.filter(n => n.card).length);
+    // THE CARD LADDER AND THE SHARED NODES ARE PRICED ON DIFFERENT AXES, and
+    // they always were: CRESCENDO has sat at tier 3 for 6 embers since Build 27
+    // while every tier-3 card cost 5, and this check only passed because 6
+    // happened to be the maximum of the deepest tier. Build 94 added RESOLVE —
+    // +1 AP for the rest of the road — at tier 2 for 5, which is what the
+    // deepest CARD costs two tiers later, and the old form of this check read
+    // that as the ladder collapsing rather than as a shared node being dear.
+    // The card ladder is asserted on the cards, and the shared nodes are
+    // asserted for what they actually are: dearer than any card at their tier.
     const byTier = t => T.filter(n => n.tier === t);
-    check('TREE: prices climb with the tier, so a deeper node is a real commitment',
-      Math.max(...byTier(1).map(n => n.cost)) < Math.min(...byTier(2).map(n => n.cost))
-      && Math.max(...byTier(2).map(n => n.cost)) < Math.min(...byTier(3).map(n => n.cost)),
-      JSON.stringify([1, 2, 3].map(t => byTier(t).map(n => n.cost))));
+    const cardsIn = t => byTier(t).filter(n => n.card).map(n => n.cost);
+    const sharedIn = t => byTier(t).filter(n => !n.card);
+    check('TREE: card prices climb with the tier, so a deeper node is a real commitment',
+      Math.max(...cardsIn(1)) < Math.min(...cardsIn(2))
+      && Math.max(...cardsIn(2)) < Math.min(...cardsIn(3)),
+      JSON.stringify([1, 2, 3].map(cardsIn)));
+    check('TREE: a node all three of them share costs more than any one hero\u2019s card at its tier',
+      [1, 2, 3].every(t => sharedIn(t).every(n => n.cost > Math.max(...cardsIn(t)))),
+      JSON.stringify([1, 2, 3].map(t => sharedIn(t).map(n => n.id + ':' + n.cost))));
     const ups = await J(() => Object.keys(window.K.CARD_UPS));
     check('TREE: every card a node names has a written-out upgraded face',
       T.filter(n => n.card).every(n => ups.indexOf(n.card) >= 0), ups.join(','));
+
+    // ── THE ROAD'S RUNG OF THE AP LADDER ────────────────────────────────────
+    // The campfire was nine nodes of the same choice: one hero's card for a
+    // bigger version of that card, three times over, which is a number going up
+    // in three places rather than a decision. RESOLVE is the one node on the
+    // tree that changes how a TURN is played, and the run has to carry it into
+    // every fight that follows.
+    const resolve = await J(() => {
+      // it is a tier-2 node and it costs five, so the purse and the tier have
+      // to be there before it can be lit — `kindle` refuses silently otherwise
+      window.R._set({ embers: 99, tier: 2 });
+      const before = window.R.apBonusOf();
+      window.R.kindle('all.resolve');
+      const after = window.R.apBonusOf();
+      window.K.startCombat({ seed: 3, apBonus: after });
+      const withIt = window.K.state().apMax;
+      window.K.startCombat({ seed: 3, apBonus: 0 });
+      return { before, after, withIt, without: window.K.state().apMax,
+               node: window.R.treeNode('all.resolve') };
+    });
+    check('TREE: RESOLVE is +1 AP the party keeps for the rest of the road',
+      resolve.before === 0 && resolve.after === 1
+      && resolve.withIt === resolve.without + 1 && !resolve.node.card,
+      JSON.stringify({ before: resolve.before, after: resolve.after,
+                       apMax: resolve.withIt, base: resolve.without }));
     // A tree that says what it does in prose goes stale the first time a card
     // is retuned. Every node reads its own two faces off the card tables.
     const faces = await J(() => window.R.TREE.filter(n => n.card).map(n => window.R.nodeFace(n)));
@@ -65,8 +104,10 @@ const { boot } = require('./harness.cjs');
       });
       return out;
     });
+    // eleven nodes now: three open at tier 1, and eight sealed behind a memory
+    // (three heroes x two deeper tiers, plus the two the fire itself owns)
     check('LOCK: a full purse at tier 1 still cannot buy a tier-2 node',
-      rich.sealed.length === 7 && rich.open.length === 3,
+      rich.sealed.length === 8 && rich.open.length === 3,
       `sealed ${rich.sealed.length} · open ${rich.open.length}`);
     const refused = await J(() => {
       const before = window.R.state().embers;
@@ -106,12 +147,17 @@ const { boot } = require('./harness.cjs');
       nodes: document.querySelectorAll('#k-camp .k-tnode').length,
     }));
     check('FIRE: the fire is a place — the whole tree is on screen with the purse and the mend',
-      shown.onCamp && !shown.onMap && shown.nodes === 10 && shown.purse === '12' && /TIER 2/.test(shown.tier),
+      shown.onCamp && !shown.onMap && shown.nodes === 11 && shown.purse === '12' && /TIER 2/.test(shown.tier),
       JSON.stringify(shown));
 
-    // THE FIRE HAS TO FIT. Ten nodes on a 932x430 landscape phone is the whole
-    // risk of this screen: one node clipped by the leave button, or a column
-    // spilling past the floor, and the tree becomes a thing you scroll for.
+    // THE FIRE HAS TO FIT. Eleven nodes on a 932x430 landscape phone is the
+    // whole risk of this screen: one node clipped by the leave button, or a
+    // column spilling past the floor, and the tree becomes a thing you scroll
+    // for. Build 94's RESOLVE was the eleventh, and it landed in a column sized
+    // for exactly one — the two shared nodes split 86px into a pair of 37px
+    // slivers that ran off the right edge and over LEAVE. A node's WIDTH is
+    // asserted now as well as its height, because "fits on screen" and "wide
+    // enough to be a card rather than a sliver" are different failures.
     // The wait is for the arrival deal to land — geometry measured mid-flight
     // is the geometry of the animation, not of the screen.
     await sleep(700);
@@ -129,11 +175,12 @@ const { boot } = require('./harness.cjs');
           bad.push({ n: b2.dataset.node, why: 'under the leave button' });
         }
         if (r.height < 34) bad.push({ n: b2.dataset.node, why: 'too short to read', h: Math.round(r.height) });
+        if (r.width < 56) bad.push({ n: b2.dataset.node, why: 'too narrow to read', w: Math.round(r.width) });
       });
       const cols = [...document.querySelectorAll('.k-ct-col')].map(c => Math.round(c.getBoundingClientRect().height));
       return { bad, cols, floor: Math.round(stage.bottom), leaveTop: Math.round(leave.top) };
     });
-    check('FIRE: all ten nodes fit the screen — nothing clipped, nothing under the button',
+    check('FIRE: all eleven nodes fit the screen — nothing clipped, nothing under the button',
       fits.bad.length === 0 && fits.cols.every(h => h > 200), JSON.stringify(fits));
 
     const bought = await J(() => {
@@ -538,12 +585,12 @@ const { boot } = require('./harness.cjs');
       const delays = [...wrap.querySelectorAll('.k-tnode')]
         .map(b2 => parseFloat(getComputedStyle(b2).animationDelay) || 0);
       window.R.kindle('mira.twinfang');
-      return { on, seats, rising: delays[9] > delays[0],
+      return { on, seats, rising: delays[delays.length - 1] > delays[0],
                afterBuy: document.getElementById('k-camp-tree').classList.contains('k-ct-deal') };
     });
     check('FIRE: the memories deal in when you sit down, and stay put when you spend',
-      deal.on && deal.rising && deal.seats.length === 10
-      && new Set(deal.seats).size === 10 && !deal.afterBuy,
+      deal.on && deal.rising && deal.seats.length === 11
+      && new Set(deal.seats).size === 11 && !deal.afterBuy,
       JSON.stringify(deal));
 
   }

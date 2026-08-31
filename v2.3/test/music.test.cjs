@@ -82,9 +82,16 @@ const { boot } = require('./harness.cjs');
     JSON.stringify(lock));
   // …and it never SHORTENS the runway the hand is promised. Rounding forward,
   // not to nearest, is what guarantees that.
+  // THE FLOOR IS THE GAME'S OWN CONSTANT, NOT A COPY OF IT. This asserted
+  // `lead >= 1.0` — BEAT_LEADIN 2 x BEAT_MS 500, written out — so shortening
+  // the lead-in in Build 94 read as the rounding stealing runway when nothing
+  // about the rounding had changed. What is actually promised is that rounding
+  // FORWARD onto the track never shortens whatever the runway is.
+  const floor = await J(() => window.K.BEAT_LEADIN * window.K.BEAT_MS / 1000);
   check('MUSIC: locking to the beat never steals the lead-in from the player',
-    lock.playing === true && lock.lead >= 1.0 && lock.lead < 1.0 + lock.beatSec + 0.02,
-    JSON.stringify({ lead: lock.lead, floor: 1.0, ceil: 1.0 + (lock.beatSec || 0) }));
+    lock.playing === true && lock.lead >= floor - 0.002
+    && lock.lead < floor + lock.beatSec + 0.02,
+    JSON.stringify({ lead: lock.lead, floor, ceil: floor + (lock.beatSec || 0) }));
 
   // The grid must not depend on the music. A player with the sound off gets the
   // same parry, on the same free-running clock, which is how it worked before.
@@ -95,8 +102,8 @@ const { boot } = require('./harness.cjs');
     return { lead, playing: window.K.MUSIC.beat().playing };
   });
   check('MUSIC: with the music off the parry keeps its own clock, unchanged',
-    Math.abs(silent.lead - 1.0) < 0.05,
-    JSON.stringify(silent));
+    Math.abs(silent.lead - floor) < 0.05,
+    JSON.stringify({ ...silent, floor }));
 
   // ── leaving a fight ──────────────────────────────────────────────────────
   // NOT a crossfade. The two pieces are too different to overlap, so the battle

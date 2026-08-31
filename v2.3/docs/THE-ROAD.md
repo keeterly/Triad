@@ -3000,3 +3000,287 @@ and can open on 2. The boss is the easier bar.
 
 The run dumps its per-turn JSON next to itself. That is a report, and it is in
 `.gitignore` — committing it would make every run a diff.
+
+## Build 94 — the enemy turn stops charging for things you cannot play, and AP learns three clocks
+
+Three moves the Build 93 playtest prescribed, plus the question they raise: if
+Slay the Spire modulates energy with relics and cards, and FF7 Rebirth builds
+its action economy out of what the party does together, what is **our** version?
+
+### First, a better instrument — `test/turnbudget.cjs`
+
+Build 93 measured the symptom (94% of a turn is watching; one enemy turn timed
+at 8752ms) and could not say WHICH 8752ms. "The bar is too long" is a guess
+until something says how much of it is notes and how much is air. This samples
+the live phase at 16ms through a real enemy turn and buckets the wall-clock.
+
+**And it corrected my own arithmetic.** The first version double-counted: it
+called everything after the first ring "air", which silently included the tail.
+Reading the rows straight — crescendo, 10.29s total = 1.30 runway + 6.00 rings
++ 3.01 tail — leaves **zero** dead air *between* rings. The rings' runways are
+long enough that no frame of a bar is ever empty. The waste is all at the ends,
+which is a completely different fix from the one "89% air" implied.
+
+```
+                       BEFORE     AFTER
+  mean bar              7.95s     6.04s      -24%
+  runway before note 1  1.39s     0.47s
+  a ring on screen      3.69s     3.24s      (rings overlap more; the notes are unchanged)
+  gaps between rings    ~0        0.03s      there were never any
+  tail after the last   2.77s     2.32s
+  nothing to play        54%       47%
+```
+
+### Move 1 — where the 2.2s came from
+
+- **The hand sweep is no longer awaited.** Nothing in the enemy phase reads the
+  hand, so it plays under the foe drawing breath. −0.78s.
+- **The draw stagger, 230ms → 130ms.** The flight is 420ms and overlaps freely;
+  this is only the gap between one card leaving the pile and the next.
+- **One rule for the gap between hits.** The scheduler closed each hit with a
+  flat `+1` and opened the next with a flat `+1`; the two stacked into a full
+  second between every pair of hits regardless of what had just been asked. Now
+  the gap after a hit is the same `MIN_GAP_AFTER` floor that governs two notes
+  *inside* a hit, never less than one beat.
+- **The runway is the opening note's, not a constant.** `BEAT_LEADIN` drops 2 →
+  1.5 and `gridStart` takes the larger of it and the first note's own lead — so
+  a bar opening on a DRAW gets its full 2.3 beats, which under the old constant
+  it never did.
+- **A blow turned aside gets a shorter beat than one that landed** (170ms vs
+  330ms). It has already said everything it is going to say. Which means the
+  whole enemy turn is shorter the better the bar is answered — the right way
+  round, in a game where skill is supposed to buy tempo.
+
+### …and the length now means something, as a property of who you are fighting
+
+The per-bar spread barely moved (1.83× → 1.68×) because cutting fixed overhead
+helps the heavy intents most. What moved is the **ladder**:
+
+```
+                notes      bar
+  husk          2 – 3      4.20 – 4.76s
+  cultist       2 – 5      4.19 – 7.05s
+  wraith        5 – 6      6.26 – 7.06s
+  revenant      5 – 6      5.75 – 6.61s
+  mourner       5 – 7      5.75 – 7.11s
+```
+
+Before, the Grief-Wraith (84 HP, a third fight) had a floor of **4** notes and
+the Mourning Regent (98 HP, the boss) could open on **2** — the first thing a
+player meets and the last could ask the same amount. The floor is the statistic
+that matters: a mean is something nobody experiences. Two new intents make the
+bottom and top rungs real — `lash` for the Husk, `keening` for the Choir, and
+`dirgesong`, the Regent's own heal, written at the weight of the thing singing
+it. A check asserts both floor and ceiling non-decreasing.
+
+**The bar-length ranges still overlap, and the note counts are the honest
+claim.** The Ashen Rain is five notes and is dealt to the Choir, the Wraith and
+the Regent alike, so a fodder foe can occasionally throw a seven-second bar. The
+ladder lives in what a foe can open on, not in a range that never touches
+another's.
+
+**The Wraith and the Revenant share a rung, and that is honest rather than
+unfinished.** What separates an elite from a third fight here is not how many
+notes it throws but how fast: the Revenant has two phases, and phase 2 shortens
+the beat under everything it plays.
+
+### Move 2 — more cards carry a combo, and the suite decided how many
+
+Measured with a new probe, `test/handshape.cjs`, over 60 opening hands:
+
+```
+                              BEFORE   AFTER
+  cards in the pool with a clause   6/15    8/15
+  clauses to read per hand         1.88    2.48
+  combos lit, greedy in hand order 0.27    0.50
+  combos lit, playing deliberately 0.87    1.88
+  the reward for playing well      x3.25   x3.77
+```
+
+Deliberate play lights **more than twice** the combos it used to.
+
+The path there was not the one I planned, and the suite chose it twice.
+
+**Four cards became three.** The first pass gave Twin Fang a clause too, and
+`solo()` — a helper picking cards with nothing to read — crashed the whole
+suite, because Mira had exactly one such card left. That is the deck telling
+you a hero has run out of plain cards.
+
+**And a fifth keyword became none.** `SAME_HERO` — "this hero has already acted,
+hit again with them" — is the one condition in the vocabulary that cannot be
+true at the same time as FOLLOW_UP or FINALE, so a hand holding both would have
+a genuine fork in it. The `LOAD` check said no: this deck is budgeted at four
+distinct keywords, and that budget is not a guess — Build 25 measured nine
+conditional cards out of fifteen and walked it back to six because every turn
+had become a reading exercise.
+
+Both findings are real and they are about **different costs**. A new keyword is
+vocabulary: paid once by every player, forever. A second card wearing a keyword
+the deck already teaches costs a glance. So the two cards added here both wear
+FOLLOW_UP, the keyword count is untouched at four, and the budget moved 6 → 8
+with that reasoning written into the check. SAME_HERO is designed and recorded
+in `evalCondition`, to be taken up on its own, against its own measurement of
+what it costs to read.
+
+### The AP ladder — one resource, three clocks
+
+The question was: what is our version of a relic that gives +1 energy? The
+answer this game already had the shape for is that AP should move on the three
+timescales everything else moves on, each paid for by a different thing the
+party is good at.
+
+- **THE TURN — the combo pays its own AP back.** A third `cond.reward`,
+  `'ap'`, beside `'cost'` and `'output'`. It exists because of the cost floor:
+  costs never fall below 1, so for most of the deck a discount is unreachable
+  and the only payoff available was a bigger number. Bigger numbers do not
+  change what a turn IS. **Lumen Cascade** is the point of it — a FINALE costs
+  the whole turn, so the finisher was always the last thing that could happen;
+  one refund in the *middle* of the line pays for a fourth card. **Quick
+  Throw** is the other: the card that finds the combo no longer competes with
+  the combo.
+
+- **THE FIGHT — the all-out finds them another gear.** +1 `apMax` for the rest
+  of the fight, capped. This is the one the premise was missing. The all-out
+  was a firework: the bar filled, three of them hit at once, the bar emptied,
+  and the party was in exactly the state it had been in a second earlier — for
+  a game about team attacks that DEVELOP. It is earned by skill (kizuna charges
+  from turned strings, so a clean bar buys a bigger turn — before this, a
+  perfect parry bought only survival), and it **compounds**: more AP is more
+  cards is more damage is more kizuna, so the second all-out arrives sooner
+  than the first.
+
+- **THE ROAD — RESOLVE.** A campfire node, +1 base AP for the rest of the run.
+  Nine of the tree's ten nodes were one hero's card traded for a bigger version
+  of that card — a number going up in three places rather than a decision. This
+  is the one node that changes how a turn is played, and it costs five embers
+  at tier 2, which is what the *deepest* card node costs two tiers later.
+
+**The ceiling is the ceiling, however you reach it.** A party carrying RESOLVE
+opens at 4, so their first all-out takes them to 5 and their second gears them
+not at all. Two routes to the same place rather than two things that stack into
+a turn nobody balanced.
+
+### Move 3 — the budget stops being the smallest thing on the board
+
+The AP row was 41×9px — 369 square pixels, 0.09% of the board — in the last row
+of pixels on the stage, which on a phone is the home-indicator strip.
+
+A padded pill was tried first: 77×21, four times the area. A probe put its top
+edge at y=400 against the centre card's bottom at y=411, and **the fan arcs up
+in the middle**, so the tallest card in the hand is the one directly above these
+marks. There is no arrangement where a bigger row both clears that card and
+stays off the screen edge — the old 9px marks were sized precisely to the 13px
+of floor left under the fan, which is *why* the most important number on the
+board was the smallest thing on it.
+
+So the fan gave up seven pixels it was not using, the backdrop became a soft
+shadow that occupies no layout at all, and the marks went to 12px: **648px²,
+1.75×**, clear of all five cards, off the edge. (And the lane words rose seven
+pixels with it — FRONT went straight back behind the cards otherwise, which is
+the exact defect their offset was written to fix.)
+
+**But the size was never the real fix.** The question a hand asks is not "how
+much do I have" — the marks already said that — but *"if I play THIS, what is
+left for the rest of the turn"*, and that was arithmetic done in the player's
+head on every card. The marks a held card would consume now light as ABOUT TO
+GO the moment it is picked up, and the ones that would survive stay as they
+are. The answer is read rather than computed.
+
+### One real bug, found by a fixed seed
+
+Not awaiting the sweep turned an animation into something that can **outlive its
+own combat**: `fxSweepHand` reads the global `C`, so a sweep still in flight
+when the next `startCombat` lands was splicing the NEXT fight's hand into the
+next fight's discard. The determinism check caught it inside one build — two
+runs of the same seed diverged on the fourth intent. A fight has an `id` now and
+the sweep checks it is still in the fight it started in. Unfindable by hand;
+trivial with a fixed seed.
+
+### Four checks were stale rather than wrong, and one was silently lying
+
+Re-dealing the bestiary broke checks that had **restated** a rule instead of
+asking for it:
+
+- The FOE ANIM check carried a hand-written table of intents to poses — a copy
+  of what `fxFoeAct` does. It derives the mapping from `ACTS` now, so a new
+  intent is covered the day it is authored.
+- The SWEEP check sampled while `phase === 'HAND_DISCARDING'`, a phase that now
+  lasts one frame. It watches the ghosts, which is the invariant it was really
+  asserting.
+- The BOTTOM BAR check compared the AP row against the hand CONTAINER's box
+  rather than the cards in it, so any row taller than a hairline failed a test
+  it was not actually failing.
+- **`forceIntent` was the silent one.** Every caller ignores its return value,
+  so fourteen checks went on asking the Mourning Regent for a Benediction she no
+  longer knows and quietly graded whatever intent happened to be current — six
+  failed with baffling messages about the wrong note kind, and the rest passed
+  while testing something else. It logs a console error now, which the harness
+  counts as a suite failure, so a stale name is loud at the line that used it.
+
+### And one design decision reversed by measurement
+
+Taking `rain` off the Regent to protect her floor took the only BURST in the
+bestiary out of the last fight in the game — four checks went red naming a
+vocabulary they could no longer find. A boss that cannot throw a flurry is a
+worse boss than a boss with a slightly soft floor. The downpour got the fifth
+note it was always short of instead, and went back in her hand.
+
+### The balance measurement inverted the argument
+
+The AP ladder is the largest power change this deck has taken, so it went to
+the sim before it went anywhere else — and the sim said the opposite of what
+built it. Four arms of the ~half-parry band, 100 runs each, 168 HP:
+
+```
+  Build 93 (neither)     59.0%   median win in 8 rounds
+  refunds only           75.0%   median win in 8 rounds
+  gear only              60.0%   median win in 8 rounds
+  Build 94 (both)        76.0%   median win in 8 rounds
+```
+
+**The all-out's gear — the rung this build argues hardest for — is worth one
+point of winrate. The two quiet combo refunds are worth sixteen.**
+
+The reason is legible in hindsight: a bot rarely fills the KIZUNA bar twice, so
+the gear arrives late in an eight-round fight and buys two or three extra cards
+total. A refund fires on almost every turn from turn one. I had been about to
+cap `AP_CEILING` to blunt the gear, which would have cost the build its best
+idea and fixed nothing.
+
+The first response was a cap: **one refund a turn**. It is a good rule — two
+refund cards in one hand was two free cards, so the ceiling on a good turn was
+five cards rather than four, and "the first one comes back" is a sentence where
+"sometimes you get two" is a spreadsheet.
+
+**It changed the winrate by nothing at all.** Re-measured, all four arms came
+back identical to the decimal, which looked like the cap not being live until a
+probe confirmed it was — and then said why: only **9.3%** of opening hands hold
+both refund cards. The sixteen points come from a refund firing on nearly every
+turn with ONE card, not from stacking two. The cap is a design bound. It was
+never the balance lever, and keeping it in as though it were would have been
+the tidier and less true story.
+
+So the lever had to be the world. Swept at the ~half-parry band, 90 runs a
+point:
+
+```
+  dmgScale   1.00  77.8%   ·  1.08  68.9%  ·  1.16  58.9%  ·  1.24  53.3%
+  median winning fight: 8 rounds at every point on that sweep
+```
+
+`dmgScale` is 1.16 now. That is exactly where Build 93 measured on the same bot
+and seeds — **this build is balance-neutral**. `bossHp` would have bought the
+same winrate by making fights longer, and the deck's target is 7–9 rounds; this
+knob costs nothing in length.
+
+1.24 was right there, lands inside the shipped 25–55% gate, and was deliberately
+not taken. **The band has been adrift since before the AP ladder existed** —
+Build 93 measures 59% against a 55% ceiling — and closing that wants a full
+three-band sweep, not a number picked off a one-band probe. A build absorbs its
+own delta and no more.
+
+Confirmed on the full sim afterwards: ~half 62.5%, and NO PARRY (0%), EXCELLENT
+(100%) and MONOTONE unmoved from before the AP ladder.
+
+`alloutAp` moved into `TUNE` while this was being measured, because a number
+that can move a gate that far has to be drivable from the sim that watches it.

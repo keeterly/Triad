@@ -165,7 +165,13 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
    the only one a player ever saw was whoever stood in the back, which reads as
    a note about that one hero rather than as evidence a lane system exists. The
    label sits on the figure now, where the figure is. */
-.k-hero-row { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
+/* …AND IT RISES WITH THE HAND. This sat at bottom:26px, which was exactly
+   enough clearance over a fan starting at y=253. Build 94 lifted the fan seven
+   pixels to make room for the AP row, and FRONT — the lane nearest the camera,
+   whose feet are lowest — went straight back behind the cards, which is the
+   defect this offset was written to fix in the first place. The two numbers
+   move together or the fix comes undone every time the hand moves. */
+.k-hero-row { position: absolute; left: 50%; bottom: 33px; transform: translateX(-50%);
   font-size: 9.5px; letter-spacing: 0.18em; color: #b3a893;
   text-shadow: 0 1px 4px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.8), 0 0 14px rgba(0,0,0,0.9); }
 .k-hero { cursor: grab; touch-action: none; }
@@ -500,15 +506,38 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    beneath the hand: one mark per AP, lit while it is yours to spend, hollow
    once it is gone. No numeral, because five diamonds ARE the number, and a
    count you can see at a glance does not need to be written out beside itself. */
-#k-ap { position: absolute; left: 50%; bottom: 3px; transform: translateX(-50%);
-  z-index: 15; display: flex; align-items: center; justify-content: center; }
+/* IT SAT IN THE LAST ROW OF PIXELS. 41x9px — 0.09% of a 932x430 board, at
+   bottom:3px, which on a phone is the home-indicator strip. The realtime
+   playtest counted 23.3 things to parse per turn and found the one number that
+   gates every decision was the smallest of them and the furthest from the eye.
+   It is off the edge now, on its own plate so it reads over the painted floor,
+   and the marks are half again as large. */
+/* THE PLATE COSTS NO HEIGHT, AND THAT IS MEASURED. The first pass gave this a
+   padded pill — 77x21 against the old 41x9, four times the area — and a probe
+   put its top edge at y=400 against the centre card's bottom at y=411. The fan
+   arcs UP in the middle, so the tallest card in the hand is the one directly
+   above these marks, and a gold row painting over its bottom eleven pixels is
+   not legibility, it is clutter. There is no room on a 430px stage for a taller
+   plate under a fan that reaches y=411.
+   So the backdrop is a soft shadow rather than a box: it darkens the floor
+   behind the marks without occupying a single pixel of layout, the marks
+   themselves go from 9px to 12px, and the row clears the card. 1.7x the area
+   rather than 4x — and the legibility that actually mattered was never the
+   size, it was knowing which of these marks the card in your hand is about to
+   take (see .k-ap-going). */
+#k-ap { position: absolute; left: 50%; bottom: 5px; transform: translateX(-50%);
+  z-index: 15; display: flex; align-items: center; justify-content: center;
+  border-radius: 999px;
+  box-shadow: 0 0 16px 9px rgba(10,8,6,0.6);
+  background: rgba(10,8,6,0.6);
+  transition: box-shadow 220ms var(--ease-out), background 220ms var(--ease-out); }
 /* THE CHROME IS HAIRLINES. A filled gold coin was the brightest object on a
    board whose whole language is thin rules and small caps; a ring reads the
    number just as fast and stops out-shouting the art. */
 /* the orb is gone; .k-ap-chip went with it */
-#k-ap-pips { display: flex; gap: 7px; align-items: center; }
+#k-ap-pips { display: flex; gap: 9px; align-items: center; }
 /* bigger than the old pips, because they are now the ONLY thing saying it */
-.k-ap-pip { width: 9px; height: 9px; transform: rotate(45deg); border-radius: 1.5px;
+.k-ap-pip { width: 12px; height: 12px; transform: rotate(45deg); border-radius: 2px;
   border: 1px solid rgba(201,164,92,0.9); background: rgba(240,212,136,0.9);
   box-shadow: 0 0 8px rgba(224,192,132,0.55), 0 1px 3px rgba(0,0,0,0.9);
   transition: background 180ms var(--ease-out), box-shadow 180ms var(--ease-out), border-color 180ms var(--ease-out); }
@@ -518,13 +547,58 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    which is the read the cold orb used to carry */
 #k-ap.k-ap-spent .k-ap-pip { border-color: rgba(120,108,86,0.4); }
 
+/* ── WHAT THIS CARD WOULD COST ──────────────────────────────────────────────
+   The marks a held card is about to consume, hollowed while it is still only
+   held. Not the same look as SPENT: a spent mark is cold and finished, this one
+   is still lit underneath and pulsing, because the spend has not happened and
+   letting go of the card takes it back. */
+.k-ap-pip.k-ap-going { background: rgba(240,212,136,0.18);
+  border-color: rgba(240,212,136,0.75);
+  box-shadow: 0 0 10px rgba(224,192,132,0.4), 0 1px 3px rgba(0,0,0,0.9);
+  animation: k-apgoing 900ms var(--ease-in-out) infinite; }
+@keyframes k-apgoing {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+/* …and a card you cannot pay for says so on the budget, not only on itself */
+#k-ap.k-ap-short { box-shadow: 0 0 16px 9px rgba(48,12,10,0.72);
+  background: rgba(48,12,10,0.72); }
+
+/* ── AP COMING BACK ─────────────────────────────────────────────────────────
+   A combo that refunds its own AP. The mark arrives rather than re-lighting —
+   a refund the player does not SEE is a rule they have to be told. */
+.k-ap-pip.k-ap-back { animation: k-apback 700ms var(--ease-out); }
+@keyframes k-apback {
+  0%   { transform: rotate(45deg) scale(2.1); opacity: 0;
+         box-shadow: 0 0 26px rgba(240,212,136,0.9); }
+  45%  { transform: rotate(45deg) scale(1.25); opacity: 1;
+         box-shadow: 0 0 20px rgba(240,212,136,0.85); }
+  100% { transform: rotate(45deg) scale(1); opacity: 1; }
+}
+/* ── ANOTHER GEAR ───────────────────────────────────────────────────────────
+   The all-out raising the ceiling. Deliberately NOT the refund's beat: a refund
+   is one mark blinking, this is the whole row growing, because the permanent
+   thing must not read as the temporary one. */
+#k-ap.k-ap-gear { animation: k-apgear 1200ms var(--ease-out); }
+@keyframes k-apgear {
+  0%   { box-shadow: 0 0 16px 9px rgba(10,8,6,0.6);   background: rgba(10,8,6,0.6); }
+  25%  { box-shadow: 0 0 40px 16px rgba(240,212,136,0.5); background: rgba(74,56,24,0.8); }
+  100% { box-shadow: 0 0 16px 9px rgba(10,8,6,0.6);   background: rgba(10,8,6,0.6); }
+}
+
 
 
 /* ── the hand ── */
 /* THE HAND IS A FAN, NOT A ROW. v2.2 put the hand in its own perspective and
    let the cards tilt in it, which is why they felt loose in the fingers; this
    was a flat strip that snapped to a new layout every time a card arrived. */
-#k-hand { position: absolute; left: 50%; bottom: 13px; transform: translateX(-50%);
+/* THE FAN MOVED UP SEVEN PIXELS TO MAKE ROOM FOR THE BUDGET. Measured: the
+   centre card of a five-card fan ends at y=417 on a 430px stage, so the old
+   9px AP marks were sized to the 13px of floor left under it — which is why
+   the one number gating every decision was the smallest thing on the board.
+   There is no arrangement where a 12px row both clears that card and stays off
+   the screen edge, so the fan gives up seven pixels it was not using. */
+#k-hand { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%);
   display: flex; gap: 5px; align-items: flex-end; z-index: 14;
   perspective: 760px; perspective-origin: 50% 130%; }
 #k-hand .k-card-active { margin-bottom: 0; }
@@ -2250,8 +2324,14 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* Four columns: the three of them, then the thing that belongs to nobody. The
    column runs floor to ceiling with the figure at the top and the memories at
    its feet, so the empty middle is the firelight rather than a gap. */
-#k-camp-tree { position: absolute; left: 18px; right: 18px; top: 46px; bottom: 64px; z-index: 3;
-  display: grid; grid-template-columns: repeat(3, 1fr) 86px; gap: 18px; }
+/* THE SHARED COLUMN WAS SIZED FOR ONE NODE. 86px, fixed, because the fire had
+   exactly one thing on it — and Build 94 put RESOLVE beside CRESCENDO, so the
+   two of them split that 86px into a pair of 37px slivers that ran off the
+   right edge and over the LEAVE button. The column is sized for two now, at the
+   same width a hero's card gets, and the whole tree lifts clear of the button
+   because the fan tilts its outermost cards ~25px below the grid's own floor. */
+#k-camp-tree { position: absolute; left: 18px; right: 18px; top: 46px; bottom: 88px; z-index: 3;
+  display: grid; grid-template-columns: repeat(3, 1fr) 172px; gap: 18px; }
 .k-ct-col { display: flex; flex-direction: column; justify-content: space-between;
   align-items: center; height: 100%; }
 /* THE HERO HEADER IS THE HERO. A 22px avatar in a stat bar is a row label; the
