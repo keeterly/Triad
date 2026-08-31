@@ -16,9 +16,22 @@ const { boot } = require('./harness.cjs');
     .flatMap(h => h.notes.map(() => k)), kind);
   // what the barrage is about to do, straight from the engine
   // a live bar runs ~4s; let it finish before the next block touches the DOM
+  // WAIT FOR THE STAGE, NOT JUST THE RING. This watched for the beat bar and
+  // the ring and called it quiet — but `k-slowmo` outlives both: it comes off
+  // in `finish()` and its filter then transitions back over 130ms. A check that
+  // started here and polled for `.k-slowmo` could catch the PREVIOUS bar's
+  // drain on its way OUT and read a half-returned filter as a half-arrived one.
+  // DILATION did exactly that, reporting saturate(0.10) and (0.15) against a
+  // 0.05 target — the drain works, it was being measured backwards. Anything
+  // still wearing the parry's clothes counts as not-quiet.
   const settle = () => J(async () => {
-    for (let i = 0; i < 120; i++) {
-      if (!document.getElementById('k-beat') && !document.querySelector('.k-pring')) return true;
+    for (let i = 0; i < 160; i++) {
+      const st = document.getElementById('k-stage');
+      if (!document.getElementById('k-beat') && !document.querySelector('.k-pring')
+          && !(st && st.classList.contains('k-slowmo'))) {
+        await new Promise(r => setTimeout(r, 180));   // …and let the filter land
+        return true;
+      }
       await new Promise(r => setTimeout(r, 60));
     }
     return false;
@@ -288,9 +301,9 @@ const { boot } = require('./harness.cjs');
         return { before, after: window.K.evaluateCard('crosssever').condActive,
                  cost: window.K.evaluateCard('crosssever').currentCost };
       };
-      return { bare: run({}), marked: run({ cleave: 'echo' }) };
+      return { bare: run({}), marked: run({ cleave: 'relay' }) };
     });
-    check('ECHO: the same hero acting twice does not connect — until one of them is marked',
+    check('RELAY: the same hero acting twice does not connect — until one of them is marked',
       echo.bare.before === false && echo.bare.after === false
       && echo.marked.after === true && echo.marked.cost < 2,
       JSON.stringify(echo));
@@ -305,13 +318,13 @@ const { boot } = require('./harness.cjs');
         const ev = window.K.evaluateCard('crosssever');
         return { on: ev.condActive, cost: ev.currentCost };
       };
-      const bare = first({}), marked = first({ crosssever: 'opening' });
+      const bare = first({}), marked = first({ crosssever: 'lead' });
       // and it stops applying once the turn is under way
       // Cleave is ALSO Ash's, so once the turn is under way Cross Sever has
       // neither the mark's reason (it is no longer first) nor the ordinary
       // one (no ally has acted). That is the case that catches OPENING
       // quietly becoming "always on".
-      window.K.startCombat({ seed: 7, sigils: { crosssever: 'opening' } });
+      window.K.startCombat({ seed: 7, sigils: { crosssever: 'lead' } });
       window.K.forceHand(['cleave', 'crosssever', 'serrate', 'qthrow', 'mend']);
       window.K.playCard('cleave');
       const later = window.K.evaluateCard('crosssever').condActive;
@@ -333,14 +346,14 @@ const { boot } = require('./harness.cjs');
       JSON.stringify({ afterSameHero: opening.later, afterAlly: opening.byAlly }));
 
     const held = await J(async () => {
-      window.K.startCombat({ seed: 7, sigils: { mend: 'held' } });
+      window.K.startCombat({ seed: 7, sigils: { mend: 'retain' } });
       window.K.forceHand(['mend', 'cleave', 'serrate', 'qthrow', 'frostbind']);
       const before = window.K.state().hand.slice();
       await window.K.endTurn({ skipParry: true });
       const after = window.K.state().hand.slice();
       return { before, after, discard: window.K.state().discard.slice() };
     });
-    check('HELD: the marked card stays in hand when the turn ends, and nothing else does',
+    check('RETAIN: the marked card stays in hand when the turn ends, and nothing else does',
       held.after.indexOf('mend') >= 0
       && held.before.filter(id => id !== 'mend').every(id => held.after.indexOf(id) < 0
                                                             || held.discard.indexOf(id) >= 0),
@@ -351,7 +364,7 @@ const { boot } = require('./harness.cjs');
     // have survived with it.
     // The turn ends and the next one DRAWS BACK UP, so the hand is five again
     // — the question is which four went, not how many are left.
-    check('HELD: keeping one card does not keep the rest — the sweep still empties around it',
+    check('RETAIN: keeping one card does not keep the rest — the sweep still empties around it',
       held.before.filter(id => id !== 'mend').every(id => held.discard.indexOf(id) >= 0)
       && held.discard.indexOf('mend') < 0,
       JSON.stringify({ before: held.before, discard: held.discard }));
@@ -363,9 +376,9 @@ const { boot } = require('./harness.cjs');
         window.K.playCard('cleave');
         return window.K.state().kizuna;
       };
-      return { bare: run({}), marked: run({ cleave: 'kindled' }) };
+      return { bare: run({}), marked: run({ cleave: 'tithe' }) };
     });
-    check('KINDLED: the marked card pays the bond on top of whatever it does',
+    check('TITHE: the marked card pays the bond on top of whatever it does',
       Math.abs((kindled.marked - kindled.bare) - 6) < 1e-9, JSON.stringify(kindled));
 
     const bright = await J(() => {
@@ -374,9 +387,9 @@ const { boot } = require('./harness.cjs');
         window.K.forceHand(['cleave', 'serrate', 'qthrow', 'mend', 'frostbind']);
         return window.K.evaluateCard('cleave');
       };
-      const bare = ev({}), lit = ev({ cleave: 'bright' });
+      const bare = ev({}), lit = ev({ cleave: 'pyre' });
       const dmg = (e) => e.resolvedEffects.reduce((n, fx) => n + (fx.dmg || 0), 0);
-      window.K.startCombat({ seed: 7, sigils: { cleave: 'bright' } });
+      window.K.startCombat({ seed: 7, sigils: { cleave: 'pyre' } });
       window.K.forceHand(['cleave', 'serrate', 'qthrow', 'mend', 'frostbind']);
       window.K.playCard('cleave');
       const st = window.K.state();
@@ -384,23 +397,23 @@ const { boot } = require('./harness.cjs');
                exhausted: st.exhausted.indexOf('cleave') >= 0,
                inDiscard: st.discard.indexOf('cleave') >= 0 };
     });
-    check('BRIGHT: half again as strong, and it leaves the fight rather than the discard',
+    check('PYRE: half again as strong, and it leaves the fight rather than the discard',
       bright.lit === Math.ceil(bright.bare * 1.5) && bright.exhaustFlag
       && bright.exhausted && !bright.inDiscard, JSON.stringify(bright));
     // A true flag is not a quantity. Intercession carries `intercede: true`,
     // and multiplying that by 1.5 would turn the atom into 2 and quietly
     // change what the effect resolver is being handed.
     const flags = await J(() => {
-      window.K.startCombat({ seed: 7, sigils: { intercession: 'bright' } });
+      window.K.startCombat({ seed: 7, sigils: { intercession: 'pyre' } });
       const ev = window.K.evaluateCard('intercession');
       return ev.resolvedEffects.map(fx => JSON.stringify(fx));
     });
-    check('BRIGHT: it scales the numbers and leaves the flags alone',
+    check('PYRE: it scales the numbers and leaves the flags alone',
       flags.join('|').indexOf('"intercede":true') >= 0
       && flags.join('|').indexOf('"intercede":2') < 0, flags.join(' '));
 
     const face = await J(() => {
-      window.K.startCombat({ seed: 7, sigils: { cleave: 'bright' } });
+      window.K.startCombat({ seed: 7, sigils: { cleave: 'pyre' } });
       window.K.forceHand(['cleave', 'serrate', 'qthrow', 'mend', 'frostbind']);
       const btn = document.querySelector('.k-card[data-card="cleave"]');
       const chip = btn && btn.querySelector('.k-csig');
@@ -456,7 +469,7 @@ const { boot } = require('./harness.cjs');
         return out;
       };
       const bare = measure({});
-      const all = {}; ids.forEach(id => { all[id] = 'echo'; });
+      const all = {}; ids.forEach(id => { all[id] = 'relay'; });
       const lit = measure(all);
       return { bare, lit, ids: Object.keys(bare) };
     });
@@ -481,7 +494,7 @@ const { boot } = require('./harness.cjs');
       JSON.stringify({ spilled: spilled.map(id => ({ id, ...room.bare[id] })), n: room.ids.length }));
 
     check('MARK: a marked card wears its mark, an unmarked one does not, and the number is the new number',
-      face.chip === 'Bright' && face.tinted && face.vis !== 'none' && face.w > 20
+      face.chip === 'Pyre' && face.tinted && face.vis !== 'none' && face.w > 20
       && !face.onPlain && new RegExp('\\b' + face.lands + '\\b').test(face.says || ''),
       JSON.stringify(face));
   }

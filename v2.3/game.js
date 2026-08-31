@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 90;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 91;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -734,7 +734,7 @@ function markBrink(id) {
 }
 
 function freshTurnState() {
-  return { actionsPlayed: [], moved: 0, cycled: false, stitchedPairs: [], echo: false };
+  return { actionsPlayed: [], moved: 0, cycled: false, stitchedPairs: [], relay: false };
 }
 
 function startCombat(opts) {
@@ -1016,33 +1016,39 @@ function intentByTarget() {
 // to the player now, they lead with what they buy, and the two that cost
 // something say so in a second sentence where a cost can actually be read.
 //
-// HELD'S PRICE IS REAL and has to survive the rewrite. The next turn draws back
+// RETAIN'S PRICE IS REAL and has to survive the rewrite. The next turn draws back
 // up to five, so a card you keep is a card you do not draw — measured, a bot
 // placing it without choosing lost 1.7 points of completion with it.
 const SIGILS = {
-  held:    { name: 'Held',    glyph: 'guard',
-             line: 'Keep it when the turn ends. You draw one fewer to make room.' },
-  echo:    { name: 'Echo',    glyph: 'follow',
-             line: 'Whatever you play next lands as though an ally moved first.' },
-  opening: { name: 'Opening', glyph: 'move',
-             line: 'Lead the turn with it and its combo is already live.' },
-  kindled: { name: 'Kindled', glyph: 'finale',
-             line: 'They feel it every time it is played. The bond grows by 6.' },
-  bright:  { name: 'Bright',  glyph: 'atk',
-             line: 'Half again as strong. It burns out and leaves the fight.' },
+  // THE MARKS, NAMED AS KEYWORDS. They were Held / Echo / Opening / Kindled /
+  // Bright — plain adjectives that described a feeling rather than a rule, and
+  // a player meeting "Bright" mid-fight had to remember what it did rather
+  // than read it. These are keywords: a verb or a noun that IS the rule, in the
+  // register a deckbuilder's player already reads fluently.
+  retain: { name: 'Retain', glyph: 'guard',
+            line: 'Keep it when the turn ends. You draw one fewer to make room.' },
+  relay:  { name: 'Relay',  glyph: 'follow',
+            line: 'Whatever you play next lands as though an ally moved first.' },
+  lead:   { name: 'Lead',   glyph: 'move',
+            line: 'Lead the turn with it and its combo is already live.' },
+  tithe:  { name: 'Tithe',  glyph: 'finale',
+            line: 'They feel it every time it is played. The bond grows by 6.' },
+  pyre:   { name: 'Pyre',   glyph: 'atk',
+            line: 'Half again as strong. It burns out and leaves the fight.' },
 };
+
 const SIGIL_KZ = 6;
 const sigilOf = (cardId) => (C && C.sigils ? C.sigils[cardId] : null) || null;
-// BRIGHT scales the numbers a card actually deals, and nothing else. It walks
+// PYRE scales the numbers a card actually deals, and nothing else. It walks
 // the atoms rather than a whitelist of keys, so a card that grows a new number
 // later is covered without anyone remembering to come back here — but `true`
 // flags (intercede, drawDiscard) are not quantities and must not be touched.
-const BRIGHT_MULT = 1.5;
+const PYRE_MULT = 1.5;
 function brighten(effects) {
   return effects.map(fx => {
     const out = {};
     for (const k of Object.keys(fx)) {
-      out[k] = (typeof fx[k] === 'number') ? Math.ceil(fx[k] * BRIGHT_MULT) : fx[k];
+      out[k] = (typeof fx[k] === 'number') ? Math.ceil(fx[k] * PYRE_MULT) : fx[k];
     }
     return out;
   });
@@ -1083,9 +1089,9 @@ function evaluateCard(cardId) {
     const ts = C.turnState;
     // OPENING: the turn's first card has nobody to follow, which is exactly
     // the hand a FOLLOW_UP card is stranded in.
-    if (sigil === 'opening' && !ts.actionsPlayed.length) condActive = true;
-    // ECHO, set by the card played BEFORE this one: it stands in for the ally.
-    else if (ts.echo && card.cond.type === 'FOLLOW_UP') condActive = true;
+    if (sigil === 'lead' && !ts.actionsPlayed.length) condActive = true;
+    // RELAY, set by the card played BEFORE this one: it stands in for the ally.
+    else if (ts.relay && card.cond.type === 'FOLLOW_UP') condActive = true;
   }
   // A conditional card gets a cost reduction OR increased output — never
   // both. Costs never fall below 1 (deck §3), which is why no sigil touches
@@ -1095,9 +1101,9 @@ function evaluateCard(cardId) {
     (condActive && card.cond.reward === 'cost') ? card.cond.costTo : card.cost);
   let resolvedEffects = (condActive && card.cond.reward === 'output')
     ? [...card.base, ...card.cond.bonus] : card.base.slice();
-  if (sigil === 'bright') resolvedEffects = brighten(resolvedEffects);
+  if (sigil === 'pyre') resolvedEffects = brighten(resolvedEffects);
   return { cardId, card, condActive, currentCost, resolvedEffects, sigil,
-           exhaust: !!card.exhaust || sigil === 'bright' };
+           exhaust: !!card.exhaust || sigil === 'pyre' };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1374,10 +1380,10 @@ function playCard(cardId, allyId) {
   }
   try { resolveEffects(ev.resolvedEffects, owner, allyId); } finally { _act = null; }
   C.turnState.actionsPlayed.push({ cardId, ownerId: owner, condActive: ev.condActive });
-  // KINDLED pays the bond, and ECHO is set for the card that comes NEXT — so
+  // TITHE pays the bond, and RELAY is set for the card that comes NEXT — so
   // it is written after this card's own condition has already been read.
-  if (ev.sigil === 'kindled') kizunaGain(SIGIL_KZ);
-  C.turnState.echo = (ev.sigil === 'echo');
+  if (ev.sigil === 'tithe') kizunaGain(SIGIL_KZ);
+  C.turnState.relay = (ev.sigil === 'relay');
   C.telemetry.plays.push({ t: C.turn, cardId, cost: ev.currentCost, cond: ev.condActive,
                            sigil: ev.sigil || null });
   fxPlayCard(cardId, ev);
@@ -3813,10 +3819,10 @@ const sleep = (ms) => new Promise(r => setTimeout(r, (typeof window !== 'undefin
 // as the hand duplicating itself rather than emptying.
 async function fxSweepHand() {
   const target = document.getElementById('k-disc-btn');
-  // HELD STAYS. The sweep used to shift from the front until the hand was
+  // RETAIN STAYS. The sweep used to shift from the front until the hand was
   // empty; a kept card has to be stepped OVER rather than counted out, or the
   // loop walks off the end of a hand that never empties.
-  const going = C.hand.filter(id => sigilOf(id) !== 'held');
+  const going = C.hand.filter(id => sigilOf(id) !== 'retain');
   const n = going.length;
   for (let i = 0; i < n; i++) {
     const S = stageBox();
@@ -4614,7 +4620,7 @@ function staticCardHTML(id, opts) {
   // by id, and a preview without it silently fell back to the hero portrait,
   // which is exactly the picture the cutscene preview exists to replace.
   const ev = { cardId: id, card: c, condActive: false, currentCost: c.cost, sigil,
-               resolvedEffects: sigil === 'bright' ? brighten(c.base) : c.base };
+               resolvedEffects: sigil === 'pyre' ? brighten(c.base) : c.base };
   const art = HEROES23[primaryHero(c)].art;
   return '<div data-own="' + (c.owner || primaryHero(c))
     + '" class="k-card k-card-static' + (sigil ? ' k-card-sig k-sig-' + sigil : '')
@@ -4693,14 +4699,14 @@ function prose(effects, plain) {
 // What the top block of the face should print: the card's numbers as the mark
 // leaves them, which is what will actually land.
 function faceBase(card, sigil) {
-  return sigil === 'bright' ? brighten(card.base) : card.base;
+  return sigil === 'pyre' ? brighten(card.base) : card.base;
 }
 function condReward(card, sigil) {
   if (!card.cond) return '';
   if (card.cond.reward === 'cost') return 'costs <b>' + card.cond.costTo + '</b> AP.';
   // the combo's own numbers are brightened too — they are numbers this card
   // deals, and evaluateCard brightens the whole resolved list
-  const bonus = sigil === 'bright' ? brighten(card.cond.bonus) : card.cond.bonus;
+  const bonus = sigil === 'pyre' ? brighten(card.cond.bonus) : card.cond.bonus;
   const hits = bonus.filter(f => f.dmg);
   const parts = [];
   if (hits.length) parts.push(icon('atk') + '<b>+' + fmtN(hits.reduce((n, f) => n + f.dmg, 0)) + '</b> damage.');
@@ -5468,7 +5474,7 @@ function staticInspectHTML(id, opts) {
   const sigil = o.sigil || null;
   const ev = { cardId: id, card: c, condActive: false, condLive: false,
                currentCost: c.cost, sigil,
-               resolvedEffects: sigil === 'bright' ? brighten(c.base) : c.base };
+               resolvedEffects: sigil === 'pyre' ? brighten(c.base) : c.base };
   return inspectHTML(ev, inspectWho(c, null), o.hint || '');
 }
 function openInspect(cardId) {

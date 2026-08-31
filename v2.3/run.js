@@ -249,9 +249,9 @@
   // be two screens for one reward, and it would cost each pair the identity
   // that makes their level-up feel like theirs rather than a menu.
   const SIGIL_BY_PAIR = {
-    'ash|elin':  ['held', 'bright'],     // she holds the line; he keeps one back
-    'ash|mira':  ['echo', 'kindled'],    // the two quick ones — a move flows on
-    'elin|mira': ['opening', 'bright'],  // they are the ones who start things
+    'ash|elin':  ['retain', 'pyre'],   // she holds the line; he keeps one back
+    'ash|mira':  ['relay', 'tithe'],   // the two quick ones — a move flows on
+    'elin|mira': ['lead', 'pyre'],     // they are the ones who start things
   };
   const sigilFor = (pair, lv) => (SIGIL_BY_PAIR[pair] || [])[lv - 1] || null;
 
@@ -2719,12 +2719,14 @@
   // taught — the pair is already standing there saying who taught it. Written
   // so either half of a pair can be A: nobody is described in a way that only
   // fits one of them, and no line carries a gendered pronoun.
+  // KEYED BY THE MARK'S ID, so a rename that misses one shows up as a scene
+  // with no line rather than a wrong one.
   const MARK_SAY = {
-    held:    '{A} stops handing {B} everything at once. Some of it keeps.',
-    echo:    'They find the trick of it: {A} moves, and the air is still moving when {B} arrives.',
-    opening: '{B} learns to go first. {A} has been waiting a long time for that.',
-    kindled: 'Neither of them can say what changed. They will both feel it, every time.',
-    bright:  '{A} shows {B} how to spend everything in one breath. It only works once.',
+    retain: '{A} stops handing {B} everything at once. Some of it keeps.',
+    relay:  'They find the trick of it: {A} moves, and the air is still moving when {B} arrives.',
+    lead:   '{B} learns to go first. {A} has been waiting a long time for that.',
+    tithe:  'Neither of them can say what changed. They will both feel it, every time.',
+    pyre:   '{A} shows {B} how to spend everything in one breath. It only works once.',
   };
   function renderMark() {
     const K = window.K, sig = RUN.pendingSigil, def = K.SIGILS[sig];

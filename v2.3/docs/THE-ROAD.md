@@ -2823,3 +2823,55 @@ because its first blow is a thrust, not the *rain* shape a per-intent label gave
 it. My first instinct was to make the check read the mapping from the code; that
 would have deleted the only thing standing between "the foe opens in a posture
 it is about to throw" and nobody noticing when it stops being true.
+
+---
+
+## Build 91 — the marks become keywords
+
+The five marks were **Held · Echo · Opening · Kindled · Bright** — plain
+adjectives that described a *feeling* rather than a rule. A player meeting
+"Bright" mid-fight has to remember what it does; a player meeting "Pyre" can
+guess. They are keywords now:
+
+| was | is | the rule |
+|---|---|---|
+| Held | **RETAIN** | Keep it when the turn ends. You draw one fewer to make room. |
+| Echo | **RELAY** | Whatever you play next lands as though an ally moved first. |
+| Opening | **LEAD** | Lead the turn with it and its combo is already live. |
+| Kindled | **TITHE** | They feel it every time it is played. The bond grows by 6. |
+| Bright | **PYRE** | Half again as strong. It burns out and leaves the fight. |
+
+Chosen from three drafted registers — liturgical (VIGIL/ANTIPHON/PRELUDE),
+bond-flavoured (RELIC/ACCORD/VOW), and plain deckbuilder keyword. The third
+won: these are going to grow into a tag vocabulary, and a vocabulary that
+scans on first read beats one that reads beautifully and has to be learned.
+
+### It was a rename with three traps in it
+
+`held` had 27 hits in `game.js` and most were **not the mark** — the parry
+ring's own `held` local and its `.k-pr-held` class. `opening` collided with a
+*reckoning* id (`run.js:629`) and `kindled` with the campfire's "already
+kindled" tree node. A blind `sed` would have broken the parry, the reckoning
+table and the fire in one pass. Renamed by enumerating the id's actual
+occurrences instead — string literals, object keys, and the `k-sig-` /
+`k-csig-` / `k-mk-sig-` class suffixes.
+
+One good side effect: **`kindled` now means exactly one thing.** It used to be
+both a mark and a lit tree node; it is only the node now.
+
+### And it exposed a hole in `settle()`
+
+Two checks went red. `MARK` was a plain rename miss. `DILATION` was not: it
+reported `saturate(0.10)` and `(0.15)` against a `0.05` target, twice, having
+passed at Build 90.
+
+`settle()` waited for the beat bar and the ring and called that quiet — but
+**`k-slowmo` outlives both.** It comes off in `finish()` and its filter then
+transitions back over 130ms, so a check that starts right after a settle can
+catch the *previous* bar's drain on its way OUT and read a half-returned
+filter as a half-arrived one. The drain works; it was being measured backwards.
+
+The new ACTS check is what made it reachable — it ends nearer to a live bar
+than the block that used to sit there. `settle()` now waits for anything still
+wearing the parry's clothes, which closes the same hole for every check that
+follows one.
