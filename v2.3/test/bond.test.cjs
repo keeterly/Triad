@@ -460,7 +460,12 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
           // and its parent clips it. getBoundingClientRect reports the
           // unclipped box, so it looked like an overflow. Content still has to
           // fit; only aria-hidden decoration is allowed past the edge.
-          if (e.getAttribute('aria-hidden') === 'true') return;
+          // ARIA-HIDDEN IS INHERITED. The carve-out only asked the element
+          // itself, so decoration nested inside an aria-hidden container — the
+          // memory splash's overscanned still, which its parent clips — was
+          // reported as spilling off the stage. Nothing inside an aria-hidden
+          // subtree is content; ask the subtree.
+          if (e.closest('[aria-hidden="true"]')) return;
           if (r.left < st.left - 0.5 || r.right > st.right + 0.5
               || r.top < st.top - 0.5 || r.bottom > st.bottom + 0.5) {
             out.push((e.className || e.tagName) + ' @' + Math.round(r.top) + ',' + Math.round(r.left));

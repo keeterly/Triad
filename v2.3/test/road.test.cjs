@@ -1406,6 +1406,111 @@ const { boot } = require('./harness.cjs');
     !!mute && mute.pref === true && mute.on === false && mute.muted === false,
     JSON.stringify(mute));
 
+  // ═══ THE MEMORY OPENS ON A FRAME ═══
+  // A memory stop used to open on `bg-descent` — the same crushed plate every
+  // scene in the game shares — so three different memories arrived looking
+  // identical and the screen announced "a cutscene" rather than "THIS". It
+  // opens on a held still now, presented as a title card before it settles
+  // into being the backdrop.
+  {
+    await reset(11);
+    const storyId = await J(() => (window.R.map().find(n => n.kind === 'story') || {}).id);
+    await J((id) => {
+      const n = window.R.map().find(m => m.id === id);
+      window.R._set({ at: null, path: [], stop: 0 });
+      const prev = window.R.map().find(m => m.col === n.col - 1 && m.to.indexOf(id) >= 0);
+      if (prev) window.R._set({ at: prev.id, path: [prev.id], stop: prev.col + 1 });
+    }, storyId);
+    await J((id) => window.R.travel(id), storyId);
+    await sleep(300);
+    const spl = await J(() => {
+      const sp = document.getElementById('k-scene-splash');
+      if (!sp || sp.classList.contains('k-hidden')) return { open: false };
+      const img = sp.querySelector('img');
+      const sc = document.getElementById('k-scene');
+      const b = sp.getBoundingClientRect(), s2 = sc.getBoundingClientRect();
+      const bar = document.querySelector('.k-sc-bar-top');
+      const plate = document.getElementById('k-scene-plate');
+      return { open: window.R.splashOpen(),
+        title: (sp.querySelector('.k-spl-t b') || {}).textContent || '',
+        // THE IMAGE MUST HAVE ACTUALLY LOADED. The splash IS the still; a
+        // broken src is not a degraded splash, it is a black rectangle with a
+        // title on it — and that is exactly what a stale SCENE_ART entry
+        // produces, silently, on a screen nobody screenshots every build.
+        loaded: !!(img && img.complete && img.naturalWidth > 0),
+        src: img && img.getAttribute('src'),
+        fullBleed: Math.abs(b.width - s2.width) < 1 && Math.abs(b.height - s2.height) < 1,
+        // the bars close OVER the shot, or they read as two rectangles on a picture
+        barsOver: +getComputedStyle(bar).zIndex > +getComputedStyle(sp).zIndex,
+        // and it is a title card, so nothing else is competing with it
+        plateHidden: parseFloat(getComputedStyle(plate).opacity) < 0.05,
+        pushing: !!(img && getComputedStyle(img).animationName === 'k-spl-push'),
+        skipLive: (() => {
+          const sk = document.getElementById('k-scene-skip');
+          if (!sk) return false;
+          const cs = getComputedStyle(sk), r = sk.getBoundingClientRect();
+          return cs.pointerEvents !== 'none' && +cs.opacity > 0
+              && r.width > 4 && r.height > 4;
+        })() };
+    });
+    check('MEMORY: the stop opens on a held frame — full bleed, inside the bars, actually loaded',
+      spl.open && spl.loaded && spl.fullBleed && spl.barsOver,
+      JSON.stringify(spl));
+    check('MEMORY: it is a title card — the memory is named over the frame and nothing competes with it',
+      /\S/.test(spl.title || '') && spl.plateHidden && spl.pushing,
+      JSON.stringify({ title: spl.title, plateHidden: spl.plateHidden, pushing: spl.pushing }));
+    // …BUT A WAY OUT IS STILL OWED. The first version hid SKIP with everything
+    // else and took its pointer events away, which left the scene with nothing
+    // clickable for the whole 2.2s hold. The soak called it what it is — a
+    // soft-lock — on six stops of one seed. The rule is worth holding here too,
+    // where it fails in one second rather than in a ten-run walk.
+    check('MEMORY: the title card still owes the player a way out of it',
+      spl.skipLive, JSON.stringify({ skip: spl.skipLive }));
+
+    // IT GETS OUT OF THE WAY BY ITSELF, and a tap does not have to fight it.
+    // A splash that needs dismissing before the scene can be played is a gate,
+    // and a gate on a random walk is a run that never finishes.
+    const held = await J(() => ({ beat: window.R.beat ? window.R.beat() : null,
+      line: (document.getElementById('k-scene-line') || {}).textContent || '' }));
+    // LONG ENOUGH FOR THE WHOLE HAND-OFF, not just the hold. 2200ms of held
+    // frame, then a 320ms dissolve, then a 380ms fade back — reading at 2400
+    // caught the plate still hidden and called a working hand-off a broken one.
+    await sleep(3200);
+    const gone = await J(() => ({
+      open: window.R.splashOpen(),
+      // the backdrop is the SAME frame the splash showed — dissolving into a
+      // different picture would throw away what the splash just established
+      bg: (document.querySelector('#k-scene-bg img') || {}).getAttribute('src'),
+      want: window.R.sceneArt({ id: 'lullaby', art: 'scene-lullaby' }),
+      plateBack: parseFloat(getComputedStyle(document.getElementById('k-scene-plate')).opacity) > 0.9,
+    }));
+    check('MEMORY: the frame settles into the backdrop by itself, and the scene comes back up',
+      !gone.open && gone.plateBack && gone.bg === gone.want,
+      JSON.stringify(gone));
+    check('MEMORY: the scene was live behind the splash — the title card is not a gate',
+      /\S/.test(held.line), JSON.stringify({ lineDuringSplash: held.line.slice(0, 40) }));
+
+    // THE MANIFEST HAS TO MATCH THE DISK. SCENE_ART is a hand-maintained list
+    // of which stills exist; an id left in it after a file is renamed or
+    // removed 404s on a screen the suite would otherwise call clean.
+    const art = await J(async () => {
+      const man = window.R.SCENE_ART || {};
+      const out = [];
+      for (const id of Object.keys(man)) {
+        const r = await fetch('../art/scene-' + id + '.webp', { method: 'HEAD' });
+        if (!r.ok) out.push(id + ':' + r.status);
+      }
+      return { claimed: Object.keys(man), missing: out };
+    });
+    check('MEMORY: every still the manifest claims is actually on disk',
+      art.missing.length === 0,
+      JSON.stringify(art.claimed.length ? art : { claimed: 'none rendered yet — region fallback' }));
+    await J(() => window.R.sceneSkip());
+    await sleep(120);
+    await J(() => window.R.sceneNext());
+    await sleep(200);
+  }
+
   // ═══ E · MOTION ═══
   // THE PASS HAS TO STAY DONE. A single hand-written `ease` added later is
   // invisible in review and reads as a snap in the hand, so the rule is

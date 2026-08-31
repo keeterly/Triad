@@ -2568,3 +2568,115 @@ itself. Under load the press landed INSIDE the window, graded normally, and the
 check reported a missing nudge for a feature that works. It presses on the next
 frame now and reports the margin it achieved: **7ms after the ring, down from
 ~70+**.
+
+---
+
+## Build 88 — a memory arrives as a frame
+
+A MEMORY stop opened on `bg-descent.webp` — the same crushed plate every scene
+in the game shares — so three different memories arrived looking identical, and
+the screen announced *a cutscene is happening* rather than *THIS is happening*.
+
+Each memory now names its own still, and the stop opens on it: full bleed, held
+for 2.2s as a title card with the memory's name over it, the letterbox bars
+closing over the shot, a slow 4.5% push-in. Then it dissolves down into the
+backdrop it was always going to become — **the same frame**, crushed to
+atmosphere. Dissolving into a different picture would be a cut, and would throw
+away the one thing the splash just established.
+
+### The splash is an overlay, not a phase
+
+The obvious build is `_beat = -1` with the scene held shut behind the splash.
+That is the version that breaks things: every check and the soak's random walk
+drive scenes by beat, and a stop that opens on a beat no caller expects is a
+stop the walk can sit inside forever. So beat semantics are untouched — the
+scene is live and advanceable from the first frame — and the splash plays over
+the top and gets out of the way. A tap dismisses it *and* advances, because a
+player who taps wants the scene, not an argument about which layer they hit.
+There is a check that presses on exactly this: **the title card is not a gate.**
+
+### The art is not rendered yet, and that is visible in the code
+
+**Higgsfield was not reachable in this session** — its MCP server was
+disconnected (all 79 tools gone; `ToolSearch` found none), so the three frames
+could not be generated. The render path ships complete; the images are pending.
+
+`docs/SCENE-ART.md` holds the brief: house style, frame size, negative prompt,
+and a written shot per memory — *the party stopping to listen* for the lullaby,
+*the third one stepping into the line* for the careful one, *scale and the
+absence of a bottom* for the stair. It exists so the set can be re-rendered
+without re-deciding what is in the shot.
+
+Until they land, a memory opens on **the run's own region painting** rather than
+the generic descent plate. Worse than a bespoke frame; still this run's place.
+
+### The manifest, and the 404 that would have failed every suite
+
+The first version simply pointed at `scene-<id>.webp` and let `onerror` fall
+back. It works, and it cost a 404 — and **every suite here counts a console
+error as a failure.** `road` went to `pageErrors: 1` the moment the art slots
+landed. So the game asks for a frame only when the frame is here:
+
+```js
+const SCENE_ART = {
+  // 'lullaby': 1, 'careful': 1, 'floor': 1,
+};
+```
+
+Empty on purpose. A check walks that manifest and HEADs each file, so an id
+left behind after a rename fails by name (`{"missing":["lullaby:404"]}`)
+instead of quietly turning a title card into a black rectangle — which is
+exactly what the gate produced when one was added.
+
+### Two the first render got wrong
+
+- **The title printed through the dialogue plate.** At `bottom: 62px` it landed
+  exactly where the plate sits. A title card puts the title in the frame:
+  centred now, with the plate, the cast, the corner title and SKIP all out
+  while it plays.
+- **The plate faded out over 380ms.** Motion nobody sees — the splash already
+  covers it — whose only actual effect was a ghost of the dialogue box under
+  the title card's entrance. It leaves instantly and returns softly.
+
+One check was reading at 2400ms and calling a working hand-off broken: the full
+sequence is 2200 held + 320 dissolve + 380 fade back.
+
+### The soak found a soft-lock I had just built
+
+The first version hid the plate, the cast, the corner title **and SKIP**, and
+took their pointer events away for the whole 2.2s hold. Every suite passed. The
+soak did not:
+
+```
+seed 1000 · entered story: nothing to click on k-scene — soft-lock
+seed 1000 · entered camp:  nothing to click on k-scene — soft-lock
+   …six stops of one seed
+```
+
+`#k-scene-skip` was the *only* control on that screen, so hiding it left the
+game waiting for a player it had stopped offering anything to. The rule the
+soak encodes — **the moment the game is waiting for a player it owes them a
+control** — is a good one, and a 2.2s window is exactly the size of bug that
+passes a hundred deterministic checks and gets found by a random walk.
+
+SKIP is live throughout now, dimmed and lifted above the splash: a player who
+has already heard this memory should be able to leave *during* the title card,
+not after it. The road suite asserts it too, where it fails in one second
+rather than in a ten-run walk.
+
+### Two suite fixes this build forced, both of them real
+
+- **`FITS` mis-modelled `aria-hidden`.** It carved out decoration that may sit
+  past the stage edge, but asked only the element itself — so the splash's
+  deliberately overscanned still, which its own container clips, was reported
+  as spilling. `aria-hidden` is inherited; the check asks the subtree now.
+- **`PARRY: pressing way early` was reading a stale ring.** Build 87 shortened
+  the press to 7ms after the ring and called it fixed. It flaked again at 24ms
+  — so I measured the lead instead of guessing: **~500ms**, which makes a press
+  a few ms in ~476ms early and unable to fail. The failures were never the
+  margin. `startCombat` does not cancel an in-flight volley, so a ring from the
+  *previous* check's bar was still up, the poll returned it instantly, and the
+  press went into a note already 400ms through its life. Twenty ring-free
+  samples before starting — the same remedy LENS and TRACE needed. Third time
+  this suite has caught this one disease; the check now reports `ringWaitMs` so
+  a fourth is diagnosable at a glance (`~550` means the board really was quiet).

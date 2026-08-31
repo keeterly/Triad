@@ -2614,6 +2614,79 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-scene-veil { position: absolute; inset: 0; background:
   radial-gradient(80% 66% at 50% 44%, rgba(60,44,84,0.28) 0%, rgba(8,7,10,0.86) 78%),
   linear-gradient(0deg, rgba(8,7,10,0.94) 0%, rgba(8,7,10,0.3) 34%, rgba(8,7,10,0) 56%); }
+/* ── THE SPLASH ─────────────────────────────────────────────────────────────
+   A MEMORY ARRIVES AS A FRAME. The backdrop below is crushed to
+   brightness(0.24) and blurred, because behind dialogue it is atmosphere and
+   nothing else — which meant three different memories opened looking
+   identical, and the screen announced "a cutscene" rather than "THIS". The
+   splash shows the same still at full strength for a beat first: it pushes in,
+   the bars close over it, the title rises, and then it dissolves down into the
+   backdrop it was always going to become.
+
+   It sits UNDER the letterbox bars (z-index 5 against their 6) so the bars
+   read as the frame closing on the shot rather than as two rectangles laid on
+   top of a picture. */
+#k-scene-splash { position: absolute; inset: 0; z-index: 5; overflow: hidden;
+  background: #08070a; pointer-events: none; }
+#k-scene-splash.k-hidden { display: none; }
+#k-scene-splash img { position: absolute; inset: -4%; width: 108%; height: 108%;
+  object-fit: cover; object-position: 50% 42%;
+  filter: saturate(0.62) contrast(1.06) brightness(0.86); }
+.k-spl-veil { position: absolute; inset: 0; background:
+  radial-gradient(78% 64% at 50% 44%, rgba(38,26,54,0.10) 0%, rgba(8,7,10,0.62) 84%),
+  linear-gradient(0deg, rgba(8,7,10,0.92) 0%, rgba(8,7,10,0.18) 38%, rgba(8,7,10,0) 62%); }
+/* CENTRED, NOT BOTTOMED. At bottom:62px the title landed exactly where the
+   dialogue plate sits and was printed straight through it — two titles on one
+   screen, one of them half-occluded. A title card puts the title in the frame. */
+.k-spl-t { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+  text-align: center; }
+.k-spl-t b { display: block; font-size: 27px; letter-spacing: 0.2em; color: #f4ecda;
+  text-shadow: 0 2px 18px rgba(0,0,0,0.9), 0 0 42px rgba(120,88,160,0.35); }
+.k-spl-t span { display: block; margin-top: 9px; font-size: 8.5px; letter-spacing: 0.42em;
+  color: #a58cc4; }
+/* THE PUSH-IN IS SLOW AND SMALL. A big move on a still reads as a slideshow
+   effect; 3% over two seconds reads as a camera that has not settled yet. */
+@keyframes k-spl-push { from { transform: scale(1.045) translateY(4px); }
+                          to { transform: scale(1.0) translateY(0); } }
+@keyframes k-spl-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes k-spl-rise { from { opacity: 0; transform: translateY(14px); } }
+.k-spl-in { animation: k-spl-fade 420ms var(--ease-out) both; }
+.k-spl-in img { animation: k-spl-push 2600ms var(--ease-soft) both; }
+.k-spl-in .k-spl-t b { animation: k-spl-rise 760ms var(--ease-out) 240ms both; }
+.k-spl-in .k-spl-t span { animation: k-spl-rise 760ms var(--ease-out) 460ms both; }
+/* it LEAVES by dissolving, not by cutting — the picture underneath is the same
+   frame, so a crossfade reads as the camera pulling back off it */
+.k-spl-out { animation: k-spl-fade 320ms var(--ease-soft) reverse both; }
+/* the bars close over the shot as it arrives */
+@keyframes k-spl-bars { from { height: 0; } }
+#k-scene.k-sc-splashing .k-sc-bar { animation: k-spl-bars 520ms var(--ease-out) both; }
+/* THE SPLASH IS THE WHOLE SCREEN WHILE IT PLAYS. The plate, the small corner
+   title, the dots and the cast were all still drawn over the frame, so the
+   "title card" was a picture with a dialogue box on it and the same words
+   printed twice. They fade back in as the splash dissolves — opacity only, so
+   nothing that reads their text is affected. */
+#k-scene-plate, #k-scene-cast, #k-scene-title, #k-scene-skip {
+  transition: opacity 380ms var(--ease-soft); }
+/* OUT AT ONCE, BACK ON A FADE. Fading the plate OUT is motion nobody sees —
+   the splash is already covering it — and all it actually achieves is a ghost
+   of the dialogue box sitting under the title card for the first 380ms of its
+   entrance. It leaves instantly and returns softly.
+
+   SKIP STAYS. The first version hid it with the rest and took its pointer
+   events away, which left the scene with NOTHING CLICKABLE for 2.2 seconds —
+   and the soak called that exactly what it is: a soft-lock. It found it on six
+   stops of one seed. The rule it enforces is a good one: the moment the game
+   is waiting for a player it owes them a control. A player who has already
+   seen this memory should be able to leave during the title card, not after
+   it, so SKIP is live the whole way through and nothing here takes pointer
+   events away from anything. */
+#k-scene.k-sc-splashing #k-scene-plate, #k-scene.k-sc-splashing #k-scene-cast,
+#k-scene.k-sc-splashing #k-scene-title {
+  opacity: 0; transition: none; }
+/* it sits above the splash so it is reachable, and dimmed so it does not
+   compete with the title it is offering to skip */
+#k-scene.k-sc-splashing #k-scene-skip { z-index: 8; opacity: 0.5; }
+
 .k-sc-bar { position: absolute; left: 0; right: 0; height: 26px; background: #08070a; z-index: 6; }
 .k-sc-bar-top { top: 0; } .k-sc-bar-bot { bottom: 0; }
 

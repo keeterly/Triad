@@ -2909,6 +2909,19 @@ const { boot } = require('./harness.cjs');
   await fresh(7);
   {
     const early = await J(async () => {
+      // WAIT FOR A QUIET BOARD FIRST. `startCombat` does not cancel an
+      // in-flight volley, so a ring from the PREVIOUS check's bar can still be
+      // up when this one opens — and then the poll below returns instantly,
+      // hands back a ring that has already been alive 400ms of its 500ms lead,
+      // and the press lands late into a note that is nearly over. Measured: the
+      // lead is ~500ms, so a press a few ms after a FRESH ring is ~476ms early
+      // and cannot fail; the failures were all stale rings. This is the third
+      // check in this suite to catch the same disease (LENS, TRACE, now this),
+      // and the same remedy: twenty consecutive ring-free samples.
+      for (let q = 0, i = 0; q < 20 && i < 400; i++) {
+        q = document.querySelector('.k-pring') ? 0 : q + 1;
+        await new Promise(res => setTimeout(res, 5));
+      }
       window.K.forceIntent('hymn');
       window.K.endTurn();
       // WAIT FOR THE RING, DO NOT GUESS AT IT. This slept a flat 620ms and then
@@ -2940,7 +2953,10 @@ const { boot } = require('./harness.cjs');
                nudged: !!st.querySelector('.k-grade-early') || !!st.querySelector('.k-pr-early'),
                // how long after the ring appeared the press actually went in —
                // if this is ever near 260 the margin has gone, not the feature
-               afterRingMs: Math.round(pressedAt - sawRing) };
+               afterRingMs: Math.round(pressedAt - sawRing),
+               // if this is ever ~0 the ring was already there and the reading
+               // is about someone else's note
+               ringWaitMs: Math.round(sawRing) };
     });
     check('PARRY: pressing way early nudges and keeps listening — the note is not spent',
       early.stillLive && early.nudged, JSON.stringify(early));

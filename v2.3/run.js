@@ -355,8 +355,23 @@
   };
   const bondScene = (pair, lv) => (BONDS[pair] || [])[lv - 1] || null;
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // THE MEMORIES — and the frame each one opens on
+  // ═══════════════════════════════════════════════════════════════════════
+  // `art` NAMES A RENDERED STILL OF THE MOMENT ITSELF, not a mood plate. A
+  // memory stop used to open on `bg-descent` — the same crushed backdrop every
+  // scene in the game uses — so three different memories arrived looking
+  // identical, and the screen said "a cutscene is happening" rather than
+  // "THIS is happening". The brief for each frame is in docs/SCENE-ART.md,
+  // written as prompts so the set can be re-rendered without re-deciding what
+  // is in the shot.
+  //
+  // A MISSING FILE IS NOT A BROKEN SCREEN. `sceneArt` falls back to the
+  // region's own painting, so a memory in THE SILENCE opens on the drowned
+  // garden rather than on nothing — which is worse than the old backdrop but
+  // is still this run's own place, and it upgrades the moment a file lands.
   const SCENES = [
-    { id: 'lullaby', title: 'WHAT THE SONG IS FOR', beats: [
+    { id: 'lullaby', title: 'WHAT THE SONG IS FOR', art: 'scene-lullaby', beats: [
       { who: null,   line: 'The road bends. The singing does not.' },
       { who: 'elin', line: 'Stop a moment. It isn’t a threat — listen to the shape of it.' },
       { who: 'mira', line: 'It’s a hymn. In my experience hymns are threats with better manners.' },
@@ -366,7 +381,7 @@
       { who: 'ash',  line: 'Then we aren’t going down there to kill her. We’re going down to finish it.' },
       { who: null,   line: 'Three people stop arguing about what they are walking toward, and start walking.' },
     ] },
-    { id: 'careful', title: 'THE THING NOBODY SAYS', beats: [
+    { id: 'careful', title: 'THE THING NOBODY SAYS', art: 'scene-careful', beats: [
       { who: null,   line: 'It has been sitting between them since the trailhead, unsaid, taking up room.' },
       { who: 'mira', line: 'You two move like one animal. You don’t even look. How long have you had that?' },
       { who: 'ash',  line: 'A long time. Practice, mostly. Some of it we’d rather not have had.' },
@@ -376,7 +391,7 @@
       { who: 'mira', line: 'Don’t be careful with me. Be fast.' },
       { who: null,   line: 'She steps up into the line before it is offered. Neither of them moves her back.' },
     ] },
-    { id: 'floor', title: 'ONE MORE FLOOR', beats: [
+    { id: 'floor', title: 'ONE MORE FLOOR', art: 'scene-floor', beats: [
       { who: null,   line: 'The stair keeps going down. It should have run out three turns ago.' },
       { who: 'ash',  line: 'How far down does a thing like her go?' },
       { who: 'elin', line: 'As far as she has to. That’s the trouble with grief — it hasn’t got a floor.' },
@@ -1723,6 +1738,7 @@
     _beat = 0;
     screen('scene');
     renderScene();
+    openSplash(_scene);
     return true;
   }
   // A fork taken: the card is won, and now it has to fit. Five slots a hero,
@@ -1926,6 +1942,84 @@
   // ── a memory ──────────────────────────────────────────────────────────────
   let _beat = 0, _scene = null;
   let _pendingCard = null, _pendingAfter = '', _swapPick = null;
+  // ── the still a scene opens on, and the splash that presents it ──────────
+  // ONE RULE FOR ALL THREE KINDS. A memory names its own frame; a bond scene
+  // and a crossroads do not have one yet, so they take the run's region — the
+  // place this is happening — rather than the one generic descent plate that
+  // every screen in the game shared.
+  // WHICH STILLS ACTUALLY EXIST. Naming a file that is not there is not a
+  // harmless fallback — the browser fetches it, logs a 404, and every suite in
+  // this project counts a console error as a failure. (It did: road went to
+  // pageErrors: 1 the moment the art slots landed.) So the game asks for a
+  // frame only when the frame is here. Add the id when the render lands in
+  // ../art; docs/SCENE-ART.md holds the prompt each one is rendered from.
+  const SCENE_ART = {
+    // 'lullaby': 1, 'careful': 1, 'floor': 1,
+  };
+  function sceneArt(sc) {
+    if (sc && sc.art && SCENE_ART[sc.id]) return '../art/' + sc.art + '.webp';
+    return '../art/' + regionOf(RUN.region).art + '.webp';
+  }
+  // A FRAME THAT ARRIVES MISSING MUST NOT LEAVE A HOLE. The still is the whole
+  // subject of the splash, so a 404 is not a cosmetic problem — it is a black
+  // rectangle with a title on it. onerror walks down to the region painting,
+  // and then to the descent plate, and the splash is skipped entirely if even
+  // that fails, because a splash with nothing in it is worse than no splash.
+  function setSceneArt(img, sc) {
+    if (!img) return;
+    const want = sceneArt(sc);
+    const region = '../art/' + regionOf(RUN.region).art + '.webp';
+    img.onerror = function () {
+      if (img.src.indexOf(region) < 0 && want !== region) { img.src = region; return; }
+      img.onerror = null; img.src = '../art/bg-descent.webp';
+      const sp = $('k-scene-splash'); if (sp) sp.classList.add('k-hidden');
+    };
+    img.src = want;
+  }
+  // THE SPLASH IS AN OVERLAY, NOT A PHASE. It could have been `_beat = -1` with
+  // the scene held shut behind it, and that is the version that breaks things:
+  // every check and the soak's random walk drive scenes by beat, and a stop
+  // that opens on a beat no caller expects is a stop the walk can sit inside
+  // forever. So the beat semantics are untouched — the scene is live and
+  // advanceable from the first frame — and the splash simply plays over the
+  // top and gets out of the way. A tap dismisses it AND advances, because a
+  // player who taps wants the scene, not an argument about which layer they hit.
+  const SPLASH_MS = 2200;
+  let _splashT = null;
+  function openSplash(sc) {
+    const sp = $('k-scene-splash'); if (!sp) return;
+    clearTimeout(_splashT);
+    sp.classList.remove('k-hidden');
+    sp.innerHTML = '<img alt="">'
+      + '<div class="k-spl-veil"></div>'
+      + '<div class="k-spl-t"><b>' + (sc.title || 'A MEMORY') + '</b>'
+      + '<span>' + (sc.kind === 'event' ? 'A CROSSROADS'
+                  : sc.kind === 'bond' ? 'WHAT THEY CARRY' : 'A MEMORY') + '</span></div>';
+    setSceneArt(sp.querySelector('img'), sc);
+    // re-trigger the entrance even when two scenes open back to back
+    sp.classList.remove('k-spl-in'); void sp.offsetWidth; sp.classList.add('k-spl-in');
+    const scr = $('k-scene');
+    if (scr) { scr.classList.remove('k-sc-splashing'); void scr.offsetWidth;
+               scr.classList.add('k-sc-splashing'); }
+    _splashT = setTimeout(closeSplash, SPLASH_MS);
+  }
+  function closeSplash() {
+    clearTimeout(_splashT);
+    const sp = $('k-scene-splash'); if (!sp || sp.classList.contains('k-hidden')) return false;
+    sp.classList.add('k-spl-out');
+    setTimeout(() => {
+      const el2 = $('k-scene-splash'); if (!el2) return;
+      el2.classList.add('k-hidden'); el2.classList.remove('k-spl-out', 'k-spl-in');
+      el2.innerHTML = '';
+      const scr = $('k-scene'); if (scr) scr.classList.remove('k-sc-splashing');
+    }, 320);
+    return true;
+  }
+  function splashOpen() {
+    const sp = $('k-scene-splash');
+    return !!sp && !sp.classList.contains('k-hidden') && !sp.classList.contains('k-spl-out');
+  }
+
   function enterStory(n) {
     // TAGGED, because three kinds of scene share this screen now and two of
     // them wait on a fork. A memory used to arrive with no `kind` at all, which
@@ -1936,6 +2030,7 @@
     save();
     screen('scene');
     renderScene();
+    openSplash(_scene);
   }
 
   const CAST = { ash: { n: 'ASH', art: 'kai' }, elin: { n: 'ELIN', art: 'elin' },
@@ -1944,6 +2039,15 @@
   function renderScene() {
     const box = $('k-scene-line'), who = $('k-scene-who'), cast = $('k-scene-cast');
     if (!box || !_scene) return;
+    // THE BACKDROP IS THE SAME FRAME THE SPLASH SHOWED, crushed down to
+    // atmosphere. Dissolving from a full-strength still into a DIFFERENT
+    // picture is a cut, and it throws away the one thing the splash just
+    // established — that this scene happens somewhere specific.
+    const bg = $('k-scene-bg') && $('k-scene-bg').querySelector('img');
+    if (bg && bg.dataset.scene !== (_scene.id || _scene.kind)) {
+      bg.dataset.scene = _scene.id || _scene.kind;
+      setSceneArt(bg, _scene);
+    }
     $('k-scene-title').textContent = _scene.title;
     const beats = sceneBeats();
     const done = _beat >= beats.length;
@@ -2044,6 +2148,7 @@
   // render means an answered question stops existing the moment it is
   // answered, instead of lingering invisibly until something else redraws.
   function closeScene() {
+    closeSplash();
     _scene = null; _beat = 0;
     const fork = $('k-scene-fork');
     if (fork) { fork.innerHTML = ''; fork.classList.add('k-hidden'); }
@@ -2073,6 +2178,8 @@
 
   function sceneNext() {
     if (!_scene || RUN.over) return;
+    closeSplash();          // the frame has been looked at; get out of the way
+
     const n = sceneBeats().length;
     // a bond scene and a mystery both END ON THEIR FORK and wait there — the
     // choice is the exit, and tapping past it would be a stop that resolved
@@ -2084,6 +2191,8 @@
   }
   function sceneSkip() {
     if (!_scene || RUN.over) return;
+    closeSplash();
+
     _beat = sceneBeats().length;      // straight to the payout, never past it:
     renderScene();                     // skipping the scene must not skip the reward
   }
@@ -2113,6 +2222,7 @@
     save();
     screen('scene');
     renderScene();
+    openSplash(_scene);
   }
 
   // WHAT A TRADE SAYS ABOUT ITSELF, written from the same data that applies it,
@@ -2844,6 +2954,7 @@
   window.R = {
     boot, toTitle, beginFromTitle, renderBonds,
     openDeck, closeDeck, renderDeck, renderDeckPanel, markPick, deckSwap, tapSlot, bench, benchFor,
+    sceneArt, openSplash, closeSplash, splashOpen, SCENE_ART,
     deckFocus, deckBlur,
     deckPick: () => _deckPick, toggleMenu, closeMenu,
     active: () => !!RUN && !RUN.over,
