@@ -2732,3 +2732,94 @@ mean ~44 and would glare.
 Also recorded in the export step: the renders are 21:9 (2.388) and the stage is
 2.167, so the export centre-crops rather than leaving `object-fit: cover` to
 trim it. A crop decided at export is a crop you can look at.
+
+---
+
+## Build 90 — the gesture is the attack, mirrored
+
+Two notes: the telegraph callouts don't clearly match what the enemy actually
+does, and press-and-slide still doesn't work.
+
+### The mismatch, measured
+
+A hit named a **note** — a rhythm token picked for variety — and the foe's body
+was then made to agree with the note (`FOE_SWING` mapped note → animation,
+which is backwards). Tabulated:
+
+```
+intent        the foe visibly does   the hand was asked for
+hymn          toll                   tap,tap / feint,tap / tap,hold
+scythe        sweep                  slide:R,tap / slide:L,hold,tap
+flurry        sweep                  tap,tap,tap / tap,trace:angle / burst
+crescendo     rain                   tap,tap / trace:arc,tap,tap / feint,hold
+```
+
+Three of seven intents had gestures that agreed with what the foe appeared to
+do. The Hymn is a bell being struck and asked for two taps. Grief in Threes
+wore the SWEEP pose and asked for three taps and a traced angle.
+
+And worse: **the pose was chosen per INTENT**, so a three-blow bar held one
+posture throughout — the foe struck three different ways and looked identical
+every time.
+
+### Acts
+
+A hit now names **acts**, and the act is the single source of three things that
+were drifting apart: what the foe's body does (per BLOW), what the hand is
+asked for (derived, never authored), and what the telegraph calls it.
+
+| act | what you see | what you do |
+|---|---|---|
+| `toll` | a bell struck, a weight coming down | brace — hold |
+| `claw` / `slash` | a rake or a stroke on a line | wipe the same way |
+| `thrust` | a straight stab | one tap |
+| `sigil` | a figure drawn in the air | **draw it back** |
+| `rain` | many small impacts | mash |
+| `feint` / `lure` | a twitch, an opening that is bait | wait / don't |
+
+The ring names the **attack**, not the input: `CLAW →` rather than `SLIDE →`.
+The chip carries the act's own mark, so a bar of claw-then-bell-then-stab is
+three different chips instead of three identical ones. And a check asserts the
+whole rule rather than any one case: every blow is an act, its note is derived,
+and a bar of different blows cannot play one animation throughout.
+
+### The draw replaces the trace
+
+The trace asked the finger to **ride a rail**: the press had to land on the
+ring itself ("a stab at the far end is not a grip, it is a guess"), progress
+advanced only inside a 62px tube, and the ring had to be carried 93% of the way
+before a release counted. Three ways to be told "no" mid-gesture, on a phone,
+inside half a second. It had already been rebuilt twice — waypoints, then a
+rail, then finger-follow — which is the signal that the thing being iterated on
+was the wrong thing.
+
+**A draw is a shape to make, not a path to follow.** Press anywhere, draw the
+figure at any size in either direction, release on the beat. The judge asks the
+stroke three questions about its gross form and none about where it happened:
+is it big enough to be deliberate, does it turn the right amount (a circle
+turns ~360°, a line ~0), and does it end where a shape like that ends. Measured
+in isolation: a circle scores **0.94** either way round, a straight line and a
+twitch both score **0**, against a threshold of 0.6.
+
+Tapping anywhere was already true, incidentally — `claimsPress` has always
+claimed a press by *time*, handing it to whichever live note it is nearest to,
+never by position.
+
+### What the rewrite carried away
+
+Removing the trace block took `DIR_ARROW`, `SKULL_SVG` and `liveLabel` with it
+— three things lodged in the middle of what was being replaced, all of which
+crashed the suite one at a time. After the second one I stopped fixing them
+individually and diffed the declarations against HEAD instead, which named all
+of them at once. **A rewrite of a region carries away whatever was living in
+it; enumerate that before the third crash, not after.**
+
+### One check was right to fail
+
+`FOE ANIM` deliberately restates the intent → sheet-state map rather than
+reading it from the code, so it pins the design decision as well as the lookup.
+It caught the crescendo entry — the Rising Dirge now opens in the *toll* shape
+because its first blow is a thrust, not the *rain* shape a per-intent label gave
+it. My first instinct was to make the check read the mapping from the code; that
+would have deleted the only thing standing between "the foe opens in a posture
+it is about to throw" and nobody noticing when it stops being true.

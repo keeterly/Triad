@@ -2714,10 +2714,13 @@ const { boot } = require('./harness.cjs');
     check('PARRY: a ring closes on a dashed sweet spot over a desaturated board',
       ring.ring && ring.target && ring.closing && ring.focus && ring.thread
       && ring.lit && ring.noTravellers, JSON.stringify(ring));
-    // The VERB is readable from the first frame — a ring that only says "1/6"
+    // The ASK is readable from the first frame — a ring that only says "1/6"
     // tells you when and never what — and the beat count keeps its own line.
-    check('PARRY: the ring names its gesture from the first frame and lights when gradeable',
-      /^TAP!?$/.test(ring.label) && /^1\/\d+$/.test(ring.count || '') && ring.livesUp,
+    // IT NAMES THE ATTACK, NOT THE INPUT. "TAP" describes the thumb; "THRUST"
+    // describes the thing coming at you, and the thumb follows from it. That
+    // is the whole point of the acts: the player reads the foe, not a notation.
+    check('PARRY: the ring names the ATTACK from the first frame and lights when gradeable',
+      /^THRUST!?$/.test(ring.label) && /^1\/\d+$/.test(ring.count || '') && ring.livesUp,
       JSON.stringify({ label: ring.label, count: ring.count, live: ring.livesUp }));
   }
   await settle();
@@ -2962,126 +2965,176 @@ const { boot } = require('./harness.cjs');
       early.stillLive && early.nudged, JSON.stringify(early));
   }
   await settle();
-  // ── THE TRACE: the ring IS the handle — grip it, ride the rail, release ──
-  await fresh(7);
+  // ── THE ACTS: the gesture IS the attack, mirrored ──
+  // THE WHOLE POINT OF THE REWORK, asserted as a rule rather than case by case.
+  // Before it, a hit named a rhythm token and the foe's body was made to agree
+  // with the token — backwards — and measured badly: of seven intents, three
+  // had gestures that matched what the foe appeared to do and four were
+  // arbitrary. The Hymn was a bell being struck and asked for two taps. Grief
+  // in Threes wore the SWEEP pose and asked for three taps. Worse, the pose was
+  // per INTENT, so a three-blow bar held one posture and the foe struck three
+  // different ways looking identical.
   {
-    const tr = await J(async () => {
-      // WAIT FOR QUIET FIRST — the same lesson the LENS check taught. `endTurn`
-      // is a no-op unless the phase is PLAYER_READY, and `startCombat` does not
-      // cancel an in-flight volley, so a block that opens while the previous
-      // bar is still unwinding never spawns a ring of its own and then measures
-      // whatever is on screen. Twenty consecutive ring-free samples.
+    const acts = await J(() => {
+      const K = window.K, bad = [], seen = new Set();
+      const poses = new Set(), swings = new Set();
+      for (const it of K.INTENTS()) {
+        for (const h of it.hits) {
+          // every blow is authored as an act, and its note is DERIVED
+          if (!h.acts || !h.acts.length) { bad.push(it.id + ':no-acts'); continue; }
+          if (!h.notes || h.notes.length !== h.acts.length) { bad.push(it.id + ':count'); continue; }
+          h.acts.forEach((a, i) => {
+            const def = K.parseAct(a).def;
+            if (!def) { bad.push(it.id + ':' + a + ':unknown'); return; }
+            seen.add(K.parseAct(a).id);
+            poses.add(def.pose); swings.add(def.swing);
+            // the note the hand plays must be the one the act asks for —
+            // authored beside it, they could disagree; derived, they cannot
+            if (h.notes[i] !== K.noteForAct(a)) bad.push(it.id + ':' + a + ':drift');
+            // …and the act must carry all three things it is the source of
+            if (!def.word || !def.pose || !def.swing || !def.mark)
+              bad.push(it.id + ':' + a + ':incomplete');
+          });
+        }
+      }
+      return { bad, acts: [...seen].sort(), poses: [...poses].sort(),
+               swings: [...swings].sort(),
+               // every animation an act can ask for must be in the list that
+               // takes it off again, or the class sticks forever
+               posesCleared: [...poses].every(p => K.FOE_POSES.indexOf(p) >= 0),
+               swingsCleared: [...swings].every(w => K.FOE_SWINGS.indexOf(w) >= 0) };
+    });
+    check('ACTS: every blow is authored as an act, and its gesture is derived from it — they cannot drift',
+      acts.bad.length === 0, acts.bad.slice(0, 5).join(' | ') || 'clean');
+    check('ACTS: the bestiary throws more than one kind of blow, and each carries its own animation',
+      acts.acts.length >= 6 && acts.poses.length >= 3 && acts.swings.length >= 4,
+      JSON.stringify({ acts: acts.acts, poses: acts.poses.length, swings: acts.swings.length }));
+    check('ACTS: every animation an act can wear is in the list that takes it off again',
+      acts.posesCleared && acts.swingsCleared,
+      JSON.stringify({ poses: acts.posesCleared, swings: acts.swingsCleared }));
+
+    // …AND THE BODY CHANGES BLOW TO BLOW. A bar whose blows differ must not
+    // look the same all the way through — that is the failure this build is
+    // named after, and it is invisible to every check that samples once.
+    const shapes = await J(async () => {
       let quiet = 0;
       for (let i = 0; i < 400 && quiet < 20; i++) {
         quiet = document.querySelector('.k-pring') ? 0 : quiet + 1;
-        await new Promise(res => setTimeout(res, 8));
+        await new Promise(r => setTimeout(r, 5));
       }
-      window.K.startCombat({ seed: 7 });
-      for (let i = 0; i < 60 && window.K.state().phase !== 'PLAYER_READY'; i++) {
-        await new Promise(res => setTimeout(res, 8));
+      window.K.forceIntent('scythe');        // claw, thrust / claw, toll, thrust
+      window.K.endTurn();
+      const art = document.getElementById('k-boss-art');
+      const seen = new Set();
+      const t0 = performance.now();
+      while (performance.now() - t0 < 6000) {
+        [...art.classList].filter(c => c.indexOf('k-fs-') === 0).forEach(c => seen.add(c));
+        await new Promise(r => setTimeout(r, 16));
       }
-      window.K.forceIntent('crescendo');
-      const done = window.K.endTurn();
-      const st = document.getElementById('k-stage');
-      let ring = null;
-      for (let i = 0; i < 500 && !ring; i++) {
-        ring = st.querySelector('.k-pring-trace');
-        if (!ring) await new Promise(r => setTimeout(r, 10));
-      }
-      if (!ring) { await done; return { found: false }; }
-      const out = { found: true, verb: ring.querySelector('.k-pr-lbl').textContent.trim(),
-        // THE WHOLE JOURNEY IS DRAWN BEFORE THE FINGER MOVES — and it is drawn
-        // as the shape the RING SWEEPS OUT, not as a line beside it: a tube the
-        // width of the ring with a round cap at each end. `bed` is that
-        // silhouette (a rect painted through a mask of full-width-stroke minus
-        // narrower-stroke), `run` is the fill that follows the ring along it,
-        // and the berth at the far end is the tube's own cap with a pip at its
-        // centre — there is no separate ring drawn there any more, which is
-        // what this check used to look for.
-        bed: !!ring.querySelector('.k-pr-railbed'),
-        run: !!ring.querySelector('.k-pr-railrun'),
-        mouth: !!ring.querySelector('.k-pr-railpip'),
-        // and the silhouette really is the ring's width, not a hairline
-        sweptW: (() => {
-          const m = ring.querySelector('mask path');
-          return m ? +m.getAttribute('stroke-width') : 0;
-        })() };
-      const rb0 = ring.getBoundingClientRect();
-      const sb = st.getBoundingClientRect();
-      const sign = rb0.left > sb.left + st.offsetWidth / 2 ? -1 : 1;
-      const pts = window.K.railPoints(window.K.TRACE_SHAPES.arc, sign);
-      const ev = (ty, x, y) => st.dispatchEvent(new PointerEvent(ty,
-        { bubbles: true, clientX: x, clientY: y, pointerId: 61 }));
-      // A STAB AT THE FAR END IS NOT A GRIP. The ring is the handle; reaching
-      // for where it is GOING has to do nothing, or the rail is decoration and
-      // the note is a tap with a picture behind it.
-      ev('pointerdown', rb0.left + pts[pts.length - 1][0], rb0.top + pts[pts.length - 1][1]);
-      out.grabbedFromAfar = ring.classList.contains('k-pr-held');
-      ev('pointerup', rb0.left, rb0.top);
-      // …now take hold of the ring itself and carry it
-      ev('pointerdown', rb0.left, rb0.top);
-      out.held = ring.classList.contains('k-pr-held');
-      // NOTHING ELSE MAY TAKE THE FINGER. The rings sit over the heroes and a
-      // hero carries its own drag, so pressing a note was also grabbing the
-      // figure under it — the rows lifted, the move hint came up, and the whole
-      // board moved when all the player did was touch a ring.
-      out.boardMoved = document.getElementById('k-stage').classList.contains('k-moving');
-      out.heroDragging = !!document.querySelector('.k-hero.k-hero-drag');
-      // THE RING SITS UNDER THE FINGER, wherever the finger goes. A first pass
-      // projected the finger onto the curve and snapped the ring to it, so the
-      // circle slid out from under the fingertip on every cut corner — the
-      // thing you were holding was not where you were holding it. Carried well
-      // off the rail it still tracks the hand, says it has strayed, and refuses
-      // to count the journey.
-      {
-        const offX = rb0.left + 40, offY = rb0.top + 55;
-        ev('pointermove', offX, offY);
-        const off = ring.getBoundingClientRect();
-        out.followDrift = Math.round(Math.hypot(off.left - offX, off.top - offY));
-        out.astray = ring.classList.contains('k-pr-astray');
-        out.railOffRail = +ring.style.getPropertyValue('--rail');
-      }
-      for (let i = 4; i < pts.length; i += 4) {
-        ev('pointermove', rb0.left + pts[i][0], rb0.top + pts[i][1]);
-        await new Promise(r => setTimeout(r, 12));
-      }
-      out.rail = +ring.style.getPropertyValue('--rail');
-      out.arrived = ring.classList.contains('k-pr-traced');
-      out.label = ring.querySelector('.k-pr-lbl').textContent.trim();
-      const moved = ring.getBoundingClientRect();
-      out.travelled = Math.round(Math.hypot(moved.left - rb0.left, moved.top - rb0.top));
-      const last = pts[pts.length - 1];
-      out.endDrift = Math.round(Math.hypot(moved.left - (rb0.left + last[0]),
-                                           moved.top - (rb0.top + last[1])));
-      // …and it grades on the RELEASE, on the beat
-      const wait = +ring.dataset.impact - performance.now();
-      if (wait > 0) await new Promise(r => setTimeout(r, wait));
-      ev('pointerup', rb0.left + pts[pts.length - 1][0], rb0.top + pts[pts.length - 1][1]);
-      const res = await done;
-      out.grade = res.grades[2];        // tap, tap, TRACE, tap, tap, feint, hold
-      return out;
+      return [...seen].sort();
     });
-    check('TRACE: the rail is the RING\u2019S OWN SILHOUETTE dragged to the mouth, not a line beside it',
-      tr.found && tr.bed && tr.run && tr.mouth && tr.sweptW >= 50
-      && /TRACE\s+ARC/i.test(tr.verb),
-      JSON.stringify({ verb: tr.verb, bed: tr.bed, run: tr.run, mouth: tr.mouth,
-                       sweptWidth: tr.sweptW }));
-    check('TRACE: the RING is the handle — reaching for the far end takes no hold',
-      tr.grabbedFromAfar === false && tr.held === true,
-      JSON.stringify({ afar: tr.grabbedFromAfar, onRing: tr.held }));
-    check('TRACE: taking hold of a note grabs NOTHING else — no hero, no board move',
-      tr.boardMoved === false && tr.heroDragging === false,
-      JSON.stringify({ boardMoved: tr.boardMoved, heroDragging: tr.heroDragging }));
-    check('TRACE: the ring sits under the finger even off the rail, and says the journey has strayed',
-      tr.followDrift <= 2 && tr.astray === true && tr.railOffRail === 0,
-      JSON.stringify({ drift: tr.followDrift, astray: tr.astray, progress: tr.railOffRail }));
-    check('TRACE: carrying it along the rail moves the ring and fills the run to the mouth',
-      tr.travelled > 90 && tr.rail >= 0.93 && tr.arrived && tr.label === 'RELEASE!'
-      && tr.endDrift <= 2,
-      JSON.stringify({ travelled: tr.travelled, rail: tr.rail, arrived: tr.arrived,
-                       label: tr.label, endDrift: tr.endDrift }));
-    check('TRACE: parked at the mouth and released on the beat, it grades like any other note',
-      tr.grade && tr.grade !== 'miss', JSON.stringify({ grade: tr.grade }));
+    check('ACTS: a bar of different blows does not play one animation throughout',
+      shapes.length >= 2, JSON.stringify({ swings: shapes }));
+  }
+  await settle();
+  // ── THE DRAW: press anywhere, make the shape, release ──
+  // THIS REPLACES SIX TRACE CHECKS, and they went out with the note they were
+  // written for. Every one of them was about the RAIL — that the ring's own
+  // silhouette was dragged to a mouth, that reaching for the far end took no
+  // hold, that straying off the tube said so. A draw has no rail: the whole
+  // point of the rework is that the shape can be made anywhere, at any size,
+  // starting from wherever the thumb already is. What survives is the part
+  // that was always the real subject — that a gesture with a shape in it is
+  // read as a shape, and that making it does not disturb the board.
+  await fresh(7);
+  {
+    const dr = await J(async () => {
+      // WAIT FOR QUIET FIRST — the same lesson LENS and TRACE both taught.
+      let quiet = 0;
+      for (let i = 0; i < 400 && quiet < 20; i++) {
+        quiet = document.querySelector('.k-pring') ? 0 : quiet + 1;
+        await new Promise(r => setTimeout(r, 5));
+      }
+      window.K.forceIntent('benediction');   // lure, then SIGIL
+      window.K.endTurn();
+      for (let i = 0; i < 300 && !document.querySelector('.k-pring-draw'); i++) {
+        await new Promise(r => setTimeout(r, 10));
+      }
+      const ring = document.querySelector('.k-pring-draw');
+      if (!ring) return { found: false };
+      const st = document.getElementById('k-stage');
+      const rb = ring.getBoundingClientRect();
+      const before = { rows: [...document.querySelectorAll('.k-hero')].map(h => h.dataset.row || ''),
+                       lifted: document.querySelectorAll('.k-hero.k-lift').length };
+      // THE FIGURE IS SHOWN, and the ask is named by the ACT rather than by
+      // the input — this note answers a cast, so the ring says SIGIL.
+      const shown = { sigil: !!ring.querySelector('.k-pr-sigil'),
+                      ink: !!ring.querySelector('.k-pr-inkline'),
+                      label: (ring.querySelector('.k-pr-lbl') || {}).textContent };
+      // …and it is drawn FAR from the ring, deliberately: a draw that only
+      // works near its own ring is the trace again.
+      const cx = rb.left - 190, cy = rb.top + 40, R = 46;
+      const pt = (a) => ({ x: cx + Math.cos(a) * R, y: cy + Math.sin(a) * R });
+      const send = (type, p, id) => st.dispatchEvent(new PointerEvent(type,
+        { bubbles: true, clientX: p.x, clientY: p.y, pointerId: id || 9 }));
+      send('pointerdown', pt(0));
+      for (let a = 0; a <= Math.PI * 2 + 0.2; a += Math.PI / 14) {
+        send('pointermove', pt(a));
+        await new Promise(r => setTimeout(r, 6));
+      }
+      const inked = ring.classList.contains('k-pr-inked');
+      // RELEASE ON THE BEAT, NOT WHEN THE SHAPE IS DONE. A draw is graded on the
+      // release exactly like a hold: the figure is made during the runway and
+      // the LIFT is the answer. The first version of this check released the
+      // instant the circle closed — hundreds of ms early — and the note
+      // correctly refused it, which read as "releasing does not grade".
+      const land = +ring.dataset.impact || 0;
+      while (performance.now() < land - 40) await new Promise(r => setTimeout(r, 8));
+      const trail = (ring.querySelector('.k-pr-inkline') || {}).getAttribute
+        ? ring.querySelector('.k-pr-inkline').getAttribute('points') : '';
+      const said = (ring.querySelector('.k-pr-lbl') || {}).textContent;
+      send('pointerup', pt(0));
+      await new Promise(r => setTimeout(r, 260));
+      const after = { rows: [...document.querySelectorAll('.k-hero')].map(h => h.dataset.row || ''),
+                      lifted: document.querySelectorAll('.k-hero.k-lift').length };
+      return { found: true, shown, inked, said,
+               trailPts: (trail || '').trim().split(/\s+/).filter(Boolean).length,
+               gone: !document.body.contains(ring),
+               boardStill: before.rows.join() === after.rows.join()
+                        && before.lifted === after.lifted };
+    });
+    check('DRAW: a cast is answered by a drawn figure — the ring shows the shape and names the act',
+      dr.found && dr.shown.sigil && dr.shown.ink && /SIGIL/.test(dr.shown.label || ''),
+      JSON.stringify(dr.shown));
+    check('DRAW: the shape is read from the STROKE, made far from the ring and still counted',
+      dr.found && dr.inked && dr.trailPts > 10 && /RELEASE/.test(dr.said || ''),
+      JSON.stringify({ inked: dr.inked, points: dr.trailPts, said: dr.said }));
+    check('DRAW: releasing a made figure grades the note, and drawing moved nothing on the board',
+      dr.found && dr.gone && dr.boardStill,
+      JSON.stringify({ graded: dr.gone, boardStill: dr.boardStill }));
+
+    // THE JUDGE ITSELF, in isolation — a circle reads, a straight line does not,
+    // and a twitch too small to be a gesture reads as nothing at all.
+    const judge = await J(() => {
+      const K = window.K, R = 50;
+      const ring = (n, turns) => Array.from({ length: n }, (_, i) => {
+        const a = (i / (n - 1)) * Math.PI * 2 * turns;
+        return [Math.cos(a) * R, Math.sin(a) * R];
+      });
+      const line = Array.from({ length: 30 }, (_, i) => [i * 6, 0]);
+      const twitch = Array.from({ length: 30 }, (_, i) => {
+        const a = (i / 29) * Math.PI * 2; return [Math.cos(a) * 4, Math.sin(a) * 4];
+      });
+      return { circle: +K.drawScore('circle', ring(40, 1)).toFixed(2),
+               widdershins: +K.drawScore('circle', ring(40, -1)).toFixed(2),
+               line: +K.drawScore('circle', line).toFixed(2),
+               twitch: +K.drawScore('circle', twitch).toFixed(2),
+               ok: K.DRAW_OK };
+    });
+    check('DRAW: the judge reads a circle either way round, and refuses a line or a twitch',
+      judge.circle >= judge.ok && judge.widdershins >= judge.ok
+      && judge.line < judge.ok && judge.twitch < judge.ok,
+      JSON.stringify(judge));
   }
   await settle();
   // ── the note vocabulary: six kinds, each a different ask ──
@@ -4040,7 +4093,13 @@ const { boot } = require('./harness.cjs');
       // table under test would only prove the lookup works; written out, it
       // also pins the design decision — a crescendo is a RAIN, not a toll,
       // which is exactly the entry this check first got wrong.
-      const map = { hymn: 'toll', toll: 'toll', crescendo: 'rain',
+      // …and it is restated for the CURRENT design, which changed: the opening
+      // posture is the first BLOW's act rather than a per-intent label, so the
+      // Rising Dirge — which opens on two thrusts — stands in the toll shape
+      // and not the rain one. That is the entry this check caught, and it was
+      // right to: a foe that opens in a posture it is not about to throw is
+      // the mismatch this whole build exists to remove.
+      const map = { hymn: 'toll', toll: 'toll', crescendo: 'toll',
                     scythe: 'sweep', flurry: 'sweep',
                     rain: 'rain', benediction: 'gather' };
       const out = {};

@@ -223,6 +223,16 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 #k-boss-art.k-fs-press  { animation: k-fs-press 0.5s ease-out; }
 #k-boss-art.k-fs-flurry { animation: k-fs-flurry 0.44s linear; }
 #k-boss-art.k-fs-fake   { animation: k-fs-fake 0.4s ease-in-out; }
+/* A CAST IS NOT A SWING. The other five acts throw something; a sigil is drawn
+   — the body settles and the light does the moving, so it rises and glows
+   rather than lunging. Without this the one act whose answer is a DRAWN SHAPE
+   was animated as a punch. */
+#k-boss-art.k-fs-cast   { animation: k-fs-cast 0.62s var(--ease-in-out); }
+@keyframes k-fs-cast {
+  0%   { transform: translateY(0)     scale(1);    filter: brightness(1); }
+  45%  { transform: translateY(-7px)  scale(1.03); filter: brightness(1.3) saturate(1.25); }
+  100% { transform: translateY(0)     scale(1);    filter: brightness(1); }
+}
 @keyframes k-fs-jab {
   22%  { transform: translateX(-30px) scaleX(1.04); }
   55%  { transform: translateX(6px); }
@@ -1357,45 +1367,31 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    top the two outlines crossed and the pair read as a knot rather than as a
    circle about to set off. The rail goes under, and the ring gets a dark hub so
    the tube's lines do not show through the middle of it. */
-.k-pr-rail { position: absolute; overflow: visible; pointer-events: none; z-index: 0; }
-.k-pr-target, .k-pr-close { z-index: 2; }
-.k-pr-hub { position: absolute; left: 0; top: 0; width: 58px; height: 58px;
-  border-radius: 50%; transform: translate(-50%, -50%); z-index: 1;
-  background: radial-gradient(circle at 50% 45%, rgba(14,11,17,0.94), rgba(10,8,13,0.82) 72%,
-    rgba(10,8,13,0) 100%); }
-/* the tube the ring will fill on its way — dark, so the silhouette reads over
-   a painted board rather than dissolving into it */
-.k-pr-railtube { fill: none; stroke: rgba(10,8,13,0.5); stroke-linecap: round;
-  stroke-linejoin: round; }
-/* THE SWEPT SILHOUETTE: the ring's own outline dragged to the mouth. Painted
-   through a mask of (full-width stroke MINUS three-pixels-narrower stroke), so
-   what lands is exactly the two edges and the two round caps — the shape the
-   ring makes on its way, which is the shape the note is asking for. */
-.k-pr-railbed { fill: rgba(232,220,196,0.28);
-  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.95)); }
-/* the run fills the tube in behind the ring: one dash the length of the path,
-   with the offset driven by --rail */
-.k-pr-railrun { fill: none; stroke: rgba(240,212,136,0.3); stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 1000; stroke-dashoffset: calc(1000px - var(--rail, 0) * 1000px); }
-/* the berth at the far end — the tube's own cap, given a centre to aim at */
-.k-pr-railpip { fill: rgba(232,220,196,0.6); }
-/* held: the ring has been taken hold of and the silhouette brightens under it */
-.k-pring-trace.k-pr-held .k-pr-railbed { fill: rgba(240,212,136,0.5); }
-/* CARRIED OFF THE RAIL. The ring stays under the finger wherever the hand goes
-   — that is the whole point of it being the handle — but the journey only
-   counts inside the tube, so a hand that has wandered out of it needs to be
-   told, not silently given nothing. */
-.k-pring-trace.k-pr-astray .k-pr-target { border-color: rgba(200,120,110,0.6); }
-.k-pring-trace.k-pr-astray .k-pr-hub { background: radial-gradient(circle at 50% 45%,
-  rgba(30,14,14,0.94), rgba(16,8,10,0.82) 72%, rgba(16,8,10,0) 100%); }
-/* arrived at the mouth — the same word a hold uses, so a player who has
-   learned one has learned both */
-.k-pring-trace.k-pr-traced .k-pr-railbed { fill: rgba(240,212,136,0.8); }
-.k-pring-trace.k-pr-traced .k-pr-railpip { fill: #fff4d4; }
-.k-pring-trace.k-pr-traced { animation: k-pr-tready 0.62s ease-in-out infinite; }
-@keyframes k-pr-tready { 50% { filter: drop-shadow(0 0 12px rgba(240,212,136,0.75)); } }
-.k-pring-trace .k-pr-lbl { white-space: nowrap; }
+/* ── THE DRAW ───────────────────────────────────────────────────────────────
+   A SHAPE TO MAKE, NOT A PATH TO RIDE. The trace drew a rail — a tube the ring
+   had to be carried along, with a grip point at one end and a mouth at the
+   other. Three ways to be told "no" mid-gesture. What is drawn now is the
+   FIGURE, ghosted, sitting behind the ring: this is the shape, make it, size
+   and position are yours. The line the finger actually draws is inked over it
+   live, so the hand can see what it is making while it makes it. */
+.k-pr-sigil { position: absolute; left: 50%; top: 50%; width: 132px; height: 132px;
+  margin: -66px 0 0 -66px; border-radius: 50%; pointer-events: none; z-index: 0;
+  border: 2px dashed rgba(232,220,196,0.34);
+  animation: k-pr-sigspin 5.5s linear infinite; }
+@keyframes k-pr-sigspin { to { transform: rotate(360deg); } }
+.k-pr-ink { position: absolute; left: 50%; top: 50%; width: 280px; height: 280px;
+  margin: -140px 0 0 -140px; overflow: visible; pointer-events: none; z-index: 1; }
+.k-pr-inkline { fill: none; stroke: rgba(240,212,136,0.85); stroke-width: 3;
+  stroke-linecap: round; stroke-linejoin: round;
+  filter: drop-shadow(0 0 5px rgba(240,212,136,0.5)); }
+/* the figure fills in as the read gets closer, so "nearly" is visible */
+.k-pring-draw .k-pr-sigil { border-color: rgba(232,220,196,calc(0.34 + var(--ink, 0) * 0.5)); }
+.k-pring-draw.k-pr-held .k-pr-sigil { border-style: solid; }
+/* …and when it reads, it says so and asks for the release */
+.k-pring-draw.k-pr-inked .k-pr-sigil { border-color: #f0d488;
+  box-shadow: 0 0 22px rgba(240,212,136,0.45), inset 0 0 18px rgba(240,212,136,0.18); }
+.k-pring-draw.k-pr-inked { animation: k-pr-tready 0.62s ease-in-out infinite; }
+.k-pring-draw .k-pr-lbl { white-space: nowrap; }
 
 /* a combo strip with nothing under its tag must not reserve the room for a
    line that is no longer there — see the EXHAUST note in cardFaceHTML */

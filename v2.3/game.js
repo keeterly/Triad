@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 89;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 90;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -339,6 +339,73 @@ const TUNE = { dmgScale: 1.0, dirge: [3, 3], heal: [7, 9], parryKeep: 0.3, bossH
 
 const ALLOUT_BASE = { dmg: TUNE.alloutDmg, brk: TUNE.alloutBrk };
 
+// ═════════════════════════════════════════════════════════════════════════════
+// THE ACTS — what the foe is physically DOING, and therefore what the hand does
+// ═════════════════════════════════════════════════════════════════════════════
+// THE GESTURE IS THE ATTACK, MIRRORED. Before this, a hit named a NOTE — a
+// rhythm token picked for variety — and the foe's body was then made to agree
+// with the note (`FOE_SWING` mapped note -> animation, which is backwards). The
+// result measured badly: of seven intents, three had gestures that agreed with
+// what the foe appeared to do and four were arbitrary. The Hymn is a bell being
+// struck and asked for tap/tap. Grief in Threes used the SWEEP pose and asked
+// for three taps and a traced angle. Worse, the pose was chosen per INTENT, so
+// a three-blow bar played one animation for all three blows: the foe struck
+// three different ways and looked identical every time.
+//
+// A hit now names ACTS. The act decides all three of the things that were
+// drifting apart:
+//   • what the foe's body does        (pose + swing, per BLOW, not per bar)
+//   • what the hand is asked for      (the note, derived — never authored)
+//   • what the telegraph calls it     (the word, so the chip names the attack)
+//
+// So a claw is a wipe the same way the claw goes; a slash is a stroke along the
+// blade's line; a cast is a circle drawn in the air, because that is what is
+// being drawn at you. The player is reading the FOE, not a notation.
+const ACTS = {
+  // a bell struck, a weight coming down — you brace, you do not dodge
+  toll:   { word: 'TOLL',   note: 'hold',        pose: 'k-foe-toll',   swing: 'k-fs-press',  mark: 'dirge' },
+  // a raking swipe across the party — wipe the way it rakes
+  claw:   { word: 'CLAW',   note: 'slide',       pose: 'k-foe-sweep',  swing: 'k-fs-arc',    mark: 'move' },
+  // one blade stroke on a line — cut back along it
+  slash:  { word: 'SLASH',  note: 'slide',       pose: 'k-foe-sweep',  swing: 'k-fs-arc',    mark: 'move' },
+  // a straight stab: one point, one answer
+  thrust: { word: 'THRUST', note: 'tap',         pose: 'k-foe-toll',   swing: 'k-fs-jab',    mark: 'atk' },
+  // a sigil drawn in the air. You draw it back — the one act whose gesture has
+  // a SHAPE in it, and the reason the draw note exists at all.
+  sigil:  { word: 'SIGIL',  note: 'draw:circle', pose: 'k-foe-gather', swing: 'k-fs-cast',   mark: 'finale' },
+  // many small impacts, no single moment to catch — out-mash it
+  rain:   { word: 'RAIN',   note: 'burst',       pose: 'k-foe-rain',   swing: 'k-fs-flurry', mark: 'bleed' },
+  // a twitch that does not commit
+  feint:  { word: 'FEINT',  note: 'feint',       pose: 'k-foe-wind',   swing: 'k-fs-fake',   mark: 'follow' },
+  // an opening that is bait
+  lure:   { word: 'LURE',   note: 'bait',        pose: 'k-foe-gather', swing: 'k-fs-fake',   mark: 'broken' },
+};
+// `claw:R` -> the act plus the direction it travels. The direction rides on the
+// ACT because it is a fact about the swing, not about the input.
+function parseAct(spec) {
+  const [id, dir] = String(spec).split(':');
+  return { id, dir: dir || null, def: ACTS[id] || ACTS.thrust };
+}
+// The note a hit actually plays, derived — never authored beside the act, so
+// the two cannot disagree.
+function noteForAct(spec) {
+  const a = parseAct(spec);
+  const base = a.def.note;
+  // a directional act hands its direction to a directional note
+  if (base === 'slide' && a.dir) return 'slide:' + a.dir;
+  return base;
+}
+// Every hit is authored with `acts`; `notes` is computed from it once, here, so
+// everything downstream (the bots, the sims, the checks) keeps reading `notes`
+// and cannot be handed a pair that drifted apart.
+function deriveNotes(intents) {
+  for (const it of intents) for (const h of it.hits) {
+    if (!h.acts) continue;
+    h.notes = h.acts.map(noteForAct);
+  }
+  return intents;
+}
+
 const REGENT_INTENTS = [
   // Each intent has its own HANDWRITING. The Hymn is a dirge you brace
   // through; the Advance is two sweeping arcs; the Benediction dares you to
@@ -351,26 +418,26 @@ const REGENT_INTENTS = [
       // a quick double toll, then a caught breath, then the long note. The
       // double is two TAPS — the one gesture you can genuinely repeat inside
       // half a beat, because your hand is already where it needs to be.
-      { dmg: [9, 12], target: 'ash',  notes: ['tap', 'tap'], beats: [0, 0.5] },
-      { dmg: [9, 12], target: 'ash',  notes: ['feint', 'tap'], beats: [0, 1.5] },
-      { dmg: [9, 12], target: 'elin', notes: ['tap', 'hold'] },
+      { dmg: [9, 12], target: 'ash',  acts: ['thrust', 'thrust'], beats: [0, 0.5] },
+      { dmg: [9, 12], target: 'ash',  acts: ['feint', 'toll'], beats: [0, 1.5] },
+      { dmg: [9, 12], target: 'elin', acts: ['thrust', 'toll'] },
     ] },
   { id: 'scythe', name: 'Scything Advance', kind: 'attack', frontOnly: true,
     hits: [
       // sweep, then the jab a beat and a half later — the hand has to arrive
       // before it can strike again
-      { dmg: [13, 17], target: 'mira', notes: ['slide:R', 'tap'], beats: [0, 1.5], sweep: true },
-      { dmg: [13, 17], target: 'ash',  notes: ['slide:L', 'hold', 'tap'], beats: [0, 1.5, 3], sweep: true },
+      { dmg: [13, 17], target: 'mira', acts: ['claw:R', 'thrust'], beats: [0, 1.5], sweep: true },
+      { dmg: [13, 17], target: 'ash',  acts: ['claw:L', 'toll', 'thrust'], beats: [0, 1.5, 3], sweep: true },
     ] },
   { id: 'benediction', name: 'Hollow Benediction', kind: 'heal',
     hits: [
-      { dmg: [8, 12], target: 'elin', notes: ['bait', 'tap'] },
+      { dmg: [8, 12], target: 'elin', acts: ['lure', 'sigil'] },
     ] },
   { id: 'rain', name: 'Ashen Rain', kind: 'attack', sub: [1, 0.75],
     hits: [
-      { dmg: [9, 13], target: 'ash',  notes: ['burst'] },
-      { dmg: [9, 13], target: 'elin', notes: ['burst'] },
-      { dmg: [9, 13], target: 'mira', notes: ['tap', 'slide:D'], beats: [0, 1.5] },
+      { dmg: [9, 13], target: 'ash',  acts: ['rain'] },
+      { dmg: [9, 13], target: 'elin', acts: ['rain'] },
+      { dmg: [9, 13], target: 'mira', acts: ['thrust', 'claw:D'], beats: [0, 1.5] },
     ] },
   // THREE MORE HANDS, so that no two opponents play the same one. Four intents
   // shared five ways meant the bestiary's whole promise — "each foe draws from
@@ -388,34 +455,37 @@ const REGENT_INTENTS = [
   // that asks the hand to commit and wait.
   { id: 'toll', name: 'The Long Toll', kind: 'attack',
     hits: [
-      { dmg: [14, 19], target: 'ash',  notes: ['hold'] },
-      { dmg: [14, 19], target: 'mira', notes: ['hold'] },
+      { dmg: [14, 19], target: 'ash',  acts: ['toll'] },
+      { dmg: [14, 19], target: 'mira', acts: ['toll'] },
     ] },
   // GRIEF IN THREES — the opposite: light hits, many reads, and it tightens in
   // the second phase. Three taps on the half-beat is the closest thing in the
   // vocabulary to a drum fill.
   { id: 'flurry', name: 'Grief in Threes', kind: 'attack', sub: [1, 0.75],
     hits: [
-      { dmg: [7, 10], target: 'mira', notes: ['tap', 'tap', 'tap'], beats: [0, 0.5, 1] },
-      { dmg: [7, 10], target: 'elin', notes: ['tap', 'trace:angle'], beats: [0, 1] },
-      { dmg: [7, 10], target: 'ash',  notes: ['burst'] },
+      { dmg: [7, 10], target: 'mira', acts: ['slash:L', 'slash:R', 'slash:L'], beats: [0, 0.5, 1] },
+      { dmg: [7, 10], target: 'elin', acts: ['thrust', 'sigil'], beats: [0, 1] },
+      { dmg: [7, 10], target: 'ash',  acts: ['rain'] },
     ] },
   // THE RISING DIRGE — the Regent's own, and the only intent whose hits get
   // BIGGER as the bar goes on. The last blow is the one worth reading, and it
   // is the one guarded by a feint.
   { id: 'crescendo', name: 'The Rising Dirge', kind: 'attack',
     hits: [
-      { dmg: [8, 11],  target: 'elin', notes: ['tap', 'tap'], beats: [0, 2] },
+      { dmg: [8, 11],  target: 'elin', acts: ['thrust', 'thrust'], beats: [0, 2] },
       // THE ARC IS THE REGENT'S OWN. It REPLACES the slide that stood here
       // rather than joining it: a new note kind is a change to how hard the
       // fight is to play, and adding one to the deepest intent in the bestiary
       // would have moved the ladder as well as the vocabulary. Same count, same
       // beats, one harder gesture — and it is on the middle hit, which had the
       // most runway to begin with.
-      { dmg: [10, 14], target: 'ash',  notes: ['trace:arc', 'tap', 'tap'], beats: [0, 1.5, 2.5] },
-      { dmg: [12, 16], target: 'mira', notes: ['feint', 'hold'], beats: [0, 1.5] },
+      { dmg: [10, 14], target: 'ash',  acts: ['sigil', 'thrust', 'thrust'], beats: [0, 1.5, 2.5] },
+      { dmg: [12, 16], target: 'mira', acts: ['feint', 'toll'], beats: [0, 1.5] },
     ] },
 ];
+// AUTHORED AS ACTS, PLAYED AS NOTES. One pass, here, so nothing downstream
+// can be handed an act and a note that disagree.
+deriveNotes(REGENT_INTENTS);
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE BESTIARY — the Regent is the last thing you meet, not the only thing.
@@ -902,8 +972,19 @@ function intentByTarget() {
     // number that will actually land.
     const back = ROWS[Math.min(ROWS.length - 1, ROWS.indexOf(C.heroes[who].row) + 1)];
     const dBack = h.sweep ? hitDamage(h, chill, back) : d;
-    if (row) { row.total += d; row.back += dBack; row.hits.push(d); row.sweep = row.sweep || !!h.sweep; }
-    else rows.push({ who, total: d, back: dBack, hits: [d], sweep: !!h.sweep });
+    // …AND WHAT THE BLOW ACTUALLY IS. The chip used one glyph for every strike
+    // and a second for sweeps, so a bell, a claw and a cast all read the same
+    // — the exact complaint that a telegraph does not match the attack. The
+    // acts of a hit ride along so each blow can be marked as what it is.
+    const acts = (h.acts || []).filter(a => {
+      const k = parseAct(a).def.note;
+      return k !== 'feint' && k !== 'bait';      // the fakes are not blows
+    });
+    if (row) { row.total += d; row.back += dBack; row.hits.push(d);
+               row.acts = (row.acts || []).concat(acts);
+               row.sweep = row.sweep || !!h.sweep; }
+    else rows.push({ who, total: d, back: dBack, hits: [d], acts,
+                     sweep: !!h.sweep });
   }
   return rows;
 }
@@ -1647,22 +1728,14 @@ function logLine(t) { C.log.push(t); const el = document.getElementById('k-log')
 // Build 36 learned this the hard way on the heroes: anything that sets
 // `animation` on the layer carrying the idle REPLACES the idle rather than
 // layering over it, and the figure stops breathing for the rest of the fight.
-const FOE_ACT = { hymn: 'k-foe-toll', scythe: 'k-foe-sweep',
-                  rain: 'k-foe-rain', benediction: 'k-foe-gather',
-                  toll: 'k-foe-toll', flurry: 'k-foe-sweep', crescendo: 'k-foe-rain' };
-// Every note kind gets its own swing, because the note is the blow: a tap is a
-// jab, a slide is a wide arc, a hold is a press that leans in and stays, a
-// burst is a flurry, and the two fakes — feint and bait — are a twitch that
-// does not commit. The hand is already being asked to read these apart; the
-// body throwing them should agree.
-const FOE_SWING = { tap: 'k-fs-jab', slide: 'k-fs-arc', hold: 'k-fs-press',
-                    burst: 'k-fs-flurry', feint: 'k-fs-fake', bait: 'k-fs-fake' };
-// TWO SLOTS, NOT ONE. The pose and the blow are meant to run together — that
-// is the entire reason they were put on different CSS properties — so clearing
-// them from one list meant every note stripped the posture off the foe the
-// instant it swung, and the four intents all looked the same again.
-const FOE_POSES = Object.values(FOE_ACT).concat(['k-foe-wind']);
-const FOE_SWINGS = Object.values(FOE_SWING);
+// EVERY CLASS THE FOE CAN WEAR, DERIVED FROM THE ACTS. There used to be two
+// hand-written maps here — intent -> pose and note -> swing — and the lists
+// that CLEAR those classes were built from them. So adding an act meant
+// remembering to add its animation to a list whose only job is to take it off
+// again; miss it and the class sticks forever. Both lists come off ACTS now,
+// which means a new act cannot be half-registered.
+const FOE_POSES = [...new Set(Object.values(ACTS).map(a => a.pose))].concat(['k-foe-wind']);
+const FOE_SWINGS = [...new Set(Object.values(ACTS).map(a => a.swing))];
 function foeSet(slot, cls, ms) {
   const b = el('k-boss-art'); if (!b) return;
   slot.forEach(c => b.classList.remove(c));
@@ -1674,16 +1747,35 @@ function foeSet(slot, cls, ms) {
 // THE BREATH BEFORE THE BLOW. Held rather than timed out: the wind-up ends when
 // the act begins, so however long the launch takes the foe stays coiled.
 // ONE mapping, not two. A sheet's act states are NAMED AFTER the pose class they
-// accompany — `k-foe-toll` drives the `toll` frames — so adding an intent to
-// FOE_ACT above can never leave the frames pointing somewhere else, and there is
-// no second table to keep in step with the first.
+// accompany — `k-foe-toll` drives the `toll` frames — so an act naming its own
+// pose can never leave the frames pointing somewhere else, and there is no
+// second table to keep in step with the first.
 const sheetStateOf = (cls) => (cls || '').replace('k-foe-', '') || 'idle';
 function fxFoeWind() { foeSet(FOE_POSES, 'k-foe-wind'); foeAnimState('wind'); }
+// THE OPENING POSTURE IS THE FIRST BLOW'S. A second table mapped intent -> pose
+// and could disagree with what the bar then actually threw — Grief in Threes
+// opened in the SWEEP pose and its first blow was a tap. The bar opens in the
+// shape of the thing it is about to do.
 function fxFoeAct(intentId) {
-  const cls = FOE_ACT[intentId] || 'k-foe-toll';
+  const it = REGENT_INTENTS.find(x => x.id === intentId);
+  const first = it && it.hits && it.hits[0] && (it.hits[0].acts || [])[0];
+  const cls = first ? parseAct(first).def.pose : 'k-foe-toll';
   foeSet(FOE_POSES, cls); foeAnimState(sheetStateOf(cls));
 }
-function fxFoeSwing(kind) { foeSet(FOE_SWINGS, FOE_SWING[kind] || 'k-fs-jab', 420); }
+// THE BODY FOLLOWS THE ACT, AND IT CHANGES PER BLOW. Two things were wrong
+// here. `fxFoeSwing(kind)` took the NOTE and looked up an animation for it —
+// the tail wagging the dog, since the note is supposed to be the answer to the
+// blow. And the POSE was set once per intent, in `fxFoeAct`, so a three-blow
+// bar held one posture throughout: the foe struck three different ways and
+// looked identical every time. Both take the act now, and the pose is re-set
+// on every blow, so a bar that claws then tolls then thrusts is three
+// different shapes on screen.
+function fxFoeSwing(actSpec) {
+  const a = parseAct(actSpec);
+  foeSet(FOE_POSES, a.def.pose);
+  foeAnimState(sheetStateOf(a.def.pose));
+  foeSet(FOE_SWINGS, a.def.swing || 'k-fs-jab', 420);
+}
 function fxFoeSettle() {
   foeSet(FOE_POSES, null); foeSet(FOE_SWINGS, null); foeAnimState('idle');
 }
@@ -2441,71 +2533,90 @@ function beatClose() {
 //   bait       a crossed red ring you must NOT touch; discipline is the parry
 const BURST_TAPS = 3;
 const NOTE_WORD = { tap: 'TAP', slide: 'SLIDE', hold: 'HOLD', burst: 'MASH', feint: 'WAIT',
-                    bait: 'DON\u2019T', trace: 'TRACE' };
+                    bait: 'DON\u2019T', draw: 'DRAW' };
 // ═════════════════════════════════════════════════════════════════════════════
-// THE TRACE — press, follow the figure, release on the beat.
+// THE DRAW — press anywhere, draw the shape, release on the beat.
 // ═════════════════════════════════════════════════════════════════════════════
-// The other six notes are all ONE decision: when to touch, or which way to
-// shove. A trace is the first note that asks the hand to do something with a
-// SHAPE in it — the finger goes down, travels a figure the ring has drawn for
-// it, and the grade is taken on the release. It is the hardest note in the
-// vocabulary by construction, so it gets the most runway to be read.
+// THIS REPLACES THE TRACE, AND THE REASON IS THE TRACE'S DESIGN, NOT ITS BUGS.
+// A trace drew a rail on screen and asked the finger to RIDE it: the press had
+// to land on the ring itself (a stab at the far end was "not a grip, it is a
+// guess"), progress advanced only while the finger stayed inside a 62px tube,
+// and the ring had to be carried 93% of the way before a release counted. Three
+// separate ways to be told "no" while your thumb is moving, on a phone, inside
+// half a second. It went through two rebuilds — waypoints, then a rail, then
+// finger-follow — and still did not feel good, which is the signal that the
+// thing being iterated on was the wrong thing.
 //
-// THE RING IS THE HANDLE. A first pass drew four small waypoints around the
-// ring and asked the finger to touch them in order, which turned one gesture
-// into four little ones and left the ring itself — the object the whole parry
-// language is built on — sitting still in the middle doing nothing. The ring
-// TRAVELS now: press it, drag it along the rail the note has drawn, release it
-// at the far end. One press, one continuous movement, one release, and the
-// thing under the finger is the same circle every other note has taught.
+// What the note is FOR is the interesting part: it is the answer to a foe
+// drawing a sigil in the air. So draw one back. Not a path to follow — a SHAPE
+// to make. The judge asks the stroke three questions about its gross form and
+// none about where it happened:
 //
-// A rail is a cubic sampled into points, in stage px, offset from where the
-// ring spawns. The finger's position is projected onto it, so the ring cannot
-// leave the rail however wide the hand wanders — the skill is in walking it on
-// the beat, not in drawing neatly.
-// MEASURED AGAINST THE BOARD, not chosen. The first pass swept the ring
-// upward by 1.06 x RAIL from a head that sits around y=135 on a 430px stage,
-// which carried it clean off the top edge — the screenshot showed the ring cut
-// in half by the sky. The sweep is mostly SIDEWAYS now, because sideways is
-// where this board has room: 466px either side of centre against 135 above a
-// hero's head. The rise is capped at 0.55 so even the back row, which stands
-// highest in the perspective, keeps its whole arc on screen.
-let _railN = 0;                 // mask ids have to be unique per live ring
-const RAIL = 132;               // how far the ring travels, in stage px
-const RAIL_GRAB = 62;           // how near the finger must start to take hold
-const RAIL_HOME = 0.93;         // far enough along to count as arrived
-const TRACE_SHAPES = {
-  // over the top and down to the far side — a rainbow laid on its side
-  arc:   { word: 'ARC',
-           c1: [0.10, -0.66], c2: [0.72, -0.66], end: [1.02, -0.08] },
-  // up a little, then a hard turn across — an L on its back
-  angle: { word: 'ANGLE',
-           c1: [0.02, -0.46], c2: [0.10, -0.55], end: [0.98, -0.55] },
-  // one long stroke on the diagonal
-  line:  { word: 'LINE',
-           c1: [0.30, -0.12], c2: [0.60, -0.26], end: [0.96, -0.40] },
+//   • is it big enough to be a deliberate gesture, not a wobble?
+//   • does it turn the right amount?  (a circle turns ~360 degrees; a line ~0)
+//   • does it end where a shape like that ends?  (a circle closes; a line does not)
+//
+// Everything else is allowed: start anywhere, any size over the floor, either
+// direction round, any speed. That is the difference between "trace this" and
+// "draw a circle", and it is the whole point.
+const DRAW_MIN = 90;            // total path length before a stroke is a gesture
+const DRAW_SHAPES = {
+  // turn: how far the heading should rotate over the stroke, in radians.
+  // close: how near the end must come back to the start, as a share of the
+  //        stroke's own size — so a big circle and a small one are judged alike.
+  circle: { word: 'CIRCLE', turn: Math.PI * 2, turnTol: Math.PI * 0.85, close: 0.42 },
 };
-// The rail as a list of points, mirrored when the hero stands on the right of
-// the board so the sweep always runs into open sky rather than off the edge.
-function railPoints(shape, sx) {
-  const B = (a, b, c, d, t) => { const u = 1 - t;
-    return u*u*u*0 + 3*u*u*t*a + 3*u*t*t*c + t*t*t*d; };
-  const pts = [];
-  for (let i = 0; i <= 48; i++) {
-    const t = i / 48;
-    pts.push([sx * RAIL * B(shape.c1[0], 0, shape.c2[0], shape.end[0], t),
-              RAIL * B(shape.c1[1], 0, shape.c2[1], shape.end[1], t)]);
+// How far the heading turned across a stroke, summed with sign so a figure that
+// doubles back cancels itself out rather than counting twice.
+function strokeTurn(pts) {
+  let sum = 0;
+  for (let i = 2; i < pts.length; i++) {
+    const a1 = Math.atan2(pts[i - 1][1] - pts[i - 2][1], pts[i - 1][0] - pts[i - 2][0]);
+    const a2 = Math.atan2(pts[i][1] - pts[i - 1][1], pts[i][0] - pts[i - 1][0]);
+    let d = a2 - a1;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    sum += d;
   }
-  return pts;
+  return sum;
 }
-// What a note says at the GRADEABLE INSTANT, which for two of the six kinds is
-// not the verb it arrived with. A burst returns null — its label is a live
-// tally and overwriting it blinded the first tap.
+function strokeLen(pts) {
+  let n = 0;
+  for (let i = 1; i < pts.length; i++) n += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  return n;
+}
+// Did this stroke make the shape the note asked for? Returns 0..1 — 1 is a
+// clean read, and anything at or above DRAW_OK counts. Reported rather than
+// boolean so the ring can show the hand how close it is getting WHILE it draws.
+const DRAW_OK = 0.6;
+function drawScore(shapeId, pts) {
+  const sh = DRAW_SHAPES[shapeId] || DRAW_SHAPES.circle;
+  if (!pts || pts.length < 6) return 0;
+  const len = strokeLen(pts);
+  if (len < DRAW_MIN) return 0;
+  // size, so `close` is judged against the gesture the hand actually made
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const [x, y] of pts) {
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+  }
+  const span = Math.max(maxX - minX, maxY - minY) || 1;
+  const turn = Math.abs(strokeTurn(pts));
+  const turnErr = Math.abs(turn - sh.turn) / sh.turnTol;          // 0 = exact
+  const gap = Math.hypot(pts[pts.length - 1][0] - pts[0][0],
+                         pts[pts.length - 1][1] - pts[0][1]) / span;
+  const closeErr = Math.max(0, gap - sh.close) / sh.close;
+  return Math.max(0, 1 - Math.max(turnErr, closeErr));
+}
+
+// What a note says at the GRADEABLE INSTANT, which for some kinds is not the
+// verb it arrived with. A burst returns null — its label is a live tally and
+// overwriting it blinded the first tap.
 function liveLabel(kind, verb) {
   if (kind === 'burst') return null;
-  // a trace is mid-figure when the beat arrives; its own label is a live
-  // progress reading, so the ring must not overwrite it (same rule as burst)
-  if (kind === 'trace') return null;
+  // a draw is mid-figure when the beat arrives; its own label is a live read of
+  // the shape, so the ring must not overwrite it (same rule as burst)
+  if (kind === 'draw') return null;
   if (kind === 'hold') return 'RELEASE!';     // graded on the release, not the press
   if (kind === 'feint') return 'NOW!';        // WAIT was the read; this is the answer
   return verb + (kind === 'bait' ? '' : '!');
@@ -2544,7 +2655,7 @@ const SLIDE_LEAD_MS = 120;
 // answer takes real time to PERFORM rather than to decide — the figure has to
 // be walked, and a hand given a slide's runway to walk an arc is being asked to
 // start before it has finished reading.
-const NOTE_LEAD = { trace: 2.3, slide: 1.7, bait: 1.7, burst: 1.6, feint: 1.3 };
+const NOTE_LEAD = { draw: 2.3, slide: 1.7, bait: 1.7, burst: 1.6, feint: 1.3 };
 // A breath between the hits of a volley. Six notes back-to-back is a wall; the
 // same six in phrases of two with a rest between them is a bar.
 const REST_BEATS = 1;
@@ -2594,7 +2705,7 @@ function claimsPress(rec, at) {
 const NOTE_SPREAD = 58;
 
 // One note: a ring closing on (ax, ay), exactly on its beat.
-function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
+function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy, actSpec) {
   return new Promise(resolve => {
     const stage = el('k-stage');
     if (!stage) return resolve('miss');
@@ -2610,60 +2721,34 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
     // journey from the frame it spawns — the line the ring will travel and the
     // mouth it has to reach — so the ask is a picture rather than a word the
     // player has to have learned.
-    const shape = kind === 'trace' ? (TRACE_SHAPES[dir] || TRACE_SHAPES.arc) : null;
-    // sweep into open sky: away from whichever edge this hero is standing near
-    const railSign = kind === 'trace'
-      ? (ax > (el('k-stage') ? el('k-stage').offsetWidth / 2 : 466) ? -1 : 1) : 1;
-    const rail = kind === 'trace' ? railPoints(shape, railSign) : null;
-    // THE RAIL IS THE RING'S OWN SILHOUETTE, DRAGGED. A dotted line said "a
-    // path goes here"; it did not say what was going to travel it or how much
-    // room that would take. What the note is actually describing is the shape
-    // the ring SWEEPS OUT on its way to the mouth — a tube the width of the
-    // ring, with a round cap at each end, which is the ring at the start and
-    // the ring parked at the finish joined by everything in between.
-    //
-    // SVG has no "outline of a thick stroke", so the outline is a mask: the
-    // path stroked at the ring's full width in white, the same path stroked
-    // three pixels narrower in black, and a rect painted through the hole that
-    // leaves. What survives is exactly the two edges and the two caps.
-    const RING_D = 58;
-    const railSVG = () => {
-      const P = RING_D / 2 + 10, W = RAIL + P * 2, H = RAIL * 0.72 + P * 2;
-      const ox = railSign > 0 ? P : W - P, oy = H - P;
-      const px = ([x, y]) => [(ox + x).toFixed(1), (oy + y).toFixed(1)];
-      const d = rail.map((p, i) => (i ? 'L' : 'M') + px(p).join(' ')).join(' ');
-      const [ex, ey] = px(rail[rail.length - 1]);
-      const mid = 'rail' + (_railN++);
-      return '<svg class="k-pr-rail" viewBox="0 0 ' + W + ' ' + H + '"'
-        + ' style="width:' + W + 'px;height:' + H + 'px;'
-        + 'left:' + (railSign > 0 ? -P : -(W - P)) + 'px;top:' + (-(H - P)) + 'px" aria-hidden="true">'
-        + '<defs><mask id="' + mid + '">'
-        + '<path d="' + d + '" fill="none" stroke="#fff" stroke-width="' + RING_D
-        + '" stroke-linecap="round" stroke-linejoin="round"/>'
-        + '<path d="' + d + '" fill="none" stroke="#000" stroke-width="' + (RING_D - 3)
-        + '" stroke-linecap="round" stroke-linejoin="round"/>'
-        + '</mask></defs>'
-        // the tube the ring will fill as it travels — dark, so the outline reads
-        + '<path class="k-pr-railtube" d="' + d + '" stroke-width="' + (RING_D - 3) + '"/>'
-        // …the run, filling the tube in behind the ring
-        + '<path class="k-pr-railrun" d="' + d + '" stroke-width="' + (RING_D - 5) + '"/>'
-        // …and the swept silhouette itself
-        + '<rect class="k-pr-railbed" x="0" y="0" width="' + W + '" height="' + H
-        + '" mask="url(#' + mid + ')"/>'
-        // the berth at the far end is the tube's own end cap, named
-        + '<circle class="k-pr-railpip" cx="' + ex + '" cy="' + ey + '" r="3.5"/>'
-        + '</svg>';
-    };
+    // THE SHAPE IS SHOWN, NOT A PATH. A rail said "carry the ring along here";
+    // a ghost of the figure says "make this". The difference matters because
+    // the second one can be made anywhere on the screen at any size, which is
+    // the entire reason the note was reworked.
+    const shape = kind === 'draw' ? (DRAW_SHAPES[dir] || DRAW_SHAPES.circle) : null;
     const glyph = kind === 'bait' ? '<span class="k-pr-x">' + SKULL_SVG + '</span>'
-      : kind === 'trace' ? railSVG()
+      // the figure itself, ghosted, with a live trail drawn over it as the
+      // finger works — so the hand can see the shape it is actually making
+      : kind === 'draw' ? '<span class="k-pr-sigil"></span>'
+        + '<svg class="k-pr-ink" viewBox="-140 -140 280 280" aria-hidden="true">'
+        + '<polyline class="k-pr-inkline" points="" /></svg>'
       : dir ? '<span class="k-pr-arrow">' + DIR_ARROW[dir] + '</span>'
       : kind === 'burst' ? '<span class="k-pr-burst"></span>' : '';
     // The verb is on screen from the first frame. It used to read "3/6" until
     // the ring went live, which told you WHEN but never WHAT, and left the read
     // and the answer sharing one window.
-    const verb = kind === 'trace' ? NOTE_WORD.trace + ' ' + shape.word
-      : NOTE_WORD[kind] + (dir ? ' ' + DIR_ARROW[dir] : '');
-    ring.innerHTML = (kind === 'trace' ? '<span class="k-pr-hub"></span>' : '')
+    // THE RING NAMES THE ATTACK, NOT THE INPUT. "SLIDE ->" describes what the
+    // thumb does; "CLAW ->" describes what is coming at you and lets the thumb
+    // follow from it. The note kind is still what grades the press — this is
+    // the word over it.
+    const act = actSpec ? parseAct(actSpec) : null;
+    // …AND THE DRAW IS NOT AN EXCEPTION TO THAT. The first cut had it fall back
+    // to the generic word, so the one note whose entire purpose is answering a
+    // specific attack was the only one that did not name it: the ring read
+    // "DRAW" over a cast. Everything takes the act's word when it has one.
+    const verb = (act ? act.def.word : NOTE_WORD[kind] || '')
+      + (dir && kind !== 'draw' ? ' ' + DIR_ARROW[dir] : '');
+    ring.innerHTML = ''
       + '<span class="k-pr-target"></span><span class="k-pr-close"></span>'
       + glyph + '<span class="k-pr-lbl">' + verb + '</span>'
       + (total > 1 ? '<span class="k-pr-n">' + idx + '/' + total + '</span>' : '');
@@ -2677,10 +2762,10 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
     ring.dataset.n = idx - 1; ring.dataset.total = total;
     if (dir) ring.dataset.dir = dir;
     let done = false, downAt = null, taps = 0, wrongAt = null, owned = false;
-    // HOW FAR ALONG THE RAIL THE RING HAS BEEN CARRIED. `t` only ever goes
-    // forward: a hand that scrubs back and forth over the mouth would otherwise
-    // be able to fish for the beat, and the note would stop being a journey.
-    let t = 0, held = false;
+    // THE STROKE THE HAND IS MAKING, in stage px relative to the ring's home.
+    // `best` is the highest score this stroke has reached — a hand that closes
+    // a circle and then keeps moving has still drawn one.
+    let stroke = [], best = 0;
     // where the ring's home is on screen right now — the lens moves under it,
     // so this is read fresh rather than cached at spawn
     const homeAt = () => {
@@ -2692,39 +2777,23 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
                tx: parseFloat(ring.style.getPropertyValue('--tx')) || 0,
                ty: parseFloat(ring.style.getPropertyValue('--ty')) || 0 };
     };
-    // THE RING GOES WHERE THE FINGER GOES. The first pass projected the finger
-    // onto the rail and snapped the ring to the nearest point on the curve,
-    // which meant the circle slid away from under the fingertip whenever the
-    // hand cut a corner — the thing you were holding was not where you were
-    // holding it. It follows the finger directly now, one to one, and the RAIL
-    // is what decides whether the journey counted: progress only advances while
-    // the finger is inside the tube, so the arc still has to be walked, but the
-    // circle is never anywhere except under the hand that is carrying it.
-    const railRide = (cx, cy) => {
+    // EVERY POINT THE FINGER HAS VISITED, and the running read of what it is
+    // making. The ring does not move: it is the anchor the figure is drawn
+    // around, not a thing to be carried. Nothing here rejects a press for being
+    // in the wrong PLACE — the whole judge is about the stroke's shape.
+    const inkTo = (cx, cy) => {
       const h = homeAt();
-      const ox = h.x - h.tx, oy = h.y - h.ty;      // the rail's origin on screen
-      let fx = (cx - ox) / (h.k || 1), fy = (cy - oy) / (h.k || 1);
-      // it cannot be carried off to somewhere the note never asked for
-      const far = Math.hypot(fx, fy), cap = RAIL * 1.35;
-      if (far > cap) { fx *= cap / far; fy *= cap / far; }
-      ring.style.setProperty('--tx', fx.toFixed(1) + 'px');
-      ring.style.setProperty('--ty', fy.toFixed(1) + 'px');
-      // …and separately, how far along the tube the hand has actually got
-      let best = t, bestD = Infinity;
-      for (let i = 0; i < rail.length; i++) {
-        const u = i / (rail.length - 1);
-        if (u < t - 0.06) continue;             // forward only, with a little give
-        const d = Math.hypot(fx - rail[i][0], fy - rail[i][1]);
-        if (d < bestD) { bestD = d; best = u; }
-      }
-      if (bestD <= RAIL_GRAB) t = Math.max(t, best);
-      ring.style.setProperty('--rail', t.toFixed(3));
-      // off the rail: the ring is still under the finger, but it says so
-      ring.classList.toggle('k-pr-astray', bestD > RAIL_GRAB && t < RAIL_HOME);
-      if (t >= RAIL_HOME && !ring.classList.contains('k-pr-traced')) {
-        ring.classList.add('k-pr-traced');
-        lbl.textContent = 'RELEASE!';
-      }
+      const k = h.k || 1;
+      stroke.push([(cx - h.x) / k, (cy - h.y) / k]);
+      if (stroke.length > 200) stroke.shift();
+      const sc = drawScore(dir || 'circle', stroke);
+      if (sc > best) best = sc;
+      ring.style.setProperty('--ink', best.toFixed(2));
+      ring.classList.toggle('k-pr-inked', best >= DRAW_OK);
+      const line = ring.querySelector('.k-pr-inkline');
+      if (line) line.setAttribute('points', stroke.map(pt =>
+        pt[0].toFixed(0) + ',' + pt[1].toFixed(0)).join(' '));
+      if (best >= DRAW_OK && lbl.textContent !== 'RELEASE!') lbl.textContent = 'RELEASE!';
     };
     // This note's claim on the finger: the arbiter hands each press to whichever
     // live note its timestamp is nearest to, and a note only listens while it
@@ -2792,22 +2861,21 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
         if (taps >= BURST_TAPS) tryGrade();
         return;
       }
-      // a trace is TAKEN HOLD OF, so the press has to land on the ring itself —
-      // a stab at the far end of the rail is not a grip, it is a guess
-      if (kind === 'trace') {
-        const h = homeAt();
-        if (Math.hypot(e.clientX - h.x, e.clientY - h.y) <= RAIL_GRAB * h.k) {
-          held = true;
-          ring.classList.add('k-pr-held');
-          lbl.textContent = NOTE_WORD.trace;
-        }
+      // A DRAW IS TAKEN ANYWHERE. The trace demanded the press land on the ring
+      // itself, which on a phone means aiming at a 58px target with the thumb
+      // that is about to draw with it — two jobs for one finger, and the first
+      // one silently voided the note. The stroke starts wherever the hand is.
+      if (kind === 'draw') {
+        stroke = [];
+        ring.classList.add('k-pr-held');
+        inkTo(e.clientX, e.clientY);
         return;
       }
       if (kind === 'tap' || kind === 'feint') tryGrade();
     };
     const onMove = function (e) {
       if (!owned || downAt == null) return;
-      if (kind === 'trace') { if (held) railRide(e.clientX, e.clientY); return; }
+      if (kind === 'draw') { inkTo(e.clientX, e.clientY); return; }
       if (kind !== 'slide') return;
       const dx = e.clientX - ring._dx, dy = e.clientY - ring._dy;
       const at = Math.max(downAt, performance.now() - SLIDE_LEAD_MS);
@@ -2823,13 +2891,12 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
     const onUp = function () {
       // a hold is graded on RELEASE, so it may only grade a press it owned
       if (kind === 'hold' && owned && downAt != null) tryGrade();
-      // A TRACE IS GRADED ON THE RELEASE TOO, and only once the figure is
-      // walked. Releasing part-way through is not a miss on its own — the timer
-      // below decides that — because a hand that lifts early and puts itself
-      // back down still has until the beat to finish, and punishing the lift
-      // would make a two-legged figure a one-attempt note.
-      if (kind === 'trace' && held && t >= RAIL_HOME) tryGrade();
-      if (kind === 'trace') { held = false; ring.classList.remove('k-pr-held'); }
+      // A DRAW IS GRADED ON THE RELEASE, once the figure reads. Lifting early is
+      // not a miss on its own — the timer below decides that — because a hand
+      // that lifts and puts itself back down still has until the beat, and
+      // punishing the lift would make one bad frame end the note.
+      if (kind === 'draw' && best >= DRAW_OK) tryGrade();
+      if (kind === 'draw') ring.classList.remove('k-pr-held');
       downAt = null; owned = false;
     };
     stage.addEventListener('pointerdown', onDown, true);
@@ -2843,14 +2910,10 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
         const g = parryGrade(wrongAt - t0 - dur);
         return finish(g ? DEMOTE[g] : 'miss');
       }
-      // A FIGURE HALF-WALKED IS NOT NOTHING. A trace that reached the last leg
-      // and simply did not get released pays one grade, the same way a slide
-      // that went the wrong way and corrected does; anything less than that is
-      // a miss, because a finger that touched one dot has not traced anything.
-      // A RIDE THAT ALMOST ARRIVED IS NOT NOTHING. Carry the ring most of the
-      // way and fail only to let go on the beat and it pays one grade, the same
-      // way a slide that went wrong and corrected does.
-      if (kind === 'trace' && t >= 0.55) return finish('good');
+      // A FIGURE ALMOST MADE IS NOT NOTHING. Draw a shape that reads most of the
+      // way and fail only to let go on the beat, and it pays one grade — the
+      // same way a slide that went wrong and corrected does.
+      if (kind === 'draw' && best >= DRAW_OK * 0.75) return finish('good');
       finish('miss');
     }, dur + PARRY_GOOD_MS + 30);
   });
@@ -3021,6 +3084,7 @@ async function runVolleyRhythm(hits, answerers, sub) {
     }
     for (let ni = 0; ni < inHit; ni++) {
       const type = hits[hi].notes[ni];
+      const act = (hits[hi].acts || [])[ni] || null;
       const idx = gi++, beat = slot + beats[ni];
       const lead = NOTE_LEAD[parseNote(type).kind] || 1;
       // A hit's notes READ LEFT TO RIGHT across its hero. Longer runways mean
@@ -3038,9 +3102,9 @@ async function runVolleyRhythm(hits, answerers, sub) {
           h.classList.toggle('k-parrying', h.dataset.hero === who));
         const dur = Math.max(180, Math.round(land - performance.now()));
         // THE BLOW IS THROWN HERE, so this is where the thing throwing it moves.
-        fxFoeSwing(parseNote(type).kind);
+        fxFoeSwing(act);
         const g = await runParryNote(type, pos.x + ox, pos.y + oy, idx + 1, kinds.length, dur,
-                                     who, ox, oy);
+                                     who, ox, oy, act);
         if (track) {
           track.mark(ni, g);
           // …and it leaves when ITS hit is finished, not when the bar is. Held
@@ -4172,7 +4236,10 @@ function renderIntent() {
           // a SWEEP, which is the one that standing further back blunts. That
           // is a distinction the rules already make and the player already has
           // to act on, so it is the one the marks carry.
-          + icon(row.sweep ? 'move' : 'atk')
+          // the mark of THIS blow, so a bar of a claw then a bell then a stab
+          // is three different chips rather than three identical ones
+          + icon((row.acts && row.acts[i] ? parseAct(row.acts[i]).def.mark : null)
+                 || (row.sweep ? 'move' : 'atk'))
           + '<b>' + fmtN(d) + '</b><u>' + where + '</u>'
           // …and if distance blunts it, say so and say by how much from here
           // A STEP AND WHAT IT BUYS. This was a curved arrow the eye had to
@@ -5644,7 +5711,9 @@ window.K = {
   _setPhase: setPhase,          // test-only: end a fight without playing it out
   // test-only: the words a note wears on arrival vs at the gradeable instant,
   // read from the function the note itself calls rather than restated here
-  TRACE_SHAPES, RAIL, RAIL_GRAB, RAIL_HOME, railPoints,
+  ACTS, parseAct, noteForAct, DRAW_SHAPES, DRAW_OK, drawScore, strokeTurn,
+  FOE_POSES, FOE_SWINGS,
+  INTENTS: () => REGENT_INTENTS,
   _noteWords: () => ({ feint: NOTE_WORD.feint, bait: NOTE_WORD.bait,
                        feintLive: liveLabel('feint', NOTE_WORD.feint),
                        holdLive: liveLabel('hold', NOTE_WORD.hold),
