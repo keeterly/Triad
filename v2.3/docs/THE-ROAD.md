@@ -2680,3 +2680,55 @@ rather than in a ten-run walk.
   samples before starting — the same remedy LENS and TRACE needed. Third time
   this suite has caught this one disease; the check now reports `ringWaitMs` so
   a fourth is diagnosable at a glance (`~550` means the board really was quiet).
+
+---
+
+## Build 89 — the three frames, rendered
+
+Higgsfield came back, so the frames Build 88 left pending exist now:
+`soul_location`, 21:9, all three in one batch.
+
+### One of them was a technically excellent image of the wrong story
+
+`careful` came back as **a romantic embrace** — a swordsman holding a
+pale-robed woman in a lovers' pose, large and specific in the foreground, in a
+bright green-grey garden. It is a lovely painting. It is also a frame that
+rewrites the party: that scene is Mira asking two people how long they have
+moved like one animal, and them saying the practice *ended*. Comradeship and a
+grief they will not name. Not romance.
+
+The brief did it. It said the pair "stand close, shoulders almost touching, the
+easy geometry of long practice" — and **"almost touching" is an instruction to
+touch.** The reroll says the opposite in as many ways as it can (`NOT touching,
+NOT embracing, no physical contact of any kind — three separate comrades`) and
+puts the failure in the negative prompt. The spec keeps both, because the
+failure is the more useful half: a brief that produced the wrong relationship
+once will produce it again.
+
+The check that matters here is not automatable — **does the frame say what the
+scene says?** Two of the three passed on the first pass and one did not, and no
+amount of measuring the lower third would have caught it.
+
+### The exposure spread nothing would have caught either
+
+The three came back at mean luma **22 / 30 / 78** — nearly a stop and a half
+apart. That is invisible on the title card, where each is shown at full
+strength on its own, and fatal afterwards, where all three go through one
+backdrop filter: at the inherited `brightness(0.24)` the lullaby read fine and
+the careful one was **solid black**, two seconds of establishing a place
+followed by the place not being there.
+
+Fixed in the art rather than the CSS: each frame is scaled to mean luma ~30 at
+export, so one rule serves all three and the set holds together as a set.
+
+Then the rule itself was wrong. `brightness(0.24)` was tuned against
+`bg-descent`, whose mean luma is **12** — the old backdrop was near-black by
+construction, which is right for a mood plate and wrong for a frame the splash
+just spent two seconds establishing. Bespoke stills get `.k-sc-own` and
+`brightness(0.5)`, landing around 15: present, readable as a place, well under
+the text. The region fallback keeps the old rule — those are map paintings at
+mean ~44 and would glare.
+
+Also recorded in the export step: the renders are 21:9 (2.388) and the stage is
+2.167, so the export centre-crops rather than leaving `object-fit: cover` to
+trim it. A crop decided at export is a crop you can look at.

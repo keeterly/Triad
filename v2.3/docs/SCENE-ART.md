@@ -9,30 +9,51 @@ different model, a different hand, all start from the same frame description.
 
 ## Status
 
-**The three frames are not rendered yet.** The Higgsfield MCP server was not
-reachable in the session that built this system (its tools were disconnected;
-`ToolSearch` found none), so the code ships with the render path complete and
-the images pending.
-
-`SCENE_ART` in `run.js` is the manifest of which stills actually exist:
+**All three frames are rendered and shipped** (Higgsfield `soul_location`,
+21:9, one batch). `SCENE_ART` in `run.js` is the manifest of which stills
+exist, and all three ids are on:
 
 ```js
-const SCENE_ART = {
-  // 'lullaby': 1, 'careful': 1, 'floor': 1,
-};
+const SCENE_ART = { lullaby: 1, careful: 1, floor: 1 };
 ```
 
-**It is empty on purpose, and that is load-bearing.** Naming a file that is not
-there is not a harmless fallback — the browser fetches it, logs a 404, and every
-suite in this project counts a console error as a failure. It did: `road` went
-to `pageErrors: 1` the moment the art slots landed and before the manifest
-existed. Until an id is in that object, the scene asks for the run's region
-painting instead and nothing 404s.
+**It is a manifest and not a guess, and that is load-bearing.** Naming a file
+that is not there is not a harmless fallback — the browser fetches it, logs a
+404, and every suite in this project counts a console error as a failure. It
+did: `road` went to `pageErrors: 1` the moment the art slots landed and before
+the manifest existed. A check HEADs every file the manifest claims, so an id
+left behind after a rename fails by name rather than quietly turning a title
+card into a black rectangle.
 
-**To ship a frame:** render it, save it as `v2.3/../art/scene-<id>.webp`,
-uncomment its line in `SCENE_ART`, and run `node test/road.test.cjs` — the
-`MEMORY` checks assert the splash opens with a loaded image and no page errors,
-so a bad path or a missing file fails loudly rather than degrading quietly.
+**To replace or add a frame:** render it, run it through the export below, save
+as `art/scene-<id>.webp`, make sure its id is in `SCENE_ART`, and run
+`node test/road.test.cjs`.
+
+### The export is not just a format change
+
+Two steps that are easy to skip and both matter:
+
+1. **Crop to the game's frame.** Renders come back 21:9 (2.388); the stage is
+   932x430 (2.167). Centre-crop to 2.167 and resize to **1864x860** rather than
+   leaving `object-fit: cover` to trim it — a crop decided at export is a crop
+   you can look at.
+2. **Normalise the exposure.** The three came back at mean luma **22 / 30 / 78**
+   — nearly a stop and a half apart — and no single backdrop filter can serve
+   that spread: at the old `brightness(0.24)` the lullaby read and the careful
+   one was solid black. Scale each to **mean luma ~30**. The CSS then stays one
+   rule (`.k-sc-own`, `brightness(0.5)`, landing them ~15), and the set holds
+   together as a set.
+
+```python
+from PIL import Image, ImageEnhance
+TARGET, TR = 30.0, 932/430
+def mean_luma(im):
+    g = im.convert('L').resize((160, 74)); px = list(g.getdata()); return sum(px)/len(px)
+im = Image.open(src).convert('RGB'); w, h = im.size
+nw = int(round(h*TR)); im = im.crop(((w-nw)//2, 0, (w-nw)//2+nw, h)).resize((1864, 860), Image.LANCZOS)
+im = ImageEnhance.Brightness(im).enhance(TARGET/mean_luma(im))
+im.save(dst, 'WEBP', quality=82, method=6)
+```
 
 ## House style — applies to all three
 
@@ -92,24 +113,43 @@ monochrome, heavy aerial perspective, loose brushwork. Wide 2.17:1.
 > *You two move like one animal. You don't even look. How long have you had
 > that?* … *Don't be careful with me. Be fast.*
 
-The beat is **the third one stepping into the line before it is offered.** This
-is the only frame of the three where the figures are close enough to read as
-people. It is a conversation, so it is staged like one: two, then one.
+The beat is **the third one stepping into the line before it is offered.**
+
+### This one took two passes, and the first failure is worth keeping
+
+The original brief said the pair "stand close, shoulders almost touching, the
+easy geometry of long practice". The model painted **a romantic embrace** — a
+swordsman holding a woman in a lovers' pose, both large and specific in the
+foreground, in a bright green-grey garden. Beautiful, and wrong: this scene is
+about comradeship and a grief they will not name, and a frame that says
+"lovers" rewrites the whole party. It also broke the house rules — the figures
+were close enough to have faces, and the palette was nowhere near the game's.
+
+**"Almost touching" is an instruction to touch.** The reroll says the opposite
+in as many ways as it can, and puts the failure modes in the negative prompt:
 
 ```
-A narrow ledge in a drowned garden, water to the ankles, dead trees holding up
-broken masonry. Two figures in the middle distance stand close, shoulders
-almost touching, the easy geometry of long practice — a swordsman and a
-pale-robed woman with a held light. A third figure in dark leathers stands two
-paces off to the right, half-turned, in the act of stepping toward them. The
-reflection in the still water joins the three of them into one shape before
-they are one. Cold green-grey, one small held light. Painterly digital matte,
-ink-wash and charcoal over parchment, desaturated near-monochrome, loose
-brushwork. Wide 2.17:1.
+Wide environment shot of a drowned garden at dusk. A narrow stone causeway
+crosses still black water; dead trees hold up broken masonry behind it. THREE
+SMALL DISTANT FIGURES seen from BEHIND, backs to camera, tiny in the frame —
+silhouettes, no faces, no detail. Two of them stand side by side several paces
+apart from the third, both facing away across the water in the same direction;
+one carries a small cold lantern. The third stands alone off to the right,
+half-turned, mid-step toward them. NOT touching, NOT embracing, no physical
+contact of any kind — three separate comrades at rest on a road. Their
+reflections in the still water below merge into one dark shape. Cold grey-green
+half-light, one small pale lantern. Painterly digital matte, ink-wash and
+charcoal over parchment. Desaturated to near-monochrome, very dark overall,
+deep shadow across most of the frame. Heavy aerial perspective, far plane
+dissolving into haze. A painting, not a render — loose visible brushwork, no
+photographic detail. The lower third of the frame is quiet dark water.
+Ultra-wide cinematic.
 ```
 
-**Focal point:** the gap between the pair and the third, centre-right.
-**Empty:** lower third — the reflection reads as texture there, not subject.
+**Extra negative for this frame:** `romance, embrace, couple, lovers, holding,
+close-up, portrait, faces, large figures, foreground characters, green cast`.
+
+**Focal point:** the three on the causeway, lower right. **Empty:** the water.
 
 ## `scene-floor` — ONE MORE FLOOR
 
@@ -135,21 +175,23 @@ desaturated near-monochrome, heavy aerial perspective. Wide 2.17:1.
 
 ## Rendering these with Higgsfield
 
-When the connector is reachable, the flow is:
+What was actually used, so a re-render starts from a known-good setup:
 
-1. `models_explore(action: 'recommend')` — pick a painterly/matte image model
-   rather than a photoreal one; the house style above is a painting.
-2. `generate_image_batch` with the three prompts, one job each, the shared
-   negative, and a **2.17:1 / 1864x860** aspect.
-3. `jobs_wait`, then one `show_generation_by_ids` to collect the results.
-4. Download, convert to `.webp`, save as `../art/scene-<id>.webp`.
-5. Uncomment the three ids in `SCENE_ART` and run the suites.
+- **Model `soul_location`** (`models_explore action:'recommend'` ranked it top
+  for "painterly matte, ink-wash, desaturated fantasy environment"). It is the
+  environment model, which is right — these are places, not characters.
+- **`aspect_ratio: "21:9"`** — its widest, 2.388 against the stage's 2.167. It
+  has no 2.17 option, so the export crops the sides (see above).
+- **`generate_image_batch`** with all three in ONE call, then `jobs_wait`. A
+  set rendered in one pass holds its palette together far better than three
+  rendered on different days — which is also why the `careful` reroll had to
+  fight harder to match the other two.
+- No free allowance was available (`unlim.available: false`), so this spends
+  credits. Three frames, plus one reroll.
 
-Batch all three in one call rather than three separate ones — they are a set,
-and a set rendered in one pass holds its palette together far better than three
-rendered on different days.
-
-**Check them against the brief before shipping them,** specifically: is the
-lower third quiet, is the frame 2.17:1, and is it a painting rather than a
-render. A frame that fails any of the three is worse than the region fallback,
-because the fallback at least belongs to this run's own place.
+**Look at every frame against the brief before shipping it.** Specifically: is
+the lower third quiet, is it a painting rather than a render, and — the one
+that actually caught a failure — **does it say what the scene says?** The first
+`careful` was a technically excellent image of the wrong relationship. A frame
+that fails any of those is worse than the region fallback, because the fallback
+at least belongs to this run's own place and makes no claim about the story.

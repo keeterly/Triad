@@ -1483,10 +1483,20 @@ const { boot } = require('./harness.cjs');
       bg: (document.querySelector('#k-scene-bg img') || {}).getAttribute('src'),
       want: window.R.sceneArt({ id: 'lullaby', art: 'scene-lullaby' }),
       plateBack: parseFloat(getComputedStyle(document.getElementById('k-scene-plate')).opacity) > 0.9,
+      own: document.getElementById('k-scene-bg').classList.contains('k-sc-own'),
+      bespoke: !!(window.R.SCENE_ART || {}).lullaby,
+      bright: getComputedStyle(document.querySelector('#k-scene-bg img')).filter,
     }));
     check('MEMORY: the frame settles into the backdrop by itself, and the scene comes back up',
       !gone.open && gone.plateBack && gone.bg === gone.want,
       JSON.stringify(gone));
+    // A BESPOKE FRAME IS CRUSHED LESS THAN A STAND-IN. brightness(0.24) was
+    // tuned against bg-descent (mean luma 12) and turned a rendered still into
+    // black — two seconds establishing a place, then the place gone. The
+    // lighter rule only applies when the still is really this memory's own.
+    check('MEMORY: a frame rendered for this memory stays visible behind the scene',
+      gone.own === gone.bespoke,
+      JSON.stringify({ ownClass: gone.own, isBespoke: gone.bespoke, bright: gone.bright }));
     check('MEMORY: the scene was live behind the splash — the title card is not a gate',
       /\S/.test(held.line), JSON.stringify({ lineDuringSplash: held.line.slice(0, 40) }));
 

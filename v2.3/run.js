@@ -1954,7 +1954,7 @@
   // frame only when the frame is here. Add the id when the render lands in
   // ../art; docs/SCENE-ART.md holds the prompt each one is rendered from.
   const SCENE_ART = {
-    // 'lullaby': 1, 'careful': 1, 'floor': 1,
+    lullaby: 1, careful: 1, floor: 1,
   };
   function sceneArt(sc) {
     if (sc && sc.art && SCENE_ART[sc.id]) return '../art/' + sc.art + '.webp';
@@ -2043,10 +2043,13 @@
     // atmosphere. Dissolving from a full-strength still into a DIFFERENT
     // picture is a cut, and it throws away the one thing the splash just
     // established — that this scene happens somewhere specific.
-    const bg = $('k-scene-bg') && $('k-scene-bg').querySelector('img');
+    const bgBox = $('k-scene-bg'), bg = bgBox && bgBox.querySelector('img');
     if (bg && bg.dataset.scene !== (_scene.id || _scene.kind)) {
       bg.dataset.scene = _scene.id || _scene.kind;
       setSceneArt(bg, _scene);
+      // a frame rendered FOR this memory is crushed less than a region plate
+      // standing in for one — see the note beside .k-sc-own
+      bgBox.classList.toggle('k-sc-own', !!(_scene.art && SCENE_ART[_scene.id]));
     }
     $('k-scene-title').textContent = _scene.title;
     const beats = sceneBeats();
