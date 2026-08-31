@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 94;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 95;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -935,6 +935,10 @@ function startCombat(opts) {
     counterstance: false,       // Ash: next successful parry this round deals +2 Break
     intercession: null,         // Elin will take this ally's parry window next enemy action
     pendingDiscard: false,      // Quick Throw: draw 1, THEN discard 1
+    // …and the two beats it is made of. `discardArmed` is the question being
+    // ASKED, which is a moment later than the draw resolving; `freshCard` is
+    // which card the answer is about.
+    discardArmed: false, freshCard: null,
     telemetry: { plays: [], parry: [] },
     log: [],
   };
@@ -1495,8 +1499,15 @@ function resolveEffectsInner(effects, ownerId, allyId) {
       }
     }
     if (fx.moveSelf)   placeHero(ownerId, fx.moveSelf);
-    if (fx.drawDiscard){ if (drawOne()) C.pendingDiscard = true; }
-    if (fx.draw)       { for (let i = 0; i < fx.draw; i++) drawOne(); }
+    if (fx.drawDiscard){ const id = drawOne();
+                         if (id) { C.pendingDiscard = true; fxDrawThenAsk(id); } }
+    if (fx.draw)       { for (let i = 0; i < fx.draw; i++) {
+                           const id = drawOne();
+                           // …and a plain draw is seen too. Counterstance and A
+                           // Quiet Word both draw one, and both measured 0ms of
+                           // arrival: the card simply existed on the next frame.
+                           if (id) { C.freshCard = id; renderHand(); fxDrawInto(id); }
+                         } }
     if (C.phase === 'VICTORY') return;
   }
 }
@@ -1517,6 +1528,9 @@ function playCard(cardId, allyId) {
   if (C.ap < ev.currentCost) return false;
   if (ev.card.target === 'ally' && !allyId) allyId = defaultAlly(owner);
   setPhase('PLAYER_ACTION_RESOLVING');
+  // THE MARK BELONGS TO ONE PLAY. Left standing, the card drawn two plays ago
+  // would still be wearing "this is the new one" while a different card was.
+  C.freshCard = null;
   C.ap -= ev.currentCost;
   // THE REFUND LANDS BEFORE THE CARD RESOLVES, so the AP row lights back up on
   // the same frame the card leaves the hand — a refund the player only notices
@@ -1605,6 +1619,8 @@ function pickDiscard(cardId) {
   C.hand.splice(C.hand.indexOf(cardId), 1);
   C.discard.push(cardId);
   C.pendingDiscard = false;
+  C.discardArmed = false;
+  C.freshCard = null;
   renderAll();
   return true;
 }
@@ -1617,9 +1633,14 @@ function cycleCard(cardId) {
   flyFromHand(cardId, 'discard');
   C.hand.splice(C.hand.indexOf(cardId), 1);
   C.discard.push(cardId);
-  drawOne();
+  const drew = drawOne();
   logLine('Cycled ' + cardDef(cardId).name + '.');
+  // THE FREE CYCLE IS A TRADE, AND BOTH HALVES OF IT ARE NOW VISIBLE. One card
+  // flew out to the discard and its replacement appeared out of nothing, which
+  // reads as the hand reshuffling itself rather than as a swap you made.
+  if (drew) C.freshCard = drew;
   renderAll();
+  if (drew) fxDrawInto(drew);
   return true;
 }
 
@@ -1938,6 +1959,7 @@ async function endTurn(opts) {
   C.turn++;
   C.ap = C.apMax;
   C.turnState = freshTurnState();
+  C.freshCard = null; C.discardArmed = false;
   setPhase('PLAYER_READY');
   renderAll();
   return report('continue', result);
@@ -1954,8 +1976,9 @@ function drawOne() {
     // loop notices it moved and plays the shuffle before the next card flies.
     C.reshuffles = (C.reshuffles || 0) + 1;
   }
-  C.hand.push(C.deck.pop());
-  return true;
+  const id = C.deck.pop();
+  C.hand.push(id);
+  return id;                 // …and WHICH card, so a mid-turn draw can be seen
 }
 function report(outcome, result) { return { outcome, ...(result || {}) }; }
 // The log is a live region now, not a line of italics on the board: the parry
@@ -4201,6 +4224,69 @@ async function fxDrawOne() {
   // second sooner.
   await sleep(fastFx() ? 8 : 130);
 }
+// A CARD DRAWN MID-TURN HAS TO ARRIVE. Measured on Quick Throw: the drawn card
+// wore an arrival state for exactly **0ms** — `drawOne()` pushed it into the
+// hand and the next render simply painted it there. The 416ms of flight on
+// screen belonged to the card being PLAYED on its way to the discard, so the
+// only motion in the whole beat was the wrong card moving the wrong way. And
+// because Quick Throw plays one and draws one, the hand never changed size
+// either: there was no signal of any kind that a draw had happened.
+//
+// This is the top-of-turn draw's flight, reused. It is deliberately NOT the
+// same function — `fxDrawOne` reads `C.hand[length-1]` and paces a five-card
+// deal — but it is the same 420ms arc, the same flip, the same landing, so a
+// card that arrives mid-turn arrives the way cards in this game arrive.
+function fxDrawInto(id) {
+  const S = stageBox();
+  const deck = document.getElementById('k-deck-btn');
+  const from = S && deck ? boxOf(deck, S) : null;
+  const node = document.querySelector('.k-card[data-card="' + id + '"]');
+  if (!from || !node) return Promise.resolve();
+  node.classList.add('k-arriving');
+  node.style.opacity = '0';
+  pileThump('deck');
+  return flyCard(from, node, { faceDown: true, fadeOut: false, grow: true, flip: true,
+                               spin: -14, arc: 46, ms: 420 })
+    .then(() => {
+      const live = document.querySelector('.k-card[data-card="' + id + '"]');
+      if (!live) return;
+      live.style.opacity = '';
+      live.classList.remove('k-arriving');
+      live.classList.add('k-landed');
+      setTimeout(() => live.classList.remove('k-landed'), 300);
+    });
+}
+// DRAW ONE, THEN ASK. The prompt and the red pick-pulse used to appear 76ms
+// after the play — before the card being played had finished its own 416ms
+// flight, and before the drawn card existed anywhere the eye could find it. So
+// the question arrived on top of its own setup. The two halves are separated
+// now: the card flies in and lands, it is held for a beat wearing a mark that
+// says it is the new one, and only THEN does the hand start asking which to let
+// go. `C.discardArmed` is what the prompt and the pulse read; `C.freshCard` is
+// what wears the mark.
+async function fxDrawThenAsk(id) {
+  C.freshCard = id;
+  renderHand(); renderPiles();
+  await fxDrawInto(id);
+  await sleep(fastFx() ? 6 : 260);        // the beat where you read what you got
+  if (!C || !C.pendingDiscard) return;
+  C.discardArmed = true;
+  // ASKING IS NOT REDRAWING. This called `renderHand()`, which rebuilds every
+  // card from scratch — and the card that had just landed was still wearing
+  // `k-landed`, the 300ms pop at the end of its flight. So the arrival was
+  // destroyed by the question about it, 6ms later under test timings and
+  // invisibly close to it under real ones. Arming the question touches only the
+  // two things the question IS.
+  paintDiscardAsk();
+}
+// The hand's pick state and the prompt, without rebuilding the hand under a
+// card that is still arriving.
+function paintDiscardAsk() {
+  const hand = el('k-hand');
+  if (hand) hand.classList.toggle('k-pick-discard', !!(C && C.discardArmed));
+  const dp = el('k-discard-prompt');
+  if (dp) dp.classList.toggle('k-hidden', !(C && C.discardArmed));
+}
 // THE DIRGE SETTLES; IT DOES NOT DROP. Every other blow in the turn earns its
 // own beat — the volley spaces four hits 330ms apart, each with one number over
 // one hero — and then the dirge, the tax that actually decides runs, arrived as
@@ -4619,18 +4705,26 @@ function renderIntent() {
 function renderHand() {
   const hand = el('k-hand'); if (!hand) return;
   const n = C.hand.length, mid = (n - 1) / 2;
-  hand.classList.toggle('k-pick-discard', !!C.pendingDiscard);
+  // THE PULSE WAITS FOR THE CARD. `pendingDiscard` is true the instant the
+  // effect resolves; `discardArmed` is true once the drawn card has flown in and
+  // been held long enough to read. Asking the question is a separate beat from
+  // setting it up.
+  hand.classList.toggle('k-pick-discard', !!C.discardArmed);
   // A PULSE IS NOT A SENTENCE. Quick Throw draws one and then discards one, so
   // for that moment the next tap destroys a card instead of playing it — and
   // the only thing saying so was an animation. A player taps to play, and
   // loses the card believing they played it.
   const dp = el('k-discard-prompt');
-  if (dp) dp.classList.toggle('k-hidden', !C.pendingDiscard);
+  if (dp) dp.classList.toggle('k-hidden', !C.discardArmed);
   hand.innerHTML = C.hand.map((id, i) => {
     const ev = evaluateCard(id);
     const c = ev.card;
     const afford = C.ap >= ev.currentCost;
     const dead = ownerDown(c);
+    // WHICH ONE IS NEW. With five cards pulsing identically the card you just
+    // drew was indistinguishable from the four you already had — so "draw one,
+    // discard one" read as "the hand flickered, now pick something".
+    const fresh = C.freshCard === id;
     const ownerArt = HEROES23[primaryHero(c)].art;
     // THE FAN. A gentle arc — rotation from a low pivot plus a parabolic dip —
     // and a 3D lean so the edges of the hand turn away from the lens. A flat
@@ -4648,6 +4742,7 @@ function renderHand() {
       + '" class="k-card' + (ev.sigil ? ' k-card-sig k-sig-' + ev.sigil : '')
       + (ev.condActive && !dead ? ' k-card-active' : '') + (afford ? '' : ' k-card-poor')
       + (dead ? ' k-card-dead' : '') + (isPairCard(c) ? ' k-card-res' : '')
+      + (fresh ? ' k-card-fresh' : '')
       + (c.cond && c.cond.type === 'FINALE' ? ' k-card-tri' : '')
       // TEAM PLAYS ARE BLUE. Gold was doing two jobs on this face — it
       // marked a bond card AND it marked a live combo — so the one

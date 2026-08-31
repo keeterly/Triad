@@ -3706,6 +3706,57 @@ const { boot } = require('./harness.cjs');
     check('BOTTOM BAR: holding a card shows which marks it would take, before it takes them',
       preview.idle === 0 && preview.one === 1 && preview.two === 2,
       JSON.stringify(preview));
+    // ── A CARD DRAWN MID-TURN HAS TO ARRIVE ────────────────────────────────
+    // Measured before this was written: the card Quick Throw draws wore an
+    // arrival state for exactly **0ms**. `drawOne()` pushed it into the hand
+    // and the next render painted it there — and because Quick Throw plays one
+    // and draws one, the hand never changed size either, so there was no signal
+    // of any kind that a draw had happened. Worse, the discard prompt and the
+    // red pick-pulse appeared 76ms after the play, while the card being PLAYED
+    // was still 340ms from landing: the question arrived on top of its own
+    // setup, and all five cards pulsed identically so the new one was
+    // indistinguishable from the four that were not.
+    // …and it is asserted STRUCTURALLY, not on the clock. The suite runs under
+    // `?test=1`, where every flight is 40ms and every sleep 6ms, so a wall-clock
+    // threshold here would measure the harness. The ordering is the claim, and
+    // it holds at any speed: the question is not armed at the moment the card
+    // is played, the card flies, it lands wearing a mark, and only then is the
+    // hand asked. (The real durations were measured separately at `?realtime=1`
+    // — 305ms of arrival, the prompt at 791ms instead of 76ms.)
+    const drew = await J(async () => {
+      window.K.startCombat({ seed: 7 });
+      window.K.state().ap = 9;
+      window.K.forceHand(['qthrow', 'cstance', 'serrate', 'mend', 'frostbind']);
+      let sawFlight = 0, sawArrival = 0, freshTicks = 0, armedTicks = 0;
+      const tick = setInterval(() => {
+        sawFlight = Math.max(sawFlight, document.querySelectorAll('.k-fly').length);
+        if (document.querySelector('#k-hand .k-card.k-arriving, #k-hand .k-card.k-landed'))
+          sawArrival++;
+        if (document.querySelector('#k-hand .k-card.k-card-fresh')) freshTicks++;
+        if (document.getElementById('k-hand').classList.contains('k-pick-discard')) armedTicks++;
+      }, 8);
+      window.K.playCard('qthrow');
+      // the two halves, read at the instant the play resolves
+      const atPlay = { pending: !!window.K.state().pendingDiscard,
+                       armed: !!window.K.state().discardArmed,
+                       promptUp: !document.getElementById('k-discard-prompt')
+                                    .classList.contains('k-hidden') };
+      await new Promise(r => setTimeout(r, 900));
+      clearInterval(tick);
+      return { atPlay, sawFlight, sawArrival, freshTicks, armedTicks,
+               marked: document.querySelectorAll('#k-hand .k-card.k-card-fresh').length,
+               armedAfter: !!window.K.state().discardArmed };
+    });
+    // two ghosts in the air at once: the card being played on its way out, and
+    // the card being drawn on its way in — the second of which did not exist
+    check('DRAW: a card drawn mid-turn flies in and is MARKED as the new one',
+      drew.sawFlight >= 2 && drew.sawArrival > 0 && drew.freshTicks > 10
+      && drew.marked === 1, JSON.stringify(drew));
+    check('DRAW: …and the discard is asked AFTER it lands, not on top of it',
+      drew.atPlay.pending && !drew.atPlay.armed && !drew.atPlay.promptUp
+      && drew.armedAfter && drew.armedTicks > 0 && drew.armedTicks < drew.freshTicks,
+      JSON.stringify(drew.atPlay));
+
     check('PILES: a played card is seen flying into the discard, and the pile thumps',
       piles.flying >= 1 && piles.thumped && piles.landed && piles.discAfter === '1',
       JSON.stringify({ flying: piles.flying, thump: piles.thumped, after: piles.discAfter }));

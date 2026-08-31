@@ -1173,7 +1173,31 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   animation: k-comboglow-cool 1.5s ease-in-out infinite; }
 @keyframes k-comboglow-cool { 50% { background: rgba(140,200,236,0.22);
   box-shadow: inset 0 0 12px rgba(220,244,255,0.3); } }
+/* ── THE CARD YOU JUST DREW ──────────────────────────────────────────────────
+   Quick Throw plays one and draws one, so the hand never changes size and there
+   was no signal of any kind that a draw had happened — measured, the new card
+   wore an arrival state for 0ms. It arrives on the same 420ms arc as any other
+   card now, and it lands wearing this: a gold rim that says WHICH one is new,
+   held while the hand is being asked what to let go. Gold rather than the pick
+   colour on purpose — the four cards you already had pulse red for "choose one
+   of us", and this one is the reason you are choosing. */
+.k-card-fresh { animation: k-freshcard 1.6s var(--ease-out) 1 both; }
+.k-card-fresh::after { content: ''; position: absolute; inset: -2px; border-radius: 9px;
+  pointer-events: none; z-index: 4;
+  box-shadow: inset 0 0 0 1.5px rgba(240,212,136,0.92), 0 0 18px rgba(224,192,132,0.5);
+  animation: k-freshrim 1.5s var(--ease-in-out) infinite; }
+@keyframes k-freshcard {
+  0%   { filter: brightness(1.5) saturate(0.7); }
+  30%  { filter: brightness(1.18); }
+  100% { filter: none; }
+}
+@keyframes k-freshrim { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
 #k-hand.k-pick-discard .k-card { animation: k-pickpulse 1.1s ease-in-out infinite; }
+/* …but the new one keeps its own beat. Two animations on one element is the
+   last one declared, so this restates the gold rather than letting the red
+   pick-pulse take the card the player is being shown. */
+#k-hand.k-pick-discard .k-card.k-card-fresh { animation: k-freshcard 1.6s var(--ease-out) 1 both; }
 #k-hand.k-pick-discard .k-card:hover { box-shadow: 0 8px 20px rgba(0,0,0,0.7), 0 0 0 2px #b8574a; }
 @keyframes k-pickpulse { 50% { filter: brightness(0.82); } }
 
@@ -2259,11 +2283,19 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-camp, #k-camp * { -webkit-touch-callout: none !important; -webkit-user-select: none; user-select: none; }
 #k-camp img { -webkit-user-drag: none; pointer-events: none; }
 #k-camp-bg { position: absolute; inset: 0; }
+/* THE BACKDROP IS EXPORTED TO THE STAGE'S OWN FRAME (1864x860, 2.167) so the
+   crop is a decision made at export rather than left to `cover`, and its
+   painted fire lands on the same centre line as the glow plates below. It is
+   graded to mean luma ~30 like the memory frames, so this filter is the set's
+   0.5 rather than the 0.42 that was hiding a generic plate. */
 #k-camp-bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-  object-position: 50% 56%; filter: saturate(0.68) brightness(0.42) contrast(1.04); }
+  object-position: 50% 50%; filter: saturate(0.7) brightness(0.5) contrast(1.04); }
+/* …and the veil stops burying the picture it is protecting. Its job is to keep
+   the header legible at the top and the read strip legible at the bottom, not
+   to reduce the room to a texture. */
 .k-camp-veil { position: absolute; inset: 0; background:
-  linear-gradient(180deg, rgba(9,8,11,0.94) 0%, rgba(9,8,11,0.5) 22%, rgba(9,8,11,0.14) 52%,
-    rgba(9,8,11,0.58) 78%, rgba(9,8,11,0.8) 100%); }
+  linear-gradient(180deg, rgba(9,8,11,0.9) 0%, rgba(9,8,11,0.4) 20%, rgba(9,8,11,0.06) 48%,
+    rgba(9,8,11,0.4) 80%, rgba(9,8,11,0.72) 100%); }
 
 /* ── THE FIRE ────────────────────────────────────────────────────────────────
    Three plates of warm light stacked on the floor, each on its own flicker
@@ -2273,14 +2305,21 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-camp-fire { position: absolute; inset: 0; pointer-events: none; }
 .k-camp-fire i { position: absolute; left: 50%; transform: translateX(-50%);
   border-radius: 50%; mix-blend-mode: screen; }
-.k-camp-fire i:nth-child(1) { bottom: -210px; width: 1100px; height: 560px;
-  background: radial-gradient(closest-side, rgba(226,124,44,0.5), rgba(226,124,44,0) 76%);
+/* THE GLOW IS THE FLICKER, NOT THE LIGHT SOURCE. These plates were tuned
+   against `bg-descent` graded to mean luma 12 and then dimmed to 5 by the
+   backdrop filter — against something that dark, `screen` at half alpha IS the
+   room. The purpose-painted hall arrives at 15, three times brighter and with
+   its OWN fire painted into it, and the same plates washed the whole lower half
+   of the screen orange and hid the picture underneath. Halved, and the widest
+   plate pulled in, so what they do now is make the painted fire breathe. */
+.k-camp-fire i:nth-child(1) { bottom: -210px; width: 820px; height: 420px;
+  background: radial-gradient(closest-side, rgba(226,124,44,0.24), rgba(226,124,44,0) 76%);
   animation: k-fire-a 3.1s ease-in-out infinite; }
-.k-camp-fire i:nth-child(2) { bottom: -190px; width: 620px; height: 420px;
-  background: radial-gradient(closest-side, rgba(255,168,68,0.52), rgba(255,140,50,0) 72%);
+.k-camp-fire i:nth-child(2) { bottom: -190px; width: 500px; height: 330px;
+  background: radial-gradient(closest-side, rgba(255,168,68,0.26), rgba(255,140,50,0) 72%);
   animation: k-fire-b 2.3s ease-in-out infinite; }
-.k-camp-fire i:nth-child(3) { bottom: -140px; width: 300px; height: 250px;
-  background: radial-gradient(closest-side, rgba(255,226,164,0.6), rgba(255,170,70,0) 70%);
+.k-camp-fire i:nth-child(3) { bottom: -152px; width: 260px; height: 220px;
+  background: radial-gradient(closest-side, rgba(255,226,164,0.34), rgba(255,170,70,0) 70%);
   animation: k-fire-c 1.7s ease-in-out infinite; }
 @keyframes k-fire-a { 0%,100% { opacity: 0.82; transform: translateX(-50%) scale(1); }
                       45% { opacity: 1; transform: translateX(-50%) scale(1.045); } }
@@ -2332,6 +2371,68 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    because the fan tilts its outermost cards ~25px below the grid's own floor. */
 #k-camp-tree { position: absolute; left: 18px; right: 18px; top: 46px; bottom: 88px; z-index: 3;
   display: grid; grid-template-columns: repeat(3, 1fr) 172px; gap: 18px; }
+
+/* ── FOUR DOORS ──────────────────────────────────────────────────────────────
+   The fire opened on every node in the tree at once — eleven cards, four
+   columns, each arguing its own case. Slay the Spire's fire asks one question
+   with two answers and puts everything else behind whichever you pick; this is
+   that shape, adapted to the thing there is actually a choice about. A door is
+   a person (or the fire), it says what is behind it before it is opened, and it
+   is big enough to be an object rather than a row. */
+.k-ctdoor { position: relative; display: flex; flex-direction: column; align-items: center;
+  justify-content: flex-end; gap: 4px; height: 100%; padding: 0 8px 12px; cursor: pointer;
+  background: linear-gradient(180deg, rgba(18,15,13,0) 30%, rgba(18,15,13,0.55) 100%);
+  border: 1px solid rgba(201,164,92,0.16); border-radius: 10px; color: #cfc8ba;
+  font: inherit; text-align: center;
+  transition: transform 260ms var(--ease-out), border-color 260ms var(--ease-out),
+              background 260ms var(--ease-out), box-shadow 260ms var(--ease-out); }
+.k-ctdoor:hover, .k-ctdoor:focus-visible { transform: translateY(-6px);
+  border-color: rgba(224,192,132,0.6);
+  background: linear-gradient(180deg, rgba(38,28,18,0) 24%, rgba(58,42,20,0.6) 100%);
+  box-shadow: 0 10px 26px rgba(0,0,0,0.6), 0 0 30px rgba(226,150,60,0.18); }
+.k-ctdoor:active { transform: translateY(-2px); }
+.k-ctdoor > b { font-size: 12px; letter-spacing: 0.26em; color: #c9a45c; }
+/* THE FIGURE KEEPS ITS OWN HEIGHT. The first pass gave it `flex: 1; height:
+   auto` to let it fill the taller door, and `.k-ct-fig img { height: 100% }`
+   then resolved against an auto-height parent — so the portraits grew to the
+   full 430px stage and two of them covered the entire screen. A fixed frame is
+   what the whole tree column was built on; the door is just a taller box
+   around the same frame. */
+.k-ctdoor .k-ct-fig { height: 168px; flex: none; }
+/* what is behind the door, said before it is opened, so nobody spends a tap
+   to learn a branch is sealed */
+.k-ctd-say { font-size: 9.5px; letter-spacing: 0.12em; color: #9a9081; }
+.k-ctdoor.k-ctd-poor .k-ctd-say { color: #8a7d63; }
+.k-ctdoor.k-ctd-sealed { opacity: 0.62; }
+.k-ctdoor.k-ctd-sealed .k-ctd-say { color: #7d7466; }
+.k-ctdoor.k-ctd-done { opacity: 0.72; }
+.k-ctdoor.k-ctd-done .k-ctd-say { color: #6f7a63; }
+
+/* ── AND WHAT IS BEHIND ONE ──────────────────────────────────────────────────
+   The door opens into its own branch and nothing else is on screen: whose
+   memories these are on the left, the two or three of them at full size on the
+   right. The same node plates the columns used, given the room they never had.
+   BACK closes the door; at the doors, BACK leaves the fire. */
+#k-camp-tree.k-ct-open { display: block; }
+.k-ctb { display: flex; align-items: stretch; gap: 22px; height: 100%;
+  animation: k-ctb-in 320ms var(--ease-out) both; }
+@keyframes k-ctb-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+.k-ctb-who { display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  gap: 6px; width: 150px; flex: none; }
+.k-ctb-who .k-ct-fig { height: 178px; flex: none; }
+.k-ctb-who > b { font-size: 12.5px; letter-spacing: 0.26em; color: #c9a45c; }
+/* A MEMORY IS CARD-SHAPED WHEREVER IT IS. Given `flex: 1` across a branch's
+   whole width, three plates came out 230x260 — a ratio of 0.89, which is a
+   tile, not a card. The height is the constraint and the width follows from it,
+   so they stay the objects the columns made them and simply get more room. */
+.k-ctb-fan { flex: 1; min-width: 0; display: flex; gap: 18px;
+  align-items: center; justify-content: center; }
+.k-ctb-fan .k-tnode { flex: 0 0 auto; height: 92%; aspect-ratio: 0.66; max-width: 30%; }
+/* the strip has nothing to describe until a door is open */
+.k-cr.k-cr-idle { opacity: 0; pointer-events: none; }
 .k-ct-col { display: flex; flex-direction: column; justify-content: space-between;
   align-items: center; height: 100%; }
 /* THE HERO HEADER IS THE HERO. A 22px avatar in a stat bar is a row label; the
@@ -2452,6 +2553,11 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    never again for the rest of that visit. */
 @keyframes k-ct-deal { from { opacity: 0; transform: translateY(30px) scale(0.92); } }
 @keyframes k-ct-rise { from { opacity: 0; transform: translateY(16px); } }
+/* THE DOORS DEAL IN OFF THE FIRE, same as the memories behind them: sitting
+   down is an arrival, and four cards arriving one after another is what makes
+   it one. */
+.k-ct-deal .k-ctdoor { animation: k-ct-deal 460ms cubic-bezier(0.2,0.8,0.3,1) backwards;
+  animation-delay: calc(var(--seat, 0) * 70ms); }
 .k-ct-deal .k-tnode { animation: k-ct-deal 460ms cubic-bezier(0.2,0.8,0.3,1) backwards;
   animation-delay: calc(150ms + var(--seat, 0) * 52ms); }
 .k-ct-deal .k-ct-fig, .k-ct-deal .k-ct-col > header {

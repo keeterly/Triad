@@ -1807,6 +1807,7 @@
     const wrap = document.getElementById('k-camp-tree');
     if (wrap) delete wrap.dataset.visit;
     _campPick = null;
+    _campOpen = null;                 // every fire opens on the four doors
     screen('camp');
     renderCamp();
   }
@@ -1829,27 +1830,87 @@
     wrap.dataset.visit = '1';
     wrap.classList.toggle('k-ct-deal', fresh);
 
-    let seat = 0;
+    // ── FOUR DOORS, NOT ELEVEN CARDS ────────────────────────────────────────
+    // Sitting down used to put every node in the tree on screen at once, and
+    // the answer to "what did that do" was "it made the campfire overwhelming".
+    // Slay the Spire's fire asks ONE question with two answers — rest, or
+    // smith — and everything else is behind whichever you pick.
+    //
+    // The mend is not one of the answers here, because it cannot be: the road's
+    // attrition is tuned on the assumption that a fire mends, so making it
+    // optional would be a difficulty change wearing a UI change. What IS a
+    // choice is whose memory to spend on, and that is what opens: four doors —
+    // three people and the fire itself — and the nodes live inside them.
+    //
+    // A door says what is behind it BEFORE it is opened, so nobody spends a tap
+    // to learn a branch is sealed or unaffordable.
+    wrap.classList.toggle('k-ct-open', !!_campOpen);
+    const leave = document.getElementById('k-camp-leave');
+    if (leave) leave.textContent = _campOpen ? 'BACK' : 'BACK TO THE ROAD';
+    const say = document.getElementById('k-camp-say');
+    if (say) say.textContent = _campOpen
+      ? 'What do they remember?'
+      : 'Wounds close. Nobody says much. There is time to remember.';
+    if (!_campOpen) { renderCampDoors(wrap); return; }
+    renderCampBranch(wrap, _campOpen);
+  }
+
+  // WHAT IS BEHIND A DOOR, in one line, read off the same three states a node
+  // wears: held, sealed by tier, or priced beyond the purse.
+  function branchState(hero) {
+    const ns = TREE.filter(n => n.hero === hero);
+    const open = ns.filter(n => !held(n.id) && RUN.tier >= n.tier);
+    const afford = open.filter(n => RUN.embers >= n.cost);
+    const sealed = ns.filter(n => !held(n.id) && RUN.tier < n.tier);
+    let say, cls = '';
+    if (!ns.some(n => !held(n.id))) { say = 'nothing left to remember'; cls = 'k-ctd-done'; }
+    else if (afford.length) say = afford.length + (afford.length === 1 ? ' within reach' : ' within reach');
+    else if (open.length) { cls = 'k-ctd-poor';
+      say = Math.min.apply(null, open.map(n => n.cost)) + ' embers for the cheapest'; }
+    else { cls = 'k-ctd-sealed'; say = 'sealed \u2014 a memory opens these'; }
+    return { say, cls, ns, afford: afford.length, sealed: sealed.length };
+  }
+
+  function renderCampDoors(wrap) {
     const ART = { ash: 'kai', elin: 'elin', mira: 'mira' };
-    const cols = ['ash', 'elin', 'mira'].map(hero => {
+    let seat = 0;                     // the doors deal in off the fire, in order
+    const doors = ['ash', 'elin', 'mira'].map(hero => {
       const hp = RUN.hp && RUN.hp[hero] != null ? RUN.hp[hero] : MAXHP[hero];
       const pct = Math.max(0, Math.min(100, hp / MAXHP[hero] * 100));
-      return '<div class="k-ct-col' + (pct <= 34 ? ' k-ct-hurt' : '') + '" data-hero="' + hero + '">'
+      const st = branchState(hero);
+      return '<button type="button" class="k-ctdoor ' + st.cls
+        + (pct <= 34 ? ' k-ct-hurt' : '') + '" data-door="' + hero + '"'
+        + ' style="--seat:' + seat++ + '">'
         + '<div class="k-ct-fig"><img src="../art/' + ART[hero] + '.webp" alt=""></div>'
-        + '<header><b>' + HERO_NAME[hero] + '</b>'
+        + '<b>' + HERO_NAME[hero] + '</b>'
         + '<span class="k-ct-hp"><i style="width:' + pct + '%"></i></span>'
-        + '<em>' + hp + '<i>/' + MAXHP[hero] + '</i></em></header>'
-        + '<div class="k-ct-fan">'
-        + TREE.filter(n => n.hero === hero).map(n => nodeHTML(n, seat++)).join('') + '</div></div>';
+        + '<em>' + hp + '<i>/' + MAXHP[hero] + '</i></em>'
+        + '<span class="k-ctd-say">' + st.say + '</span></button>';
     });
-    // The shared node stands where the fire is: it belongs to nobody, and it is
-    // the only thing on the screen all three of them are looking at.
-    cols.push('<div class="k-ct-col k-ct-all" data-hero="all">'
+    const all = branchState('all');
+    doors.push('<button type="button" class="k-ctdoor k-ct-all ' + all.cls + '" data-door="all"'
+      + ' style="--seat:' + seat++ + '">'
       + '<div class="k-ct-fig k-ct-brazier">' + svgIcon('ember') + '</div>'
-      + '<header><b>' + HERO_NAME.all + '</b></header>'
-      + '<div class="k-ct-fan">'
-      + TREE.filter(n => n.hero === 'all').map(n => nodeHTML(n, seat++)).join('') + '</div></div>');
-    wrap.innerHTML = cols.join('');
+      + '<b>' + HERO_NAME.all + '</b>'
+      + '<span class="k-ctd-say">' + all.say + '</span></button>');
+    wrap.innerHTML = doors.join('');
+    wrap.querySelectorAll('.k-ctdoor').forEach(b =>
+      b.addEventListener('click', (e) => { e.stopPropagation(); openBranch(b.dataset.door); }));
+    focusMemory(null, true);      // the strip belongs to an opened door
+  }
+
+  function renderCampBranch(wrap, hero) {
+    const ART = { ash: 'kai', elin: 'elin', mira: 'mira' };
+    const ns = TREE.filter(n => n.hero === hero);
+    let seat = 0;
+    wrap.innerHTML = '<div class="k-ctb">'
+      + '<div class="k-ctb-who">'
+      + (hero === 'all'
+          ? '<div class="k-ct-fig k-ct-brazier">' + svgIcon('ember') + '</div>'
+          : '<div class="k-ct-fig"><img src="../art/' + ART[hero] + '.webp" alt=""></div>')
+      + '<b>' + HERO_NAME[hero] + '</b></div>'
+      + '<div class="k-ctb-fan">' + ns.map(n => nodeHTML(n, seat++)).join('') + '</div>'
+      + '</div>';
     wrap.querySelectorAll('.k-tnode').forEach(b => {
       b.addEventListener('click', (e) => { e.stopPropagation(); tapMemory(b.dataset.node); });
       // A MOUSE READS BY POINTING, A THUMB READS BY TAPPING. Hover picks the
@@ -1859,7 +1920,29 @@
         if (e.pointerType === 'mouse') focusMemory(b.dataset.node);
       });
     });
-    focusMemory(_campPick, true);
+    // OPENING A DOOR PICKS UP THE FIRST THING BEHIND IT, so the strip has
+    // something to say the moment the branch appears rather than after a hover
+    // the player has no reason to perform.
+    const first = ns.find(n => !held(n.id) && RUN.tier >= n.tier) || ns[0];
+    focusMemory(_campPick && ns.some(n => n.id === _campPick) ? _campPick
+                : (first && first.id), true);
+  }
+
+  // WHICH DOOR IS OPEN. null is the four of them; a hero id is that branch.
+  let _campOpen = null;
+  function openBranch(hero) {
+    if (!TREE.some(n => n.hero === hero)) return false;
+    _campOpen = hero;
+    _campPick = null;
+    renderCamp();
+    return true;
+  }
+  function closeBranch() {
+    if (!_campOpen) return false;
+    _campOpen = null;
+    _campPick = null;
+    renderCamp();
+    return true;
   }
 
   // A plate: the painting, the price, the name. Everything it DOES is said once,
@@ -1890,12 +1973,28 @@
   // holding is gone" — the re-render after a purchase should hand you the next
   // thing you can take rather than throw the reading away.
   function focusMemory(id, keep) {
+    // AT THE DOORS THERE IS NOTHING TO READ. The strip describes ONE memory,
+    // and with no door open there is no memory on screen — a strip explaining a
+    // node the player cannot see is worse than an empty one, because it looks
+    // like it belongs to whatever they are looking at.
+    if (!_campOpen) {
+      _campPick = null;
+      const strip = document.getElementById('k-camp-read');
+      if (strip) { strip.innerHTML = ''; strip.classList.add('k-cr-idle'); }
+      return;
+    }
+    const mine = (x) => x.hero === _campOpen;
     let n = treeNode(id);
+    if (n && !mine(n)) n = null;              // never leave the open branch
     if (keep && n && held(n.id)) n = null;
     if (!n) {
-      const open = (x) => !held(x.id) && RUN.tier >= x.tier;
-      n = TREE.find(x => open(x) && RUN.embers >= x.cost) || TREE.find(open) || TREE[0];
+      const open = (x) => mine(x) && !held(x.id) && RUN.tier >= x.tier;
+      n = TREE.find(x => open(x) && RUN.embers >= x.cost)
+       || TREE.find(open) || TREE.find(mine);
     }
+    if (!n) return;
+    const strip0 = document.getElementById('k-camp-read');
+    if (strip0) strip0.classList.remove('k-cr-idle');
     _campPick = n.id;
     document.querySelectorAll('#k-camp .k-tnode').forEach(b =>
       b.classList.toggle('k-tn-focus', b.dataset.node === _campPick));
@@ -2830,8 +2929,17 @@
 
   // ── boot ──────────────────────────────────────────────────────────────────
   function bindCamp() {
+    // ONE CONTROL, AND IT BACKS OUT OF WHATEVER YOU ARE IN. With a door open it
+    // closes the door; at the doors it leaves the fire. Two buttons competing
+    // for the same corner of a 932x430 screen is how a back button gets pressed
+    // by mistake, and "the thing I am looking at closes" is the one behaviour
+    // nobody has to learn.
     const go = $('k-camp-leave');
-    if (go) go.addEventListener('click', (e) => { e.stopPropagation(); leaveCamp(); });
+    if (go) go.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (_campOpen) { closeBranch(); return; }
+      leaveCamp();
+    });
     // TAP ANYWHERE ADVANCES. A scene that can only be advanced from one 60px
     // button is a scene read with the thumb hunting instead of with the eyes.
     const sc = $('k-scene');
@@ -2990,7 +3098,7 @@
     render: renderMap,
     REGIONS, regionOf, EVENTS, eventDef, takeEvent, weakestPair,
     RECKONINGS, pickReckoning, openReckoning, takeReckoning, enterEvent,
-    reckoning: () => _reck, reckNext, closeReck, TREE, treeNode, kindle, apBonusOf, tapMemory, focusMemory, sitDown, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
+    reckoning: () => _reck, reckNext, closeReck, TREE, treeNode, kindle, apBonusOf, openBranch, closeBranch, campOpen: () => _campOpen, tapMemory, focusMemory, sitDown, leaveCamp, renderCamp, cardUps, alloutOf, nodeFace,
     pendingBonds, openBondScene, takeBond, confirmSwap, renderSwap,
     WAKES, wakeOffer, takeWake, renderWake, wakeDef, wakePair,
     SIGIL_BY_PAIR, sigilFor, renderMark, placeSigil, openMark, leaveMark,

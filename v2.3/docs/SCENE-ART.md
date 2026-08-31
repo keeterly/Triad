@@ -173,6 +173,50 @@ desaturated near-monochrome, heavy aerial perspective. Wide 2.17:1.
 **Focal point:** the tiny lit landing, upper-centre-left. **Empty:** lower third
 — it is darkness, which is the point.
 
+## `bg-camp` — THE FIRE (a screen backdrop, not a memory frame)
+
+Not one of the three memory frames, and it lives at `art/bg-camp.webp` rather
+than `art/scene-*.webp` — but it is rendered to the same spec, and it belongs
+here because it is the same brief.
+
+The campfire screen used `bg-descent`, the generic plate the whole game falls
+back to, so the one moment in a run where the three of them stop and rest looked
+like every other corridor.
+
+**The composition has two jobs beyond looking right.** The painted fire has to
+land on the same centre line as the CSS glow plates (`left: 50%`, low), or the
+screen has two fires. And the middle band has to stay quiet, because that is
+where the four doors sit.
+
+```
+Painterly digital matte, ink-wash and charcoal over parchment. A vast ruined
+hall seen wide: broken vaulting and enormous fallen stonework rising into
+darkness on both sides and across the whole upper half of the frame, dissolving
+into haze. At the LOWER CENTRE of the frame, small in the composition, a single
+low campfire burns on a cracked stone floor — the only warm light in the
+picture, and it is small. THREE TINY DISTANT FIGURES are seated around that
+fire, seen from behind and in profile, silhouettes only, no faces, no detail,
+barely more than marks: one with a sword laid across his knees, one in pale
+robes with her hands to the flame, one sitting apart at the edge of the light.
+Cold blue-grey darkness everywhere else. The MIDDLE BAND of the frame is
+deliberately quiet and empty dark stone with nothing to read in it. Desaturated
+to near-monochrome — cold greys, bone white, one warm ember accent from the fire
+only. Heavy aerial perspective. A painting, not a render: loose visible
+brushwork at the edges, tight only around the fire. Ultra-wide cinematic.
+```
+
+**Focal point:** the fire, lower centre. **Empty:** the middle band.
+
+### The glow had to come down to let it be seen
+
+The CSS fire plates were tuned against `bg-descent` at mean luma 12, dimmed to 5
+by the backdrop filter. Against something that dark, `screen` at half alpha IS
+the room. The new plate arrives at 15 — three times brighter, with its own fire
+painted in — and the same plates washed the whole lower half of the screen
+orange and hid the picture underneath. Their alphas are halved and the widest
+one pulled in, so what they do now is make the painted fire breathe. **A new
+backdrop is a lighting change, not a file swap.**
+
 ## Rendering these with Higgsfield
 
 What was actually used, so a re-render starts from a known-good setup:
@@ -188,6 +232,11 @@ What was actually used, so a re-render starts from a known-good setup:
   fight harder to match the other two.
 - No free allowance was available (`unlim.available: false`), so this spends
   credits. Three frames, plus one reroll.
+- **`soul_location` takes no `negative_prompt`.** The tool accepts the field and
+  reports back `used: "omitted"` in `adjustments` — so the negatives listed
+  above have to be said as positives in the prompt itself ("silhouettes only,
+  no faces", "the middle band is deliberately quiet"). Read the `adjustments`
+  block on every call rather than assuming a parameter took.
 
 **Look at every frame against the brief before shipping it.** Specifically: is
 the lower third quiet, is it a painting rather than a render, and — the one

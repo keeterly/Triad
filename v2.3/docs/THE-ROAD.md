@@ -3284,3 +3284,88 @@ Confirmed on the full sim afterwards: ~half 62.5%, and NO PARRY (0%), EXCELLENT
 
 `alloutAp` moved into `TUNE` while this was being measured, because a number
 that can move a gate that far has to be drivable from the sim that watches it.
+
+## Build 95 — a card you can see arrive, a fire that asks one question, and a room to ask it in
+
+### The mid-turn draw was invisible, and it was measured that way
+
+Quick Throw draws one and then asks for a discard. Sampled at 16ms through a
+real play:
+
+```
+                                    BEFORE   AFTER
+  the drawn card wears an arrival      0ms    305ms
+  the prompt and the pulse appear     76ms    791ms
+  cards pulsing / marked as new       5 / 0    5 / 1
+```
+
+**Zero.** `drawOne()` pushed the card into the hand and the next render painted
+it there — the 416ms of flight on screen belonged to the card being *played*, on
+its way out. And because Quick Throw plays one and draws one, the hand never
+changed size either: there was no signal of any kind that a draw had happened.
+Then the prompt and the red pick-pulse arrived at 76ms — while the played card
+was still 340ms from landing — and all five cards pulsed identically, so the one
+you had just drawn was indistinguishable from the four you already held. The
+question arrived on top of its own setup.
+
+Now every mid-turn draw flies in off the deck pile on the same 420ms arc as a
+card at the top of a turn (`fxDrawInto`, shared by Quick Throw, Counterstance's
+draw, A Quiet Word's, and the free cycle — **all** of which measured 0ms). It
+lands wearing a gold rim that says which one is new. And the two halves are
+separated: `pendingDiscard` is the effect resolving, `discardArmed` is the
+question being asked, and only the second one lights the prompt.
+
+**One real fragility fell out of it.** Arming the question called `renderHand()`,
+which rebuilds every card — and the card that had just landed was still wearing
+the 300ms pop at the end of its flight. The question destroyed the arrival it
+was asking about. Arming touches only the two things the question *is* now.
+
+### The fire asks one question
+
+Sitting down put all eleven nodes on screen at once: four columns, each arguing
+its own case. Slay the Spire's fire asks one question with two answers and puts
+everything else behind whichever you pick.
+
+The mend cannot be one of the answers here — the road's attrition is tuned on
+the assumption that a fire mends, so making it optional would be a difficulty
+change wearing a UI change. What *is* a choice is whose memory to spend on. So:
+**four doors** — three people and the fire itself — and the memories live inside
+them, at full size, with the before/after strip that used to have to serve
+eleven plates at once.
+
+A door says what is behind it *before* it is opened ("2 within reach", "sealed —
+a memory opens these"), so nobody spends a tap to learn a branch is shut. BACK
+closes the door; at the doors, BACK leaves the fire — one control, and it always
+closes the thing you are looking at.
+
+### …in a room painted for it
+
+The fire screen used `bg-descent`, the generic plate the whole game falls back
+to. `art/bg-camp.webp` is a ruined hall rendered for this screen (Higgsfield
+`soul_location`, same house style and export recipe as the memory frames), with
+its painted fire on the same centre line as the CSS glow plates and its middle
+band left quiet for the doors.
+
+**Dropping it in was a lighting change, not a file swap.** The glow plates were
+tuned against a backdrop at mean luma 5; the new plate arrives at 15 with its
+own fire painted in, and the same plates washed the lower half of the screen
+orange and hid the picture. Halved, and the veil pulled back, so what they do
+now is make the painted fire breathe.
+
+### The soak had been buying nothing, and passing
+
+This is the one worth keeping. The soak spends randomly at every fire — it
+queried `.k-tnode` on the camp screen, and after the restructure there are none
+there. It found nothing, bought nothing, and reported clean, because **"there is
+nothing to buy" and "there is nothing affordable" produce the same zero.** Every
+campfire in every soak run was a no-op.
+
+It walks through a door now, and a run-level check refuses a walk that kindles
+nothing at all. The effect on the numbers is its own evidence: 35 memories
+kindled across ten runs, and 10/10 reaching the Regent instead of 7/10 — the
+previous runs had been walking the road with an un-upgraded deck.
+
+Third harness-fault-mistaken-for-a-game-fault in three builds, and the same
+shape every time: a probe that stopped looking and reported the silence as a
+result. The counter is the same too — make the instrument assert that it saw
+something, not just that it found nothing wrong.

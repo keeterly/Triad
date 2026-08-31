@@ -160,6 +160,11 @@ const MAX_TURNS = 24;
 
   // ── a run ────────────────────────────────────────────────────────────────
   let finished = 0, wiped = 0, reloaded = 0, mysteries = 0, bonds = 0, recks = 0;
+  // …AND WHAT THE FIRES ACTUALLY BOUGHT. Counted across the whole soak because
+  // a single fire buying nothing is ordinary (an empty purse, a sealed tier),
+  // and every fire in every run buying nothing is a broken harness that reports
+  // the same zero. It did, for the whole of Build 95's campfire restructure.
+  let kindledTotal = 0;
   // HOW MANY CONVERSATIONS STAND BETWEEN THE PLAYER AND A STOP'S OWN BUSINESS.
   // Worth printing rather than only bounding: a fire you have to talk your way
   // through five times before you can spend an ember is a pacing fact, not a
@@ -242,19 +247,34 @@ const MAX_TURNS = 24;
 
       if (kind === 'camp') {
         if (screen !== 'k-camp') { fail('col ' + col + ': camp did not open the fire (' + screen + ')'); break; }
-        // spend a random amount, then leave
+        // SPEND THE WAY A PLAYER SPENDS — THROUGH A DOOR. Build 95 put the
+        // memories behind four of them, and this went on querying `.k-tnode` on
+        // the camp screen, found none, bought nothing, and PASSED: "there is
+        // nothing to buy" and "there is nothing affordable" produce the same
+        // zero. Every campfire in every soak run was a no-op and the suite said
+        // clean. So it opens a door, spends behind it, backs out, and may try
+        // another — and the run-level check below refuses a walk that never
+        // managed to kindle anything at all.
         const bought = await J(() => {
-          let n = 0, g = 0;
-          while (g++ < 12 && Math.random() < 0.7) {
-            const btns = [...document.querySelectorAll('#k-camp .k-tnode')]
-              .filter(b => !b.className.match(/k-tn-(own|sealed|poor)/));
-            if (!btns.length) break;
-            const b = btns[Math.floor(Math.random() * btns.length)];
-            b.click(); b.click();          // pick it up, then kindle it
-            n++;
+          let n = 0, doors = 0;
+          const heroes = ['ash', 'elin', 'mira', 'all'];
+          while (doors++ < 4 && Math.random() < 0.85) {
+            const hero = heroes[Math.floor(Math.random() * heroes.length)];
+            if (!window.R.openBranch(hero)) continue;
+            let g = 0;
+            while (g++ < 6 && Math.random() < 0.7) {
+              const btns = [...document.querySelectorAll('#k-camp .k-tnode')]
+                .filter(b => !b.className.match(/k-tn-(own|sealed|poor)/));
+              if (!btns.length) break;
+              const b = btns[Math.floor(Math.random() * btns.length)];
+              b.click(); b.click();          // pick it up, then kindle it
+              n++;
+            }
+            window.R.closeBranch();
           }
           return n;
         });
+        kindledTotal += bought;
         note('kindled:' + bought);
         await sleep(200);
         await step('at the fire');
@@ -356,7 +376,8 @@ const MAX_TURNS = 24;
   console.log('\n── the soak ──');
   console.log(`    ${RUNS} runs · ${finished} reached the Regent and won · ${wiped} wiped`);
   console.log(`    ${reloaded} mid-run reloads · ${mysteries} crossroads · ${bonds} bond scenes · ${recks} reckonings`
-    + `\n    deepest queue of conversations at one stop: ${deepestBond}`);
+    + `\n    deepest queue of conversations at one stop: ${deepestBond}`
+    + `\n    memories kindled across every fire: ${kindledTotal}`);
 
   check(`SOAK: ${RUNS} random runs, and not one invariant breached at any transition`,
     breaches.length === 0,
@@ -364,6 +385,8 @@ const MAX_TURNS = 24;
   check('SOAK: the walk actually exercised the road — fights, fires, memories and crossroads',
     finished + wiped === RUNS && reloaded >= 1,
     `won ${finished} · wiped ${wiped} · reloads ${reloaded} · crossroads ${mysteries}`);
+  check('SOAK: …and it actually SPENT at the fires — a walk that kindles nothing is a broken walk',
+    kindledTotal >= 1, 'kindled ' + kindledTotal + ' across ' + RUNS + ' runs');
   check('SOAK: not one page error across every run',
     H.errs.length === 0, H.errs.slice(0, 3).join(' | ') || 'clean');
 

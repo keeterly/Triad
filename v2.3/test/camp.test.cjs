@@ -24,6 +24,12 @@ const { boot } = require('./harness.cjs');
     return camp.id;
   }, patch);
 
+  // THE FIRE OPENS ON FOUR DOORS NOW, not on every node in the tree. Anything
+  // asserting a node's face, price or state has to walk through a door first —
+  // which is the point of the change, and is exactly what a player does.
+  const openDoor = (hero) => J((h) => window.R.openBranch(h), hero);
+  const shutDoor = () => J(() => window.R.closeBranch());
+
   await reset(11);
 
   // ═══ A · THE TREE IS A LADDER WITH A LOCK ON IT ═══
@@ -97,11 +103,22 @@ const { boot } = require('./harness.cjs');
     await reset(11);
     await atCamp({ embers: 99, tier: 1 });
     await sleep(320);
-    const rich = await J(() => {
-      const out = { sealed: [], open: [] };
-      document.querySelectorAll('#k-camp .k-tnode').forEach(b => {
-        (b.classList.contains('k-tn-sealed') ? out.sealed : out.open).push(b.dataset.node);
+    // WALK EVERY DOOR. The nodes live behind them now, so the count is gathered
+    // the way it is reached — and the door itself is asserted too, because
+    // "sealed" is something a player should learn WITHOUT spending a tap.
+    const rich = await J(async () => {
+      const out = { sealed: [], open: [], doorsSaySealed: 0, doors: 0 };
+      document.querySelectorAll('#k-camp .k-ctdoor').forEach(d => {
+        out.doors++;
+        if (d.classList.contains('k-ctd-sealed')) out.doorsSaySealed++;
       });
+      for (const hero of ['ash', 'elin', 'mira', 'all']) {
+        window.R.openBranch(hero);
+        document.querySelectorAll('#k-camp .k-tnode').forEach(b => {
+          (b.classList.contains('k-tn-sealed') ? out.sealed : out.open).push(b.dataset.node);
+        });
+      }
+      window.R.closeBranch();
       return out;
     });
     // eleven nodes now: three open at tier 1, and eight sealed behind a memory
@@ -109,6 +126,9 @@ const { boot } = require('./harness.cjs');
     check('LOCK: a full purse at tier 1 still cannot buy a tier-2 node',
       rich.sealed.length === 8 && rich.open.length === 3,
       `sealed ${rich.sealed.length} · open ${rich.open.length}`);
+    check('LOCK: …and the fire\u2019s own door says so before it is opened',
+      rich.doors === 4 && rich.doorsSaySealed === 1,
+      JSON.stringify({ doors: rich.doors, sealed: rich.doorsSaySealed }));
     const refused = await J(() => {
       const before = window.R.state().embers;
       window.R.kindle('ash.crosssever');
@@ -116,6 +136,7 @@ const { boot } = require('./harness.cjs');
     });
     check('LOCK: kindling a sealed node is refused, and costs nothing to try',
       refused.before === refused.after && refused.nodes.length === 0, JSON.stringify(refused));
+    await openDoor('ash');
     const seal = await J(() => (document.querySelector('.k-tn-sealed .k-tn-seal') || {}).textContent);
     check('LOCK: a sealed node says what opens it, rather than only that it is shut',
       /MEMORY/.test(seal || ''), seal);
@@ -123,7 +144,15 @@ const { boot } = require('./harness.cjs');
     await reset(11);
     await atCamp({ embers: 99, tier: 3 });
     await sleep(320);
-    const deep = await J(() => document.querySelectorAll('#k-camp .k-tn-sealed').length);
+    const deep = await J(() => {
+      let sealed = 0;
+      for (const hero of ['ash', 'elin', 'mira', 'all']) {
+        window.R.openBranch(hero);
+        sealed += document.querySelectorAll('#k-camp .k-tn-sealed').length;
+      }
+      window.R.closeBranch();
+      return sealed;
+    });
     check('LOCK: two memories open the whole tree',
       deep === 0, deep + ' still sealed at tier 3');
   }
@@ -144,10 +173,19 @@ const { boot } = require('./harness.cjs');
       mend: document.getElementById('k-camp-mend').textContent,
       purse: document.getElementById('k-camp-embers').textContent,
       tier: document.getElementById('k-camp-tier').textContent,
+      doors: document.querySelectorAll('#k-camp .k-ctdoor').length,
       nodes: document.querySelectorAll('#k-camp .k-tnode').length,
+      says: [...document.querySelectorAll('#k-camp .k-ctd-say')].map(e => e.textContent.trim()),
     }));
-    check('FIRE: the fire is a place — the whole tree is on screen with the purse and the mend',
-      shown.onCamp && !shown.onMap && shown.nodes === 11 && shown.purse === '12' && /TIER 2/.test(shown.tier),
+    // THE FIRE OPENS ON A QUESTION, NOT ON AN INVENTORY. It used to put all
+    // eleven nodes on screen at once — four columns each arguing their own case
+    // — which is the thing that made sitting down feel like opening a
+    // spreadsheet. Four doors: three people and the fire itself, each saying
+    // what is behind it before it costs a tap to find out.
+    check('FIRE: the fire opens on four doors, not on the whole tree',
+      shown.onCamp && !shown.onMap && shown.doors === 4 && shown.nodes === 0
+      && shown.says.length === 4 && shown.says.every(t => t.length > 4)
+      && shown.purse === '12' && /TIER 2/.test(shown.tier),
       JSON.stringify(shown));
 
     // THE FIRE HAS TO FIT. Eleven nodes on a 932x430 landscape phone is the
@@ -166,22 +204,36 @@ const { boot } = require('./harness.cjs');
       const leave = document.getElementById('k-camp-leave').getBoundingClientRect();
       const head = document.getElementById('k-camp-top').getBoundingClientRect();
       const bad = [];
-      document.querySelectorAll('#k-camp .k-tnode').forEach(b2 => {
-        const r = b2.getBoundingClientRect();
-        if (r.bottom > stage.bottom || r.top < head.bottom - 1 || r.right > stage.right || r.left < stage.left) {
-          bad.push({ n: b2.dataset.node, why: 'outside', top: Math.round(r.top), bottom: Math.round(r.bottom) });
+      const fit = (el, what, minW, minH) => {
+        const r = el.getBoundingClientRect();
+        if (r.bottom > stage.bottom || r.top < head.bottom - 1
+            || r.right > stage.right || r.left < stage.left) {
+          bad.push({ n: what, why: 'outside', top: Math.round(r.top), bottom: Math.round(r.bottom) });
         }
         if (r.bottom > leave.top && r.right > leave.left && r.left < leave.right) {
-          bad.push({ n: b2.dataset.node, why: 'under the leave button' });
+          bad.push({ n: what, why: 'under the leave button' });
         }
-        if (r.height < 34) bad.push({ n: b2.dataset.node, why: 'too short to read', h: Math.round(r.height) });
-        if (r.width < 56) bad.push({ n: b2.dataset.node, why: 'too narrow to read', w: Math.round(r.width) });
-      });
-      const cols = [...document.querySelectorAll('.k-ct-col')].map(c => Math.round(c.getBoundingClientRect().height));
-      return { bad, cols, floor: Math.round(stage.bottom), leaveTop: Math.round(leave.top) };
+        if (r.height < minH) bad.push({ n: what, why: 'too short to read', h: Math.round(r.height) });
+        if (r.width < minW) bad.push({ n: what, why: 'too narrow to read', w: Math.round(r.width) });
+      };
+      // BOTH SCREENS FIT, and both are measured. The doors are what the fire
+      // opens on; the nodes are what a door opens INTO, and the second one is
+      // where the eleventh node used to run off the right edge.
+      document.querySelectorAll('#k-camp .k-ctdoor').forEach(d => fit(d, d.dataset.door, 90, 180));
+      const perBranch = {};
+      for (const hero of ['ash', 'elin', 'mira', 'all']) {
+        window.R.openBranch(hero);
+        const ns = [...document.querySelectorAll('#k-camp .k-tnode')];
+        perBranch[hero] = ns.length;
+        ns.forEach(b2 => fit(b2, b2.dataset.node, 90, 90));
+      }
+      window.R.closeBranch();
+      return { bad, perBranch, floor: Math.round(stage.bottom), leaveTop: Math.round(leave.top) };
     });
-    check('FIRE: all eleven nodes fit the screen — nothing clipped, nothing under the button',
-      fits.bad.length === 0 && fits.cols.every(h => h > 200), JSON.stringify(fits));
+    check('FIRE: every door and everything behind it fits — nothing clipped, nothing under the button',
+      fits.bad.length === 0
+      && Object.values(fits.perBranch).reduce((a, b) => a + b, 0) === 11,
+      JSON.stringify(fits));
 
     const bought = await J(() => {
       window.R.kindle('ash.cleave');
@@ -199,7 +251,7 @@ const { boot } = require('./harness.cjs');
       twice.embers === 9 && twice.n === 1, JSON.stringify(twice));
     const poor = await J(() => {
       window.R._set({ embers: 2 });
-      window.R.renderCamp();
+      window.R.openBranch('elin');
       const b = document.querySelector('[data-node="elin.mend"]');
       return { poor: b.classList.contains('k-tn-poor'), readable: b.textContent.length > 10 };
     });
@@ -461,11 +513,25 @@ const { boot } = require('./harness.cjs');
     await sleep(340);
 
     const plates = await J(() => {
-      const all = [...document.querySelectorAll('#k-camp .k-tnode')];
+      // the plates live behind the doors now, so they are gathered by walking
+      // every branch — the contract is about the PLATE, not about where it sits
+      const all = [];
+      for (const hero of ['ash', 'elin', 'mira', 'all']) {
+        window.R.openBranch(hero);
+        all.push(...document.querySelectorAll('#k-camp .k-tnode'));
+      }
       const carded = all.filter(b => b.querySelector('.k-tn-bg'));
       const srcs = carded.map(b => b.querySelector('.k-tn-bg').getAttribute('src'));
-      // a plate nobody has touched: not held, not sealed, not the focused one
-      const idle = carded.find(b => !b.className.match(/k-tn-(own|sealed|focus|poor)/));
+      // …AND THE ONE MEASURED HAS TO BE ON SCREEN. Walking every branch leaves
+      // the first three branches' plates DETACHED — `renderCamp` replaced them
+      // — and `getComputedStyle` on a detached element returns zeros, so the
+      // painting read as unlit and the card as having no size at all. Counting
+      // attributes across all eleven is fine; anything measured comes from a
+      // plate that is currently in the document.
+      window.R.openBranch('mira');
+      const live = [...document.querySelectorAll('#k-camp .k-tnode')]
+        .filter(b => b.querySelector('.k-tn-bg'));
+      const idle = live.find(b => !b.className.match(/k-tn-(own|sealed|focus|poor)/)) || live[0];
       const bg = idle && idle.querySelector('.k-tn-bg');
       const z = (n) => { const v = getComputedStyle(n).zIndex; return v === 'auto' ? 0 : +v; };
       const r = idle ? idle.getBoundingClientRect() : { width: 0, height: 0 };
@@ -491,6 +557,7 @@ const { boot } = require('./harness.cjs');
     // "7 damage. → 10 damage." is what made this screen read as a spreadsheet.
     // The before/after belongs to ONE of them at a time, in one strip, at a
     // size a phone can read — so no plate may carry the struck-through half.
+    await openDoor('elin');
     const strip = await J(() => {
       const s2 = document.getElementById('k-camp-read');
       const cs = s2 ? getComputedStyle(s2) : null;
@@ -504,6 +571,7 @@ const { boot } = require('./harness.cjs');
         nowSize: s2 && s2.querySelector('.k-cr-now')
           ? +parseFloat(getComputedStyle(s2.querySelector('.k-cr-now')).fontSize).toFixed(1) : 0,
         // nothing on a plate strikes anything out any more
+        // (a door is open, so the plates being scanned are the ones on screen)
         diffsOnPlates: [...document.querySelectorAll('#k-camp .k-tnode')]
           .filter(b => getComputedStyle(b.querySelector('.k-tn-what') || b).textDecorationLine
             .indexOf('line-through') >= 0).length,
@@ -520,6 +588,9 @@ const { boot } = require('./harness.cjs');
     // THE PARTY IS AT THE FIRE. The hero header used to be a 22px avatar in a
     // stat bar — a row label. If the three of them are not actually present and
     // at human scale, this is a menu with a fire painted behind it.
+    // …read at the DOORS, which is where all three of them are on screen at
+    // once. Inside a branch there is one person, and that is the point of it.
+    await shutDoor();
     const party = await J(() => {
       const figs = [...document.querySelectorAll('#k-camp .k-ct-fig img')];
       const srcs = figs.map(f => f.getAttribute('src'));
@@ -538,10 +609,13 @@ const { boot } = require('./harness.cjs');
     // A PURCHASE IS A DECISION YOU WATCH YOURSELF MAKE. The road's grammar: the
     // first tap picks the memory up and the strip says what it does, the second
     // tap spends. One stray thumb must never cost embers.
+    await openDoor('elin');
     const twoTap = await J(() => {
       const tap = (id) => document.querySelector('[data-node="' + id + '"]').click();
-      // move the focus off the node we are about to buy
-      tap('mira.twinfang');
+      // move the focus off the node we are about to buy — and to a node in the
+      // SAME branch, because one branch is on screen at a time now. This used
+      // Mira's Twin Fang while buying Elin's Mend, which is two doors apart.
+      tap('elin.sgrace');
       const first = { embers: window.R.state().embers,
                       focused: !!document.querySelector('[data-node="elin.mend"].k-tn-focus') };
       tap('elin.mend');
@@ -560,6 +634,7 @@ const { boot } = require('./harness.cjs');
 
     // …and a memory you cannot reach still has to explain itself when you pick
     // it up, or the lock is just a greyed-out box.
+    await openDoor('ash');
     const sealedRead = await J(() => {
       document.querySelector('[data-node="ash.lastlight"]').click();
       const s2 = document.getElementById('k-camp-read');
@@ -580,17 +655,20 @@ const { boot } = require('./harness.cjs');
     const deal = await J(() => {
       const wrap = document.getElementById('k-camp-tree');
       const on = wrap.classList.contains('k-ct-deal');
-      const seats = [...wrap.querySelectorAll('.k-tnode')]
+      // WHAT DEALS IN IS WHAT ARRIVES. Sitting down puts four doors on the
+      // fire, not eleven memories, so the four are what stagger — and the
+      // memories behind a door still stagger when the door opens.
+      const seats = [...wrap.querySelectorAll('.k-ctdoor')]
         .map(b2 => b2.style.getPropertyValue('--seat').trim());
-      const delays = [...wrap.querySelectorAll('.k-tnode')]
+      const delays = [...wrap.querySelectorAll('.k-ctdoor')]
         .map(b2 => parseFloat(getComputedStyle(b2).animationDelay) || 0);
       window.R.kindle('mira.twinfang');
       return { on, seats, rising: delays[delays.length - 1] > delays[0],
                afterBuy: document.getElementById('k-camp-tree').classList.contains('k-ct-deal') };
     });
-    check('FIRE: the memories deal in when you sit down, and stay put when you spend',
-      deal.on && deal.rising && deal.seats.length === 11
-      && new Set(deal.seats).size === 11 && !deal.afterBuy,
+    check('FIRE: the doors deal in when you sit down, and stay put when you spend',
+      deal.on && deal.rising && deal.seats.length === 4
+      && new Set(deal.seats).size === 4 && !deal.afterBuy,
       JSON.stringify(deal));
 
   }
