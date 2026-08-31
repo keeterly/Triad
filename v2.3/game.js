@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 91;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 92;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -734,7 +734,7 @@ function markBrink(id) {
 }
 
 function freshTurnState() {
-  return { actionsPlayed: [], moved: 0, cycled: false, stitchedPairs: [], relay: false };
+  return { actionsPlayed: [], moved: 0, cycled: false, stitchedPairs: [] };
 }
 
 function startCombat(opts) {
@@ -1027,28 +1027,38 @@ const SIGILS = {
   // register a deckbuilder's player already reads fluently.
   retain: { name: 'Retain', glyph: 'guard',
             line: 'Keep it when the turn ends. You draw one fewer to make room.' },
-  relay:  { name: 'Relay',  glyph: 'follow',
-            line: 'Whatever you play next lands as though an ally moved first.' },
+  // CHAIN IS THE MIRROR OF LEAD, and it used to point the wrong way. As RELAY
+  // it set a flag for the card played AFTER it — so the card wearing the mark
+  // did nothing for itself, and the player had to hold "the next thing I play
+  // gets this" in their head across a decision. The benefit belongs on the
+  // card that carries the mark. Lead the turn, or follow an ally: two halves
+  // of one axis, and the same sentence shape.
+  chain:  { name: 'Chain',  glyph: 'follow',
+            line: 'Play it after an ally and its combo is already live.' },
   lead:   { name: 'Lead',   glyph: 'move',
             line: 'Lead the turn with it and its combo is already live.' },
-  tithe:  { name: 'Tithe',  glyph: 'finale',
+  rally:  { name: 'Rally',  glyph: 'finale',
             line: 'They feel it every time it is played. The bond grows by 6.' },
-  pyre:   { name: 'Pyre',   glyph: 'atk',
+  // SURGE SAYS THE HALF THE MARK OWNS, and lets EXHAUST say the rest. "Pyre"
+  // had to carry both "stronger" and "one use only" in one word and carried
+  // neither; the card face already prints EXHAUST, so the pair reads correctly
+  // side by side.
+  surge:  { name: 'Surge',  glyph: 'atk',
             line: 'Half again as strong. It burns out and leaves the fight.' },
 };
 
 const SIGIL_KZ = 6;
 const sigilOf = (cardId) => (C && C.sigils ? C.sigils[cardId] : null) || null;
-// PYRE scales the numbers a card actually deals, and nothing else. It walks
+// SURGE scales the numbers a card actually deals, and nothing else. It walks
 // the atoms rather than a whitelist of keys, so a card that grows a new number
 // later is covered without anyone remembering to come back here — but `true`
 // flags (intercede, drawDiscard) are not quantities and must not be touched.
-const PYRE_MULT = 1.5;
+const SURGE_MULT = 1.5;
 function brighten(effects) {
   return effects.map(fx => {
     const out = {};
     for (const k of Object.keys(fx)) {
-      out[k] = (typeof fx[k] === 'number') ? Math.ceil(fx[k] * PYRE_MULT) : fx[k];
+      out[k] = (typeof fx[k] === 'number') ? Math.ceil(fx[k] * SURGE_MULT) : fx[k];
     }
     return out;
   });
@@ -1089,9 +1099,18 @@ function evaluateCard(cardId) {
     const ts = C.turnState;
     // OPENING: the turn's first card has nobody to follow, which is exactly
     // the hand a FOLLOW_UP card is stranded in.
+    // LEAD: the turn's first card has nobody to follow, which is exactly the
+    // hand a FOLLOW_UP card is stranded in.
     if (sigil === 'lead' && !ts.actionsPlayed.length) condActive = true;
-    // RELAY, set by the card played BEFORE this one: it stands in for the ally.
-    else if (ts.relay && card.cond.type === 'FOLLOW_UP') condActive = true;
+    // CHAIN: an ally has already acted, so whatever this card's combo asked
+    // for, following counts. It opens the condition the card ALREADY HAS
+    // rather than granting a fixed bonus — so it is worth putting on a FINALE
+    // you cannot reach, or a BACK_ROW you are out of position for, and it is
+    // worth nothing on a card with no combo at all. That is the decision.
+    else if (sigil === 'chain') {
+      const last = ts.actionsPlayed[ts.actionsPlayed.length - 1];
+      if (last && last.ownerId !== primaryHero(card)) condActive = true;
+    }
   }
   // A conditional card gets a cost reduction OR increased output — never
   // both. Costs never fall below 1 (deck §3), which is why no sigil touches
@@ -1101,9 +1120,9 @@ function evaluateCard(cardId) {
     (condActive && card.cond.reward === 'cost') ? card.cond.costTo : card.cost);
   let resolvedEffects = (condActive && card.cond.reward === 'output')
     ? [...card.base, ...card.cond.bonus] : card.base.slice();
-  if (sigil === 'pyre') resolvedEffects = brighten(resolvedEffects);
+  if (sigil === 'surge') resolvedEffects = brighten(resolvedEffects);
   return { cardId, card, condActive, currentCost, resolvedEffects, sigil,
-           exhaust: !!card.exhaust || sigil === 'pyre' };
+           exhaust: !!card.exhaust || sigil === 'surge' };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1380,10 +1399,9 @@ function playCard(cardId, allyId) {
   }
   try { resolveEffects(ev.resolvedEffects, owner, allyId); } finally { _act = null; }
   C.turnState.actionsPlayed.push({ cardId, ownerId: owner, condActive: ev.condActive });
-  // TITHE pays the bond, and RELAY is set for the card that comes NEXT — so
+  // RALLY pays the bond. CHAIN needs no hand-off: it reads the turn
   // it is written after this card's own condition has already been read.
-  if (ev.sigil === 'tithe') kizunaGain(SIGIL_KZ);
-  C.turnState.relay = (ev.sigil === 'relay');
+  if (ev.sigil === 'rally') kizunaGain(SIGIL_KZ);
   C.telemetry.plays.push({ t: C.turn, cardId, cost: ev.currentCost, cond: ev.condActive,
                            sigil: ev.sigil || null });
   fxPlayCard(cardId, ev);
@@ -4620,7 +4638,7 @@ function staticCardHTML(id, opts) {
   // by id, and a preview without it silently fell back to the hero portrait,
   // which is exactly the picture the cutscene preview exists to replace.
   const ev = { cardId: id, card: c, condActive: false, currentCost: c.cost, sigil,
-               resolvedEffects: sigil === 'pyre' ? brighten(c.base) : c.base };
+               resolvedEffects: sigil === 'surge' ? brighten(c.base) : c.base };
   const art = HEROES23[primaryHero(c)].art;
   return '<div data-own="' + (c.owner || primaryHero(c))
     + '" class="k-card k-card-static' + (sigil ? ' k-card-sig k-sig-' + sigil : '')
@@ -4699,14 +4717,14 @@ function prose(effects, plain) {
 // What the top block of the face should print: the card's numbers as the mark
 // leaves them, which is what will actually land.
 function faceBase(card, sigil) {
-  return sigil === 'pyre' ? brighten(card.base) : card.base;
+  return sigil === 'surge' ? brighten(card.base) : card.base;
 }
 function condReward(card, sigil) {
   if (!card.cond) return '';
   if (card.cond.reward === 'cost') return 'costs <b>' + card.cond.costTo + '</b> AP.';
   // the combo's own numbers are brightened too — they are numbers this card
   // deals, and evaluateCard brightens the whole resolved list
-  const bonus = sigil === 'pyre' ? brighten(card.cond.bonus) : card.cond.bonus;
+  const bonus = sigil === 'surge' ? brighten(card.cond.bonus) : card.cond.bonus;
   const hits = bonus.filter(f => f.dmg);
   const parts = [];
   if (hits.length) parts.push(icon('atk') + '<b>+' + fmtN(hits.reduce((n, f) => n + f.dmg, 0)) + '</b> damage.');
@@ -5474,7 +5492,7 @@ function staticInspectHTML(id, opts) {
   const sigil = o.sigil || null;
   const ev = { cardId: id, card: c, condActive: false, condLive: false,
                currentCost: c.cost, sigil,
-               resolvedEffects: sigil === 'pyre' ? brighten(c.base) : c.base };
+               resolvedEffects: sigil === 'surge' ? brighten(c.base) : c.base };
   return inspectHTML(ev, inspectWho(c, null), o.hint || '');
 }
 function openInspect(cardId) {

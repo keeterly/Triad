@@ -2875,3 +2875,61 @@ The new ACTS check is what made it reachable — it ends nearer to a live bar
 than the block that used to sit there. `settle()` now waits for anything still
 wearing the parry's clothes, which closes the same hole for every check that
 follows one.
+
+---
+
+## Build 92 — CHAIN reads backward, and two names stop hiding their rules
+
+Three of the five keywords came back wrong on a read-through, and one of them
+was not a naming problem at all.
+
+| was | is | why |
+|---|---|---|
+| Relay | **CHAIN** | the effect pointed the wrong way — see below |
+| Tithe | **RALLY** | a tithe is something you *pay*; this one *gains* you bond |
+| Pyre | **SURGE** | had to carry "stronger" and "one use only" in one word, carried neither |
+
+**SURGE only names the half the mark owns.** The card face already prints
+EXHAUST, so `SURGE · EXHAUST` reads correctly side by side — the mark says what
+it adds and the existing keyword says what it costs.
+
+### RELAY's problem was the mechanic
+
+RELAY set a flag for the card played **after** it. So the card wearing the mark
+did nothing for itself, and the player had to carry *"the next thing I play gets
+this"* across a decision. The benefit belongs on the card that carries the mark.
+
+CHAIN opens the condition of the card it is **on**, when an ally has already
+acted — the exact mirror of LEAD, in the same sentence shape:
+
+- **LEAD** — *Play it first in the turn and its combo is already live.*
+- **CHAIN** — *Play it after an ally and its combo is already live.*
+
+### The interesting consequence: there is a wrong place to put it
+
+CHAIN is **worthless on a FOLLOW_UP card** — an ally acting already satisfies
+that natively — and valuable on a combo you cannot otherwise reach. Last Light
+is Ash's FINALE: it wants all three to have acted, and one ally is not three.
+Measured: bare it resolves 1 effect after an ally moves, marked it resolves 3.
+On Cross Sever (FOLLOW_UP) the mark changes nothing, and a check asserts that
+too — **a tag that helps every card equally is not a decision.**
+
+### What was ruled out, and by a comment
+
+The first draft of CHAIN was "costs 1 less when played after an ally". The
+evaluator already answers that:
+
+> *Costs never fall below 1 (deck §3), which is why no sigil touches cost:
+> almost every card in the deck costs 1, so a discount sigil would be dead on
+> arrival against that floor.*
+
+Reading it first saved shipping a mark that does nothing on fifteen of sixteen
+cards.
+
+### And a note on how the rename went
+
+Splicing the new check by searching for the next `}` ate the *following*
+block's opening lines and left an orphan brace — the file no longer parsed.
+Restored from git and re-spliced against the exact end of the block being
+replaced. Cheap here because it failed loudly at `node -c`; the version of this
+mistake that removes a line and still parses is the expensive one.

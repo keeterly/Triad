@@ -290,23 +290,41 @@ const { boot } = require('./harness.cjs');
     // different hero to have just acted, and a five-card hand rarely offers
     // the order. Three of the five marks exist to loosen exactly that.
     //
-    // Cross Sever is Ash's FOLLOW_UP card, and Cleave is also Ash's — so
-    // playing Cleave then Cross Sever is precisely the case the deck refuses.
-    const echo = await J(() => {
+    // CHAIN READS BACKWARD NOW, which is the whole change. As RELAY it set a
+    // flag for the card played AFTER it — so the card wearing the mark did
+    // nothing for itself, and the player had to carry "the next thing I play
+    // gets this" across a decision. It opens the condition of the card it is
+    // ON, when an ally has already acted.
+    //
+    // WHICH MAKES IT WORTHLESS ON A FOLLOW_UP CARD — an ally acting already
+    // satisfies that natively — and valuable on a combo you cannot otherwise
+    // reach. Last Light is Ash's FINALE: it wants all three to have acted, and
+    // one ally is not three. That is the case worth marking, and the fact that
+    // there is a wrong place to put it is what makes it a decision.
+    const chain = await J(() => {
       const run = (sigils) => {
         window.K.startCombat({ seed: 7, sigils });
-        window.K.forceHand(['cleave', 'crosssever', 'serrate', 'qthrow', 'mend']);
-        const before = window.K.evaluateCard('crosssever').condActive;
-        window.K.playCard('cleave');
-        return { before, after: window.K.evaluateCard('crosssever').condActive,
-                 cost: window.K.evaluateCard('crosssever').currentCost };
+        window.K.forceHand(['serrate', 'lastlight', 'cleave', 'qthrow', 'mend']);
+        const alone = window.K.evaluateCard('lastlight').condActive;
+        window.K.playCard('serrate');                    // Mira acts — one ally
+        const ev = window.K.evaluateCard('lastlight');
+        return { alone, after: ev.condActive, lands: ev.resolvedEffects.length };
       };
-      return { bare: run({}), marked: run({ cleave: 'relay' }) };
+      const followUp = (sigils) => {
+        window.K.startCombat({ seed: 7, sigils });
+        window.K.forceHand(['serrate', 'crosssever', 'cleave', 'qthrow', 'mend']);
+        window.K.playCard('serrate');
+        return window.K.evaluateCard('crosssever').condActive;
+      };
+      return { bare: run({}), marked: run({ lastlight: 'chain' }),
+               fu: { bare: followUp({}), marked: followUp({ crosssever: 'chain' }) } };
     });
-    check('RELAY: the same hero acting twice does not connect — until one of them is marked',
-      echo.bare.before === false && echo.bare.after === false
-      && echo.marked.after === true && echo.marked.cost < 2,
-      JSON.stringify(echo));
+    check('CHAIN: an unreachable combo opens when an ally has gone first — on the card that wears it',
+      chain.bare.alone === false && chain.bare.after === false
+      && chain.marked.after === true && chain.marked.lands > chain.bare.lands,
+      JSON.stringify({ bare: chain.bare, marked: chain.marked }));
+    check('CHAIN: it buys nothing on a card an ally already connects — the choice is WHERE it goes',
+      chain.fu.bare === true && chain.fu.marked === true, JSON.stringify(chain.fu));
 
     // OPENING answers the other half of the same problem: the turn's FIRST
     // card has nobody to follow, which is exactly where a FOLLOW_UP card is
@@ -376,9 +394,9 @@ const { boot } = require('./harness.cjs');
         window.K.playCard('cleave');
         return window.K.state().kizuna;
       };
-      return { bare: run({}), marked: run({ cleave: 'tithe' }) };
+      return { bare: run({}), marked: run({ cleave: 'rally' }) };
     });
-    check('TITHE: the marked card pays the bond on top of whatever it does',
+    check('RALLY: the marked card pays the bond on top of whatever it does',
       Math.abs((kindled.marked - kindled.bare) - 6) < 1e-9, JSON.stringify(kindled));
 
     const bright = await J(() => {
@@ -387,9 +405,9 @@ const { boot } = require('./harness.cjs');
         window.K.forceHand(['cleave', 'serrate', 'qthrow', 'mend', 'frostbind']);
         return window.K.evaluateCard('cleave');
       };
-      const bare = ev({}), lit = ev({ cleave: 'pyre' });
+      const bare = ev({}), lit = ev({ cleave: 'surge' });
       const dmg = (e) => e.resolvedEffects.reduce((n, fx) => n + (fx.dmg || 0), 0);
-      window.K.startCombat({ seed: 7, sigils: { cleave: 'pyre' } });
+      window.K.startCombat({ seed: 7, sigils: { cleave: 'surge' } });
       window.K.forceHand(['cleave', 'serrate', 'qthrow', 'mend', 'frostbind']);
       window.K.playCard('cleave');
       const st = window.K.state();
@@ -397,23 +415,23 @@ const { boot } = require('./harness.cjs');
                exhausted: st.exhausted.indexOf('cleave') >= 0,
                inDiscard: st.discard.indexOf('cleave') >= 0 };
     });
-    check('PYRE: half again as strong, and it leaves the fight rather than the discard',
+    check('SURGE: half again as strong, and it leaves the fight rather than the discard',
       bright.lit === Math.ceil(bright.bare * 1.5) && bright.exhaustFlag
       && bright.exhausted && !bright.inDiscard, JSON.stringify(bright));
     // A true flag is not a quantity. Intercession carries `intercede: true`,
     // and multiplying that by 1.5 would turn the atom into 2 and quietly
     // change what the effect resolver is being handed.
     const flags = await J(() => {
-      window.K.startCombat({ seed: 7, sigils: { intercession: 'pyre' } });
+      window.K.startCombat({ seed: 7, sigils: { intercession: 'surge' } });
       const ev = window.K.evaluateCard('intercession');
       return ev.resolvedEffects.map(fx => JSON.stringify(fx));
     });
-    check('PYRE: it scales the numbers and leaves the flags alone',
+    check('SURGE: it scales the numbers and leaves the flags alone',
       flags.join('|').indexOf('"intercede":true') >= 0
       && flags.join('|').indexOf('"intercede":2') < 0, flags.join(' '));
 
     const face = await J(() => {
-      window.K.startCombat({ seed: 7, sigils: { cleave: 'pyre' } });
+      window.K.startCombat({ seed: 7, sigils: { cleave: 'surge' } });
       window.K.forceHand(['cleave', 'serrate', 'qthrow', 'mend', 'frostbind']);
       const btn = document.querySelector('.k-card[data-card="cleave"]');
       const chip = btn && btn.querySelector('.k-csig');
@@ -469,7 +487,7 @@ const { boot } = require('./harness.cjs');
         return out;
       };
       const bare = measure({});
-      const all = {}; ids.forEach(id => { all[id] = 'relay'; });
+      const all = {}; ids.forEach(id => { all[id] = 'chain'; });
       const lit = measure(all);
       return { bare, lit, ids: Object.keys(bare) };
     });
@@ -494,7 +512,7 @@ const { boot } = require('./harness.cjs');
       JSON.stringify({ spilled: spilled.map(id => ({ id, ...room.bare[id] })), n: room.ids.length }));
 
     check('MARK: a marked card wears its mark, an unmarked one does not, and the number is the new number',
-      face.chip === 'Pyre' && face.tinted && face.vis !== 'none' && face.w > 20
+      face.chip === 'Surge' && face.tinted && face.vis !== 'none' && face.w > 20
       && !face.onPlain && new RegExp('\\b' + face.lands + '\\b').test(face.says || ''),
       JSON.stringify(face));
   }

@@ -1411,10 +1411,10 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-insp-sig span { display: block; margin-top: 3px; font-size: 11px; line-height: 1.32;
   color: #b6ab97; }
 .k-sig-retain    { --sig: #bcd3ea; } .k-csig-retain    { --sig: #bcd3ea; }
-.k-sig-relay    { --sig: #c9b4e4; } .k-csig-relay    { --sig: #c9b4e4; }
+.k-sig-chain    { --sig: #c9b4e4; } .k-csig-chain    { --sig: #c9b4e4; }
 .k-sig-lead { --sig: #e9d49a; } .k-csig-lead { --sig: #e9d49a; }
-.k-sig-tithe { --sig: #f0b98a; } .k-csig-tithe { --sig: #f0b98a; }
-.k-sig-pyre  { --sig: #f4e3a6; } .k-csig-pyre  { --sig: #f4e3a6; }
+.k-sig-rally { --sig: #f0b98a; } .k-csig-rally { --sig: #f0b98a; }
+.k-sig-surge  { --sig: #f4e3a6; } .k-csig-surge  { --sig: #f4e3a6; }
 /* the edge is tinted too, so a marked card is findable in a fan without
    reading five strips */
 /* THE BORDER SAYS TREATED; THE FOLD SAYS TREATED WITH WHAT. Arena marks a
@@ -2487,10 +2487,10 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
     0 10px 26px rgba(0,0,0,0.85); } }
 /* the five marks each carry their own light into the scene */
 #k-mark.k-mk-sig-retain    { --sig: #bcd3ea; }
-#k-mark.k-mk-sig-relay    { --sig: #c9b4e4; }
+#k-mark.k-mk-sig-chain    { --sig: #c9b4e4; }
 #k-mark.k-mk-sig-lead { --sig: #e9d49a; }
-#k-mark.k-mk-sig-tithe { --sig: #f0b98a; }
-#k-mark.k-mk-sig-pyre  { --sig: #f4e3a6; }
+#k-mark.k-mk-sig-rally { --sig: #f0b98a; }
+#k-mark.k-mk-sig-surge  { --sig: #f4e3a6; }
 
 #k-mark > header { position: absolute; left: 0; right: 0; top: 14px; z-index: 3;
   display: flex; flex-direction: column; align-items: center; gap: 3px;

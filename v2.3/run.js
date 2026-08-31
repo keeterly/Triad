@@ -249,9 +249,9 @@
   // be two screens for one reward, and it would cost each pair the identity
   // that makes their level-up feel like theirs rather than a menu.
   const SIGIL_BY_PAIR = {
-    'ash|elin':  ['retain', 'pyre'],   // she holds the line; he keeps one back
-    'ash|mira':  ['relay', 'tithe'],   // the two quick ones — a move flows on
-    'elin|mira': ['lead', 'pyre'],     // they are the ones who start things
+    'ash|elin':  ['retain', 'surge'],  // she holds the line; he keeps one back
+    'ash|mira':  ['chain', 'rally'],   // the two quick ones — a move flows on
+    'elin|mira': ['lead', 'surge'],    // they are the ones who start things
   };
   const sigilFor = (pair, lv) => (SIGIL_BY_PAIR[pair] || [])[lv - 1] || null;
 
@@ -2723,10 +2723,10 @@
   // with no line rather than a wrong one.
   const MARK_SAY = {
     retain: '{A} stops handing {B} everything at once. Some of it keeps.',
-    relay:  'They find the trick of it: {A} moves, and the air is still moving when {B} arrives.',
+    chain:  'They find the trick of it: {B} learns to move in the space {A} has just left.',
     lead:   '{B} learns to go first. {A} has been waiting a long time for that.',
-    tithe:  'Neither of them can say what changed. They will both feel it, every time.',
-    pyre:   '{A} shows {B} how to spend everything in one breath. It only works once.',
+    rally:  'Neither of them can say what changed. They will both feel it, every time.',
+    surge:  '{A} shows {B} how to spend everything in one breath. It only works once.',
   };
   function renderMark() {
     const K = window.K, sig = RUN.pendingSigil, def = K.SIGILS[sig];
