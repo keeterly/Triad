@@ -829,8 +829,21 @@ const { boot } = require('./harness.cjs');
     // mark carries the damage it would land for, computed by the same function
     // that will land it, so the promise and the outcome cannot drift.
     const swept = await J(async () => {
-      window.K.startCombat({ foe: window.K.FOES.wraith, seed: 3 });
-      window.K.forceIntent('scythe');
+      // ASK THE FOE WHICH OF ITS BLOWS IS THE SWEEP. This named `scythe` on the
+      // Grief-Wraith, and Build 99 dealt the Wraith its own hand — so the check
+      // was forcing an intent the creature had never heard of, and measuring a
+      // telegraph for a bar that was not being thrown.
+      // ASK THE BESTIARY WHO ACTUALLY SWEEPS. This named `scythe` on the
+      // Grief-Wraith; Build 99 dealt the Wraith its own hand and made distance
+      // a BOSS's axis — a small thing aims at a place, and a place cannot be
+      // stepped away from — so the sweep now lives only on the foes that reach
+      // across the party. The check finds one rather than naming one.
+      const sweepFoe = Object.keys(window.K.FOES).find(id =>
+        window.K.currentIntentTable().some(i =>
+          window.K.FOES[id].intents.indexOf(i.id) >= 0 && (i.hits || []).some(h => h.sweep)));
+      window.K.startCombat({ foe: window.K.FOES[sweepFoe], seed: 3 });
+      const sweeper = window.K.state().foes[0].intents.find(i => (i.hits || []).some(h => h.sweep));
+      window.K.forceIntent(sweeper.id);
       await new Promise(r => setTimeout(r, 40));
       const rows = window.K.intentByTarget().filter(r => r.sweep);
       const marks = [...document.querySelectorAll('.k-ichip-sweep')].map(e => e.textContent.replace(/[^0-9]/g, ''));

@@ -942,10 +942,24 @@
   ];
   // Which foe stands at a fight node, by depth. The ladder is legible: you
   // meet the Husk before you meet the Wraith, always.
+  // WHAT IS STANDING THERE, and how many. An entry is either one foe id — the
+  // road as it has always been — or a LINE of them, which the fight builds as
+  // a pack sharing a single encounter's health between its bodies.
+  //
+  // Packs start at the third stop and never reach the last three: a player
+  // meets one thing, learns to read one bar, and only then meets two. The
+  // deepest columns go back to single opponents on purpose — a lone Wraith
+  // throwing its whole action into ONE hero is a harder read than three husks
+  // throwing one note each, and the road should get harder rather than wider.
   const FOE_BY_COL = [
-    ['husk', 'cultist'], ['husk', 'cultist'], ['husk', 'cultist'],
-    ['cultist', 'wraith'], ['cultist', 'wraith'], ['cultist', 'wraith'],
-    ['wraith'], ['wraith'], ['wraith'], ['wraith'], ['mourner'],
+    ['husk', 'cultist'], ['husk', 'cultist'],
+    ['husk', 'cultist', ['husk', 'husk']],
+    ['cultist', 'wraith', ['husk', 'cultist']],
+    ['cultist', 'wraith', ['husk', 'husk', 'cultist']],
+    ['cultist', 'wraith', ['cultist', 'cultist']],
+    ['wraith', ['husk', 'cultist', 'wraith']],
+    ['wraith', ['cultist', 'wraith']],
+    ['wraith'], ['wraith'], ['mourner'],
   ];
 
   // ── geometry of the road ──────────────────────────────────────────────────
@@ -1000,7 +1014,12 @@
         const n = { id: c + ':' + ix, col: c, ix, kind, name: nameFor(kind),
                     x: x + jx, y: y + jy, to: [] };
         if (kind === 'fight' || kind === 'elite' || kind === 'boss') {
-          n.foe = kind === 'elite' ? 'revenant' : pick(FOE_BY_COL[c] || ['wraith']);
+          // AN ELITE AND THE REGENT STAND ALONE. What makes them what they are
+          // is reach — a bar that crosses the whole party — and reach only
+          // reads when there is one thing throwing it.
+          const draw = kind === 'elite' ? 'revenant' : pick(FOE_BY_COL[c] || ['wraith']);
+          if (Array.isArray(draw)) { n.foes = draw.slice(); n.foe = draw[0]; }
+          else n.foe = draw;
         }
         if (kind === 'event') n.event = mysteries.pop() || EVENTS[0].id;
         nodes.push(n);
@@ -1281,7 +1300,15 @@
         + ' style="left:' + n.x + 'px; top:' + n.y + 'px"'
         + (isOpen ? '' : ' tabindex="-1"')
         + ' aria-label="' + (n.name || k.word) + ' — ' + k.word + '">'
-        + '<span class="k-n-disc">' + svgIcon(n.kind) + '</span>'
+        + '<span class="k-n-disc">' + svgIcon(n.kind)
+        // HOW MANY ARE STANDING THERE. A stop that holds a pack asks a
+        // completely different fight — where the party stands decides who eats
+        // which blow, and the all-out is worth several times what it is worth
+        // against one thing. That is a decision the player makes on the CHART,
+        // before they commit, so the chart has to say it.
+        + (n.foes && n.foes.length > 1
+            ? '<b class="k-n-many">\u00d7' + n.foes.length + '</b>' : '')
+        + '</span>'
         // THE KIND, NOT THE NAME. Swapping in the place name put 'A STAIR
         // WITHOUT A RAIL' in a nowrap span on every one of eleven columns —
         // and an invisible span still takes its width, so far coins grew wide
@@ -1618,7 +1645,7 @@
   function enterFight(n) {
     const foe = window.K.FOES[n.foe] || window.K.FOES.wraith;
     screen('combat');
-    window.K.startCombat({ foe, partyHp: RUN.hp, onEnd: onFightEnd, kizuna: RUN.kizuna || 0,
+    window.K.startCombat({ foe, foes: n.foes || null, partyHp: RUN.hp, onEnd: onFightEnd, kizuna: RUN.kizuna || 0,
                            roster: RUN.roster, upgrades: cardUps(), allout: alloutOf(),
                            sigils: RUN.sigils || {},
                            vigor: RUN.vigor || 0, apBonus: apBonusOf(),
@@ -1636,7 +1663,13 @@
     // already builds rather than counted again here: a second tally of the
     // same events is a second tally that can disagree with the first.
     const J = RUN.journey;
-    if (sum.outcome === 'victory' && sum.foe && J.felled.indexOf(sum.foe) < 0) J.felled.push(sum.foe);
+    // EVERYTHING THEY PUT DOWN, not just the thing the stop was named after.
+    // A pack is one encounter with three bodies in it, and a memory triggered
+    // on "you have felled a wraith" has to fire whichever of them it was.
+    if (sum.outcome === 'victory') {
+      const put = (sum.felled && sum.felled.length) ? sum.felled : (sum.foe ? [sum.foe] : []);
+      put.forEach(id => { if (id && J.felled.indexOf(id) < 0) J.felled.push(id); });
+    }
     const d = sum.deeds || {};
     (d.brink || []).forEach(h => { if (J.brink.indexOf(h) < 0) J.brink.push(h); });
     if (sum.outcome === 'victory' && d.untouched) J.flawless++;

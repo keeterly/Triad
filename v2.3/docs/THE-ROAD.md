@@ -3688,3 +3688,105 @@ finding a build too late.
 
 The intermittent soft-lock from Build 97 did not appear in these ten runs. That
 is not evidence it is fixed; it was one in roughly thirty before.
+
+---
+
+## Build 99 — the line
+
+Every fight in this game had been three people against **one** thing, and the
+state said so: a single `C.boss`, one health bar, one Poise gauge, one intent.
+Fifty-six places read it.
+
+### The rule that made it legible
+
+The obvious way to give a party three opponents is to let each take a turn, and
+it is the way that kills this game in particular: the enemy phase here is a
+**rhythm bar**, held on one camera move. Three of them back to back is a rhythm
+game with a card game attached — ten seconds of enemy turn becomes thirty, and
+the player decides nothing in any of it.
+
+So the enemy phase stays **one bar**, and the line composes it together. Two
+rules govern what goes in it:
+
+1. **One voice per position.** There are three places on this board and one hero
+   in each, so a bar holds at most three strings and **no hero is ever asked to
+   answer two creatures at once**. A small thing swings at a PLACE and takes
+   whichever free place is nearest the one it wants; a thing that finds nothing
+   free **holds**, and is drawn winding up.
+2. **Never more than the Regent throws.** Measured across the bestiary, the
+   heaviest bar in the game is her Crescendo at seven notes. No ordinary fight
+   may out-throw the final boss, so seven is a backstop under rule 1.
+
+And because the phrase is the sum of what is still alive, **it shortens the
+moment something dies**. That is the whole reason to want more than one
+opponent: killing the small one is not an abstract step toward winning, it is
+the next bar being visibly easier to play. A measured three-Husk fight goes
+**3 voices → 2 → 1** across three turns, and the party takes 27, then 22, then
+13.
+
+### A small thing aims at a place; a boss reaches for a person
+
+| | small (`fight` tier) | elite / boss |
+| --- | --- | --- |
+| aims at | a **row** — front, mid, back | a **person** |
+| positions per action | exactly one | as many as the intent names |
+| may swing several times | yes, all on the same hero | yes |
+| rationed by the place rule | yes | no — reach is what a boss *is* |
+
+Rows are exclusive here, so a place identifies exactly one hero — and **which**
+hero is the player's answer rather than the table's. Three creatures pointing at
+three rows is a fight you re-shape by standing somewhere else.
+
+Six of the fodder intents were rewritten and four are new. The Grief-Wraith had
+been sharing `scythe`, `rain` and `flurry` with the elite and the Regent, so the
+third fight of a run and the last one threw identical bars; it has its own three
+now (`reap`, `wail`, `clutch`), each a different shape on a different row.
+
+### A pack is one encounter, not three fights
+
+Three Husks at full strength is 186 health and three voices a turn — the first
+probe wiped a party that had killed one and a half of them. A line divides one
+foe's worth of health and Poise between its bodies, with a floor of 4 Poise so
+every one of them stays breakable. Three Husks: **21 health each, 63 total**,
+against a lone Husk's 62.
+
+### What made the refactor survivable
+
+`C.foes` is the truth and `C.boss` is a **view** onto it — the foe you are aimed
+at — so `C.boss.hp -= n` still means exactly what it meant, it just means it
+about whichever one you are hitting. `C.foe` and `C.intents` are the same. That
+is why 56 call sites did not have to be rewritten, and why a fight against one
+thing is still bit-for-bit what it was: **a single foe is a line of one**, and
+nothing below the model has a special case for it.
+
+The views are deliberately *enumerable*: a hidden getter would vanish from
+`JSON.parse(JSON.stringify(state()))`, which is how a dozen checks and the bot
+read a fight, and they would have seen `boss: undefined` and reported the engine
+broken.
+
+### Three things the checks found
+
+- **A boss strikes the same hero twice.** The first cut applied the place rule to
+  every hit in the game, so the Ruinous Hymn's second blow on Ash found the front
+  already claimed and the Regent stood there winding up forever. Twelve flow
+  checks went down at once. The rule is about *aiming*, not about how many blows
+  land: a hit that names a person goes through untouched.
+- **A heal is not instead of swinging.** The Mourning Dirge and the Hollow
+  Benediction both mend AND strike — that is the whole tension of them. Skipping
+  their hits took down every check that needed a drawn figure or a bait, because
+  those notes live only on the two healing intents.
+- **A sweep aimed at a place cannot be stepped away from.** Distance is what a
+  sweep IS — the same swing lands for a third at the rear — and that only means
+  something when the blow follows a person. Stepping out of the front row does
+  not dodge the Reaping, it hands it to whoever trades in, so a mark promising
+  "one row back and it lands for 9" was a promise nobody could collect. Distance
+  stays the boss's axis; the small things trade places instead.
+
+### Where it stands
+
+flow 250/250 · **line 21/21 (new)** · beat 10/10. The line suite asserts the
+rule rather than restating the table: every attack a `fight`-tier foe can throw
+names one place, an elite or boss still crosses the party, no hero answers two
+creatures in one bar, the composed bar never out-throws the hardest single bar
+in the game, a pack shares one encounter's health, and the bar gets shorter as
+the line does.

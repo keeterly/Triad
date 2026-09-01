@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 98;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 99;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -536,7 +536,7 @@ const REGENT_INTENTS = [
     ] },
   { id: 'benediction', name: 'Hollow Benediction', kind: 'heal',
     hits: [
-      { dmg: [8, 12], target: 'elin', acts: ['lure', 'sigil'] },
+      { dmg: [8, 12], row: 'back', acts: ['lure', 'sigil'] },
     ] },
   // THE LADDER NEEDED A BOTTOM RUNG. Measured across the bestiary, the lightest
   // bar the FODDER could throw was 2 notes and the lightest the BOSS could
@@ -548,10 +548,27 @@ const REGENT_INTENTS = [
   // first fight on five notes. This is its own hand instead: three notes, all
   // of them the two gestures a player already knows on turn one, and a shape
   // that reads as a shape — high, low, and a jab that arrives late.
+  // ── ONE POSITION, ONE VOICE (Build 99) ──────────────────────────────────
+  // The small things in this bestiary each threw a bar ACROSS the party: the
+  // Lash struck Ash and then Mira, the Keening struck Elin and then Ash. That
+  // was fine while a fight meant one opponent — it is what gave a fodder bar
+  // any shape at all — and it becomes unreadable the moment three of them are
+  // standing there, because three creatures crossing three heroes is nine
+  // relationships to hold in your head inside one bar.
+  //
+  // So a small thing swings at ONE PLACE. It may swing several times; every
+  // blow lands on the same hero. Three of them is then three strings at three
+  // people — one voice each, and the player answers each in turn. And because
+  // the target is a PLACE rather than a person, WHO takes it is decided by
+  // where the party is standing, which is the one board decision this game
+  // already asks every turn.
+  //
+  // BOSSES KEEP THEIR REACH. The Hymn, the Rising Dirge and the Ashen Rain
+  // still cross the party — that is what makes a boss a boss, and it is
+  // legible because a boss stands alone.
   { id: 'lash', name: 'Grasping Lash', kind: 'attack',
     hits: [
-      { dmg: [10, 14], target: 'ash',  acts: ['claw:L', 'thrust'], beats: [0, 1.5] },
-      { dmg: [10, 14], target: 'mira', acts: ['thrust'] },
+      { dmg: [15, 20], row: 'mid', acts: ['claw:L', 'thrust'], beats: [0, 1.5] },
     ] },
   // …AND THE CHOIR'S OWN LIGHT HAND. The Lash was dealt to both fodder foes at
   // first and the suite caught what that meant: `lash` opens on a CLAW, the
@@ -564,8 +581,49 @@ const REGENT_INTENTS = [
   // sigil it is already drawing, and one long toll to close.
   { id: 'keening', name: 'The Keening', kind: 'attack',
     hits: [
-      { dmg: [9, 13], target: 'elin', acts: ['sigil', 'thrust'], beats: [0, 1.5] },
-      { dmg: [9, 13], target: 'ash',  acts: ['toll'] },
+      { dmg: [10, 14], row: 'back', acts: ['sigil', 'thrust'], beats: [0, 1.5] },
+    ] },
+  // …AND THE CHOIR'S SECOND HAND, which used to be the Regent's Ashen Rain. A
+  // fodder foe sharing the boss's downpour meant the first thing a player met
+  // and the last thing they met threw the same bar at the same three people.
+  // This is the Choir's own: one downpour, on one place, out of the two
+  // gestures its sheet can actually perform.
+  { id: 'emberfall', name: 'Emberfall', kind: 'attack',
+    hits: [
+      { dmg: [8, 11], row: 'front', acts: ['rain', 'sigil'], beats: [0, 2] },
+    ] },
+  // ── THE GRIEF-WRAITH'S OWN THREE ──
+  // It shared `scythe`, `rain` and `flurry` with the elite and the Regent, so
+  // the third fight of a run and the last one played identical bars. These are
+  // its: each one place, each a different shape, and each a different row — so
+  // reading which of the three it has drawn tells you where to stand.
+  // NOT A SWEEP, AND THE FLOW SUITE IS WHY.
+  //
+  // A SWEEP is a blow whose weight falls off with DISTANCE — the whole reason
+  // to step back is that the same swing lands for a third at the rear. That
+  // only means something when the blow is aimed at a PERSON: they step away
+  // from it, and it follows them, blunted.
+  //
+  // A blow aimed at a PLACE cannot be stepped away from. Stepping back does not
+  // dodge the Reaping, it hands it to whoever trades into the front — which is
+  // a far more interesting decision than dodging, and it is the decision the
+  // player is actually being offered. But it means a sweep mark promising "one
+  // row back and it lands for 9" is a promise nobody can collect: the person
+  // who traded in takes the full thirteen. The check caught exactly that.
+  //
+  // So distance stays the BOSS's axis, and the small things trade places
+  // instead. The Reaping is a claw at the front, at full weight, every time.
+  { id: 'reap', name: 'The Reaping', kind: 'attack',
+    hits: [
+      { dmg: [13, 17], row: 'front', acts: ['claw:R', 'thrust'], beats: [0, 1.5] },
+    ] },
+  { id: 'wail', name: 'The Wailing', kind: 'attack',
+    hits: [
+      { dmg: [8, 11], row: 'back', acts: ['slash:L', 'slash:R', 'slash:L'], beats: [0, 0.5, 1] },
+    ] },
+  { id: 'clutch', name: 'Grave-Clutch', kind: 'attack',
+    hits: [
+      { dmg: [12, 16], row: 'mid', acts: ['rain', 'toll'], beats: [0, 2] },
     ] },
   // …AND A TOP RUNG. The Regent's benediction was the two-note bar that dragged
   // the boss's floor down to the Husk's. This is the same act — it sings itself
@@ -607,10 +665,12 @@ const REGENT_INTENTS = [
   // THE LONG TOLL — two blows, no filler, and the whole hit rides on one note
   // each. Sparse on purpose: it is the weight intent, and a hold is the note
   // that asks the hand to commit and wait.
+  // THE LONG TOLL — one bell, twice, on whoever is standing at the front. Sparse
+  // on purpose: it is the weight intent, and a hold is the note that asks the
+  // hand to commit and wait.
   { id: 'toll', name: 'The Long Toll', kind: 'attack',
     hits: [
-      { dmg: [14, 19], target: 'ash',  acts: ['toll'] },
-      { dmg: [14, 19], target: 'mira', acts: ['toll'] },
+      { dmg: [11, 15], row: 'front', acts: ['toll', 'toll'], beats: [0, 2] },
     ] },
   // GRIEF IN THREES — the opposite: light hits, many reads, and it tightens in
   // the second phase. Three taps on the half-beat is the closest thing in the
@@ -678,10 +738,10 @@ const FOES = {
               intents: ['toll', 'lash'] },
   cultist:  { id: 'cultist', name: 'The Choir of One', art: 'foe-cultist', tier: 'fight',
               hp: 76, brk: 9, dmgMul: 0.80, dirge: 2, phases: 1, embers: 2,
-              intents: ['benediction', 'keening', 'rain'] },
+              intents: ['benediction', 'keening', 'emberfall'] },
   wraith:   { id: 'wraith', name: 'The Grief-Wraith', art: 'foe-wraith', tier: 'fight',
               hp: 84, brk: 10, dmgMul: 0.86, dirge: 3, phases: 1, embers: 3,
-              intents: ['rain', 'scythe', 'flurry'] },
+              intents: ['reap', 'wail', 'clutch'] },
   // THE ELITE IS A GAMBLE, NOT A SECOND BOSS. At 116 HP / 0.96 / dirge 3 the
   // run sim measured it costing a ~half-parry party 72 of their 112 health —
   // more than the Regent herself — so the road was decided at stop 3 and the
@@ -699,6 +759,70 @@ const FOES = {
 // one encounter the balance sim tunes directly, and the rest are scaled off it.
 function foeHp(f) { return f.hp != null ? f.hp : TUNE.bossHp; }
 function foeIntents(f) { return REGENT_INTENTS.filter(i => f.intents.indexOf(i.id) >= 0); }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE LINE — more than one thing can be standing there
+// ═════════════════════════════════════════════════════════════════════════════
+// Every fight in this game has been one party against ONE opponent, and the
+// state said so: a single `C.boss` with a single HP bar, a single Poise gauge
+// and a single intent. Fifty-six places read it.
+//
+// `C.foes` is the truth now and `C.boss` is a VIEW onto it — the foe the party
+// is currently aimed at. That is what makes this a change to the model rather
+// than a rewrite of everything that touches it: `C.boss.hp -= n` still means
+// exactly what it meant, it just means it about whichever one you are hitting.
+// The same for `C.foe`, which was the FOES entry and is now the aimed foe's.
+//
+// Every field a fight can CHANGE lives on the record; everything static stays
+// on `def`, which is the shared bestiary entry and must never be written to.
+// A PACK IS ONE ENCOUNTER, NOT THREE FIGHTS. Three Husks at full strength is
+// 186 health and three voices a turn — the first probe wiped a party that had
+// killed one and a half of them. A line is a way of SHAPING a fight, not a way
+// of multiplying it, so the bodies in it divide one foe's worth of health and
+// poise between them.
+//
+// Which is what makes the line's whole pleasure land: at a third each, the
+// party puts one down about every turn, and the bar goes three voices, then
+// two, then one. Killing something is not an abstract step toward winning —
+// it is the next bar being visibly shorter.
+//
+// Poise has a floor of four: a pack member you cannot stagger inside its own
+// short life is a pack member Break does nothing to, and Break is half of what
+// the support cards in this deck are for.
+function packScale(n) { return n > 1 ? 1 / n : 1; }
+function foeRecord(def, ix, bonus, lineSize) {
+  const k = packScale(lineSize || 1);
+  const hp = Math.max(1, Math.round(foeHp(def) * k)) + Math.max(0, bonus || 0);
+  return {
+    ix, def, id: def.id, name: def.name, art: def.art,
+    hp, max: hp, phase: 1,
+    breakMax: Math.max(4, Math.round(def.brk * k)), brk: Math.max(4, Math.round(def.brk * k)),
+    broken: false, cancelNext: false,
+    bleed: 0, chill: 0, intentIx: 0, _healedRecently: false,
+    intents: foeIntents(def),
+    // A DEAD THING IS STILL ON THE FIELD. It has a body, a plate that has to
+    // read as spent rather than vanish, and a lane the survivors do not move
+    // into — so death is a flag, never a splice.
+    dead: false,
+  };
+}
+// WHO THE CARDS ARE POINTED AT. Defaults to the front-most living foe and
+// falls back to one whenever the aimed foe dies, so there is never a turn
+// where a card has nowhere to land.
+function livingFoes() { return C ? C.foes.filter(f => !f.dead) : []; }
+function aimedFoe() {
+  if (!C || !C.foes.length) return null;
+  const want = C.foes[C.aim];
+  if (want && !want.dead) return want;
+  return livingFoes()[0] || C.foes[0];
+}
+function aimAt(ix) {
+  if (!C || !C.foes[ix] || C.foes[ix].dead) return false;
+  if (C.aim === ix) return false;
+  C.aim = ix;
+  renderBossHud(); renderHand();
+  return true;
+}
 
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -793,7 +917,11 @@ function setPhase(p) {
   // would otherwise inherit a husk that was never there.
   if (p === 'VICTORY') setTimeout(() => {
     if (!C || C.phase !== 'VICTORY') return;
-    try { fxFoeDown(); } catch (e) {}
+    // EVERY BODY STILL STANDING. In a line the last blow ends the fight, and
+    // anything that fell earlier is already on the floor — this catches the
+    // one that was still upright when the encounter ended, and is a no-op for
+    // the rest because `k-foe-down` is idempotent.
+    try { (C.foes || []).forEach(F => fxFoeDown(F)); } catch (e) {}
   }, FOE_DEATH_HOLD);
   // A fight that was started BY something reports back to it. Combat itself
   // still knows nothing about runs, maps or embers — it only knows it is over.
@@ -847,6 +975,12 @@ function combatSummary(p) {
   return {
     outcome: p === 'VICTORY' ? 'victory' : 'defeat',
     foe: C.foe ? C.foe.id : null,
+    // …AND EVERYTHING THAT WAS STANDING THERE. `foe` names the one the road
+    // labelled the stop with, which for a pack is only the front of it — the
+    // run's journey ledger asks what the party put DOWN, and against a line
+    // that is a list.
+    foes: (C.foes || []).map(F => F.id),
+    felled: (C.deeds && C.deeds.felled) ? C.deeds.felled.slice() : [],
     turns: C.turn,
     kizuna: C.kizuna,
     pairBond: { ...C.pairBond },
@@ -883,6 +1017,10 @@ function freshDeeds() {
     finishPair: null,
     shields: [],         // [{by, for}] — an intercession that actually took a blow
     stitches: {},        // pairKey → how many times one moved off the other
+    // WHAT WENT DOWN, in order. A fight against one thing had nothing to say
+    // here that the summary's `foe` did not already say; a fight against three
+    // does, and the run's journey ledger is fed from it.
+    felled: [],
     brink: [],           // heroes who dropped to a quarter of their health or less
     fell: [],            // heroes who went down, in a fight that was still won
     asOne: 0,            // all-outs thrown
@@ -963,6 +1101,12 @@ function startCombat(opts) {
              hp: carry && carry[id] != null ? Math.max(0, Math.min(max, carry[id])) : max,
              max, guard: 0, downed: false };
   };
+  // ONE FOE OR SEVERAL, READ THE SAME WAY. `opts.foes` is a list of bestiary
+  // ids; `opts.foe` is the old single-opponent door and still works, because
+  // every fight the road already knows how to start comes through it.
+  const lineup = (opts.foes && opts.foes.length
+    ? opts.foes.map(f => (typeof f === 'string' ? FOES[f] : f)).filter(Boolean)
+    : [foe]);
   C = {
     phase: 'INTRO',
     // WHICH FIGHT THIS IS. Build 94 stopped awaiting the end-of-turn hand
@@ -975,18 +1119,16 @@ function startCombat(opts) {
     // the kind of bug that is unfindable by hand and trivial with a fixed seed.
     id: (_combatSeq = (_combatSeq || 0) + 1),
     turn: 1,
-    foe,
     cards: buildCards(opts.upgrades),
     upgrades: (opts.upgrades || []).slice(),
-    intents: foeIntents(foe),
     onEnd: opts.onEnd || null,
     heroes: { ash: hero('ash'), elin: hero('elin'), mira: hero('mira') },
-    boss: {
-      name: foe.name, hp: foeHp(foe) + Math.max(0, opts.foeBonus || 0),
-      max: foeHp(foe) + Math.max(0, opts.foeBonus || 0), phase: 1,
-      breakMax: foe.brk, brk: foe.brk, broken: false, cancelNext: false,
-      bleed: 0, chill: 0, intentIx: 0, _healedRecently: false,
-    },
+    // THE LINE. One entry per opponent, front-most first — a single foe is a
+    // line of one, which is why nothing below has a special case for it.
+    // `foeBonus` is the Regent's debt and is paid by the thing it was borrowed
+    // against, never spread across a pack.
+    foes: lineup.map((d, i) => foeRecord(d, i, i === 0 ? opts.foeBonus : 0, lineup.length)),
+    aim: 0,
     // WHAT THE THREE OF THEM ALREADY HAVE. A bond does not reset because a
     // fight ended — and mechanically it could not be allowed to, because a
     // four-round fodder fight never fills the bar from zero. The all-out was
@@ -1017,6 +1159,28 @@ function startCombat(opts) {
     telemetry: { plays: [], parry: [] },
     log: [],
   };
+  // THE TWO VIEWS. `C.boss` is the aimed foe's mutable record and `C.foe` is
+  // its bestiary entry — the two names fifty-six call sites already use. They
+  // are getters rather than copies so that `C.boss.hp -= n` writes through to
+  // the line, and so that a foe dying re-points them without anything having
+  // to remember to. They are non-enumerable: `JSON.stringify(C)` is how the
+  // run layer and every check reads a fight, and a getter that serialised
+  // would put a SECOND copy of the aimed foe in the save beside `foes`.
+  //
+  // ENUMERABLE ON PURPOSE. A hidden getter would vanish from
+  // `JSON.parse(JSON.stringify(state()))`, which is how a dozen checks and the
+  // bot read a fight — they would see `boss: undefined` and report the engine
+  // broken. The cost is that a snapshot carries one duplicate of the aimed
+  // foe; the fight itself is never persisted, so nothing downstream can rot.
+  const view = (get) => ({ get, enumerable: true, configurable: true });
+  Object.defineProperty(C, 'boss', view(aimedFoe));
+  Object.defineProperty(C, 'foe', view(() => { const f = aimedFoe(); return f ? f.def : null; }));
+  // …and the intent hand belongs to whoever is being read, which for the
+  // telegraph is the aimed foe and for a resolving blow is its own source.
+  Object.defineProperty(C, 'intents', view(() => { const f = aimedFoe(); return f ? f.intents : []; }));
+  // …but a fight still has to be READABLE as data. `state()` is handed to
+  // checks and to the run layer, and both ask `state().boss.hp`, so the two
+  // views are re-exposed on the snapshot in snapshotOf().
   C.deck = shuffle(rosterIds(C.roster));
   for (const id of Object.keys(C.heroes)) if (C.heroes[id].hp <= 0) C.heroes[id].downed = true;
   // A FIGHT IS AN ENTRANCE. The battle theme restarts from its downbeat rather
@@ -1035,26 +1199,65 @@ function startCombat(opts) {
 
 // The fight wears its opponent. One <img> swap and one name — everything else
 // about the encounter already lives in the state the HUD reads.
+// WHERE A BODY IS. The first foe keeps `#k-boss-art` — that id is written into
+// the stylesheet, the camera, the parry thread and a dozen checks, and a line
+// of one has to stay bit-for-bit what it was. The rest are siblings built here.
+function foeBox(ix) {
+  if (!ix) return el('k-boss-art');
+  return document.querySelector('#k-cast .k-foe-art[data-ix="' + ix + '"]');
+}
 function dressEncounter(foe) {
-  const art = document.querySelector('#k-boss-art img');
-  if (art) { art.src = '../art/' + foe.art + '.webp'; art.alt = foe.name; }
-  // WHICH FOE THIS IS, on the element, so the stylesheet can give each one its
-  // own idle. Five opponents sharing a single slow breathe made them five
-  // pictures at different HP totals.
-  const b = el('k-boss-art'); if (b) b.dataset.foe = foe.id;
-  foeAnimArm(foe.id);
-  const nm = document.querySelector('#k-boss-hud .k-bname');
-  if (nm && nm.childNodes[0]) nm.childNodes[0].nodeValue = foe.name + ' ';
+  const cast = el('k-cast');
+  const first = el('k-boss-art');
+  // TEAR THE LINE DOWN BEFORE BUILDING IT. A fight that follows a pack must not
+  // inherit its extra bodies, and `k-foe-down` is a terminal pose — a lane left
+  // standing from the last encounter would open the next one with a corpse in it.
+  if (cast) cast.querySelectorAll('.k-foe-art[data-ix]').forEach(n => n.remove());
+  const line = (C && C.foes && C.foes.length) ? C.foes : [{ ix: 0, def: foe, id: foe.id, name: foe.name, art: foe.art }];
+  // WHERE THE NEXT BODY GOES. Each new box used to be inserted straight after
+  // `#k-boss-art`, which put the THIRD creature between the first and the
+  // second — the line came out 0, 2, 1, in the DOM and therefore in the paint
+  // order. It walks: every body is inserted after the one before it.
+  let after = first;
+  if (cast) cast.classList.toggle('k-line-many', line.length > 1);
+  if (cast) cast.dataset.line = line.length;
+  line.forEach((F, ix) => {
+    let box = first;
+    if (ix > 0) {
+      box = document.createElement('div');
+      box.className = 'k-foe-art';
+      box.dataset.ix = ix;
+      box.innerHTML = '<span class="k-fig"><img alt=""></span><span class="k-shadow"></span>';
+      // BEHIND THE FIRST, NOT IN FRONT OF THE PARTY. Inserted straight after
+      // `#k-boss-art` so the three heroes keep their own stacking order and a
+      // second creature cannot end up painted over Ash.
+      if (cast && after && after.nextSibling) cast.insertBefore(box, after.nextSibling);
+      else if (cast) cast.appendChild(box);
+      after = box;
+    }
+    if (!box) return;
+    box.classList.remove('k-foe-down');
+    const art = box.querySelector('img');
+    if (art) { art.src = '../art/' + F.art + '.webp'; art.alt = F.name; }
+    // WHICH FOE THIS IS, on the element, so the stylesheet can give each one its
+    // own idle. Five opponents sharing a single slow breathe made them five
+    // pictures at different HP totals.
+    box.dataset.foe = F.id;
+    box.dataset.ix = ix;
+    foeAnimArm(F.id, ix, box);
+  });
   const st = el('k-stage');
   if (st) st.dataset.tier = foe.tier;
+  renderBossHud();
 }
 
 // Opening hand: 5 cards with AT LEAST ONE per hero (deck §3). Draw five, then
 // repair coverage deterministically — swap a surplus card for the first card
 // of each missing hero still in the deck.
 function drawOpening() {
-  // …and she does not always open the same way either
-  C.boss.intentIx = pickIntent();
+  // …and she does not always open the same way either. EVERY thing standing
+  // there draws its own opener, in line order, so a seed still replays exactly.
+  C.foes.forEach(F => { F.intentIx = pickIntent(F); });
   for (let i = 0; i < 5; i++) drawOne();
   for (const heroId of Object.keys(HEROES23)) {
     if (C.hand.some(id => cardDef(id).owner === heroId)) continue;
@@ -1076,47 +1279,220 @@ function drawOpening() {
 // than a read. Slay the Spire's enemies pick by weighted rules with anti-repeat
 // constraints, which is why the same monster stays interesting; this does the
 // same, off the fight's own seeded RNG so a seed still replays exactly.
-function pickIntent() {
-  const cur = C.boss.intentIx;
-  const hurt = C.boss.hp / C.boss.max;
+function pickIntent(F) {
+  F = F || C.boss;
+  const cur = F.intentIx;
+  const hurt = F.hp / F.max;
   const pool = [];
-  C.intents.forEach((it, i) => {
+  F.intents.forEach((it, i) => {
     if (i === cur) return;                       // never the same thing twice running
     let w = 10;
     // she only sings herself whole when there is something to mend, and never
     // twice in quick succession — a heal on a full boss is a wasted turn for
     // both sides
-    if (it.kind === 'heal') w = hurt > 0.75 ? 0 : (C.boss._healedRecently ? 2 : 14);
+    if (it.kind === 'heal') w = hurt > 0.75 ? 0 : (F._healedRecently ? 2 : 14);
     // the sweeping advance and the flurry lean later, when the party is spread
     if (it.id === 'scythe') w = hurt < 0.6 ? 16 : 9;
-    if (it.id === 'rain') w = C.boss.phase === 2 ? 16 : 9;
+    if (it.id === 'rain') w = F.phase === 2 ? 16 : 9;
     pool.push({ i, w });
   });
   const total = pool.reduce((n, p) => n + p.w, 0);
-  if (total <= 0) return (cur + 1) % C.intents.length;
+  if (total <= 0) return (cur + 1) % F.intents.length;
   let r = rng() * total;
   for (const p of pool) { r -= p.w; if (r <= 0) {
-    C.boss._healedRecently = C.intents[p.i].kind === 'heal';
+    F._healedRecently = F.intents[p.i].kind === 'heal';
     return p.i; } }
   return pool[pool.length - 1].i;
 }
-function currentIntent() {
-  const it = C.intents[C.boss.intentIx % C.intents.length];
-  const p = C.boss.phase - 1;
+// WHAT ONE FOE IS ABOUT TO DO. Every hit carries `src` — the index of the thing
+// throwing it — because in a line of three the same volley is composed of blows
+// from different creatures, and a blow has to be priced, drawn and threaded
+// from ITS OWN source rather than from whoever the player happens to be aimed at.
+function currentIntent(F) {
+  F = F || C.boss;
+  if (!F || !F.intents.length) return null;
+  const it = F.intents[F.intentIx % F.intents.length];
+  const p = F.phase - 1;
   const sub = it.sub ? it.sub[p] : 1;
-  return { ...it, phaseHeal: it.kind === 'heal' ? TUNE.heal[p] : 0, sub };
+  return { ...it, src: F.ix, hits: (it.hits || []).map(h => ({ ...h, src: F.ix })),
+           phaseHeal: it.kind === 'heal' ? TUNE.heal[p] : 0, sub };
 }
+// THE THREE PLACES, and what standing further back is worth. Hoisted above the
+// volley: `composeVolley` assigns places now, and a `const` declared eight
+// hundred lines below its first reader is a temporal-dead-zone crash waiting
+// for the one call path that runs during module evaluation. (Build 94 already
+// paid for that lesson once, with `_combatSeq`.)
+const ROWS = ['front', 'mid', 'back'];
+const ROW_SHELTER = { front: 1, mid: 0.62, back: 0.3 };
 function livingHeroes() { return Object.keys(C.heroes).filter(id => !C.heroes[id].downed); }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE VOLLEY — one bar, however many voices
+// ═════════════════════════════════════════════════════════════════════════════
+// The obvious way to give a party three opponents is to let each one take its
+// turn, and it is the way that kills this particular game: the enemy phase here
+// is a RHYTHM BAR, held on one camera move, and three of them back to back is
+// a rhythm game with a card game attached. Ten seconds of enemy turn becomes
+// thirty and the player is not making a decision in any of it.
+//
+// So the enemy phase stays ONE BAR and the line composes it together. Three
+// creatures winding up produce one longer phrase with three voices in it, not
+// three phrases — and because the phrase is the sum of what is still alive, it
+// SHORTENS THE MOMENT SOMETHING DIES. That is the whole reason to want more
+// than one opponent: killing the small one is not an abstract step toward
+// winning, it is the next bar being visibly easier to play.
+//
+// THE BUDGET IS THE REGENT'S OWN CEILING. Measured across the bestiary, the
+// heaviest bar in the game is her Crescendo at seven notes — the hardest thing
+// a player is ever asked to read, at the end of the road. No ordinary fight is
+// allowed to out-throw the final boss, so seven is the cap, and what does not
+// fit does not swing.
+//
+// A foe that cannot fit HOLDS: it keeps its intent, it is drawn winding up, and
+// it swings next turn. Which makes the target order a real question rather than
+// an obvious one — killing the small thing in front frees the budget for the
+// big thing behind it, so "clear the chaff first" is a choice with a cost
+// rather than the answer to every encounter.
+// TWO RULES, AND THE FIRST ONE IS THE REAL ONE.
+//
+// 1 · ONE VOICE PER POSITION. There are three places on this board and one
+//     hero in each, so a bar can hold at most three strings — and no hero is
+//     ever asked to answer two creatures at once. A small foe swings at a
+//     PLACE and takes whichever free place is nearest the one it wants; a foe
+//     that finds nothing free HOLDS, and is drawn winding up. This is what
+//     keeps a pack legible: however many things are standing there, the
+//     player reads one string per person, in order.
+//
+// 2 · AND NEVER MORE THAN THE REGENT THROWS. Measured across the bestiary, the
+//     heaviest bar in the game is her Crescendo at seven notes — the hardest
+//     read, at the end of the road. No ordinary fight may out-throw the final
+//     boss, so seven is a backstop under rule 1.
+//
+// A BOSS TAKES ITS PLACES FIRST. Its hits name PEOPLE and cross the party;
+// that reach is what a boss is, and it works because a boss stands alone. If
+// one ever stands with adds, it claims its rows in line order and the adds
+// take what is left — which is the same rule, not a second one.
+const VOLLEY_NOTES = 7;
+function composeVolley() {
+  const hits = [], acting = [], held = [];
+  const taken = {};                 // row -> already answering something
+  let notes = 0;
+  const freeRow = (want) => {
+    // …the one it wants, else the nearest place still open. Order matters: a
+    // creature denied the front reaches for the middle before the back, which
+    // is how a pack closes in rather than scattering.
+    const order = ROWS.indexOf(want) >= 0
+      ? [want].concat(ROWS.filter(r => r !== want)) : ROWS.slice();
+    return order.find(r => !taken[r] && livingHeroes().some(id => C.heroes[id].row === r)) || null;
+  };
+  for (const F of livingFoes()) {
+    // BROKEN eats the action, and it eats it BEFORE any place is claimed — a
+    // staggered foe hands its share of the bar to the ones still able to use
+    // it, which is the second reason to break something.
+    if (F.cancelNext) { acting.push({ src: F.ix, canceled: true, intent: currentIntent(F) }); continue; }
+    const it = currentIntent(F);
+    if (!it) continue;
+    // A HEAL IS SOMETHING A FOE DOES AS WELL AS SWINGING, NOT INSTEAD OF IT.
+    // The first cut of this skipped a healing intent's hits entirely on the
+    // reasoning that mending costs no notes — and the Mourning Dirge and the
+    // Hollow Benediction both mend AND strike, which is the whole tension of
+    // them: you can let it sing itself whole, or you can go and interrupt it
+    // and take the blows that come with the interruption. Six flow checks went
+    // down saying so, including every one that needed a drawn figure or a
+    // bait, because those notes live only on the two healing intents.
+    //
+    // So `kind` decides what happens BESIDE the bar, never whether there is one.
+    // A BLOW THAT NAMES A PERSON IS A BOSS'S, AND IT IS NOT RATIONED.
+    //
+    // The first cut of this applied the one-place rule to every hit in the
+    // game, and the flow suite took twelve checks down saying so: the Ruinous
+    // Hymn strikes Ash TWICE — that repetition is the intent — so the second
+    // blow found the front already claimed, the whole action was pushed to
+    // "held", and the Regent stood there winding up forever. It was worse with
+    // a hero down: a fallen hero's row is nobody's, so the boss ran out of
+    // places entirely and threw nothing at all.
+    //
+    // The rule is about SMALL THINGS aiming, not about how many blows land.
+    // A hit that names a place is rationed — that is a creature choosing who to
+    // swing at, and no hero answers two of those at once. A hit that names a
+    // person is a boss's reach: it goes through untouched, and it never blocks.
+    // It still MARKS the place, so a small thing standing beside a boss does
+    // not pile onto the hero the boss is already crossing the floor for.
+    const mine = [];
+    let blocked = false;
+    for (const h of (it.hits || [])) {
+      if (!h.row) {                      // a boss's blow: it goes where it is aimed
+        const at = C.heroes[hitTargetId(h)];
+        if (at) taken[at.row] = true;
+        mine.push({ ...h });
+        continue;
+      }
+      const row = freeRow(h.row);
+      if (!row) { blocked = true; break; }
+      taken[row] = true;
+      mine.push({ ...h, resolvedRow: row });
+    }
+    const n = mine.reduce((a, h) => a + h.notes.length, 0);
+    if (blocked || (notes && notes + n > VOLLEY_NOTES)) {
+      // put back anything this foe had already claimed — a bar it is not
+      // throwing must not lock a place away from the thing behind it
+      mine.forEach(h => { if (h.resolvedRow) delete taken[h.resolvedRow]; });
+      held.push({ src: F.ix, intent: it });
+      continue;
+    }
+    notes += n;
+    hits.push(...mine);
+    acting.push({ src: F.ix, intent: { ...it, hits: mine } });
+  }
+  return { hits, acting, held, notes };
+}
+// WHICH FOE THREW THIS BLOW. Every hit carries it; a hit from before the line
+// existed does not, and falls back to the aimed foe rather than to nothing.
+function srcFoe(hit) {
+  if (!C) return null;
+  const F = (hit && hit.src != null) ? C.foes[hit.src] : null;
+  return F || C.boss;
+}
 // A hit falls on its scripted hero while they stand, otherwise on the first
 // hero still on their feet.
+// A HIT NAMES A PERSON OR A PLACE.
+//
+// Every blow in this game used to name a HERO — `target: 'ash'` — which was
+// workable while one opponent was throwing the whole bar at a party it could
+// see. It is the wrong axis for a line: a small creature does not pick Ash out
+// of three people, it swings at whatever is in front of it, and the player
+// decides who that is by standing them there. `row` says the place; rows are
+// exclusive in this game, so a place identifies exactly one hero, and WHICH
+// hero is the player's answer rather than the table's.
+//
+// `resolvedRow` is stamped on by composeVolley when the line assigns places, so
+// two creatures cannot both swing at the front — see below.
 function hitTargetId(hit) {
+  const row = hit && (hit.resolvedRow || hit.row);
+  if (row) {
+    const who = Object.keys(C.heroes).find(id => C.heroes[id].row === row && !C.heroes[id].downed);
+    if (who) return who;
+    return livingHeroes()[0] || null;
+  }
   if (C.heroes[hit.target] && !C.heroes[hit.target].downed) return hit.target;
   return livingHeroes()[0] || null;
+}
+// WHERE A BLOW IS AIMED, as a place. A hit that names a person is asked where
+// that person is standing right now.
+function hitRow(hit) {
+  if (hit && (hit.resolvedRow || hit.row)) return hit.resolvedRow || hit.row;
+  const h = hit && C.heroes[hit.target];
+  return h ? h.row : null;
 }
 // One hit's damage RIGHT NOW: phase value, row shelter, then Chill. Chill is
 // spent by the first hit of the action, so only that hit previews the relief.
 function hitDamage(hit, chillLeft, asRow) {
-  const raw = Math.round(hit.dmg[C.boss.phase - 1] * TUNE.dmgScale * (C.foe ? C.foe.dmgMul : 1));
+  // PRICED BY WHOEVER THREW IT. This read `C.boss.phase` and `C.foe.dmgMul` —
+  // the AIMED foe — which was the same thing as the source right up until there
+  // were two of them, at which point aiming at the weaker one would have
+  // quietly softened the stronger one's blows.
+  const F = srcFoe(hit);
+  const raw = Math.round(hit.dmg[(F ? F.phase : 1) - 1] * TUNE.dmgScale * (F && F.def ? F.def.dmgMul : 1));
   const tgt = hitTargetId(hit);
   let d = raw;
   // `asRow` prices the same blow as if the target stood somewhere else — the
@@ -1130,25 +1506,28 @@ function hitDamage(hit, chillLeft, asRow) {
   return Math.max(0, d - (chillLeft || 0));
 }
 // The dirge: unparryable chip on every living hero, each enemy phase.
+// THE DIRGE IS THE ROOM, NOT A CREATURE. Three things each singing their own
+// unparryable toll would be three times a tax that already decides runs — and
+// it is the half of the fight the player cannot answer, so tripling it is
+// tripling the part skill does not touch. The line sings ONE dirge, the
+// heaviest voice in it, and killing the loudest thing quiets the room.
 function dirgeAmount() {
-  if (C.foe && C.foe.dirge != null) return C.foe.dirge;
-  return TUNE.dirge[C.boss.phase - 1] || 0;
+  const line = livingFoes();
+  if (!line.length) return 0;
+  return line.reduce((n, F) => Math.max(n, F.def && F.def.dirge != null
+    ? F.def.dirge : (TUNE.dirge[F.phase - 1] || 0)), 0);
 }
 
 // The primary target — who the banner names, and who the camera watches.
 function intentTargetId() {
-  const it = C.intents[C.boss.intentIx % C.intents.length];
-  if (!it.hits || !it.hits.length) return null;
-  return hitTargetId(it.hits[0]);
+  const V = composeVolley();
+  if (!V.hits.length) return null;
+  return hitTargetId(V.hits[0]);
 }
 // What the telegraph promises: the whole volley, previewed live so moving a
 // hero Back or landing a Chill re-reads the number before the player commits.
 function intentPreviewDmg() {
-  const it = currentIntent();
-  if (!it.hits) return 0;
-  let chill = C.boss.chill, total = 0;
-  for (const h of it.hits) { total += hitDamage(h, chill); chill = 0; }
-  return total;
+  return intentByTarget().reduce((n, r) => n + r.total, 0);
 }
 // WHO IS ABOUT TO BE HIT, AND FOR HOW MUCH EACH. Not a total.
 //
@@ -1163,12 +1542,19 @@ function intentPreviewDmg() {
 // one visual convention, on one screen. A player trained on either reading
 // mis-sizes every Guard, every Mend and every step backwards.
 function intentByTarget() {
-  const it = currentIntent();
-  if (!it.hits || !it.hits.length) return [];
-  let chill = C.boss.chill;
+  // THE WHOLE LINE'S NEXT BAR, priced exactly the way it will resolve. Built
+  // from composeVolley rather than from one intent, so what the sky says is
+  // what the bar will throw — the held foe's blow is not in it, and each
+  // creature's chill is spent against its own hits rather than out of a
+  // single pool.
+  const V = composeVolley();
+  if (!V.hits.length) return [];
+  const chills = {};
+  livingFoes().forEach(F => { chills[F.ix] = F.chill; });
   const rows = [];
-  for (const h of it.hits) {
-    const d = hitDamage(h, chill); chill = 0;
+  for (const h of V.hits) {
+    const src = h.src == null ? (C ? C.aim : 0) : h.src;
+    const d = hitDamage(h, chills[src] || 0); chills[src] = 0;
     const who = hitTargetId(h);
     if (!who) continue;
     const row = rows.find(r => r.who === who);
@@ -1182,7 +1568,7 @@ function intentByTarget() {
     // ratio is an estimate; this deck's rule is that the screen shows the
     // number that will actually land.
     const back = ROWS[Math.min(ROWS.length - 1, ROWS.indexOf(C.heroes[who].row) + 1)];
-    const dBack = h.sweep ? hitDamage(h, chill, back) : d;
+    const dBack = h.sweep ? hitDamage(h, 0, back) : d;
     // …AND WHAT THE BLOW ACTUALLY IS. The chip used one glyph for every strike
     // and a second for sweeps, so a bell, a claw and a cast all read the same
     // — the exact complaint that a telegraph does not match the attack. The
@@ -1397,8 +1783,10 @@ function evaluateCard(cardId) {
 // ═════════════════════════════════════════════════════════════════════════════
 // RESOLUTION
 // ═════════════════════════════════════════════════════════════════════════════
-function dealToBoss(n, why, who) {
-  if (C.boss.broken) n = Math.round(n * 1.25);   // BROKEN: +25% damage taken
+function dealToBoss(n, why, who, F) {
+  F = F || C.boss;
+  if (!F || F.dead) return;
+  if (F.broken) n = Math.round(n * 1.25);   // BROKEN: +25% damage taken
   // WHO SWUNG LAST. Recorded on every blow rather than at the kill, because
   // nothing tells this function that the blow it is applying is the last one.
   // …and a PAIR CARD IS NOT A PERSON: its owner id is 'ash|elin'. The ledger
@@ -1408,18 +1796,45 @@ function dealToBoss(n, why, who) {
   if (C.deeds && who) {
     if (solo) C.deeds.lastHit = solo; else C.deeds.lastPair = who;
   }
-  C.boss.hp = Math.max(0, C.boss.hp - n);
+  F.hp = Math.max(0, F.hp - n);
   if (why !== 'allout') kizunaGain(n * KIZUNA_PER_DAMAGE);   // the all-out cannot feed itself
-  if (_dmgBatch) { _dmgBatch.n += n; if (why) _dmgBatch.why = why; fxStrikeBoss(n, why); }
-  else fxDamageBoss(n, why);
+  if (_dmgBatch) { _dmgBatch.n += n; if (why) _dmgBatch.why = why; fxStrikeBoss(n, why, F); }
+  else fxDamageBoss(n, why, F);
   renderBossHud();          // the Regent's bar moves when she is hit, not later
-  checkBossPhase();
-  if (C.boss.hp <= 0) {
-    if (C.deeds && !C.deeds.finisher && !C.deeds.finishPair) {
-      C.deeds.finisher = solo || C.deeds.lastHit || null;
-      if (!C.deeds.finisher) C.deeds.finishPair = who || C.deeds.lastPair || null;
+  checkBossPhase(F);
+  if (F.hp <= 0 && !F.dead) {
+    // A THING GOES DOWN; THE FIGHT ONLY ENDS WHEN THE LINE DOES. This used to
+    // be one statement — hp hits zero, VICTORY — because there was never
+    // anything else standing. Now the death of one is a lane emptying, and
+    // the fight is over when nothing is left in any of them.
+    F.dead = true;
+    F.broken = false; F.cancelNext = false; F.bleed = 0; F.chill = 0;
+    logLine(F.name + ' goes down.');
+    if (C.deeds) C.deeds.felled = (C.deeds.felled || []).concat([F.id]);
+    // …and the aim never sits on a corpse. Re-pointing it here rather than
+    // waiting for the next render means the very next card in the same
+    // resolution already lands on something alive.
+    if (C.foes[C.aim] && C.foes[C.aim].dead) {
+      const next = livingFoes()[0];
+      if (next) C.aim = next.ix;
     }
-    setPhase('VICTORY');
+    // A BODY MID-FIGHT GOES DOWN NOW; THE LAST ONE WAITS A BEAT. The killing
+    // blow has to read before the collapse starts — the impact and the fall
+    // arriving in one frame is a smear, not a death (Build 66) — and that
+    // hold lives in setPhase('VICTORY'). Anything dying while the fight is
+    // still on has no such beat to spend: the bar is still moving, and a
+    // creature that stayed upright until the encounter ended would be a
+    // corpse taking part in it.
+    if (livingFoes().length) fxFoeDown(F);
+    if (!livingFoes().length) {
+      if (C.deeds && !C.deeds.finisher && !C.deeds.finishPair) {
+        C.deeds.finisher = solo || C.deeds.lastHit || null;
+        if (!C.deeds.finisher) C.deeds.finishPair = who || C.deeds.lastPair || null;
+      }
+      setPhase('VICTORY');
+    } else {
+      renderBossHud(); renderIntent();
+    }
   }
 }
 function kizunaGain(n) {
@@ -1477,13 +1892,23 @@ async function allOut() {
   setPhase('PLAYER_ACTION_RESOLVING');
   renderKizuna();
   await fxAllOut(living);
+  // THE ALL-OUT IS A ROOM-CLEARER, and that is the point of it in a line. The
+  // three of them cross the floor at once — there is no version of that where
+  // they all pick the same target and politely ignore the thing beside it — so
+  // every living body takes it, and every one of them is staggered by it.
+  //
+  // Which is exactly the FF7-Rebirth / Persona payoff the meter is modelled on:
+  // charged against one opponent it is a big hit, charged against three it is
+  // the turn that decides the fight. The meter fills from turned strings, so
+  // the reward for reading a longer, harder composed bar is a bigger swing.
   const each = Math.round(TUNE.alloutDmg / 3);
+  const struckLine = livingFoes().slice();
   for (const id of living) {
     if (C.phase === 'VICTORY') break;
-    dealToBoss(each, 'allout', id);
+    for (const F of struckLine) { if (!F.dead) dealToBoss(each, 'allout', id, F); }
     await sleep(150);
   }
-  breakDamage(TUNE.alloutBrk);
+  struckLine.forEach(F => { if (!F.dead) breakDamage(TUNE.alloutBrk, F); });
   logLine('ALL-OUT — ' + living.length + ' as one.'
     + (gearedUp ? ' They find another gear: +' + TUNE.alloutAp + ' AP for the rest of this.' : ''));
   if (gearedUp) fxApGear();
@@ -1495,15 +1920,15 @@ async function allOut() {
 // already exist for a stagger — and then goes over and stays there. Two
 // separate things on purpose: the reel is the hit registering, the fall is the
 // fight ending, and running them together read as a glitch rather than a death.
-function fxFoeDown() {
-  const box = el('k-boss-art');
+function fxFoeDown(F) {
+  const box = foeBox(F ? F.ix : (C ? C.aim : 0));
   if (!box) return;
   // THE POSE IT DIES IN IS THE POSE IT KEEPS. Not `foeAnimState('broken')` —
   // that starts the stagger loop at frame 0 and leaves it running, which is
   // what had the body pulsing on the ground. The frames are walked to the LAST
   // one of the broken run and then frozen, so the CSS fall lands a still shape
   // rather than a twitching one.
-  try { foeAnimKill('broken'); } catch (e) {}
+  try { foeAnimKill('broken', F ? F.ix : undefined); } catch (e) {}
   box.classList.remove('k-foe-down');
   void box.offsetWidth;
   box.classList.add('k-foe-down');
@@ -1511,31 +1936,33 @@ function fxFoeDown() {
 // Freeze the sheet on the final frame of `name` and refuse every later state
 // change. `foeAnimArm` builds a fresh `_fanim` per fight, so the flag cannot
 // outlive the corpse that earned it.
-function foeAnimKill(name) {
-  const a = _fanim; if (!a) return;
+function foeAnimKill(name, ix) {
+  const a = _fanimOf(ix); if (!a) return;
   const st = a.sheet.states[name];
   if (st && st.length) { a.state = name; a.frame = st.length - 1; a.dir = 0; }
   a.dead = true;
-  clearTimeout(_fanimBack); _fanimBack = null; a.resume = null;
-  foeAnimPaint();
+  clearTimeout(a.back); a.back = null; a.resume = null;
+  foeAnimPaint(a.ix);
 }
 
-function checkBossPhase() {
-  if (C.foe && C.foe.phases < 2) return;
-  if (C.boss.phase === 1 && C.boss.hp <= C.boss.max / 2 && C.boss.hp > 0) {
-    C.boss.phase = 2;
-    logLine(C.boss.name + ' rises — the dirge sharpens.');
+function checkBossPhase(F) {
+  F = F || C.boss;
+  if (!F || !F.def || F.def.phases < 2) return;
+  if (F.phase === 1 && F.hp <= F.max / 2 && F.hp > 0) {
+    F.phase = 2;
+    logLine(F.name + ' rises — the dirge sharpens.');
   }
 }
 // The only door into Broken: any Break damage from any source lands here.
-function breakDamage(n) {
-  if (n <= 0) return;
-  C.boss.brk = Math.max(0, C.boss.brk - n);
+function breakDamage(n, F) {
+  F = F || C.boss;
+  if (n <= 0 || !F || F.dead) return;
+  F.brk = Math.max(0, F.brk - n);
   fxBreak();
-  if (C.boss.brk === 0 && !C.boss.broken) {
-    C.boss.broken = true;
-    C.boss.cancelNext = true;
-    logLine('BROKEN — the Regent staggers. The next attack dies unsung.');
+  if (F.brk === 0 && !F.broken) {
+    F.broken = true;
+    F.cancelNext = true;
+    logLine('BROKEN — ' + F.name + ' staggers. The next attack dies unsung.');
   }
 }
 function guardHero(heroId, n) {
@@ -1735,7 +2162,7 @@ function playCard(cardId, allyId) {
   if (actor) { actor.classList.remove('k-acts'); void actor.offsetWidth; actor.classList.add('k-acts'); }
   if (_act.kind === 'cast' || _act.kind === 'heal') {
     fxCast(primaryHero(ev.card), _act.tone,
-           ev.card.target === 'enemy' ? document.getElementById('k-boss-art') : null);
+           ev.card.target === 'enemy' ? (foeBox(C.aim) || document.getElementById('k-boss-art')) : null);
   }
   try { resolveEffects(ev.resolvedEffects, owner, allyId, selfHeroOf(ev.card)); }
   finally { _act = null; }
@@ -1848,11 +2275,10 @@ const AP_CEILING = 5;
 const KIZUNA_PER_DAMAGE = 0.45;       // a 15-damage FINALE is worth ~7
 const KIZUNA_TURNED = 10;             // a whole string read clean
 const KIZUNA_FLAWLESS = 17;
-const ROWS = ['front', 'mid', 'back'];
 // One character per row, and the same three the floor is painted with — the
 // telegraph names a PLACE rather than a person now (see renderIntent).
 const ROW_LETTER = { front: 'F', mid: 'M', back: 'B' };
-const ROW_SHELTER = { front: 1, mid: 0.62, back: 0.3 };
+
 const MOVE_COST = 1;
 // ONE HERO TO A LANE. Three of them could stand in the front row at once,
 // which made a row a label rather than a position; now a move TRADES PLACES
@@ -1936,34 +2362,57 @@ async function endTurn(opts) {
     C.boss.brk = C.boss.breakMax;
   }
 
-  // ENEMY PHASE — Bleed triggers first, then decays (deck §6).
+  // ENEMY PHASE — Bleed triggers first, then decays (deck §6). EVERY body
+  // bleeds on its own, which is what makes spreading Bleed across a line a
+  // different play from stacking it on one thing.
   setPhase('ENEMY_TELEGRAPH');
-  fxFoeWind();
-  if (C.boss.bleed > 0) {
-    dealToBoss(C.boss.bleed, 'bleed');
-    C.boss.bleed = Math.max(0, C.boss.bleed - 1);
+  livingFoes().forEach(F => fxFoeWind(F.ix));
+  for (const F of livingFoes().slice()) {
+    if (F.bleed > 0) {
+      dealToBoss(F.bleed, 'bleed', null, F);
+      F.bleed = Math.max(0, F.bleed - 1);
+    }
   }
   if (C.phase === 'VICTORY') { renderAll(); return report('victory'); }
 
-  const it = currentIntent();
-  let result = { intent: it.id, grades: [], hits: [], taken: 0, negated: 0, riposte: 0, canceled: false };
+  // ONE BAR, HOWEVER MANY VOICES — see composeVolley. `it` is kept as the
+  // FRONT-MOST acting foe's intent because the receipt, the log line and every
+  // check downstream name a single action; the volley itself is the whole line.
+  const V = composeVolley();
+  const lead = V.acting.find(a => !a.canceled) || V.acting[0] || null;
+  const it = (lead && lead.intent) || currentIntent() || { id: 'none', name: 'nothing', hits: [], sub: 1 };
+  let result = { intent: it.id, grades: [], hits: [], taken: 0, negated: 0, riposte: 0, canceled: false,
+                 // WHAT THE WHOLE LINE DID, so a check can tell one bar of
+                 // seven notes from two bars that happened to total seven.
+                 acting: V.acting.map(a => ({ src: a.src, intent: a.intent && a.intent.id, canceled: !!a.canceled })),
+                 held: V.held.map(a => a.src), notes: V.notes };
 
-  if (C.boss.cancelNext) {
-    // BROKEN's cancel — the whole action dies unsung.
-    C.boss.cancelNext = false;
-    result.canceled = true;
-    logLine('The ' + it.name + ' dies in the Regent’s throat.');
+  // EVERY STAGGERED THING SPENDS ITS CANCEL, not just the aimed one.
+  V.acting.filter(a => a.canceled).forEach(a => {
+    const F = C.foes[a.src];
+    F.cancelNext = false;
+    logLine('The ' + (a.intent ? a.intent.name : 'blow') + ' dies in ' + F.name + '’s throat.');
+  });
+  if (!V.hits.length && V.acting.every(a => a.canceled || (a.intent && a.intent.kind !== 'attack'))) {
+    result.canceled = V.acting.length > 0 && V.acting.every(a => a.canceled);
+  }
+  if (result.canceled) {
     await fxInterrupt();
   } else {
-    if (it.kind === 'heal') {
-      C.boss.hp = Math.min(C.boss.max, C.boss.hp + it.phaseHeal);
-      logLine('The Regent sings itself whole — +' + it.phaseHeal + '.');
+    // A HEAL IS NOT A BAR, so every foe that is singing itself whole does it
+    // here, before the blows, and none of them costs the volley a note.
+    for (const a of V.acting) {
+      if (a.canceled || !a.intent || a.intent.kind !== 'heal') continue;
+      const F = C.foes[a.src];
+      F.hp = Math.min(F.max, F.hp + a.intent.phaseHeal);
+      logLine(F.name + ' sings itself whole — +' + a.intent.phaseHeal + '.');
       await fxBossHeal();
     }
     // THE BARRAGE — every hit is launched and answered on its own string.
     setPhase('ENEMY_ATTACK_LAUNCH');
-    fxFoeAct(it.id);
-    result.targetId = intentTargetId();
+    V.acting.filter(a => !a.canceled && a.intent).forEach(a => fxFoeAct(a.intent.id, a.src));
+    it.hits = V.hits;
+    result.targetId = V.hits.length ? hitTargetId(V.hits[0]) : null;
     const negatedThisAction = {};      // one full negate per hero per ACTION
     // Who answers each hit, decided BEFORE the bar so the rhythm can be played
     // as one continuous phrase rather than stopping to resolve between notes.
@@ -1978,8 +2427,13 @@ async function endTurn(opts) {
       if (!livingHeroes().length) break;
       const tgtId = hitTargetId(hit);
       if (!tgtId) break;
-      let dmg = hitDamage(hit, C.boss.chill);
-      if (C.boss.chill > 0) C.boss.chill = 0;      // Chill is spent by the first hit
+      // CHILL BELONGS TO THE THING THAT WAS CHILLED. Read off `C.boss` this
+      // was the AIMED foe's — so a Chill landed on the one you were pointed at
+      // would have softened a blow thrown by something else entirely, and the
+      // blow you actually chilled would have arrived at full weight.
+      const SRC = srcFoe(hit);
+      let dmg = hitDamage(hit, SRC ? SRC.chill : 0);
+      if (SRC && SRC.chill > 0) SRC.chill = 0;     // spent by that foe's first hit
 
       // INTERCESSION: Elin steps into the window aimed at her chosen ally.
       const parrierId = (C.intercession && C.intercession === tgtId && !C.heroes.elin.downed)
@@ -2007,7 +2461,10 @@ async function endTurn(opts) {
         else if (turned) { negatedThisAction[parrierId] = true; negated = true; }
         dmg = Math.max(0, Math.round(dmg * (1 - mit)));
         if (turned) {
-          breakDamage(1 + (C.counterstance ? 2 : 0));
+          // TURNED ASIDE — AND THE BREAK GOES TO WHOEVER SWUNG. Reading a
+          // string aside is a fact about the blow, so it staggers the thing
+          // that threw it, not the thing you happen to be aimed at.
+          breakDamage(1 + (C.counterstance ? 2 : 0), SRC);
           C.counterstance = false;
           result.negated++;
           logLine('TURNED — ' + HEROES23[parrierId].name + ' reads the whole string.');
@@ -2017,8 +2474,8 @@ async function endTurn(opts) {
           kizunaGain(KIZUNA_FLAWLESS - KIZUNA_TURNED);
           const rip = RIPOSTE_PER_NOTE * read.notes;
           result.riposte = (result.riposte || 0) + rip;
-          dealToBoss(rip, 'riposte', parrierId);
-          breakDamage(1);
+          dealToBoss(rip, 'riposte', parrierId, SRC);
+          breakDamage(1, SRC);
           logLine('FLAWLESS — ' + fmtN(rip) + ' returned.');
           // A RIPOSTE CAN END THE FIGHT MID-VOLLEY. The bleed tick already
           // guarded for this; the riposte did not, so the rest of the barrage
@@ -2106,7 +2563,9 @@ async function endTurn(opts) {
     await fxDrawOne();
   }
 
-  C.boss.intentIx = pickIntent();
+  // WHAT IS STILL STANDING DECIDES WHAT IT DOES NEXT. A corpse does not draw
+  // an intent, which is what makes the telegraph shorten as the line does.
+  livingFoes().forEach(F => { F.intentIx = pickIntent(F); });
   C.turn++;
   C.ap = C.apMax;
   C.turnState = freshTurnState();
@@ -2161,8 +2620,8 @@ function logLine(t) { C.log.push(t); const el = document.getElementById('k-log')
 // which means a new act cannot be half-registered.
 const FOE_POSES = [...new Set(Object.values(ACTS).map(a => a.pose))].concat(['k-foe-wind']);
 const FOE_SWINGS = [...new Set(Object.values(ACTS).map(a => a.swing))];
-function foeSet(slot, cls, ms) {
-  const b = el('k-boss-art'); if (!b) return;
+function foeSet(slot, cls, ms, ix) {
+  const b = foeBox(ix == null ? (C ? (C.act != null ? C.act : C.aim) : 0) : ix); if (!b) return;
   slot.forEach(c => b.classList.remove(c));
   if (!cls) return;
   void b.offsetWidth;                       // restart even if the class repeats
@@ -2176,16 +2635,16 @@ function foeSet(slot, cls, ms) {
 // pose can never leave the frames pointing somewhere else, and there is no
 // second table to keep in step with the first.
 const sheetStateOf = (cls) => (cls || '').replace('k-foe-', '') || 'idle';
-function fxFoeWind() { foeSet(FOE_POSES, 'k-foe-wind'); foeAnimState('wind'); }
+function fxFoeWind(ix) { foeSet(FOE_POSES, 'k-foe-wind', null, ix); foeAnimState('wind', ix); }
 // THE OPENING POSTURE IS THE FIRST BLOW'S. A second table mapped intent -> pose
 // and could disagree with what the bar then actually threw — Grief in Threes
 // opened in the SWEEP pose and its first blow was a tap. The bar opens in the
 // shape of the thing it is about to do.
-function fxFoeAct(intentId) {
+function fxFoeAct(intentId, ix) {
   const it = REGENT_INTENTS.find(x => x.id === intentId);
   const first = it && it.hits && it.hits[0] && (it.hits[0].acts || [])[0];
   const cls = first ? parseAct(first).def.pose : 'k-foe-toll';
-  foeSet(FOE_POSES, cls); foeAnimState(sheetStateOf(cls));
+  foeSet(FOE_POSES, cls, null, ix); foeAnimState(sheetStateOf(cls), ix);
 }
 // THE BODY FOLLOWS THE ACT, AND IT CHANGES PER BLOW. Two things were wrong
 // here. `fxFoeSwing(kind)` took the NOTE and looked up an animation for it —
@@ -2195,14 +2654,19 @@ function fxFoeAct(intentId) {
 // looked identical every time. Both take the act now, and the pose is re-set
 // on every blow, so a bar that claws then tolls then thrusts is three
 // different shapes on screen.
-function fxFoeSwing(actSpec) {
+function fxFoeSwing(actSpec, ix) {
   const a = parseAct(actSpec);
-  foeSet(FOE_POSES, a.def.pose);
-  foeAnimState(sheetStateOf(a.def.pose));
-  foeSet(FOE_SWINGS, a.def.swing || 'k-fs-jab', 420);
+  foeSet(FOE_POSES, a.def.pose, null, ix);
+  foeAnimState(sheetStateOf(a.def.pose), ix);
+  foeSet(FOE_SWINGS, a.def.swing || 'k-fs-jab', 420, ix);
 }
+// EVERYTHING STANDING GOES BACK TO RESTING, not just the aimed one — a body
+// left coiled from a blow it threw two turns ago is a creature frozen mid-swing
+// for the rest of the fight.
 function fxFoeSettle() {
-  foeSet(FOE_POSES, null); foeSet(FOE_SWINGS, null); foeAnimState('idle');
+  const line = (C && C.foes) ? C.foes.filter(f => !f.dead).map(f => f.ix) : [0];
+  line.forEach(ix => { foeSet(FOE_POSES, null, null, ix); foeSet(FOE_SWINGS, null, null, ix);
+                       foeAnimState('idle', ix); });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -2299,10 +2763,17 @@ const FOE_SHEETS = {
             hit: { ms: 115 }, broken: { ms: 240, bounce: true } },
   },
 };
-let _fanim = null, _fanimT = null, _fanimWant = null, _fanimBack = null;
+// ONE INSTANCE PER BODY. This was a single global — one foe, one sheet, one
+// interval — and every function below read it by name. A line of three needs
+// three creatures breathing on their own clocks, so the state is keyed by the
+// foe's place in the line and every entry point takes that index; passing none
+// means "the one being read", which is the acting foe during a volley and the
+// aimed one otherwise, and is exactly what a one-foe fight meant all along.
+let _fanims = {}, _fanimT = null, _fanimWant = null;
+const _fanimOf = (ix) => _fanims[ix == null ? (C ? (C.act != null ? C.act : C.aim) : 0) : ix];
 
-function foeAnimPaint() {
-  const a = _fanim; if (!a || !a.el) return;
+function foeAnimPaint(ix) {
+  const a = _fanimOf(ix); if (!a || !a.el) return;
   const st = a.sheet.states[a.state] || a.sheet.states.idle || [0];
   const i = st[Math.min(a.frame, st.length - 1)];
   const c = a.sheet.cols, r = a.sheet.rows;
@@ -2313,11 +2784,12 @@ function foeAnimPaint() {
   a.el.style.backgroundPositionY = r > 1 ? (Math.floor(i / c) / (r - 1) * 100) + '%' : '0%';
 }
 function foeAnimTick() {
-  const a = _fanim;
-  if (!a || !a.el || !a.el.isConnected) {
-    if (_fanimT) { clearInterval(_fanimT); _fanimT = null; }
-    _fanim = null; return;
-  }
+  const live = Object.keys(_fanims);
+  if (!live.length) { if (_fanimT) { clearInterval(_fanimT); _fanimT = null; } return; }
+  live.forEach(k => foeAnimTickOne(_fanims[k], k));
+}
+function foeAnimTickOne(a, key) {
+  if (!a || !a.el || !a.el.isConnected) { delete _fanims[key]; return; }
   if (document.hidden || camReduced()) return;    // reduced motion holds the pose
   // A CORPSE DOES NOT BREATHE. `broken` is a two-frame BOUNCING loop — it was
   // authored as a stagger, which is a thing that happens to a foe that is still
@@ -2344,21 +2816,21 @@ function foeAnimTick() {
   } else {
     return;             // HOLD: an act stays coiled on its last frame
   }
-  foeAnimPaint();
+  foeAnimPaint(a.ix);
 }
 // THE ACTS HOLD, and `fxFoeSettle` is what lets them go — exactly how the CSS
 // poses above already behave. An act that timed itself back to the idle would
 // drop the foe back to resting in the middle of its own volley, because a
 // barrage runs longer than the swing that opens it.
-function foeAnimState(name) {
-  const a = _fanim; if (!a || a.dead) return;
+function foeAnimState(name, ix) {
+  const a = _fanimOf(ix); if (!a || a.dead) return;
   // A foe whose sheet does not carry this act simply keeps what it is showing.
   // The CSS pose on the parent still plays over it, so the act still reads —
   // which is what lets frames land one state at a time.
   if (!a.sheet.states[name] || a.state === name) return;
-  clearTimeout(_fanimBack); _fanimBack = null; a.resume = null;
+  clearTimeout(a.back); a.back = null; a.resume = null;
   a.state = name; a.frame = 0; a.dir = 1; a.at = performance.now();
-  foeAnimPaint();
+  foeAnimPaint(a.ix);
 }
 // A REACTION INTERRUPTS, AND THEN GIVES THE STATE BACK. Being hit does not
 // change what a foe is DOING: it was coiled to strike before the blow landed
@@ -2366,20 +2838,20 @@ function foeAnimState(name) {
 // and returns to it, rather than dumping the creature onto its idle in the
 // middle of its own volley — and it times out against the same window the CSS
 // shake runs for, so the frames and the shudder end together.
-function foeAnimReact(name, ms) {
-  const a = _fanim; if (!a || a.dead || !a.sheet.states[name]) return;
+function foeAnimReact(name, ms, ix) {
+  const a = _fanimOf(ix); if (!a || a.dead || !a.sheet.states[name]) return;
   // Struck again while already reeling: hold it longer and replay, but do NOT
   // let 'hit' become the thing it goes back to.
   if (a.state !== name) a.resume = a.state;
   a.state = name; a.frame = 0; a.dir = 1; a.at = performance.now();
-  foeAnimPaint();
-  clearTimeout(_fanimBack);
-  _fanimBack = setTimeout(() => {
-    _fanimBack = null;
-    if (!_fanim || _fanim.state !== name) return;
-    const back = _fanim.resume || 'idle';
-    _fanim.resume = null;
-    foeAnimState(back);
+  foeAnimPaint(a.ix);
+  clearTimeout(a.back);
+  a.back = setTimeout(() => {
+    a.back = null;
+    if (a.state !== name) return;
+    const back = a.resume || 'idle';
+    a.resume = null;
+    foeAnimState(back, a.ix);
   }, ms);
 }
 // THE DEGRADATION CONTRACT, inherited from v2.2 and worth keeping exactly:
@@ -2387,12 +2859,20 @@ function foeAnimReact(name, ms) {
 // foes with no sheet keep their painted plate, a missing or broken file leaves
 // the plate up rather than an empty box, and there is no 404 storm — one probe,
 // and silence if it fails.
-function foeAnimArm(foeId) {
-  if (_fanimT) { clearInterval(_fanimT); _fanimT = null; }
-  clearTimeout(_fanimBack); _fanimBack = null;
-  _fanim = null;
-  _fanimWant = foeId;
-  const box = el('k-boss-art'); if (!box) return;
+function foeAnimArm(foeId, ix, box) {
+  ix = ix || 0;
+  if (ix === 0) {
+    // ARMING THE FRONT OF THE LINE IS ARMING THE FIGHT. A new encounter always
+    // starts from its first body, so that is where every instance and the one
+    // shared clock are cleared — a second foe arming later must not tear down
+    // the first one's sheet.
+    if (_fanimT) { clearInterval(_fanimT); _fanimT = null; }
+    Object.keys(_fanims).forEach(k => clearTimeout(_fanims[k].back));
+    _fanims = {};
+    _fanimWant = foeId;
+  }
+  const want = _fanimWant;
+  box = box || foeBox(ix); if (!box) return;
   // ALL of them, not the first. Two fights started in the same frame arm two
   // probes; a cached sheet resolves both, and each one used to mount its own
   // layer. querySelector then retired one of the pair and left the other behind
@@ -2405,10 +2885,10 @@ function foeAnimArm(foeId) {
   const probe = new Image();
   probe.onload = () => {
     // the encounter may have been swapped out while the sheet was in flight
-    if (_fanimWant !== foeId || !box.isConnected) return;
+    if (_fanimWant !== want || !box.isConnected) return;
     // idempotent: whatever a racing probe may have mounted goes first, so the
-    // box holds exactly one layer and exactly one clock however many resolve
-    if (_fanimT) { clearInterval(_fanimT); _fanimT = null; }
+    // box holds exactly one layer however many resolve. The CLOCK is shared —
+    // one interval walks every body — so it is started, never restarted.
     box.querySelectorAll('.k-fanim').forEach(n => n.remove());
     const img = box.querySelector('img');
     const l = document.createElement('span');
@@ -2429,9 +2909,14 @@ function foeAnimArm(foeId) {
     l.style.width = (cellH * sheet.cellW / sheet.cellH) + 'px';
     box.insertBefore(l, box.firstChild);
     box.classList.add('k-has-anim');
-    _fanim = { el: l, sheet, state: 'idle', frame: 0, dir: 1, at: performance.now() };
-    foeAnimPaint();
-    _fanimT = setInterval(foeAnimTick, 60);
+    // A LINE MUST NOT BREATHE IN UNISON. Three of the same creature armed in
+    // the same frame would step their idles together and read as one animation
+    // played three times; each starts at its own frame instead.
+    const st = sheet.states.idle || [0];
+    _fanims[ix] = { ix, el: l, sheet, state: 'idle', frame: ix % st.length,
+                    dir: 1, at: performance.now(), back: null };
+    foeAnimPaint(ix);
+    if (!_fanimT) _fanimT = setInterval(foeAnimTick, 60);
   };
   probe.onerror = () => {};
   probe.src = src;
@@ -3465,6 +3950,11 @@ function stringTrack(heroId, n) {
 
 async function runVolleyRhythm(hits, answerers, sub) {
   const step = BEAT_MS * (sub || 1);
+  // WHICH BODY IS AIMING AT THIS HERO. Built once from the composed volley so
+  // the reanchor loop can look it up per frame without walking the hits.
+  const _srcByHero = {};
+  hits.forEach((h, i) => { const who = answerers[i]; if (who != null && _srcByHero[who] == null) _srcByHero[who] = h.src || 0; });
+  const srcAt = (heroId) => (_srcByHero[heroId] != null ? _srcByHero[heroId] : (C ? C.aim : 0));
   const kinds = hits.reduce((a, h) => a.concat(h.notes), []);
   const stage = el('k-stage');
   if (!stage || !kinds.length) return kinds.map(() => 'miss');
@@ -3498,7 +3988,12 @@ async function runVolleyRhythm(hits, answerers, sub) {
       threadHero = soonest;
       if (thread) thread.remove();
       const a = anchorFor(soonest);
-      thread = parryThread(el('k-boss-art'), a ? a.x : 466, a ? a.y : 200);
+      // FROM WHOEVER IS THROWING IT. The thread is the one cue that says where
+      // a blow is coming from, and in a line that is a different body from note
+      // to note — anchored to the front of the line it would have pointed at
+      // the wrong creature for most of a composed bar.
+      const from = foeBox(srcAt(soonest)) || el('k-boss-art');
+      thread = parryThread(from, a ? a.x : 466, a ? a.y : 200);
     }
     anchorRaf = requestAnimationFrame(reanchor);
   });
@@ -3561,8 +4056,11 @@ async function runVolleyRhythm(hits, answerers, sub) {
         document.querySelectorAll('.k-hero').forEach(h =>
           h.classList.toggle('k-parrying', h.dataset.hero === who));
         const dur = Math.max(180, Math.round(land - performance.now()));
-        // THE BLOW IS THROWN HERE, so this is where the thing throwing it moves.
-        fxFoeSwing(act);
+        // THE BLOW IS THROWN HERE, so this is where the thing throwing it moves
+        // — and in a line, WHICH thing. `hits[hi].src` is stamped on every hit
+        // by currentIntent, so a bar composed from three creatures animates the
+        // one whose turn in the phrase it is rather than the front of the line.
+        fxFoeSwing(act, hits[hi].src);
         const g = await runParryNote(type, pos.x + ox, pos.y + oy, idx + 1, kinds.length, dur,
                                      who, ox, oy, act);
         if (track) {
@@ -3848,10 +4346,15 @@ function popupOver(el, text, cls) {
 }
 // the blow itself — reels the Regent and shakes the frame, no number
 let _slashN = 0;
-function fxStrikeBoss(n, why) {
-  const b = document.getElementById('k-boss-art');
+function fxStrikeBoss(n, why, F) {
+  // THE THING THAT REELS IS THE THING THAT WAS HIT. Hard-wired to
+  // `#k-boss-art`, a blow landed on the second creature in the line shook the
+  // first one — the aim was correct in the numbers and wrong on the screen,
+  // which is the worst combination a fighting game can offer.
+  const ix = F ? F.ix : (C ? C.aim : 0);
+  const b = foeBox(ix) || document.getElementById('k-boss-art');
   if (b) { b.classList.remove('k-recoil'); void b.offsetWidth; b.classList.add('k-recoil'); }
-  foeAnimReact('hit', 340);          // the window k-recoil runs for
+  foeAnimReact('hit', 340, ix);      // the window k-recoil runs for
   // THE SOUND SAYS WHAT THREW IT, the same way the visual effect does: steel
   // scrapes and rings, a spell blooms, and a bleed tick is the plain impact.
   if (_act && why === 'hit')
@@ -3876,15 +4379,17 @@ function fxBurst(node, tone) {
   setTimeout(() => b.remove(), 520);
 }
 // the number, once, for whatever the whole card added up to
-function popDamage(n, why) {
+function popDamage(n, why, F) {
   // A spell's number is the colour of the spell. Steel keeps the house red;
   // ice, light and life each read as themselves, so the number agrees with
   // the thing that threw it instead of contradicting it.
   const tone = (_act && _act.kind === 'cast' && why === 'hit') ? ' k-pop-tone k-tone-' + _act.tone : '';
-  popupOver(document.getElementById('k-boss-art'), fmtN(n),
+  // OVER THE BODY IT CAME OFF. A number that always printed over the first
+  // creature would say the damage went somewhere it did not.
+  popupOver(foeBox(F ? F.ix : (C ? C.aim : 0)) || document.getElementById('k-boss-art'), fmtN(n),
     (why === 'bleed' ? 'k-pop-bleed' : 'k-pop-dmg') + ' ' + POP_TIER(n) + tone);
 }
-function fxDamageBoss(n, why) { fxStrikeBoss(n, why); popDamage(n, why); }
+function fxDamageBoss(n, why, F) { fxStrikeBoss(n, why, F); popDamage(n, why, F); }
 function fxBreak() { const el = document.getElementById('k-break'); if (el) { el.classList.remove('k-flash'); void el.offsetWidth; el.classList.add('k-flash'); } }
 // ═════════════════════════════════════════════════════════════════════════════
 // WHAT KIND OF THING JUST HAPPENED.
@@ -4475,11 +4980,11 @@ async function fxDirgeOne(id, n, last) {
   }
   await sleep(last ? DIRGE_TAIL : DIRGE_STEP);
 }
-async function fxInterrupt() {
-  const b = document.getElementById('k-boss-art');
+async function fxInterrupt(ix) {
+  const b = foeBox(ix == null ? (C ? C.aim : 0) : ix);
   if (!b) return;
   b.classList.add('k-broken');
-  foeAnimReact('broken', 700);
+  foeAnimReact('broken', 700, ix);
   sfx('brk', 1.4);
   await sleep(700);
   b.classList.remove('k-broken');
@@ -4590,8 +5095,13 @@ function el(id) { return document.getElementById(id); }
 // `!(hp > 0)` rather than `hp <= 0` deliberately: it also catches NaN, which
 // compares false against everything and would otherwise make a foe immortal
 // AND keep it off this net.
+// …AND THE LINE IS DOWN WHEN EVERY BODY IN IT IS. One thing at zero used to be
+// the fight over, because there was never anything else. Reading `C.boss` here
+// after the line arrived would have ended a three-foe fight the moment the
+// aimed creature fell — with two of them still swinging.
 function bossIsDown() {
-  return !!(C && C.boss && !(C.boss.hp > 0));
+  if (!C || !C.foes || !C.foes.length) return false;
+  return C.foes.every(F => F.dead || !(F.hp > 0));
 }
 function renderAll() {
   if (!C || !el('k-stage')) return;
@@ -4646,8 +5156,13 @@ function renderPartyHud() {
   // prints the sum as its parts now: 9+3, the same two numbers the chip row
   // shows, in the same order.
   const aimed = {}, shared = {};
-  if (C && C.boss && !C.boss.cancelNext && C.phase !== 'VICTORY' && C.phase !== 'DEFEAT') {
+  if (C && C.foes && C.phase !== 'VICTORY' && C.phase !== 'DEFEAT') {
     try {
+      // WHAT IS ACTUALLY COMING, from the whole line and only from the part of
+      // it that will fit in next turn's bar. A foe that is holding does not
+      // appear here, because it is not going to hit anybody this turn — and a
+      // preview that promised damage a player could not be dealt would make
+      // every Guard decision in a pack fight wrong.
       intentByTarget().forEach(r => { aimed[r.who] = (aimed[r.who] || 0) + r.total; });
       const dg = dirgeAmount();
       if (dg > 0) livingHeroes().forEach(id => { shared[id] = dg; });
@@ -4708,7 +5223,7 @@ function fxKizunaReady() {
 async function fxAllOut(living) {
   const stage = el('k-stage'); if (!stage) return;
   stage.classList.add('k-allout');
-  camPush(3, document.getElementById('k-boss-art'));
+  camPush(3, foeBox(C ? C.aim : 0) || document.getElementById('k-boss-art'));
   const tag = document.createElement('div');
   tag.className = 'k-combo-call k-combo-call-big k-allout-call';
   tag.textContent = 'All-Out';
@@ -4768,6 +5283,57 @@ function renderBossHud() {
   box.innerHTML = pips.join('');
   el('k-chill').textContent = C.boss.chill > 0 ? '❄ ' + fmtN(C.boss.chill) : '';
   el('k-bleed').textContent = C.boss.bleed > 0 ? '🩸 ' + fmtN(C.boss.bleed) : '';
+  const nm = document.querySelector('#k-boss-hud .k-bname');
+  if (nm && nm.childNodes[0]) nm.childNodes[0].nodeValue = C.boss.name + ' ';
+  renderLineHud();
+}
+// THE REST OF THE LINE. The plate above is the AIMED foe and keeps every id it
+// has ever had, so a fight against one thing renders exactly as it always did
+// and no check has to learn a new selector. Everything else standing gets a
+// compact row under it — name, health, poise — and tapping one is how you
+// change what your cards are pointed at.
+//
+// A DEAD ROW STAYS. It goes grey and keeps its place rather than collapsing the
+// list, because a readout that reflows when something dies makes the player
+// re-find every other row at the exact moment they most need to read them.
+// THE FIELD SAYS WHAT THE READOUT SAYS. A reticle on the aimed body, and a
+// spent one on anything that has gone down.
+function renderLineMarks() {
+  if (!C || !C.foes) return;
+  C.foes.forEach(F => {
+    const b = foeBox(F.ix); if (!b) return;
+    b.classList.toggle('k-foe-aimed', F.ix === C.aim && !F.dead && C.foes.length > 1);
+    b.classList.toggle('k-foe-spent', !!F.dead);
+  });
+}
+function renderLineHud() {
+  renderLineMarks();
+  const hud = el('k-boss-hud'); if (!hud || !C) return;
+  let strip = hud.querySelector('.k-line-strip');
+  if (C.foes.length < 2) { if (strip) strip.remove(); return; }
+  if (!strip) {
+    strip = document.createElement('div');
+    strip.className = 'k-line-strip';
+    hud.appendChild(strip);
+    strip.addEventListener('click', (e) => {
+      const row = e.target.closest('.k-lrow'); if (!row) return;
+      e.stopPropagation();
+      aimAt(+row.dataset.ix);
+    });
+  }
+  strip.innerHTML = C.foes.map(F => {
+    const on = F.ix === C.aim && !F.dead;
+    return '<button type="button" class="k-lrow' + (on ? ' k-lrow-on' : '')
+      + (F.dead ? ' k-lrow-dead' : '') + '" data-ix="' + F.ix + '"'
+      + (F.dead ? ' disabled' : '') + '>'
+      + '<b class="k-lr-name">' + F.name + '</b>'
+      + '<span class="k-bar k-lr-bar"><span class="k-bar-fill k-bar-boss" style="width:'
+      + (F.dead ? 0 : Math.max(0, F.hp / F.max * 100)) + '%"></span></span>'
+      + '<em class="k-lr-hp">' + (F.dead ? '—' : fmtN(F.hp)) + '</em>'
+      + '<em class="k-lr-brk' + (F.broken || F.cancelNext ? ' k-lr-stag' : '') + '">'
+      + (F.dead ? '' : (F.broken || F.cancelNext) ? 'STAG' : fmtN(F.brk)) + '</em>'
+      + '</button>';
+  }).join('');
 }
 // THE TELEGRAPH — icons and amounts, in the sky above the Regent's head.
 // One chip per thing the action will do: a blade for damage, a shield for
@@ -4779,9 +5345,18 @@ function renderIntent() {
   const box = el('k-intent'); if (!box) return;
   const it = currentIntent();
   const chips = [];
-  if (C.boss.cancelNext) {
+  // THE SKY READS THE WHOLE LINE. `C.boss.cancelNext` was the only question
+  // worth asking when there was one thing standing there; with three, the
+  // stagger chip belongs up here only if EVERYTHING is staggered — otherwise
+  // it would announce a quiet turn while two creatures wound up.
+  const _V = composeVolley();
+  const allStaggered = _V.acting.length > 0 && _V.acting.every(a => a.canceled);
+  if (allStaggered) {
     chips.push('<span class="k-ichip k-ichip-broken">' + icon('broken') + '<b>—</b></span>');
   } else {
+    // …AND WHAT IS STAGGERED IS STILL SAID, once, beside what is coming.
+    if (_V.acting.some(a => a.canceled))
+      chips.push('<span class="k-ichip k-ichip-broken">' + icon('broken') + '<b>—</b></span>');
     // ONE CHIP PER TARGET, and the number on it is what THAT hero takes.
     // A hero struck twice reads "8 ×2" meaning eight apiece — the same grammar
     // the player's own cards use.
@@ -4827,7 +5402,18 @@ function renderIntent() {
     // Regent has none yet — an intent carrying `guard` or `charge` shows one
     if (it.guard) chips.push('<span class="k-ichip k-ichip-guard">' + icon('guard') + '<b>' + fmtN(it.guard) + '</b></span>');
     if (it.charge) chips.push('<span class="k-ichip k-ichip-charge">' + icon('finale') + '<b>' + fmtN(it.charge) + '</b></span>');
-    if (it.kind === 'heal') chips.push('<span class="k-ichip k-ichip-heal">' + icon('heal') + '<b>' + fmtN(it.phaseHeal) + '</b></span>');
+    // EVERY VOICE THAT IS MENDING, not just the front one — two creatures
+    // singing each other whole is the shape of a pack fight that the player
+    // has to answer, and it cannot be answered if only one of them is shown.
+    _V.acting.filter(a => !a.canceled && a.intent && a.intent.kind === 'heal').forEach(a =>
+      chips.push('<span class="k-ichip k-ichip-heal">' + icon('heal') + '<b>' + fmtN(a.intent.phaseHeal) + '</b></span>'));
+    // …AND WHAT IS WAITING ITS TURN. A bar is capped at the Regent's own seven
+    // notes, so in a full line something is often winding up rather than
+    // swinging. Silence there would read as a creature that had simply stopped
+    // being dangerous, and the player would step into a blow the game knew
+    // about and did not mention.
+    _V.held.forEach(() => chips.push('<span class="k-ichip k-ichip-hold" title="winding up — it swings next turn">'
+      + icon('finale') + '<b>\u2026</b></span>'));
     const dg = dirgeAmount();
     // THE DIRGE IS THE ONE BLOW YOU CANNOT ANSWER. It shares the chip
     // vocabulary with everything you CAN answer, so without saying so it reads
@@ -6257,6 +6843,17 @@ function bindChrome() {
         if (t) { e.preventDefault(); commitCard(_sel, t.hero); return; }
       }
     }
+    // TAPPING A BODY IS AIMING AT IT. The line is the one place this game asks
+    // "which of these", and the answer has to be the creature itself rather
+    // than a row in a readout — the readout is a mirror of the field, and a
+    // player looking at three things on a floor points at the floor.
+    if (C && C.foes && C.foes.length > 1) {
+      const body = e.target.closest && e.target.closest('#k-boss-art, .k-foe-art');
+      if (body) {
+        const ix = +(body.dataset.ix || 0);
+        if (C.foes[ix] && !C.foes[ix].dead) { e.preventDefault(); aimAt(ix); return; }
+      }
+    }
     if (_sel && !e.target.closest('.k-card') && !e.target.closest('#k-pick')) {
       _sel = null; pickClear(); renderHand(); renderApDial();
     }
@@ -6322,6 +6919,9 @@ window.K = {
       + 'it knows ' + (C.intents || []).map(i => i.id).join(', '));
     return false;
   },
+  _composeVolley: () => composeVolley(), livingFoes, aimAt, VOLLEY_NOTES,
+  currentIntentTable: () => REGENT_INTENTS,
+  _deal: (n, why, who) => dealToBoss(n, why, who),
   KEYWORD_RULE, keywordsOf, ROW_SHELTER, parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
   // test-only: the deeds ledger is what the reckoning is allowed to talk
   // about, so its two writers are drivable directly rather than only through a
