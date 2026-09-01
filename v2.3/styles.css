@@ -133,6 +133,37 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 /* WINDING UP. The chip for a foe the bar had no room for — it is not attacking
    this turn and it is not harmless either, and the sky has to say which. */
 .k-ichip-hold { opacity: 0.72; }
+
+/* TWO DOORS OUT OF THE SWAP (Build 100). The trade is the loud one — it is the
+   decision with a cost — and the bench is the quiet one beside it, which is
+   exactly their weight: setting a card down is always available and never
+   wrong, taking a slot from somebody is the choice worth pausing over. */
+#k-swap-go-row { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; z-index: 4; }
+#k-swap-go-row #k-swap-go { position: static; transform: none; }
+#k-swap-bench { padding: 9px 18px; border-radius: 4px; cursor: pointer;
+  background: rgba(12,10,16,0.72); border: 1px solid rgba(201,164,92,0.34);
+  color: #b9ae9e; font: 600 10px/1 var(--ui, system-ui), sans-serif;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  transition: color 200ms var(--ease-soft, cubic-bezier(0.4,0,0.2,1)),
+              border-color 200ms var(--ease-soft, cubic-bezier(0.4,0,0.2,1)); }
+#k-swap-bench:hover { color: #e8d7b4; border-color: rgba(201,164,92,0.6); }
+
+/* WHAT A MARK IS, ABOVE ITS NAME (Build 100). The screen said SURGE and then
+   what Surge does, and never what a MARK is — so a player met the rule without
+   ever being told what kind of thing was happening to them. */
+#k-mark-kind { display: block; margin-bottom: 5px;
+  font: 600 8.5px/1.3 var(--ui, system-ui), sans-serif; letter-spacing: 0.2em;
+  color: rgba(201,164,92,0.75); text-transform: uppercase; }
+/* …AND WHAT IT WOULD DO TO THIS CARD. Ten faces already wearing the mark, none
+   showing the old number, is a question with nothing to compare — the campfire
+   has printed before -> after on everything it sells since Build 95 and this is
+   the same decision. */
+.k-mk-delta { position: absolute; left: 0; right: 0; bottom: 3px; z-index: 4;
+  padding: 0 4px; text-align: center; pointer-events: none;
+  font: 600 8px/1.25 var(--ui, system-ui), sans-serif; letter-spacing: 0.02em;
+  color: #d9c8a4; text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
+.k-mk-nil { font-style: normal; color: #8b8074; }
 /* HOW MANY ARE STANDING AT THIS STOP. A small count on the coin's shoulder —
    a pack is a different fight, and the chart is where that gets decided. */
 .k-n-many { position: absolute; right: -3px; top: -3px; z-index: 2;

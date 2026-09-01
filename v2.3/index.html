@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=99" />
+  <link rel="stylesheet" href="styles.css?v=100" />
 </head>
 <body>
   <div id="k-scale">
@@ -339,6 +339,13 @@
         <img class="k-mkc-fig k-mkc-b" src="" alt="">
       </div>
       <header>
+        <!-- WHAT KIND OF THING THIS IS, BEFORE ITS NAME. The screen opened on
+             the word SURGE and a sentence about what Surge does, which tells a
+             player what the rule is and nothing at all about what is happening
+             to them: is this a card? a buff for this fight? a choice they can
+             undo? The eyebrow answers that first, in five words, and it is the
+             same on every mark because it is true of every mark. -->
+        <span id="k-mark-kind">A MARK — IT STAYS ON THAT CARD FOR THE REST OF THE RUN</span>
         <b id="k-mark-title">MARK</b>
         <span id="k-mark-line"></span>
       </header>
@@ -433,7 +440,16 @@
       </header>
       <p id="k-swap-line"></p>
       <div id="k-swap-cols"></div>
-      <button type="button" id="k-swap-go" disabled>CHOOSE A CARD TO GIVE UP</button>
+      <!-- TWO DOORS, NOT ONE. A won card used to have exactly one way into the
+           run: push one of the five out. But a displaced card goes to the BENCH
+           now and the deck screen can bring it back, so "carry it" and "set it
+           down for later" are both real answers — and forcing the trade was
+           making the player break a working five to accept something they might
+           not want yet. -->
+      <div id="k-swap-go-row">
+        <button type="button" id="k-swap-go" disabled>CHOOSE A CARD TO GIVE UP</button>
+        <button type="button" id="k-swap-bench">SET IT DOWN FOR NOW</button>
+      </div>
     </section>
   </div>
   <!-- ═══ THE PAGE THAT CACHE-BUSTS EVERYTHING ELSE CANNOT BUST ITSELF ═══
@@ -476,8 +492,8 @@
     setTimeout(check, 2500);
   })();
   </script>
-  <script src="run.js?v=99"></script>
-  <script src="game.js?v=99"></script>
+  <script src="run.js?v=100"></script>
+  <script src="game.js?v=100"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

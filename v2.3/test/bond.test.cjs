@@ -239,29 +239,63 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     check('TRADE: five slots a hero, fifteen cards — the deck never grows',
       done.sizes.every(n => n === 5) && done.total === 15, JSON.stringify(done.sizes));
 
-    // A BOND LEVEL NOW PAYS TWICE — a card, and a mark on one they already
-    // carry — so the trade hands on to the marking screen before the fire.
+    // A BOND LEVEL PAYS TWICE — AND THE TWO HALVES ARE TWO STOPS APART.
+    //
+    // WHAT MOVED at Build 100: the scene, the fork, the swap and the marking
+    // screen all used to arrive back to back, four screens deep before the stop
+    // the player had actually chosen began. That is three events on one node,
+    // against the road's own rule that a node is ONE event. The mark is left
+    // OWED here and paid on arrival at the NEXT stop — so what this asserts
+    // first is that the trade hands you on to the fire, with the mark on the
+    // books and no second screen in the way.
+    const owed = await J(() => {
+      const up = (id) => !document.getElementById(id).classList.contains('k-hidden');
+      const r = window.R.state();
+      return { onMark: up('k-mark'), onCamp: up('k-camp'),
+               pending: r.pendingSigil, pair: r.markPair,
+               want: window.R.sigilFor('ash|mira', 1) };
+    });
+    check('MARK: a level leaves the mark OWED — one stop, one event, and the fire is not queued behind it',
+      !owed.onMark && owed.onCamp && owed.pending === owed.want && owed.pair === 'ash|mira',
+      JSON.stringify(owed));
+
+    // …AND IT IS PAID ON ARRIVAL AT THE NEXT STOP. Driven through the road's
+    // own door rather than by calling openMark, because "the debt is settled by
+    // travelling" is the whole of what moved.
+    await J(() => { window.R.leaveCamp(); });
+    await sleep(260);
+    await J(() => { window.R.travel(window.R.reachable()[0]); });
+    await sleep(560);
     const marking = await J(() => {
       const up = (id) => !document.getElementById(id).classList.contains('k-hidden');
       const cards = [...document.querySelectorAll('#k-mark-cols .k-mk')];
       // The mark is decided by the pair and the level — ash|mira level 1 —
       // so the screen's title is checked against the map, not a literal.
       const want = window.R.sigilFor('ash|mira', 1);
-      return { onMark: up('k-mark'), onCamp: up('k-camp'),
+      return { onMark: up('k-mark'), onStage: up('k-stage'),
                want, wantName: window.K.SIGILS[want].name.toUpperCase(),
                pending: window.R.state().pendingSigil,
                title: (document.getElementById('k-mark-title') || {}).textContent,
                line: ((document.getElementById('k-mark-line') || {}).textContent || '').length,
+               // WHAT KIND OF THING THIS IS. The screen opened on a mark's NAME
+               // and what that mark does, and never said what a mark IS — so a
+               // player met the rule without being told what was happening to
+               // them, or that it was permanent.
+               kind: ((document.getElementById('k-mark-kind') || {}).textContent || ''),
                offered: cards.length,
                faces: cards.filter(c => c.querySelector('.k-card-static')).length,
                wearing: cards.filter(c => c.querySelector('.k-csig')).length };
     });
-    check('MARK: the level also teaches a mark, and every card it may land on is DRAWN wearing it',
-      marking.onMark && !marking.onCamp && marking.pending
+    check('MARK: the debt is paid on arrival at the next stop, before that stop’s own business',
+      marking.onMark && !marking.onStage && marking.pending
       && marking.pending === marking.want && marking.title === marking.wantName
-      && marking.line > 10
-      && marking.offered === 10 && marking.faces === 10 && marking.wearing === 10,
+      && marking.line > 10,
       JSON.stringify(marking));
+    check('MARK: every card it may land on is DRAWN wearing it, under a line saying what a mark IS',
+      marking.offered === 10 && marking.faces === 10 && marking.wearing === 10
+      && /MARK/.test(marking.kind) && /REST OF THE RUN/.test(marking.kind),
+      JSON.stringify({ offered: marking.offered, faces: marking.faces,
+                       wearing: marking.wearing, kind: marking.kind }));
 
     const placed = await J(() => {
       const btn = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
@@ -271,7 +305,7 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       const up = (x) => !document.getElementById(x).classList.contains('k-hidden');
       const all = window.K.rosterIds(r.roster);
       return { id, sigil: r.sigils[id], pending: r.pendingSigil,
-               onCamp: up('k-camp'), onMark: up('k-mark'),
+               onStage: up('k-stage'), onMark: up('k-mark'),
                marks: Object.keys(r.sigils).length,
                owned: all.indexOf(id) >= 0,
                sizes: [r.roster.ash.length, r.roster.elin.length, r.roster.mira.length],
@@ -282,12 +316,16 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       && placed.sizes.every(n => n === 5) && placed.uniq === 15,
       JSON.stringify(placed));
 
+    // …AND PLACING IT LETS THE STOP HAPPEN. The mark interrupted this stop the
+    // way a bond scene does; answering it hands the stop back, rather than
+    // stacking a third screen on the node.
     const back = await J(() => ({
-      camp: !document.getElementById('k-camp').classList.contains('k-hidden'),
+      stage: !document.getElementById('k-stage').classList.contains('k-hidden'),
+      mark: !document.getElementById('k-mark').classList.contains('k-hidden'),
       swap: !document.getElementById('k-swap').classList.contains('k-hidden'),
     }));
-    check('TRADE: the trade hands you on to the tree, still at the same fire',
-      back.camp && !back.swap, JSON.stringify(back));
+    check('MARK: answering it hands the stop back — the node gets on with what it was',
+      back.stage && !back.mark && !back.swap, JSON.stringify(back));
 
     // WHAT MOVED at Build 69: two levels crossed on one road used to be two
     // scenes BACK TO BACK AT THE SAME FIRE. That was the campfire overload —
@@ -299,16 +337,26 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     await reset(11);
     await atCamp({ bonds: { 'ash|mira': 40, 'ash|elin': 0, 'elin|mira': 0 }, embers: 6, tier: 2 });
     await sleep(460);
+    // ONE STOP, ONE EVENT. The scene, its fork and the trade are this stop's
+    // business; the mark is OWED and arrives at the next arrival, so this walks
+    // a stop and then reports what it left on the books rather than clicking
+    // through a second screen that is no longer there.
     const runOne = () => J(() => {
       const out = {};
       out.title = document.getElementById('k-scene-title').textContent;
       window.R.sceneSkip(); window.R.takeBond(0);
       document.querySelector('#k-swap-cols .k-swapcard').click();
       document.getElementById('k-swap-go').click();
-      out.mark = !document.getElementById('k-mark').classList.contains('k-hidden');
+      out.markNow = !document.getElementById('k-mark').classList.contains('k-hidden');
+      out.owed = window.R.state().pendingSigil;
+      return out;
+    });
+    // …and paying a debt at the next stop is how the road settles it.
+    const payDebt = () => J(() => {
+      const on = !document.getElementById('k-mark').classList.contains('k-hidden');
       const btn = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
       if (btn) btn.click();
-      return out;
+      return on;
     });
     const first = await runOne();
     await sleep(320);
@@ -320,13 +368,23 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     check('TRADE: the conversation hands back to the stop it interrupted, and the fire is only the fire',
       atFire.camp && !atFire.scene, JSON.stringify(atFire));
 
-    // the second level is still owed, and it is owed at the NEXT stop
+    // …AND THE NEXT STOP PAYS THE MARK. A debt is settled before anything new
+    // opens, so the second bond scene waits one stop further on.
     await J(() => { window.R.leaveCamp(); });
     await sleep(320);
     await J(() => { const r = window.R.reachable(); if (r.length) window.R.travel(r[0]); });
-    await sleep(520);
+    await sleep(560);
+    const paidFirst = await payDebt();
+    await sleep(420);
+    // now the road is clear, and the level still owed opens at the stop after
+    await J(() => { const r = window.R.reachable(); if (r.length) window.R.travel(r[0]); });
+    await sleep(560);
     const opened = await J(() => !document.getElementById('k-scene').classList.contains('k-hidden'));
-    const second = opened ? await runOne() : { title: null, mark: false };
+    const second = opened ? await runOne() : { title: null, markNow: false, owed: null };
+    await sleep(320);
+    await J(() => { const r = window.R.reachable(); if (r.length) window.R.travel(r[0]); });
+    await sleep(560);
+    const paidSecond = await payDebt();
     await sleep(320);
     const chain = await J(() => {
       const r = window.R.state();
@@ -335,9 +393,12 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
                sizes: ['ash', 'elin', 'mira'].map(h => r.roster[h].length),
                uniq: new Set(window.K.rosterIds(r.roster)).size };
     });
-    check('MARK: each level marks one card, and the grant never survives its own screen',
-      first.mark && second.mark && chain.sigils === 2 && chain.pending == null,
-      JSON.stringify({ marks: [first.mark, second.mark], sigils: chain.sigils, pending: chain.pending }));
+    check('MARK: each level marks one card, and neither mark rides on its own stop',
+      paidFirst && paidSecond && !first.markNow && !second.markNow
+      && !!first.owed && !!second.owed
+      && chain.sigils === 2 && chain.pending == null,
+      JSON.stringify({ paid: [paidFirst, paidSecond], sameStop: [first.markNow, second.markNow],
+                       owed: [first.owed, second.owed], sigils: chain.sigils, pending: chain.pending }));
     check('TRADE: two levels crossed on one road is two scenes at TWO stops, and still 5/5/5',
       opened && first.title !== second.title && chain.level === 2
       && chain.sizes.every(n => n === 5) && chain.uniq === 15,
@@ -683,10 +744,90 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
                  .filter(id => !document.getElementById(id).classList.contains('k-hidden')),
                n: ids.length, uniq: new Set(ids).size };
     });
-    check('TWICE: …and the level still lands and still pays its mark, with no card owed',
-      paid.levelled && !paid.owes && paid.n === 15 && paid.uniq === 15
-      && paid.screen.length === 1,
+    check('TWICE: …and the level still lands and still owes its mark, with no card owed',
+      paid.levelled && !paid.owes && !!paid.sigil && paid.n === 15 && paid.uniq === 15
+      && paid.screen.length === 1 && paid.screen.indexOf('k-mark') < 0,
       JSON.stringify(paid));
+  }
+
+
+  // ═══ THE SECOND DOOR ═══
+  // A card won at a fork had exactly one way into the run: push one of
+  // somebody's five out. But a displaced card has gone to the BENCH since
+  // Build 69 and the deck screen can bring it back — so "carry it now" and
+  // "keep it for later" are both real answers, and forcing the trade made a
+  // player break a five they liked to accept a card they might not want for
+  // another three stops. That is not a decision, it is a toll.
+  console.log('\n── carry it, or set it down ──');
+  {
+    await reset(11);
+    await atCamp({ bonds: { 'ash|mira': 40, 'ash|elin': 0, 'elin|mira': 0 } });
+    await sleep(460);
+    const offered = await J(() => {
+      window.R.sceneSkip(); window.R.takeBond(0);
+      const go = document.getElementById('k-swap-go');
+      const bn = document.getElementById('k-swap-bench');
+      return { onSwap: !document.getElementById('k-swap').classList.contains('k-hidden'),
+               card: window.R.pendingCard(),
+               // THE TRADE ASKS FOR A PICK; THE BENCH NEVER DOES. Setting a
+               // card down is the answer that is available before anything has
+               // been chosen, which is exactly its weight.
+               tradeDisabled: go.disabled, benchDisabled: bn.disabled,
+               tradeSays: go.textContent, benchSays: bn.textContent,
+               ask: document.getElementById('k-swap-ask').textContent };
+    });
+    check('BENCH: the trade screen offers two doors, and only the trade waits on a pick',
+      offered.onSwap && offered.tradeDisabled && !offered.benchDisabled
+      && /PICK A CARD/.test(offered.tradeSays) && /SET/.test(offered.benchSays)
+      && !/WHO STEPS OUT/.test(offered.ask),
+      JSON.stringify(offered));
+
+    const set = await J(() => {
+      document.getElementById('k-swap-bench').click();
+      const r = window.R.state();
+      const ids = window.K.rosterIds(r.roster);
+      return { bench: JSON.parse(JSON.stringify(window.R.bench())),
+               owes: r.pendingCard,
+               sizes: ['ash', 'elin', 'mira'].map(h => r.roster[h].length),
+               n: ids.length, uniq: new Set(ids).size,
+               carries: ids.indexOf(window.R.state().pendingCard || '') >= 0,
+               // the level is still a level: the mark is still owed
+               sigil: r.pendingSigil, level: r.levels['ash|mira'] };
+    });
+    const benched = Object.keys(set.bench).reduce((a, h) => a.concat(set.bench[h]), []);
+    check('BENCH: setting it down takes the card and takes nobody’s slot',
+      benched.indexOf(offered.card) >= 0 && !set.owes
+      && set.sizes.every(n => n === 5) && set.n === 15 && set.uniq === 15,
+      JSON.stringify({ benched, sizes: set.sizes, owes: set.owes }));
+    check('BENCH: …and it is still a bond level — the mark is owed either way',
+      set.level === 1 && !!set.sigil, JSON.stringify({ level: set.level, sigil: set.sigil }));
+
+    // THE CARD IS WON, NOT DEFERRED. It is in the profile the moment the fork
+    // is answered, so a run that ends does not un-win it — and the deck screen
+    // is a real door onto it rather than a promise.
+    const later = await J((id) => {
+      const r = window.R.state();
+      const hero = (window.K.pairOf(id) || ['ash'])[0];
+      return { won: window.R.profile().won.indexOf(id) >= 0,
+               offeredBack: window.R.benchFor(hero).indexOf(id) >= 0,
+               hero };
+    }, offered.card);
+    check('BENCH: the card is won and the deck screen can pick it up whenever they want it',
+      later.won && later.offeredBack, JSON.stringify(later));
+
+    // AND IT CANNOT BE BENCHED TWICE. The same duplicate rule the trade
+    // enforces, at the same door: fifteen cards, fifteen names.
+    const dup = await J((id) => {
+      const r = window.R.state();
+      r.roster.ash = [id].concat(r.roster.ash.slice(1));
+      window.R._set({ roster: r.roster });
+      window.R.openDeck(); window.R.closeDeck();
+      const ids = window.K.rosterIds(window.R.state().roster);
+      return { n: ids.length, uniq: new Set(ids).size,
+               benchStillHas: window.R.benchFor('ash').indexOf(id) >= 0 };
+    }, offered.card);
+    check('BENCH: a card being carried is not also offered off the bench',
+      dup.n === 15 && dup.uniq === 15 && !dup.benchStillHas, JSON.stringify(dup));
   }
 
   // ═══ THE RECALLS ═══

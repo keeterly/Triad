@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 99;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 100;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1659,6 +1659,15 @@ function brighten(effects) {
     }
     return out;
   });
+}
+
+// WHAT A MARK DOES TO A CARD'S NUMBERS — one door, so the screen that OFFERS a
+// mark and the evaluator that RESOLVES one can never disagree about it. Only
+// Surge scales anything; the other four change WHEN or HOW a card may be played
+// and leave every number alone, which is a thing the marking screen has to be
+// able to say rather than silently printing an unchanged line.
+function effectsWithSigil(effects, sig) {
+  return sig === 'surge' ? brighten(effects) : effects;
 }
 
 // `ownerId` is the card's owner — a pair string for a bond card — and `selfId`
@@ -5786,7 +5795,7 @@ function staticCardHTML(id, opts) {
   // by id, and a preview without it silently fell back to the hero portrait,
   // which is exactly the picture the cutscene preview exists to replace.
   const ev = { cardId: id, card: c, condActive: false, currentCost: c.cost, sigil,
-               resolvedEffects: sigil === 'surge' ? brighten(c.base) : c.base };
+               resolvedEffects: effectsWithSigil(c.base, sigil) };
   const art = HEROES23[primaryHero(c)].art;
   return '<div data-own="' + (c.owner || primaryHero(c))
     + '" class="k-card k-card-static' + (sigil ? ' k-card-sig k-sig-' + sigil : '')
@@ -5866,7 +5875,7 @@ function prose(effects, plain) {
 // What the top block of the face should print: the card's numbers as the mark
 // leaves them, which is what will actually land.
 function faceBase(card, sigil) {
-  return sigil === 'surge' ? brighten(card.base) : card.base;
+  return effectsWithSigil(card.base, sigil);
 }
 function condReward(card, sigil) {
   if (!card.cond) return '';
@@ -5885,7 +5894,7 @@ function condReward(card, sigil) {
   }
   // the combo's own numbers are brightened too — they are numbers this card
   // deals, and evaluateCard brightens the whole resolved list
-  const bonus = sigil === 'surge' ? brighten(card.cond.bonus) : card.cond.bonus;
+  const bonus = effectsWithSigil(card.cond.bonus, sigil);
   const hits = bonus.filter(f => f.dmg);
   const parts = [];
   if (hits.length) parts.push(icon('atk') + '<b>+' + fmtN(hits.reduce((n, f) => n + f.dmg, 0)) + '</b> damage.');
@@ -6687,7 +6696,7 @@ function staticInspectHTML(id, opts) {
   const sigil = o.sigil || null;
   const ev = { cardId: id, card: c, condActive: false, condLive: false,
                currentCost: c.cost, sigil,
-               resolvedEffects: sigil === 'surge' ? brighten(c.base) : c.base };
+               resolvedEffects: effectsWithSigil(c.base, sigil) };
   return inspectHTML(ev, inspectWho(c, null), o.hint || '');
 }
 function openInspect(cardId) {
@@ -6959,7 +6968,7 @@ window.K = {
   intentByTarget, ROW_LETTER,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, condText,
   staticCardHTML, staticInspectHTML,
-  cam, bgParallax, SIGILS, sigilOf, brighten,
+  cam, bgParallax, SIGILS, sigilOf, brighten, effectsWithSigil,
   BOND_CARDS, BOND_IDS, baseRoster, rosterIds, rosterValid, SLOTS_PER_HERO,
   ownerHeroes, primaryHero, isPairCard, pairOf,
   _setPhase: setPhase,          // test-only: end a fight without playing it out

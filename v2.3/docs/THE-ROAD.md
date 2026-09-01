@@ -3790,3 +3790,92 @@ names one place, an elite or boss still crosses the party, no hero answers two
 creatures in one bar, the composed bar never out-throws the hardest single bar
 in the game, a pack shares one encounter's health, and the bar gets shorter as
 the line does.
+
+---
+
+## Build 100 — one node, one event
+
+Three complaints, and they turned out to be the same complaint three times: the
+road was cramming several decisions onto one stop, and none of them had room to
+explain itself.
+
+### The trade was a toll
+
+A card won at a fork had exactly one way into the run: push one of somebody's
+five out. But a displaced card has gone to the **bench** since Build 69 and the
+deck screen can bring it back — the mechanic to say *"I'll take it, just not
+yet"* has existed for thirty builds and this screen never learned about it. So
+a player who liked their five was made to break it to accept a card they might
+not want for another three stops. That is not a decision, it is a toll.
+
+The screen has two doors now. **TRADE** is the loud one and still asks who steps
+out; **SET IT DOWN FOR NOW** is beside it and is always available, because
+benching a card is never wrong and taking a slot from somebody is the choice
+worth pausing over. The card is won either way — it goes into the profile and
+onto the bench the moment the fork is answered.
+
+The header stopped demanding, too: *"FIVE SLOTS EACH — WHO STEPS OUT?"* was the
+only question the screen could ask while the trade was the only way out of it.
+
+### SURGE never said what it was
+
+The marking screen opened on a mark's **name** and a sentence about what that
+mark does — which tells a player the rule and nothing at all about what is
+happening to them. Is this a card? A buff for this fight? Something they can
+undo? Three fixes:
+
+- **An eyebrow above the name**, the same on every mark because it is true of
+  every mark: *A MARK — IT STAYS ON THAT CARD FOR THE REST OF THE RUN.*
+- **Every card says what it becomes.** Ten faces already wearing the mark and
+  none showing the old number is a question with nothing to compare, so the
+  choice was a shrug. The campfire has printed before → after on everything it
+  sells since Build 95; this is the same decision and gets the same sentence.
+- **`already RETAIN` became `already carries RETAIN`** — a label that read as a
+  bug.
+
+The first cut of the before/after over-corrected and printed the mark's rule
+under all ten cards, which puts the header's own sentence on screen ten times.
+A line is only worth its space when it distinguishes **this** card from the one
+beside it:
+
+| mark | what each card says |
+| --- | --- |
+| SURGE | `7 damage. → 11 damage.` — real, and different on every card |
+| CHAIN / LEAD | `its combo is already live` — or **`no combo — nothing to arm`** |
+| RETAIN / RALLY | nothing; they do the same thing to all ten, and the eyebrow said it once |
+
+Chain and Lead arm a **combo**, and five of a pair's ten cards have no combo at
+all — so those marks do *nothing* on half the cards they were being offered
+against, and the screen had never mentioned it. That is now the loudest thing on
+it.
+
+All of it reads through `effectsWithSigil`, one door that the screen offering a
+mark and the evaluator resolving one both go through, so the promise cannot
+drift from the outcome.
+
+### And three screens on one node
+
+The scene, the fork, the swap and the marking screen all arrived **back to
+back** — four screens deep before the stop the player had actually chosen began.
+The road's own rule is that a node is one event.
+
+A bond level still pays twice, but the two halves are now **two stops apart**.
+The mark is left *owed* rather than opened, and `enter` pays it on arrival at
+the next stop, before that stop's business — exactly where a bond scene fires.
+`RUN.pendingSigil` and `RUN.markPair` have survived a closed tab since Build 63,
+so owing it costs nothing new.
+
+A stop now interrupts for **at most one thing**, in this order:
+
+1. a **debt** — a mark earned at the last stop
+2. a **bond** — a threshold the player watched fill
+3. a **recall** — the road paying out on its own
+
+Which also spreads the developing beats further along the road rather than
+stacking them at whichever stop happened to cross a threshold.
+
+### Where it stands
+
+bond **69/69** (was 62 — the mark section rewritten, five new bench checks) ·
+flow 250/250 · line 21/21 · camp 45/45 · road 94/94 · slice 59/59 ·
+music 22/22 · beat 10/10.

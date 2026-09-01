@@ -1608,6 +1608,13 @@
     // fill and is waiting on; a recall is the road paying out on its own, and
     // the gaps between bonds are exactly where it belongs. At most one of
     // either per stop, so over a road they interleave rather than queue.
+    // ONE NODE, ONE EVENT — and a DEBT is settled before anything new is
+    // opened. A mark earned at the last stop is paid here, on arrival, and it
+    // is the whole of this stop's interruption: no scene follows it, and the
+    // stop's own business waits behind it exactly as it waits behind a bond.
+    // A boss stop pays a debt too; what it does not do is start a conversation.
+    if (RUN.pendingSigil && RUN.markPair) { RUN.bondResume = n.id; save();
+      if (openMark(RUN.markPair)) return; }
     if (n.kind !== 'boss' && (openBondScene(n.id) || openRecall(n.id))) return;
     enterStop(n);
   }
@@ -1958,7 +1965,10 @@
     closeScene();
     // Nothing to hand over — they already carry everything this scene could
     // give — so the level pays its other half and the road goes on.
-    if (!card) { save(); if (!openMark(pair)) endBondChain(); return; }
+    // Nothing to hand over — they already carry everything this scene could
+    // give. The level's other half is still owed, and still owed to the next
+    // stop rather than to this one.
+    if (!card) { RUN.markPair = pair; save(); endBondChain(); return; }
     openSwap(card, after, null);
   }
 
@@ -2752,7 +2762,9 @@
     // which one is destroyed. Copy that describes a cost the game no longer
     // charges is worse than no copy: a player who believes it plays around a
     // rule that is not there.
-    $('k-swap-ask').textContent = 'FIVE SLOTS EACH — WHO STEPS OUT?';
+    // …AND THE QUESTION IS NO LONGER A DEMAND. "Who steps out?" was the only
+    // question this screen could ask while the trade was the only way out of it.
+    $('k-swap-ask').textContent = 'CARRY IT NOW, OR SET IT DOWN FOR LATER';
     // TWO LISTS AND THE TRADE. The lists stay compact rows, because ten cards
     // have to be SCANNABLE and ten faces would be a wall; the panel is where
     // the two cards that actually matter are looked at.
@@ -2771,7 +2783,12 @@
     go.disabled = !_swapPick;
     go.textContent = _swapPick
       ? 'TRADE ' + K.CARD_DEFS[_swapPick.id].name.toUpperCase() + ' FOR ' + card.name.toUpperCase()
-      : 'CHOOSE A CARD TO GIVE UP';
+      : 'PICK A CARD TO TRADE IT FOR';
+    // THE SECOND DOOR IS ALWAYS OPEN. It is the one answer that is available
+    // before anything has been chosen, so it is what the screen offers while
+    // the trade button is still asking for a pick.
+    const bn = $('k-swap-bench');
+    if (bn) bn.textContent = 'SET ' + card.name.toUpperCase() + ' DOWN FOR NOW';
   }
   // THIS, FOR THAT. The card leaving on the left, the card arriving on the
   // right, both as the faces they will be in the hand — same painting, same
@@ -3036,6 +3053,43 @@
     save(); renderDeck();
   }
 
+  // THE OTHER ANSWER: TAKE IT, AND DO NOT CARRY IT YET.
+  //
+  // The bench arrived a dozen builds ago and this screen never learned about
+  // it. A card won at a bond scene had exactly one way into the run — push one
+  // of somebody's five out — so a player who liked their five was made to
+  // break it to accept a card they might not want until three stops later.
+  // That is not a decision, it is a toll.
+  //
+  // The card is WON either way: it is in the profile, and the deck screen can
+  // pick it up whenever they want it. What the two doors actually ask is
+  // "carry it now, and who steps out?" against "keep it for later" — which is
+  // the question the bench was built to make askable.
+  function benchSwap() {
+    if (!_pendingCard) return;
+    const card = _pendingCard;
+    // …ONTO WHOSE BENCH. A pair card belongs to two people and either could
+    // carry it; it goes on the first owner's, and the deck screen offers a
+    // benched pair card under both of them.
+    const pair = window.K.pairOf(card) || ['ash'];
+    // A card already carried cannot also be benched — the same duplicate rule
+    // confirmSwap enforces, at the same door.
+    if (window.K.rosterIds(RUN.roster).indexOf(card) < 0) benchPut(pair[0], card);
+    RUN.flash = { icon: 'camp', tone: 'gold',
+      title: window.K.CARD_DEFS[card].name.toUpperCase() + ' — SET DOWN',
+      sub: 'Nobody gives up a slot. It waits on the bench until they want it.',
+      gain: 'the deck', gainSub: 'pick it up whenever' };
+    const back = RUN.swapBack;
+    _pendingCard = null; _swapPick = null; _pendingAfter = ''; _swapBack = null;
+    RUN.pendingCard = null; RUN.pendingAfter = ''; RUN.swapBack = null;
+    save();
+    // The mark is owed whether or not the card was carried, and it is owed to
+    // the NEXT stop rather than to this one — see confirmSwap.
+    const p = window.K.pairOf(card);
+    if (back !== 'map' && RUN.pendingSigil && p) { RUN.markPair = p.join('|'); save(); }
+    if (back === 'map') return toMap();
+    return endBondChain();
+  }
   function confirmSwap() {
     if (!_swapPick || !_pendingCard) return;
     const list = RUN.roster[_swapPick.hero];
@@ -3068,8 +3122,19 @@
     RUN.pendingCard = null; RUN.pendingAfter = ''; RUN.swapBack = null;
     const pair = window.K.pairOf(_wasCard) || (_wasCard ? null : null);
     save();
-    // A BOND LEVEL PAYS TWICE: a card, and a mark on one they already carry.
-    if (back !== 'map' && RUN.pendingSigil && pair) return openMark(pair.join('|'));
+    // A BOND LEVEL PAYS TWICE — AND THE TWO HALVES ARE TWO STOPS APART.
+    //
+    // They used to arrive back to back: the scene, the fork, the swap, and then
+    // the marking screen, four screens deep before the stop the player actually
+    // chose had begun. That is three events on one node, and the road's own
+    // rule is that a node is ONE event.
+    //
+    // So the mark is left OWED rather than opened. `RUN.pendingSigil` and
+    // `RUN.markPair` already survive a closed tab — the resume path has re-asked
+    // an unplaced mark since Build 63 — so owing it costs nothing new, and
+    // `enter` pays it on arrival at the next stop, before that stop's business,
+    // exactly the way a bond scene fires where it was earned.
+    if (back !== 'map' && RUN.pendingSigil && pair) { RUN.markPair = pair.join('|'); save(); }
     // A SWAP KNOWS WHERE IT CAME FROM. The awakening's card arrives before
     // there is a campfire to go back to; returning to one would have shown the
     // fire's screen with no fire behind it.
@@ -3116,7 +3181,13 @@
     if (gl) gl.innerHTML = K.icon(def.glyph || 'finale');
     $('k-mark-say').textContent = (MARK_SAY[sig] || '')
       .replace('{A}', A.n).replace('{B}', B.n);
-    $('k-mark-ask').textContent = 'WHICH CARD LEARNS IT?';
+    // WHICH CARD, AND WHAT IT WOULD DO TO IT. "WHICH CARD LEARNS IT?" over ten
+    // faces already wearing the mark was a question with no way to answer it:
+    // every card showed its NEW number and none showed the old one, so there
+    // was nothing to compare and the choice was a shrug. The campfire has
+    // printed before -> after on every node it sells since Build 95; this is
+    // the same decision and it gets the same sentence.
+    $('k-mark-ask').textContent = 'WHICH CARD LEARNS IT? — EACH ONE SHOWS WHAT IT BECOMES';
     // NOBODY LEFT TO TEACH. Six marks is the most a road can grant and a pair
     // owns ten cards, so this cannot happen today — but a screen whose only
     // exit is a button that might all be disabled is one roster change away
@@ -3129,12 +3200,50 @@
           return '<button type="button" class="k-mk' + (already ? ' k-mk-taken' : '')
             + '" data-id="' + id + '"' + (already ? ' disabled' : '')
             + '>' + K.staticCardHTML(id, { sigil: already || sig, cls: 'k-card-mk' })
-            + (already ? '<span class="k-mk-note">already ' + K.SIGILS[already].name + '</span>' : '')
+            + (already
+                ? '<span class="k-mk-note">already carries ' + K.SIGILS[already].name.toUpperCase() + '</span>'
+                : (() => { const d = markDelta(id, sig);
+                     return d ? '<span class="k-mk-delta">' + d + '</span>' : ''; })())
             + '</button>';
         }).join('')
       + '</div></div>').join('');
     $('k-mark-cols').querySelectorAll('.k-mk:not([disabled])').forEach(b =>
       b.addEventListener('click', (e) => { e.stopPropagation(); placeSigil(b.dataset.id); }));
+  }
+  // WHAT THIS MARK WOULD DO TO THIS CARD — and nothing if the answer is the
+  // same for all ten.
+  //
+  // Two things were wrong with the screen this replaces. Every face already
+  // wore the mark and none showed the old number, so there was nothing to
+  // compare and the choice was a shrug. And the first fix over-corrected:
+  // printing the mark's rule under every card put the header's own sentence on
+  // screen ten times, which is noise pretending to be information.
+  //
+  // A line is only worth its space when it distinguishes THIS card from the one
+  // beside it:
+  //   · SURGE scales numbers, so every card gets a real before -> after.
+  //   · CHAIN and LEAD arm a COMBO — and a card with no combo gains nothing at
+  //     all from them. That is the single most decision-shaping fact on this
+  //     screen and it was completely invisible.
+  //   · RETAIN and RALLY do exactly the same thing to all ten. The eyebrow
+  //     says it once; the cards stay quiet.
+  //
+  // Everything comes from the engine that will resolve the card, never from a
+  // table restating it, so the promise cannot drift from the outcome.
+  function markDelta(cardId, sig) {
+    const K = window.K;
+    const def = K.CARD_DEFS[cardId]; if (!def) return '';
+    if (sig === 'surge') {
+      const before = K.effectText(def.base);
+      let after = before;
+      try { after = K.effectText(K.effectsWithSigil(def.base, sig)); } catch (_) {}
+      return after === before ? '' : before + ' → ' + after;
+    }
+    if (sig === 'chain' || sig === 'lead') {
+      return def.cond ? 'its combo is already live'
+                      : '<i class="k-mk-nil">no combo — nothing to arm</i>';
+    }
+    return '';
   }
   function placeSigil(cardId) {
     if (!RUN || !RUN.pendingSigil) return;
@@ -3207,6 +3316,8 @@
     if (skip) skip.addEventListener('click', (e) => { e.stopPropagation(); sceneSkip(); });
     const sw = $('k-swap-go');
     if (sw) sw.addEventListener('click', (e) => { e.stopPropagation(); confirmSwap(); });
+    const bn = $('k-swap-bench');
+    if (bn) bn.addEventListener('click', (e) => { e.stopPropagation(); benchSwap(); });
     // THE TWO DOORS THE HEADER NOW HAS
     const dk = $('k-deck-btn-map');
     if (dk) {
@@ -3352,7 +3463,7 @@
     RECALLS, pendingRecall, openRecall, takeRecall,
     WAKES, wakeOffer, takeWake, renderWake, wakeDef, wakePair,
     SIGIL_BY_PAIR, sigilFor, renderMark, placeSigil, openMark, leaveMark,
-    swapPick: () => _swapPick, pendingCard: () => _pendingCard,
+    swapPick: () => _swapPick, pendingCard: () => _pendingCard, benchSwap,
     PAIRS, BOND_STEPS, BONDS, bondLevel, bondScene, PAIR_NAME,
     profile: () => PROFILE, resetProfile() { PROFILE = { heard: [], won: [] }; saveProfile(); },
     SCENES, sceneNext, sceneSkip, scene: () => _scene, beat: () => _beat,

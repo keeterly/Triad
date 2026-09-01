@@ -28,7 +28,12 @@ const MAX_TURNS = 30;
   // the screens this list knows about — k-wake and k-swap were both missing
   // from it, so a run could have opened on two screens at once and this would
   // have reported one.
-  const visible = () => J(() => ['k-stage', 'k-map', 'k-camp', 'k-scene', 'k-swap', 'k-wake']
+  // …AND `k-mark` IS ONE OF THEM. It was missing from this list, so a marking
+  // screen read as NO screen at all — which was invisible while the mark always
+  // arrived inside a bond chain the walk was already driving by hand, and
+  // became a walk that could not see the screen in front of it the moment the
+  // mark started opening on its own stop.
+  const visible = () => J(() => ['k-stage', 'k-map', 'k-camp', 'k-scene', 'k-swap', 'k-wake', 'k-mark']
     .filter(id => !document.getElementById(id).classList.contains('k-hidden')));
 
   const breaches = [];
@@ -237,7 +242,32 @@ const MAX_TURNS = 30;
     // is and answers it accordingly; a recall that quietly started paying a
     // bond level's sigil would fail the assertion below rather than pass a
     // looser one written to accommodate both.
+    // ── A DEBT COMES FIRST (Build 100) ──
+    // The mark a bond level pays no longer rides on the same stop as the card:
+    // one node is one event, so the mark is left OWED and paid on arrival at
+    // the NEXT stop, before that stop's business. The walk answers a debt the
+    // moment it meets one, and asserts it was actually owed — a marking screen
+    // opening on a stop that owed nothing would be the old back-to-back chain
+    // creeping back in.
     let bonds = 0;
+    if (v[0] === 'k-mark') {
+      const debt = await J(() => {
+        const r = window.R.state();
+        const owed = r.pendingSigil, pair = r.markPair;
+        const mk = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
+        const id = mk ? mk.dataset.id : null;
+        if (mk) mk.click();
+        const after = window.R.state();
+        return { owed, pair, id, sigil: (id && after.sigils[id]) || null,
+                 spent: after.pendingSigil == null };
+      });
+      log.push(`stop ${col}: mark — ${debt.owed} onto ${debt.id}`);
+      check(`SLICE: the mark owed at stop ${col} is paid here, and it was really owed`,
+        !!debt.owed && !!debt.pair && !!debt.id && debt.sigil === debt.owed && debt.spent,
+        JSON.stringify(debt));
+      await sleep(300);
+      v = await visible();
+    }
     const convo = () => J(() => {
       const sc = window.R.scene();
       return (sc && (sc.kind === 'bond' || sc.kind === 'recall')) ? sc.kind : null;
@@ -261,23 +291,23 @@ const MAX_TURNS = 30;
         // document once it has been used, so reading them while it is hidden
         // reported the LAST bond's mark as this scene's — a recall that pays
         // nothing looked exactly like one that had quietly paid a sigil.
+        // A BOND LEVEL PAYS TWICE AND THE HALVES ARE A STOP APART. What the
+        // swap hands back to now is the stop itself; the mark is on the books
+        // and is paid at the next arrival. A RECALL pays once and owes nothing,
+        // so the two kinds are told apart by what is OWED rather than by which
+        // screen came up next.
         const marked = !document.getElementById('k-mark').classList.contains('k-hidden');
-        const mk = marked ? document.querySelector('#k-mark-cols .k-mk:not([disabled])') : null;
-        const markedCard = mk ? mk.dataset.id : null;
-        if (mk) mk.click();
         const r = window.R.state();
-        return { card, dropped, marked, markedCard, sigil: (markedCard && r.sigils[markedCard]) || null,
+        return { card, dropped, marked, owed: r.pendingSigil || null,
                  sizes: ['ash', 'elin', 'mira'].map(h => r.roster[h].length),
                  uniq: new Set(window.K.rosterIds(r.roster)).size };
       }, kindNow);
       log.push(`stop ${col}: ${kindNow} — took ${traded.card}, gave up ${traded.dropped}`);
       check(`SLICE: the ${kindNow} at stop ${col} trades one for one — still five slots a hero`,
         traded.sizes.every(n => n === 5) && traded.uniq === 15, JSON.stringify(traded));
-      check(`SLICE: the ${kindNow} at stop ${col} pays exactly what its kind pays`,
-        kindNow === 'bond'
-          ? (traded.marked && !!traded.markedCard && !!traded.sigil)
-          : (!traded.marked && !traded.markedCard),
-        JSON.stringify({ kind: kindNow, marked: traded.marked, card: traded.markedCard, sigil: traded.sigil }));
+      check(`SLICE: the ${kindNow} at stop ${col} pays exactly what its kind pays, and stacks no second screen on the node`,
+        !traded.marked && (kindNow === 'bond' ? !!traded.owed : !traded.owed),
+        JSON.stringify({ kind: kindNow, markedNow: traded.marked, owed: traded.owed }));
       await sleep(300);
       v = await visible();
       kindNow = v[0] === 'k-scene' ? await convo() : null;
