@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 104;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 105;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1669,16 +1669,34 @@ const SIGILS = {
   // register a deckbuilder's player already reads fluently.
   retain: { name: 'Retain', glyph: 'guard',
             line: 'Keep it when the turn ends. You draw one fewer to make room.' },
-  // CHAIN IS THE MIRROR OF LEAD, and it used to point the wrong way. As RELAY
-  // it set a flag for the card played AFTER it — so the card wearing the mark
-  // did nothing for itself, and the player had to hold "the next thing I play
-  // gets this" in their head across a decision. The benefit belongs on the
-  // card that carries the mark. Lead the turn, or follow an ally: two halves
-  // of one axis, and the same sentence shape.
+  // ── THE TWO ORDER MARKS ─────────────────────────────────────────────────
+  // They read the SAME fact — who acted immediately before this card — and
+  // split it in two: an ally went, or the same hand did. Between them they
+  // cover every board in which anything has been played at all.
+  //
+  // WHAT MOVED at Build 105: they used to OPEN THE CARD'S OWN COMBO, and
+  // CHAIN's partner was LEAD (lead the turn, and your combo is live). That is
+  // worth a great deal on the ten cards that carry a combo and EXACTLY NOTHING
+  // on the eighteen that do not — and the marking screen said so out loud,
+  // printing "no combo to arm" under four of the ten cards it offered. A
+  // reward two fifths of the deck cannot receive is not a reward, it is a
+  // filter the player has to apply for themselves.
+  //
+  // They pay AP now, which every card in the deck can receive. AP is also the
+  // currency that decides how LONG a turn is, and the pace sim has measured
+  // that lever before: the two combo refunds were worth sixteen points of
+  // winrate against one for the all-out's gear. Ordering the turn correctly is
+  // the thing this game is for, and this is the mark that pays for it.
+  //
+  // Why a REFUND and not a discount: costs never fall below 1 (deck §3) and 25
+  // of the 28 cards cost exactly 1, so "−1 AP" would be dead on nearly the
+  // whole deck. A refund is the discount that survives the floor — you pay,
+  // and the point comes back — and it is capped at one a turn along with the
+  // combo refunds, so a marked card cannot turn a hand into a whole turn.
   chain:  { name: 'Chain',  glyph: 'follow',
-            line: 'Play it after an ally and its combo is already live.' },
-  lead:   { name: 'Lead',   glyph: 'move',
-            line: 'Lead the turn with it and its combo is already live.' },
+            line: 'Play it after an ally and 1 AP comes back.' },
+  combo:  { name: 'Combo',  glyph: 'move',
+            line: 'Play it after the same hand and 1 AP comes back.' },
   rally:  { name: 'Rally',  glyph: 'finale',
             line: 'They feel it every time it is played. The bond grows by 6.' },
   // SURGE SAYS THE HALF THE MARK OWNS, and lets EXHAUST say the rest. "Pyre"
@@ -1769,32 +1787,32 @@ function evalCondition(cond, ownerId, selfId) {
     default: return false;
   }
 }
+// WHAT A MARK ASKS OF THE ORDER, read off the one fact both of them care
+// about: who acted immediately before this card, in this turn. Nothing yet
+// played means neither pays — there is nothing to follow.
+//
+// The comparison is against `card.owner` rather than `primaryHero`, which is
+// the same string FOLLOW_UP compares, so a pair card behaves the same way
+// under a mark as it does under the combo vocabulary the player already reads:
+// CHAIN wants anybody else, COMBO wants that same pair again.
+function markFollows(card, sigil) {
+  if (sigil !== 'chain' && sigil !== 'combo') return false;
+  const ts = C.turnState, last = ts.actionsPlayed[ts.actionsPlayed.length - 1];
+  if (!last) return false;
+  return sigil === 'chain' ? last.ownerId !== card.owner
+                           : last.ownerId === card.owner;
+}
 function evaluateCard(cardId) {
   const card = cardDef(cardId);
   if (!card) return null;
   const sigil = sigilOf(cardId);
   const selfId = selfHeroOf(card);
   let condActive = card.cond ? evalCondition(card.cond.type, card.owner, selfId) : false;
-  // A SIGIL CAN OPEN A CONDITION THE BOARD DID NOT. Both routes are read here
+  // A MARK IS A FACT ABOUT ONE CARD, not about the rule — so it is read here
   // rather than inside evalCondition, which stays a pure function of the
-  // condition type — a sigil is a fact about one card, not about the rule.
-  if (card.cond && !condActive) {
-    const ts = C.turnState;
-    // OPENING: the turn's first card has nobody to follow, which is exactly
-    // the hand a FOLLOW_UP card is stranded in.
-    // LEAD: the turn's first card has nobody to follow, which is exactly the
-    // hand a FOLLOW_UP card is stranded in.
-    if (sigil === 'lead' && !ts.actionsPlayed.length) condActive = true;
-    // CHAIN: an ally has already acted, so whatever this card's combo asked
-    // for, following counts. It opens the condition the card ALREADY HAS
-    // rather than granting a fixed bonus — so it is worth putting on a FINALE
-    // you cannot reach, or a BACK_ROW you are out of position for, and it is
-    // worth nothing on a card with no combo at all. That is the decision.
-    else if (sigil === 'chain') {
-      const last = ts.actionsPlayed[ts.actionsPlayed.length - 1];
-      if (last && last.ownerId !== primaryHero(card)) condActive = true;
-    }
-  }
+  // condition type. It no longer touches `condActive`: a card's combo is the
+  // card's own, and the mark rides beside it.
+  const markLive = markFollows(card, sigil);
   // A conditional card gets a cost reduction OR increased output OR its AP
   // back — never more than one. Costs never fall below 1 (deck §3), which is
   // why no sigil touches cost: almost every card in the deck costs 1, so a
@@ -1828,9 +1846,14 @@ function evaluateCard(cardId) {
   // makes a three-hero line affordable and stops being a way to play the whole
   // hand. It is also a better rule to READ than a rate: "the first one comes
   // back" is a sentence; "sometimes you get two" is a spreadsheet.
-  const refund = (condActive && card.cond.reward === 'ap' && !C.turnState.refunded)
+  // ONE REFUND A TURN, WHICHEVER GAVE IT. A marked card and a combo card are
+  // asking for the same thing, so they queue at the same door: mark a card
+  // that already refunds and you have not doubled anything, you have made it
+  // pay in a second order as well as the first.
+  const comboRefund = (condActive && card.cond && card.cond.reward === 'ap')
     ? (card.cond.ap || 1) : 0;
-  return { cardId, card, condActive, currentCost, resolvedEffects, sigil, refund,
+  const refund = C.turnState.refunded ? 0 : Math.max(comboRefund, markLive ? 1 : 0);
+  return { cardId, card, condActive, markLive, currentCost, resolvedEffects, sigil, refund,
            exhaust: !!card.exhaust || sigil === 'surge' };
 }
 
@@ -5746,6 +5769,26 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
       ? '<span class="k-combo k-combo-exh on k-combo-bare"><span class="k-combo-tag">'
         + icon('finale') + 'Exhaust</span></span>'
       : '';
+  // A MARK IS A KEYWORD, AND A KEYWORD LIVES IN THE TEXT BOX.
+  //
+  // It was a chip tucked under the cost orb on the art — small, quiet, and in
+  // a place nothing else on the card is read from. Every deckbuilder a player
+  // of this game has already played puts EXHAUST and RETAIN in the rules box
+  // with the rest of the rules, which is where the eye goes to find out what a
+  // card does. It sits in the same band the combo does, in the same shape, and
+  // the two order marks light ON exactly when a combo would.
+  //
+  // ONE LINE, not two. The band could carry the mark's whole sentence, but a
+  // card that also has a combo would then be four lines of small type under
+  // its own prose. The keyword is what belongs on the face; the sentence lives
+  // where it always has — the pickup panel, and the screen that granted it.
+  const mark = ev.sigil && SIGILS[ev.sigil]
+    ? '<span class="k-combo k-combo-mark k-combo-mk-' + ev.sigil
+      + ' k-combo-bare' + (ev.markLive ? ' on' : '') + '">'
+      + '<span class="k-combo-tag">' + icon(SIGILS[ev.sigil].glyph || 'finale')
+      + SIGILS[ev.sigil].name
+      + (ev.markLive ? '<i class="k-combo-state">ON</i>' : '') + '</span></span>'
+    : '';
   void COND_LABEL;
   // THE ART ZONE CARRIES THE CARD'S VERB, not the hero's face a second time.
   //
@@ -5787,7 +5830,12 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
     .reduce((n, r) => n + Math.max(1, Math.ceil(
       (r.replace(/<svg[\s\S]*?<\/svg>/g, '~~').replace(/<[^>]+>/g, '').trim().length)
       / LINE_CHARS)), 0);
-  const nRows = rowLines(rowsHTML) + (cond ? 1 : 0);
+  // …AND THE KEYWORD BAND COUNTS AS A ROW. It is one more band under the
+  // prose, and the tiers exist precisely so a denser card tightens instead of
+  // clipping. Measured without this: Quick Throw — four clauses, a combo AND a
+  // mark — hung 1.5px past its own face, and Cross Sever's text block scrolled
+  // 7px inside itself.
+  const nRows = rowLines(rowsHTML) + (cond ? 1 : 0) + (mark ? 1 : 0);
   const rowClass = 'k-ctext' + (nRows >= 5 ? ' k-rows-5' : nRows === 4 ? ' k-rows-4'
     : nRows === 3 ? ' k-rows-3' : '');
   // WHOSE CARD THIS IS, SAID rather than pictured. The corner held a 17px
@@ -5821,22 +5869,11 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
     // whose name is cut off is a card the player cannot look up.
     + '<span class="k-cwho">' + who + '</span>'
     + '<span class="k-cname' + (c.name.length > 15 ? ' k-cname-vlong' : c.name.length > 10 ? ' k-cname-long' : '') + '">' + c.name + '</span>'
-    // THE MARK IS ON THE FACE. A sigil that changed how a card played and did
-    // not appear on it would be a rule the player had to remember per card.
-    // A CHIP, AND IT READS LEFT TO RIGHT. Two treatments have failed here now.
-    // The first was a full-width gold ribbon across the middle of the painting
-    // — the loudest object on the card, wider than its own name, a sticker
-    // rather than something earned. The second traded that for a spine down the
-    // left edge, which fixed the loudness and introduced a worse problem: the
-    // word ran VERTICALLY, and a seven-letter word set at 7px rotated ninety
-    // degrees is not read, it is decoded. Nothing else on this screen asks the
-    // player to tilt their head. It is a small horizontal chip now, tucked under
-    // the cost orb on the dark end of the art — glyph, then name, on one line,
-    // the way every other label in the game is set.
-    + (ev.sigil && SIGILS[ev.sigil]
-        ? '<span class="k-csig k-csig-' + ev.sigil + '">'
-          + icon(SIGILS[ev.sigil].glyph || 'finale', 'k-csig-g')
-          + '<u>' + SIGILS[ev.sigil].name + '</u></span>' : '')
+    // (THE MARK USED TO BE A CHIP HERE. Three treatments failed on the art —
+    // a full-width gold ribbon, a vertical spine down the left edge, and this
+    // small horizontal chip under the cost orb. The third was legible and
+    // still wrong: it put a rule somewhere no other rule on the card is
+    // written. It is a keyword in the rules box now, with the combo.)
     // the prose sits in its own inner span: .k-cprose centres its content with
     // flex, and a flex container turns each inline child into an item — which
     // silently ate the spaces and printed "9damage."
@@ -5845,7 +5882,7 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
     // Same rule Build 23 set for the combo layer, broken again by a feature
     // that changes numbers somewhere other than the combo.
     + '<span class="' + rowClass + '"><span class="k-cprose">' + rowsHTML + '</span>'
-    + cond + '</span>';
+    + cond + mark + '</span>';
 }
 // A CARD SHOWN OUTSIDE A FIGHT. The run layer — a bond scene's fork, the swap
 // screen — had no way to draw a card, so it printed a name and a sentence in a
@@ -6714,14 +6751,19 @@ function inspectHTML(ev, who, hint) {
     + cardFaceHTML(c, ev, gem, ownerArt) + '</div></div>'
     + '<div class="k-insp-side">'
     + '<div class="k-insp-who">' + who + '</div>'
-    // THE MARK'S NAME LIVES HERE NOW. The face carries the fold — a glyph and a
-    // colour, the way a set symbol does — and a symbol on its own cannot state
-    // a rule. Arena puts the symbol on the card and the reminder text on the
-    // detail view; this is the detail view.
+    // THE MARK'S RULE LIVES HERE. The face carries the keyword — a word in the
+    // rules box, the way EXHAUST is — and a keyword on its own does not state
+    // its rule. Arena puts the keyword on the card and the reminder text on the
+    // detail view; this is the detail view. The two ORDER marks also say
+    // whether they are paying right now, the same way a combo does, because
+    // "after an ally" is a fact about this turn and not about this card.
     + (ev.sigil && SIGILS[ev.sigil]
-        ? '<div class="k-insp-sig k-csig-' + ev.sigil + '">'
+        ? '<div class="k-insp-sig k-csig-' + ev.sigil
+          + (ev.markLive ? ' on' : '') + '">'
           + '<b>' + icon(SIGILS[ev.sigil].glyph || 'finale')
-          + SIGILS[ev.sigil].name.toUpperCase() + '</b>'
+          + SIGILS[ev.sigil].name.toUpperCase()
+          + (ev.condLive === false || (ev.sigil !== 'chain' && ev.sigil !== 'combo') ? ''
+             : ' \u2014 ' + (ev.markLive ? 'ACTIVE' : 'not yet')) + '</b>'
           + '<span>' + SIGILS[ev.sigil].line + '</span></div>' : '')
     + '<div class="k-insp-now"><em>Resolves now</em>' + prose(ev.resolvedEffects) + '</div>'
     // ACTIVE / NOT YET IS A READING OF A TURN IN PROGRESS. On the deck screen

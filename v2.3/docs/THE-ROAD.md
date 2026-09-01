@@ -4226,3 +4226,87 @@ present* to *can it be read*:
 
 flow 251/251 · road 94/94 · bond 73/73 · slice 65/65 · line 28/28 ·
 camp 46/46 · music 22/22 · beat 10/10 · soak 5/5 — no page errors.
+
+---
+
+## Build 105 — the marks pay AP, and a mark is a keyword
+
+Three notes from a playtest, and they turn out to be one design.
+
+### A reward two fifths of the deck could not receive
+
+CHAIN and LEAD **opened the card's own combo** — CHAIN when an ally had gone
+first, LEAD on the turn's opening play. That is worth a great deal on the ten
+cards that carry a combo and **exactly nothing** on the eighteen that do not,
+and the marking screen said so out loud: it printed *"no combo to arm"* under
+four of the ten cards it offered. A reward most of the deck cannot receive is
+not a reward, it is a filter the player has to apply for themselves.
+
+They pay **AP** now, which every card in the deck can receive:
+
+- **CHAIN** — play it after an ally, and 1 AP comes back.
+- **COMBO** — play it after the same hand, and 1 AP comes back.
+
+They read the same fact — who acted immediately before this card — and split it
+in two. Between them they cover every board in which anything has been played at
+all, and neither pays the turn's first card, because there is nothing to follow.
+LEAD is retired; `elin|mira` grants COMBO in its place.
+
+### Why a refund and not a discount
+
+The note asked for "−1 AP", and that is what this is, by the only route that
+works. **Costs never fall below 1** (deck §3) and **25 of the 28 cards cost
+exactly 1** — measured, not assumed — so a literal cost reduction would be dead
+on nearly the whole deck. That is the reason the evaluator has carried a comment
+since Build 90 saying no sigil touches cost.
+
+A refund is the discount that survives the floor: you pay, and the point comes
+back. It is also the lever the pace sim has already measured — the two combo
+refunds were worth **sixteen** points of winrate against **one** for the
+all-out's gear — so this is the mark landing on the part of the game that
+decides how long a turn is.
+
+It is capped at **one refund a turn, shared with the combos**. Mark a card that
+already refunds and you have not doubled anything; you have made it pay in a
+second order as well as the first.
+
+### A keyword lives in the rules box
+
+The mark was a chip floated on the ART, under the cost orb. Three treatments
+have now failed there — a full-width gold ribbon, a vertical spine down the left
+edge, and that chip — and the third was legible and still wrong, because it put
+a rule somewhere no other rule on the card is written. Every deckbuilder this
+game's player has already played puts EXHAUST and RETAIN **in the text box**.
+
+It is a band under the combo strip now, same shape, one line, the keyword by
+name — and the two order marks light **ON** exactly when a combo would. The
+marking screen's before/after panel is what this was for: `NOW` is the plain
+card, and beside it the same card with `→ COMBO` added to its rules. Gaining a
+mark now looks like gaining a keyword, because it is one.
+
+The band costs the text block room the way the combo strip does, so it is
+**counted into the card's own row-density tier** — a denser card tightens
+instead of clipping. Swept across all 28 cards in all five mark states: Last
+Light and Last Vigil needed it at three rows, Quick Throw at five.
+
+### The checks that moved
+
+- `CHAIN: an unreachable combo opens when an ally has gone first` → **after an
+  ALLY the AP comes back, and after the same hand it does not**, plus its mirror
+  for COMBO, plus one asserting both pay a card with **no combo at all** — the
+  eighteen the old pair could not reach.
+- `OPENING: the turn's first card has nobody to follow` → **neither mark pays
+  the turn's first card**. Same fact, opposite conclusion: LEAD existed to make
+  that case pay, and a mark that paid it now would be a flat discount wearing a
+  condition.
+- new: **one refund a turn, shared with the combos**.
+- `MARK: the band costs art, not text` → **no card clips its own face in any
+  mark state**, all 28 × all 5. The old claim was true by construction while the
+  mark floated on the art; it cannot be true of something in the text box, and
+  the claim that actually matters is that nothing clips.
+- new: **the keyword is printed in the rules box, by name — not as a chip on
+  the art**.
+
+flow 253/253 · road 94/94 · bond 73/73 · slice 69/69 · line 28/28 ·
+camp 46/46 · music 22/22 · beat 10/10 · soak 5/5 — no page errors. Ten
+randomised runs, six to the Regent, no invariant breached.

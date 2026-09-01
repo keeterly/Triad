@@ -281,7 +281,7 @@
   const SIGIL_BY_PAIR = {
     'ash|elin':  ['retain', 'surge'],  // she holds the line; he keeps one back
     'ash|mira':  ['chain', 'rally'],   // the two quick ones — a move flows on
-    'elin|mira': ['lead', 'surge'],    // they are the ones who start things
+    'elin|mira': ['combo', 'surge'],   // they are the ones who press an advantage
   };
   const sigilFor = (pair, lv) => (SIGIL_BY_PAIR[pair] || [])[lv - 1] || null;
 
@@ -3350,10 +3350,14 @@
       }
       return before + ' \u2192 ' + after;
     }
-    if (sig === 'chain' || sig === 'lead') {
-      return def.cond ? 'combo already live'
-                      : '<i class="k-mk-nil">no combo to arm</i>';
-    }
+    // THE ORDER MARKS PAY EVERY CARD NOW (Build 105), so there is no longer a
+    // "worth nothing here" answer to print — what changes card to card is only
+    // how easy the order is to reach, and that is the player's read, not a
+    // line of copy's.
+    if (sig === 'chain')  return 'after an ally \u2192 1 AP back';
+    if (sig === 'combo')  return 'after the same hand \u2192 1 AP back';
+    if (sig === 'retain') return 'kept at end of turn';
+    if (sig === 'rally')  return 'the bond grows by 6';
     return '';
   }
   function placeSigil(cardId) {

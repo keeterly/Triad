@@ -290,78 +290,108 @@ const { boot } = require('./harness.cjs');
     // different hero to have just acted, and a five-card hand rarely offers
     // the order. Three of the five marks exist to loosen exactly that.
     //
-    // CHAIN READS BACKWARD NOW, which is the whole change. As RELAY it set a
-    // flag for the card played AFTER it — so the card wearing the mark did
-    // nothing for itself, and the player had to carry "the next thing I play
-    // gets this" across a decision. It opens the condition of the card it is
-    // ON, when an ally has already acted.
+    // ── THE TWO ORDER MARKS (Build 105) ─────────────────────────────────────
     //
-    // WHICH MAKES IT WORTHLESS ON A FOLLOW_UP CARD — an ally acting already
-    // satisfies that natively — and valuable on a combo you cannot otherwise
-    // reach. Last Light is Ash's FINALE: it wants all three to have acted, and
-    // one ally is not three. That is the case worth marking, and the fact that
-    // there is a wrong place to put it is what makes it a decision.
-    const chain = await J(() => {
-      const run = (sigils) => {
+    // WHAT MOVED: CHAIN used to OPEN THE CARD'S OWN COMBO when an ally had
+    // gone first, and its partner LEAD did the same for the turn's first play.
+    // Which is worth a great deal on the ten cards that carry a combo and
+    // EXACTLY NOTHING on the eighteen that do not — the marking screen said so
+    // out loud, printing "no combo to arm" under four of the ten cards it
+    // offered. A reward two fifths of the deck cannot receive is not a reward.
+    //
+    // They pay AP now, which every card can receive: CHAIN after an ally,
+    // COMBO after the same hand. Between them they cover every board in which
+    // anything has been played at all — and neither pays on the turn's first
+    // card, because there is nothing to follow.
+    const order = await J(() => {
+      const at = (sigils, hand, lead) => {
         window.K.startCombat({ seed: 7, sigils });
-        window.K.forceHand(['serrate', 'lastlight', 'cleave', 'qthrow', 'mend']);
-        const alone = window.K.evaluateCard('lastlight').condActive;
-        window.K.playCard('serrate');                    // Mira acts — one ally
-        const ev = window.K.evaluateCard('lastlight');
-        return { alone, after: ev.condActive, lands: ev.resolvedEffects.length };
+        window.K.forceHand(hand);
+        const first = lead ? window.K.evaluateCard(hand[1]) : null;
+        if (lead) window.K.playCard(lead);
+        const ev = window.K.evaluateCard(hand[1]);
+        return { lead: first ? first.refund : null, refund: ev.refund, live: !!ev.markLive };
       };
-      const followUp = (sigils) => {
-        window.K.startCombat({ seed: 7, sigils });
-        window.K.forceHand(['serrate', 'crosssever', 'cleave', 'qthrow', 'mend']);
-        window.K.playCard('serrate');
-        return window.K.evaluateCard('crosssever').condActive;
+      const H = ['serrate', 'guardcut', 'cleave', 'qthrow', 'mend'];
+      return {
+        // guardcut is Ash's; serrate is Mira's; cleave is Ash's
+        chainAfterAlly: at({ guardcut: 'chain' }, H, 'serrate'),
+        chainAfterSelf: at({ guardcut: 'chain' }, ['cleave', 'guardcut', 'serrate', 'qthrow', 'mend'], 'cleave'),
+        comboAfterSelf: at({ guardcut: 'combo' }, ['cleave', 'guardcut', 'serrate', 'qthrow', 'mend'], 'cleave'),
+        comboAfterAlly: at({ guardcut: 'combo' }, H, 'serrate'),
+        bare:           at({}, H, 'serrate'),
+        // and a card with NO combo at all is exactly the case the old pair
+        // could not pay: Guarding Cut has no `cond`
+        hasCombo: !!window.K.CARD_DEFS.guardcut.cond,
       };
-      return { bare: run({}), marked: run({ lastlight: 'chain' }),
-               fu: { bare: followUp({}), marked: followUp({ crosssever: 'chain' }) } };
     });
-    check('CHAIN: an unreachable combo opens when an ally has gone first — on the card that wears it',
-      chain.bare.alone === false && chain.bare.after === false
-      && chain.marked.after === true && chain.marked.lands > chain.bare.lands,
-      JSON.stringify({ bare: chain.bare, marked: chain.marked }));
-    check('CHAIN: it buys nothing on a card an ally already connects — the choice is WHERE it goes',
-      chain.fu.bare === true && chain.fu.marked === true, JSON.stringify(chain.fu));
+    check('CHAIN: after an ALLY the AP comes back — and after the same hand it does not',
+      order.chainAfterAlly.refund === 1 && order.chainAfterAlly.live === true
+      && order.chainAfterSelf.refund === 0 && order.chainAfterSelf.live === false,
+      JSON.stringify({ ally: order.chainAfterAlly, self: order.chainAfterSelf }));
+    check('COMBO: after the SAME hand the AP comes back — and after an ally it does not',
+      order.comboAfterSelf.refund === 1 && order.comboAfterSelf.live === true
+      && order.comboAfterAlly.refund === 0 && order.comboAfterAlly.live === false,
+      JSON.stringify({ self: order.comboAfterSelf, ally: order.comboAfterAlly }));
+    check('MARKS: they pay a card with no combo at all — the eighteen the old pair could not reach',
+      order.hasCombo === false && order.bare.refund === 0
+      && order.chainAfterAlly.refund === 1 && order.comboAfterSelf.refund === 1,
+      JSON.stringify({ hasCombo: order.hasCombo, unmarked: order.bare.refund }));
 
-    // OPENING answers the other half of the same problem: the turn's FIRST
-    // card has nobody to follow, which is exactly where a FOLLOW_UP card is
-    // stranded when it is the only thing you can afford.
-    const opening = await J(() => {
-      const first = (sigils) => {
-        window.K.startCombat({ seed: 7, sigils });
-        window.K.forceHand(['crosssever', 'cleave', 'serrate', 'qthrow', 'mend']);
-        const ev = window.K.evaluateCard('crosssever');
-        return { on: ev.condActive, cost: ev.currentCost };
+    // NEITHER PAYS THE TURN'S FIRST CARD. There is nothing to follow, and a
+    // mark that paid anyway would be a flat discount wearing a condition.
+    const firstCard = await J(() => {
+      const lead = (sig) => {
+        window.K.startCombat({ seed: 7, sigils: { guardcut: sig } });
+        window.K.forceHand(['guardcut', 'cleave', 'serrate', 'qthrow', 'mend']);
+        return window.K.evaluateCard('guardcut').refund;
       };
-      const bare = first({}), marked = first({ crosssever: 'lead' });
-      // and it stops applying once the turn is under way
-      // Cleave is ALSO Ash's, so once the turn is under way Cross Sever has
-      // neither the mark's reason (it is no longer first) nor the ordinary
-      // one (no ally has acted). That is the case that catches OPENING
-      // quietly becoming "always on".
-      window.K.startCombat({ seed: 7, sigils: { crosssever: 'lead' } });
-      window.K.forceHand(['cleave', 'crosssever', 'serrate', 'qthrow', 'mend']);
-      window.K.playCard('cleave');
-      const later = window.K.evaluateCard('crosssever').condActive;
-      // and an ALLY acting still opens it the ordinary way
-      window.K.startCombat({ seed: 7 });
-      window.K.forceHand(['serrate', 'crosssever', 'cleave', 'qthrow', 'mend']);
-      window.K.playCard('serrate');
-      const byAlly = window.K.evaluateCard('crosssever').condActive;
-      return { bare, marked, later, byAlly };
+      return { chain: lead('chain'), combo: lead('combo') };
     });
-    check('OPENING: the turn’s first card has nobody to follow — the mark says that counts',
-      opening.bare.on === false && opening.marked.on === true
-      && opening.marked.cost < opening.bare.cost,
-      JSON.stringify(opening));
-    // After an ally HAS acted the ally is the reason, not the mark — this is
-    // the check that would catch OPENING quietly turning into "always on".
-    check('OPENING: it is the OPENING, not a permanent pass — and the ally route still works',
-      opening.later === false && opening.byAlly === true,
-      JSON.stringify({ afterSameHero: opening.later, afterAlly: opening.byAlly }));
+    check('MARKS: nothing to follow, nothing to pay — the turn’s first card is never refunded',
+      firstCard.chain === 0 && firstCard.combo === 0, JSON.stringify(firstCard));
+
+    // ONE REFUND A TURN, WHICHEVER GAVE IT. A marked card and a combo card are
+    // asking for the same thing, so they queue at the same door — otherwise a
+    // hand of marked cards is a whole extra turn.
+    const cap = await J(() => {
+      window.K.startCombat({ seed: 7, sigils: { cleave: 'chain', guardcut: 'chain' } });
+      window.K.forceHand(['serrate', 'cleave', 'guardcut', 'mend', 'frostbind']);
+      const ap = [window.K.state().ap];
+      window.K.playCard('serrate'); ap.push(window.K.state().ap);
+      window.K.playCard('cleave');  ap.push(window.K.state().ap);   // refunded
+      window.K.playCard('guardcut'); ap.push(window.K.state().ap);  // not
+      return { ap, refunded: window.K.state().turnState.refunded };
+    });
+    check('MARKS: one refund a turn, shared with the combos — two marked cards is not two free ones',
+      cap.refunded === 1 && cap.ap[2] === cap.ap[1] && cap.ap[3] === cap.ap[2] - 1,
+      JSON.stringify(cap));
+
+    // A MARK IS A KEYWORD, AND A KEYWORD LIVES IN THE TEXT BOX. It was a chip
+    // on the art, under the cost orb — legible, and in a place nothing else on
+    // the card is read from. Every deckbuilder this game's player has already
+    // played puts EXHAUST and RETAIN in the rules box.
+    const keyword = await J(() => {
+      const host = document.createElement('div');
+      host.style.cssText = 'position:absolute;left:-2000px;top:0';
+      document.body.appendChild(host);
+      const read = (sig) => {
+        host.innerHTML = window.K.staticCardHTML('guardcut', sig ? { sigil: sig } : {});
+        const band = host.querySelector('.k-combo-mark');
+        const chip = host.querySelector('.k-csig');
+        return { band: band ? band.textContent.trim() : null, chip: !!chip };
+      };
+      const out = { bare: read(null), chain: read('chain'), combo: read('combo'),
+                    retain: read('retain'), surge: read('surge') };
+      host.remove();
+      return out;
+    });
+    check('MARKS: the keyword is printed in the rules box, by name — not as a chip on the art',
+      keyword.bare.band === null && !keyword.bare.chip
+      && keyword.chain.band === 'Chain' && keyword.combo.band === 'Combo'
+      && keyword.retain.band === 'Retain' && keyword.surge.band === 'Surge'
+      && !keyword.chain.chip && !keyword.surge.chip,
+      JSON.stringify(keyword));
 
     const held = await J(async () => {
       window.K.startCombat({ seed: 7, sigils: { mend: 'retain' } });
@@ -434,8 +464,9 @@ const { boot } = require('./harness.cjs');
       window.K.startCombat({ seed: 7, sigils: { cleave: 'surge' } });
       window.K.forceHand(['cleave', 'serrate', 'qthrow', 'mend', 'frostbind']);
       const btn = document.querySelector('.k-card[data-card="cleave"]');
-      const chip = btn && btn.querySelector('.k-csig');
-      const plain = document.querySelector('.k-card[data-card="serrate"] .k-csig');
+      // THE KEYWORD IS IN THE RULES BOX NOW (Build 105), not a chip on the art.
+      const chip = btn && btn.querySelector('.k-combo-mark');
+      const plain = document.querySelector('.k-card[data-card="serrate"] .k-combo-mark');
       // What the face SHOULD say, computed from the evaluator rather than
       // written down here — a literal would have to be re-guessed every time
       // the card or the multiplier moves.
@@ -452,8 +483,15 @@ const { boot } = require('./harness.cjs');
     // the player has to remember per card.
     // A CARD IS 150px AND .k-ctext IS THE FLEX-GROW CHILD WITH overflow:hidden,
     // so a new row in the flow gets paid for by clipping the combo strip — the
-    // part of the face a mark most often changes. The band's height has to come
-    // out of the art zone, and this is the check that says so.
+    // part of the face a mark most often changes.
+    //
+    // WHAT MOVED at Build 105: the mark used to be a chip floated on the ART,
+    // which cost the text block nothing by construction, and this check said
+    // exactly that. It is a keyword band in the rules box now — it MUST cost
+    // the text block room, the way the combo strip does — so the claim moves
+    // from "costs nothing" to the one that actually matters: nothing clips, in
+    // any mark state, on any card. The band is counted into the card's own
+    // row-density tier so a denser card tightens instead of overflowing.
     const room = await J(() => {
       // EVERY CARD IN THE DECK, marked and unmarked, five at a time. The
       // question is not "does anything clip" — it is whether the BAND clips
@@ -481,24 +519,34 @@ const { boot } = require('./harness.cjs');
                                     past: +past.toFixed(1),
                                     spills: tr.bottom > cr.bottom + 0.5,
                                     marked: c.classList.contains('k-card-sig'),
-                                    combo: !!c.querySelector('.k-combo') };
+                                    // the keyword band shares the combo strip's
+                                    // shape and class, so the card's OWN combo
+                                    // has to be asked for by exclusion
+                                    combo: !!c.querySelector('.k-combo:not(.k-combo-mark)') };
           });
         }
         return out;
       };
       const bare = measure({});
-      const all = {}; ids.forEach(id => { all[id] = 'chain'; });
-      const lit = measure(all);
-      return { bare, lit, ids: Object.keys(bare) };
+      const lit = {};
+      // EVERY MARK, not only one: RETAIN and SURGE set a different keyword
+      // length than CHAIN, and it is the longest that decides whether a face
+      // fits. `bad` collects any card that clips in any of the five.
+      const bad = [];
+      ['retain', 'chain', 'combo', 'rally', 'surge'].forEach(sg => {
+        const all = {}; ids.forEach(id => { all[id] = sg; });
+        const m = measure(all);
+        Object.keys(m).forEach(id => {
+          if (!lit[id]) lit[id] = m[id];
+          if (m[id].over > 1 || m[id].wide > 1 || m[id].spills) bad.push(id + ':' + sg);
+        });
+      });
+      return { bare, lit, bad, ids: Object.keys(bare) };
     });
-    // The band's height comes out of the art zone, so it must cost the text
-    // block nothing at all — not "a little less than before".
-    const worse = room.ids.filter(id => room.lit[id].over > room.bare[id].over
-                                        || room.lit[id].spills);
-    check('MARK: the band costs art, not text — it clips nothing the unmarked card did not',
-      worse.length === 0 && room.ids.every(id => room.lit[id].marked)
+    check('MARK: no card clips its own face in any mark state — all twenty-eight, all five marks',
+      room.bad.length === 0 && room.ids.every(id => room.lit[id].marked)
       && room.ids.every(id => room.lit[id].combo === room.bare[id].combo),
-      JSON.stringify({ worse, n: room.ids.length }));
+      JSON.stringify({ bad: room.bad, n: room.ids.length }));
     // And while this was being written it turned out two cards were ALREADY
     // clipping their own payoff strip, marked or not, and had been for many
     // builds. That is a separate bug and it is fixed; this keeps it fixed.
@@ -511,7 +559,7 @@ const { boot } = require('./harness.cjs');
       spilled.length === 0,
       JSON.stringify({ spilled: spilled.map(id => ({ id, ...room.bare[id] })), n: room.ids.length }));
 
-    check('MARK: a marked card wears its mark, an unmarked one does not, and the number is the new number',
+    check('MARK: a marked card wears its keyword, an unmarked one does not, and the number is the new number',
       face.chip === 'Surge' && face.tinted && face.vis !== 'none' && face.w > 20
       && !face.onPlain && new RegExp('\\b' + face.lands + '\\b').test(face.says || ''),
       JSON.stringify(face));

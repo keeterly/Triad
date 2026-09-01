@@ -1086,6 +1086,31 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* COMBO — a banded strip with a named tag, so the payoff is never a footnote */
 /* COMBO — a gold hairline and a named tag. On the dark card it does not need
    a grey band to be a separate block; the rule is enough. */
+/* ── A MARK IS A KEYWORD, AND IT SITS WITH THE RULES ──────────────────────
+   It used to be a chip on the art, under the cost orb — legible, and in a
+   place nothing else on the card is read from. Same band as the combo, same
+   shape, one line, and the two order marks light ON exactly when a combo
+   would. Each keeps its own colour so RETAIN and SURGE stay tellable apart at
+   a glance in a fanned hand. */
+.k-combo-mark { margin-top: 0; padding-top: 3px; padding-bottom: 2px;
+  border-top: 1px solid rgba(201,164,92,0.18); }
+/* THE BAND GIVES BACK ITS PADDING AS THE CARD GETS DENSER, and never its type
+   size below the tier's own — it would otherwise set the keyword LARGER than
+   the combo tag directly above it. Swept across all 28 cards in all six mark
+   states: Last Light and Last Vigil are the two that need this at three rows,
+   Quick Throw at five. */
+.k-rows-3 .k-combo-mark { padding-top: 1px; padding-bottom: 0; }
+.k-rows-3 .k-combo-mark .k-combo-tag { font-size: 6.2px; }
+.k-rows-4 .k-combo-mark { padding-top: 1px; padding-bottom: 0; }
+.k-rows-4 .k-combo-mark .k-combo-tag { font-size: 6.2px; }
+.k-rows-5 .k-combo-mark { padding-top: 0; padding-bottom: 0; }
+.k-combo-mark .k-combo-tag { color: var(--mk, #c9a45c); }
+.k-combo-mark.on .k-combo-tag { color: var(--mk, #f0cf92); }
+.k-combo-mk-retain { --mk: #bcd3ea; }
+.k-combo-mk-chain  { --mk: #c9b4e4; }
+.k-combo-mk-combo  { --mk: #e9d49a; }
+.k-combo-mk-rally  { --mk: #f0b98a; }
+.k-combo-mk-surge  { --mk: #f4e3a6; }
 .k-combo { margin-top: auto; padding: 4px 3px 1px;
   background: none;
   border-top: 1px solid rgba(201,164,92,0.26);
@@ -1663,6 +1688,9 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-combo-bare { padding-bottom: 3px; }
 .k-combo-bare .k-combo-tag { margin-bottom: 0; }
 /* what the combo PAYS, on the detail view, where the sentence fits */
+/* …and it says whether it is paying right now, like the combo below it */
+.k-insp-sig.on { border-color: var(--sig, #e0c084); }
+.k-insp-sig.on b { color: var(--sig, #f0d488); }
 .k-insp-pay { display: block; margin-top: 4px; font-style: normal;
   font-size: 11.5px; line-height: 1.3; color: #e8dfc8; }
 .k-insp-pay b { color: #fff3d0; }
@@ -1677,7 +1705,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   color: #b6ab97; }
 .k-sig-retain    { --sig: #bcd3ea; } .k-csig-retain    { --sig: #bcd3ea; }
 .k-sig-chain    { --sig: #c9b4e4; } .k-csig-chain    { --sig: #c9b4e4; }
-.k-sig-lead { --sig: #e9d49a; } .k-csig-lead { --sig: #e9d49a; }
+.k-sig-combo { --sig: #e9d49a; } .k-csig-combo { --sig: #e9d49a; }
 .k-sig-rally { --sig: #f0b98a; } .k-csig-rally { --sig: #f0b98a; }
 .k-sig-surge  { --sig: #f4e3a6; } .k-csig-surge  { --sig: #f4e3a6; }
 /* the edge is tinted too, so a marked card is findable in a fan without
@@ -2866,7 +2894,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* the five marks each carry their own light into the scene */
 #k-mark.k-mk-sig-retain    { --sig: #bcd3ea; }
 #k-mark.k-mk-sig-chain    { --sig: #c9b4e4; }
-#k-mark.k-mk-sig-lead { --sig: #e9d49a; }
+#k-mark.k-mk-sig-combo { --sig: #e9d49a; }
 #k-mark.k-mk-sig-rally { --sig: #f0b98a; }
 #k-mark.k-mk-sig-surge  { --sig: #f4e3a6; }
 
