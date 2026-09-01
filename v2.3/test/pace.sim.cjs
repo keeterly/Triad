@@ -83,7 +83,25 @@ const SKILLS = process.env.PACE_SKILL
       // walked two thirds of an eleven-stop road and then stopped — so the sim
       // reported 0 wins at every skill level and four deaths in twelve runs,
       // which reads as a brutal difficulty spike and was the harness giving up.
+      // A MARK IS SETTLED ON THE ROAD (Build 103), in two beats (Build 104) —
+      // so it is answered HERE, standing on the chart before a stop is chosen,
+      // and not wherever the swap that owed it happened to end. Left in the old
+      // place this tallied zero marks a run and walked past the debt.
+      const payMark = async () => {
+        const paid = await J(() => {
+          if (document.getElementById('k-mark').classList.contains('k-hidden')) return false;
+          document.getElementById('k-mark-go').click();          // the moment
+          const mk = [...document.querySelectorAll('#k-mark-cols .k-mk:not([disabled])')];
+          if (!mk.length) return false;
+          mk[Math.floor(Math.random() * mk.length)].click();     // pick it up
+          document.getElementById('k-mark-place').click();       // and mark it
+          return true;
+        });
+        if (paid) { tally.marks++; await sleep(200); }
+      };
+
       for (let col = 0; col < STOPS; col++) {
+        await payMark();
         const open = await J(() => window.R.reachable());
         if (!open.length) break;
         const target = open[Math.floor(Math.random() * open.length)];
@@ -108,18 +126,6 @@ const SKILLS = process.env.PACE_SKILL
             const cards = [...document.querySelectorAll('#k-swap-cols .k-swapcard')];
             if (cards.length) { cards[0].click(); const go = document.getElementById('k-swap-go'); if (go && !go.disabled) go.click(); }
           });
-          await sleep(200);
-          const marked = await J(() => {
-          // TWO BEATS (Build 104): the moment, then the decision, then the mark.
-          const go1 = document.getElementById('k-mark-go');
-          if (go1) go1.click();
-          const mk = [...document.querySelectorAll('#k-mark-cols .k-mk:not([disabled])')];
-          if (mk.length) mk[0].click();
-          const pl = document.getElementById('k-mark-place');
-          if (pl && !pl.disabled) pl.click();
-            return mk.length > 0;
-          });
-          if (marked) tally.marks++;
           await sleep(200);
         }
 
