@@ -4024,5 +4024,7 @@ coincident: the party rises 28 then 24 between its ranks and the line rises 24
 then 22. That is the floor, and it survives a global nudge the way a real one
 would.
 
-road 94/94 · bond 69/69 · slice 58/58 · line 28/28 · camp 45/45 · music 22/22 ·
-beat 10/10.
+flow 250/250 · road 94/94 · bond 69/69 · slice 58/58 · line 28/28 ·
+camp 45/45 · music 22/22 · beat 10/10 — **586 checks, no page errors**. Six of
+the seven suites took three replacement character plates without a word, which
+is the point of having the whole cast read one export.
