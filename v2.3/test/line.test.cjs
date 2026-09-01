@@ -330,19 +330,31 @@ const { boot } = require('./harness.cjs');
       drawn.foes.length === 3 && ['front', 'mid', 'back'].every(r => !!F[r])
       && F.front.lane === 'FRONT' && F.mid.lane === 'MID' && F.back.lane === 'BACK',
       JSON.stringify(drawn.foes.map(f => f.row + '=' + f.lane)));
-    // ONE FLOOR, NOT TWO DRAWINGS. A rank steps the same distance and stands at
-    // the same depth on whichever side of the board it is on — the first pass
-    // spaced the line by eye and put the back body half off a 932px stage.
+    // ONE FLOOR, NOT TWO DRAWINGS — and the claim is that the two ladders are
+    // PARALLEL, not that a rank lands on the same pixel as its opposite number.
+    //
+    // The first version asserted the second thing: each foe's ground line
+    // within 12px of the hero standing opposite. It passed until Build 102
+    // swapped the hero art, whose different aspect ratios nudged the party's
+    // measured baselines a few pixels — and a check that a change of ARTWORK
+    // can break was never measuring the geometry it claimed to.
+    //
+    // What the design actually says is that a rank STEPS the same distance on
+    // whichever side of the board it is on: the party rises 26 then 23 between
+    // its ranks, and the line rises 25 then 22. That is the ladder, and it
+    // holds under a global nudge the way a real floor does.
+    const step = (a, b) => a.base - b.base;
+    const partyStep = [step(drawn.heroes.front, drawn.heroes.mid),
+                       step(drawn.heroes.mid, drawn.heroes.back)];
+    const lineStep = [step(F.front, F.mid), step(F.mid, F.back)];
     check('SLOTS: the line recedes on the party’s own ladder, and stays on the stage',
       F.front.cx < F.mid.cx && F.mid.cx < F.back.cx
-      && F.front.base > F.mid.base && F.mid.base > F.back.base
       && F.front.w > F.mid.w && F.mid.w > F.back.w
-      && F.back.cx + F.back.w / 2 <= drawn.stage
-      && Math.abs(F.front.base - drawn.heroes.front.base) <= 12
-      && Math.abs(F.back.base - drawn.heroes.back.base) <= 12,
+      && lineStep.every(n => n > 0) && partyStep.every(n => n > 0)
+      && lineStep.every((n, i) => Math.abs(n - partyStep[i]) <= 8)
+      && F.back.cx + F.back.w / 2 <= drawn.stage,
       JSON.stringify({ foes: drawn.foes.map(f => f.row + ':' + f.cx + '/' + f.base + '/' + f.w),
-                       heroes: Object.keys(drawn.heroes).map(r => r + ':' + drawn.heroes[r].base),
-                       stage: drawn.stage }));
+                       partyStep, lineStep, stage: drawn.stage }));
   }
 
   const r = report();

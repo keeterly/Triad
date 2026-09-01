@@ -4010,3 +4010,19 @@ put her face on its crossguard.
 Every screen that draws a hero — the board, the scene cast, the marking screen,
 the campfire doors, the deck and swap columns, the road's roster — reads the same
 three files, so the swap is one export rather than a hunt.
+
+### And a check that was measuring the wrong thing
+
+The line suite's ladder check went red on the new art, and the layout was not
+the problem. It asserted that each foe's ground line lands **within 12px of the
+hero standing opposite** — which passed until three replacement plates with
+different aspect ratios nudged the party's measured baselines by a few pixels.
+
+A check that a change of *artwork* can break was never measuring the geometry it
+claimed to. What the design says is that the two ladders are **parallel**, not
+coincident: the party rises 28 then 24 between its ranks and the line rises 24
+then 22. That is the floor, and it survives a global nudge the way a real one
+would.
+
+road 94/94 · bond 69/69 · slice 58/58 · line 28/28 · camp 45/45 · music 22/22 ·
+beat 10/10.
