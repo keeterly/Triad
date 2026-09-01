@@ -189,7 +189,7 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 #k-swap-go-row { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
   display: flex; align-items: center; gap: 10px; z-index: 4; }
 #k-swap-go-row #k-swap-go { position: static; transform: none; }
-#k-swap-bench { padding: 9px 18px; border-radius: 4px; cursor: pointer;
+#k-swap-bench { padding: 11px 22px; border-radius: 4px; cursor: pointer; white-space: nowrap;
   background: rgba(12,10,16,0.72); border: 1px solid rgba(201,164,92,0.34);
   color: #b9ae9e; font: 600 10px/1 var(--ui, system-ui), sans-serif;
   letter-spacing: 0.16em; text-transform: uppercase;
@@ -207,10 +207,10 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
    showing the old number, is a question with nothing to compare — the campfire
    has printed before -> after on everything it sells since Build 95 and this is
    the same decision. */
-.k-mk-delta { position: absolute; left: 0; right: 0; bottom: 3px; z-index: 4;
-  padding: 0 4px; text-align: center; pointer-events: none;
-  font: 600 8px/1.25 var(--ui, system-ui), sans-serif; letter-spacing: 0.02em;
-  color: #d9c8a4; text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
+.k-mk-delta { position: static; z-index: auto;
+  font: 600 8px/1.3 var(--serif, Georgia, serif); letter-spacing: 0.06em;
+  color: var(--sig, #e8cf95); }
+.k-mk-delta .k-mk-nil { font-style: normal; color: #6d6558; letter-spacing: 0.04em; }
 .k-mk-nil { font-style: normal; color: #8b8074; }
 /* HOW MANY ARE STANDING AT THIS STOP. A small count on the coin's shoulder —
    a pack is a different fight, and the chart is where that gets decided. */
@@ -617,8 +617,10 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    twice" in the top-right corner and "who is at 4 health" in the top-left were
    two journeys across the screen with a number carried in the head between
    them. */
-.k-pt-inc { display: inline-block; margin-left: 5px; padding: 0 4px; border-radius: 2px;
-  font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+/* …and it wears an arrow, not a sparkle: the glyph points down into the bar it
+   is about to empty, so the badge reads as a warning before the number is. */
+.k-pt-inc { display: inline-block; margin-left: 5px; padding: 0 4px 0 3px; border-radius: 2px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em; cursor: help;
   color: #ffd9c2; background: rgba(200,74,58,0.3);
   border: 1px solid rgba(232,119,106,0.55); }
 /* the dirge's share, printed as a RIDER on the aimed number rather than as a
@@ -2586,9 +2588,13 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   to   { opacity: 1; transform: none; }
 }
 .k-ctb-who { display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
-  gap: 6px; width: 150px; flex: none; }
+  gap: 6px; width: 168px; flex: none; padding: 0 10px 10px;
+  border-right: 1px solid rgba(201,164,92,0.14); }
 .k-ctb-who .k-ct-fig { height: 178px; flex: none; }
 .k-ctb-who > b { font-size: 12.5px; letter-spacing: 0.26em; color: #c9a45c; }
+/* what is still behind this door, in the same words it wore before it opened */
+.k-ctb-say { font-size: 9px; letter-spacing: 0.06em; color: #8d8474; text-align: center;
+  line-height: 1.4; }
 /* A MEMORY IS CARD-SHAPED WHEREVER IT IS. Given `flex: 1` across a branch's
    whole width, three plates came out 230x260 — a ratio of 0.89, which is a
    tile, not a card. The height is the constraint and the width follows from it,
@@ -2663,23 +2669,28 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* the plate's own firelight: warm from below, dark at the top so the badge
    reads, and a hard floor of shadow the name band sits on */
 .k-tn-lift { position: absolute; inset: 0; z-index: 1; pointer-events: none;
-  background: linear-gradient(180deg, rgba(12,10,16,0.5) 0%, rgba(12,10,16,0) 28%,
-    rgba(12,10,16,0.12) 56%, rgba(10,8,13,0.86) 76%, rgba(10,8,13,0.99) 100%),
+  background: linear-gradient(180deg, rgba(12,10,16,0.5) 0%, rgba(12,10,16,0) 24%,
+    rgba(12,10,16,0.1) 44%, rgba(10,8,13,0.88) 66%, rgba(10,8,13,0.99) 100%),
     radial-gradient(120% 60% at 50% 108%, rgba(232,150,60,0.34), rgba(232,150,60,0) 70%); }
 .k-tn-cost { position: absolute; top: 5px; right: 5px; z-index: 3; width: 19px; height: 19px;
   border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700;
   color: #1a1410; background: linear-gradient(180deg, #f0cf92, #d29a4e);
   box-shadow: 0 1px 5px rgba(0,0,0,0.6); }
-.k-tn-top { position: absolute; left: 0; right: 0; bottom: 22px; z-index: 3; padding: 0 5px;
+.k-tn-top { position: absolute; left: 0; right: 0; bottom: 54px; z-index: 3; padding: 0 6px;
   text-align: center; }
-.k-tn-top b { font-size: 10px; letter-spacing: 0.06em; color: #f4ecda; line-height: 1.1;
+.k-tn-top b { font-size: 12px; letter-spacing: 0.06em; color: #f4ecda; line-height: 1.1;
   text-shadow: 0 1px 4px rgba(0,0,0,0.95); display: block;
   overflow: hidden; text-overflow: ellipsis; }
-/* the plate keeps a two-line whisper of what it becomes — enough to sort the
-   nine at a glance; the full sentence is the strip's job */
-.k-tn-what { position: absolute; left: 0; right: 0; bottom: 4px; z-index: 3; padding: 0 5px;
-  font-size: 7.5px; line-height: 1.22; color: #a79c88; text-align: center;
-  max-height: 18px; overflow: hidden; }
+/* THE PLATE SAYS WHAT IT SELLS. It kept a 7.5px two-line whisper while owning
+   190x290 of the screen — the words were unreadable and the picture was doing
+   all the talking, which is how a shop turns into a poster gallery. Struck-out
+   before, gold after, at a size a person can read from a chair. */
+.k-tn-what { position: absolute; left: 0; right: 0; bottom: 5px; z-index: 3; padding: 0 7px;
+  display: flex; flex-direction: column; gap: 1px; text-align: center;
+  max-height: 46px; overflow: hidden; }
+.k-tn-what s { font-size: 8px; line-height: 1.25; color: #7d7466; text-decoration-thickness: 1px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-tn-what em { font-style: normal; font-size: 9.5px; line-height: 1.24; color: #e2d5b8; }
 .k-tn-seal { position: absolute; left: 0; right: 0; top: 50%; z-index: 3; padding: 0 4px;
   transform: translateY(-50%); font-size: 7px; letter-spacing: 0.1em; line-height: 1.5;
   color: #cbb6e4; text-align: center; text-shadow: 0 1px 4px rgba(0,0,0,0.95); }
@@ -2748,14 +2759,26 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-cr-arrow { flex: none; color: #8d8474; font-size: 12px; }
 .k-cr-now { flex: 1; min-width: 0; font-size: 11.5px; color: #dcd2be; line-height: 1.25;
   max-height: 30px; overflow: hidden; }
-.k-cr em { flex: none; font-style: normal; font-size: 8.5px; letter-spacing: 0.16em;
-  color: #8d8474; padding-left: 10px; border-left: 1px solid rgba(255,255,255,0.1); }
+/* THE PRICE IS A BUTTON. "TAP AGAIN TO KINDLE — 3 EMBERS" was an instruction
+   for operating a control that was not on the screen. */
+.k-cr-state { flex: none; font-size: 8.5px; letter-spacing: 0.16em; color: #8d8474;
+  padding-left: 12px; margin-left: auto; border-left: 1px solid rgba(255,255,255,0.1); }
+.k-cr-buy { flex: none; margin-left: auto; display: flex; align-items: center; gap: 5px;
+  padding: 7px 13px; border-radius: 3px; cursor: pointer; font-family: inherit;
+  font-size: 9px; letter-spacing: 0.18em; font-weight: 700; color: #1a1410;
+  background: linear-gradient(180deg, #f0cf92, #d29a4e);
+  border: 1px solid rgba(255,232,180,0.7); box-shadow: 0 2px 10px rgba(232,150,60,0.28); }
+.k-cr-buy b { font-size: 12px; color: #1a1410; letter-spacing: 0; }
+.k-cr-buy .k-cr-em { display: grid; place-items: center; width: 11px; height: 11px; color: #3a2a10; }
+.k-cr-buy .k-cr-em svg { width: 11px; height: 11px; display: block; }
+.k-cr-buy:hover { filter: brightness(1.08); }
+.k-cr-buy:disabled { cursor: default; background: none; color: #c4695a; box-shadow: none;
+  border-color: rgba(196,105,90,0.5); }
+.k-cr-buy:disabled b, .k-cr-buy:disabled .k-cr-em { color: #c4695a; }
 .k-cr-go { border-color: rgba(240,207,146,0.5); }
-.k-cr-go em { color: #f0cf92; }
-.k-cr-poor em { color: #c4695a; }
 .k-cr-sealed { border-color: rgba(165,140,196,0.4); }
-.k-cr-sealed em { color: #b49ed4; }
-.k-cr-own em { color: #a9c187; }
+.k-cr-sealed .k-cr-state { color: #b49ed4; }
+.k-cr-own .k-cr-state { color: #a9c187; }
 
 /* THE WAY OUT MUST NOT LOOK LIKE THE WAY FORWARD. This carried the same
    gradient, border and weight as the road's TRAVEL button — the styling the
@@ -2809,10 +2832,14 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    Measured on the first pass: at top:34 the line under the title printed across
    Elin's staff, and a 22px gap put the 54px seal behind Mira's shoulder rather
    than in the space between the two of them. */
-#k-mark-cast { position: absolute; left: 50%; top: 58px; z-index: 1;
-  transform: translateX(-50%); display: flex; align-items: flex-end; gap: 74px;
+/* …AND SMALLER THAN IT WAS. The scene owned 250 of 430px and pushed the ten
+   cards — the only thing on this screen the player can actually DO — off the
+   bottom edge by seven pixels. The moment still happens; it just happens in
+   the top half. */
+#k-mark-cast { position: absolute; left: 50%; top: 76px; z-index: 1;
+  transform: translateX(-50%); display: flex; align-items: flex-end; gap: 132px;
   pointer-events: none; }
-.k-mkc-fig { width: auto; height: 178px; object-fit: contain;
+.k-mkc-fig { width: auto; height: 124px; object-fit: contain;
   filter: brightness(1.18) contrast(1.06) drop-shadow(0 10px 22px rgba(0,0,0,0.9));
   animation: k-mkc-in 720ms cubic-bezier(.2,.85,.3,1) both; }
 .k-mkc-a { transform: scaleX(-1); }            /* they face each other */
@@ -2823,15 +2850,15 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   to { opacity: 1; transform: scaleX(-1); } }
 /* THE MARK ITSELF, burning between them. This is the object the whole screen
    exists to hand over, so it is drawn as an object and not as a heading. */
-#k-mark-seal { position: absolute; left: 50%; top: 118px; z-index: 2; transform: translate(-50%, 0);
-  width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center;
+#k-mark-seal { position: absolute; left: 50%; top: 40px; z-index: 2; transform: translate(-50%, 0);
+  width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
   background: radial-gradient(circle at 50% 42%, rgba(24,20,16,0.94), rgba(8,7,10,0.9));
   border: 1px solid var(--sig, #e8cf95); color: var(--sig, #e8cf95);
   box-shadow: 0 0 0 5px rgba(8,7,10,0.5),
     0 0 26px color-mix(in srgb, var(--sig, #e8cf95) 55%, transparent),
     0 10px 26px rgba(0,0,0,0.85);
   animation: k-mkseal 2.4s ease-in-out infinite, k-mkc-in 640ms cubic-bezier(.2,.85,.3,1) 260ms both; }
-#k-mark-seal svg { width: 26px; height: 26px; margin: 0; }
+#k-mark-seal svg { width: 22px; height: 22px; margin: 0; }
 @keyframes k-mkseal {
   50% { box-shadow: 0 0 0 5px rgba(8,7,10,0.5),
     0 0 42px color-mix(in srgb, var(--sig, #e8cf95) 85%, transparent),
@@ -2851,17 +2878,17 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-mark-line { font: italic 400 12.5px/1.3 var(--serif, Georgia, serif); color: #b6ab97; }
 /* WHAT PASSED BETWEEN THEM — the one line that makes this a moment rather than
    a menu. It sits under the figures, where a subtitle sits. */
-#k-mark-say { position: absolute; left: 50%; top: 244px; z-index: 3; margin: 0;
+#k-mark-say { position: absolute; left: 50%; top: 206px; z-index: 3; margin: 0;
   transform: translateX(-50%); max-width: 640px; text-align: center;
   font: italic 400 13.5px/1.35 var(--serif, Georgia, serif); color: #d9d0be;
   text-shadow: 0 2px 10px rgba(0,0,0,0.95);
   animation: k-mkc-in 700ms var(--ease-out) 420ms both; }
-#k-mark-ask { position: absolute; left: 0; right: 0; top: 270px; z-index: 3; margin: 0;
+#k-mark-ask { position: absolute; left: 0; right: 0; top: 230px; z-index: 3; margin: 0;
   text-align: center;
   font: 600 9px/1 var(--serif, Georgia, serif); letter-spacing: 0.3em; color: #8d8478;
   text-shadow: 0 1px 6px rgba(0,0,0,0.95);
   animation: k-mkc-in 700ms var(--ease-out) 560ms both; }
-#k-mark-cols { position: absolute; left: 20px; right: 20px; top: 288px; bottom: 8px; z-index: 3;
+#k-mark-cols { position: absolute; left: 20px; right: 20px; top: 248px; bottom: 8px; z-index: 3;
   display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
   align-content: start;
   animation: k-mkc-in 700ms var(--ease-out) 620ms both; }
@@ -2875,23 +2902,25 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-mk-col > header b { font: 600 9px/1 var(--serif, Georgia, serif); letter-spacing: 0.22em;
   color: #c9a45c; }
 .k-mk-row { display: flex; flex-direction: row; gap: 3px; justify-content: center; width: 100%; }
+/* A CARD, AND UNDER IT WHAT PICKING IT WOULD MEAN — in that order, in flow.
+   Both notes used to be absolutely positioned INSIDE the button, so ten cards
+   each wore two or three lines of type across their own effect text: the very
+   numbers the note was there to help compare. */
 .k-mk { flex: 0 0 auto; background: none; border: 0; padding: 0; cursor: pointer;
-  position: relative; font-family: inherit;
-  /* the card is 118x186 now; five of them at 0.7 fit the 437px half-column,
-     and the box has to be the SCALED size because a transform leaves the
-     layout box where it was */
-  /* …and smaller again now that the scene above them owns most of the board:
-     measured, five at 0.7 hung 15px off the bottom edge */
-  width: 73px; height: 115px; }
-.k-card-mk { transform: scale(0.615) !important; transform-origin: top left;
+  font-family: inherit; width: 82px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px; }
+/* A transform leaves the layout box where it was, so the SLOT carries the
+   scaled size and the card is painted inside it. 118x186 at 0.695. */
+.k-mk-face { position: relative; width: 82px; height: 129px; flex: 0 0 auto; }
+.k-card-mk { transform: scale(0.695) !important; transform-origin: top left;
   transition: filter 140ms var(--ease-out); }
 .k-mk:hover .k-card-mk, .k-mk:focus-visible .k-card-mk { filter: brightness(1.18); }
 .k-mk-taken { cursor: default; }
 .k-mk-taken .k-card-mk { filter: grayscale(0.5) brightness(0.62); }
-.k-mk-note { position: absolute; left: 0; right: 0; bottom: 4px; z-index: 4;
-  font: 600 7px/1.2 var(--serif, Georgia, serif); letter-spacing: 0.12em;
-  text-transform: uppercase; color: #b8ad9c; text-align: center;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.95); }
+.k-mk-note, .k-mk-delta { display: block; width: 100%; min-height: 18px;
+  text-align: center; text-shadow: 0 1px 4px rgba(0,0,0,0.95); }
+.k-mk-note { font: 600 7px/1.25 var(--serif, Georgia, serif); letter-spacing: 0.12em;
+  text-transform: uppercase; color: #8d8478; }
 
 /* ── THE AWAKENING ────────────────────────────────────────────────────────
    Three memories, one taken. The card is a MEMORY first and a boon second, so
@@ -3454,7 +3483,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    the arrow between them, and their gaps. */
 .k-sw-trade { display: flex; flex-direction: column; justify-content: center;
   padding-left: 14px; border-left: 1px solid rgba(201,164,92,0.16); }
-.k-swt-pair { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.k-swt-pair { display: flex; align-items: center; justify-content: center; gap: 4px; }
 .k-swt-slot { display: flex; flex-direction: column; align-items: center; gap: 5px; }
 .k-swt-slot em { font-style: normal; font-size: 7.5px; letter-spacing: 0.24em;
   text-transform: uppercase; color: #8d8474; }
@@ -3462,17 +3491,31 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-swt-slot:last-child em { color: #c9a45c; }
 .k-swt-face { width: 104px; height: 164px; }
 .k-swt-face .k-card { pointer-events: none; }
-/* the empty half is a frame with a question in it, so the panel reads as a
-   trade waiting to be made rather than a picture of the prize */
-.k-swt-empty { width: 104px; height: 164px; border-radius: 6px;
-  border: 1px dashed rgba(201,164,92,0.34); display: grid; place-items: center;
-  background: rgba(20,17,25,0.5); }
-.k-swt-empty span { font-size: 8px; letter-spacing: 0.2em; color: #7d7466;
-  text-align: center; line-height: 1.7; }
+/* THE EMPTY HALF IS A CARD FACE DOWN. It was a dashed rectangle the size of a
+   card with two words floating in the middle — the largest empty shape on the
+   screen and the first thing the eye found. Same frame, same weight, same
+   corner radius as the card opposite it, so the panel reads as two cards, one
+   of which has not been turned over yet. */
+.k-swt-back { width: 104px; height: 164px; border-radius: 6px; position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px;
+  border: 1px solid rgba(201,164,92,0.28);
+  background:
+    repeating-linear-gradient(135deg, rgba(201,164,92,0.05) 0 3px, rgba(0,0,0,0) 3px 7px),
+    linear-gradient(180deg, rgba(38,31,48,0.95), rgba(18,15,24,0.98));
+  box-shadow: inset 0 0 0 1px rgba(8,6,12,0.9), 0 6px 16px rgba(0,0,0,0.6); }
+.k-swt-back i { display: grid; place-items: center; width: 30px; height: 30px;
+  border-radius: 50%; color: rgba(201,164,92,0.5);
+  border: 1px solid rgba(201,164,92,0.22); }
+.k-swt-back i svg { width: 15px; height: 15px; display: block; }
+.k-swt-back span { font-size: 7.5px; letter-spacing: 0.18em; color: #6f675b;
+  text-align: center; line-height: 1.8; text-transform: uppercase; }
 .k-swt-arrow { flex: none; color: #8d8474; }
-.k-swt-arrow svg { width: 18px; height: 18px; display: block; }
-#k-swap-cols { position: absolute; left: 20px; right: 20px; top: 92px; bottom: 60px; z-index: 3;
-  display: grid; grid-template-columns: 1fr 1fr 250px; gap: 16px; }
+.k-swt-arrow svg { width: 14px; height: 14px; display: block; }
+/* …AND THE LISTS STOP SIX PIXELS SHORT OF THE BUTTONS. The fifth row of each
+   five ran right into the two controls at the bottom edge, which is what made
+   a page with room to spare read as crowded. */
+#k-swap-cols { position: absolute; left: 20px; right: 20px; top: 92px; bottom: 70px; z-index: 3;
+  display: grid; grid-template-columns: 1fr 1fr 248px; gap: 16px; }
 .k-sw-col { display: flex; flex-direction: column; gap: 5px; }
 .k-sw-col > header { display: flex; align-items: center; gap: 7px; padding-bottom: 2px; }
 .k-sw-col > header img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover;
@@ -3506,7 +3549,11 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   padding: 11px 24px; border-radius: 3px; cursor: pointer; font-family: inherit;
   background: linear-gradient(180deg, #3a3040, #241f2c); color: #e8dcc2;
   border: 1px solid rgba(224,192,132,0.55); font-size: 11px; letter-spacing: 0.16em; font-weight: 700; }
-#k-swap-go:disabled { opacity: 0.4; cursor: default; border-color: rgba(154,144,128,0.3); }
+/* A DISABLED BUTTON THAT SAYS "PICK A CARD" IS AN INSTRUCTION WEARING A
+   BUTTON. Dimmed to 40% it still had a filled plate and a border, so the
+   screen offered two controls of equal weight, one of which does nothing. */
+#k-swap-go:disabled { cursor: default; background: none; box-shadow: none;
+  border-color: transparent; color: #6f675b; font-weight: 600; white-space: nowrap; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    BUILD 36 — a blow looks like what threw it

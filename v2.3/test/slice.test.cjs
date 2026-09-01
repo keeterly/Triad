@@ -219,6 +219,35 @@ const MAX_TURNS = 30;
     const kind = await J((id) => window.R.map().find(n => n.id === id).kind, pickId);
     seen[kind] = (seen[kind] || 0) + 1;
 
+    // ── A DEBT IS SETTLED ON THE ROAD (Build 103) ──
+    // The mark a bond level pays does not ride on the stop that earned it, and
+    // since this build it does not ride on the doorway of the NEXT one either:
+    // it is asked for here, standing on the chart with nothing chosen, which is
+    // the beat that is already for deliberating. The walk answers a debt the
+    // moment it meets one and asserts it was actually owed — a marking screen
+    // opening with nothing on the books would be the old back-to-back chain
+    // creeping back in.
+    if ((await visible())[0] === 'k-mark') {
+      const debt = await J(() => {
+        const r = window.R.state();
+        const owed = r.pendingSigil, pair = r.markPair;
+        const mk = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
+        const id = mk ? mk.dataset.id : null;
+        if (mk) mk.click();
+        const after = window.R.state();
+        return { owed, pair, id, sigil: (id && after.sigils[id]) || null,
+                 spent: after.pendingSigil == null };
+      });
+      log.push(`before stop ${col}: mark — ${debt.owed} onto ${debt.id}`);
+      check(`SLICE: the mark owed before stop ${col} is paid on the road, and it was really owed`,
+        !!debt.owed && !!debt.pair && !!debt.id && debt.sigil === debt.owed && debt.spent,
+        JSON.stringify(debt));
+      await sleep(300);
+      const road = await visible();
+      check(`SLICE: paying it hands the road back — stop ${col} has not been entered yet`,
+        road.length === 1 && road[0] === 'k-map', road.join(','));
+    }
+
     await J((id) => window.R.travel(id), pickId);
     await sleep(400);
 
@@ -250,24 +279,6 @@ const MAX_TURNS = 30;
     // opening on a stop that owed nothing would be the old back-to-back chain
     // creeping back in.
     let bonds = 0;
-    if (v[0] === 'k-mark') {
-      const debt = await J(() => {
-        const r = window.R.state();
-        const owed = r.pendingSigil, pair = r.markPair;
-        const mk = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
-        const id = mk ? mk.dataset.id : null;
-        if (mk) mk.click();
-        const after = window.R.state();
-        return { owed, pair, id, sigil: (id && after.sigils[id]) || null,
-                 spent: after.pendingSigil == null };
-      });
-      log.push(`stop ${col}: mark — ${debt.owed} onto ${debt.id}`);
-      check(`SLICE: the mark owed at stop ${col} is paid here, and it was really owed`,
-        !!debt.owed && !!debt.pair && !!debt.id && debt.sigil === debt.owed && debt.spent,
-        JSON.stringify(debt));
-      await sleep(300);
-      v = await visible();
-    }
     const convo = () => J(() => {
       const sc = window.R.scene();
       return (sc && (sc.kind === 'bond' || sc.kind === 'recall')) ? sc.kind : null;

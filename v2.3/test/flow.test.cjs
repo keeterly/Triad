@@ -773,6 +773,40 @@ const { boot } = require('./harness.cjs');
     check('HUD: each hero’s badge shows the same two numbers the telegraph does — aimed, then shared',
       ['ash', 'elin', 'mira'].every(id => rows.read[id] === want(id)),
       JSON.stringify({ read: rows.read, aimed: rows.by, dirge: rows.dg }));
+    // A GLYPH THAT MEANS WHAT IT SHOWS. The badge wore ✦ — a sparkle, which
+    // every game in the genre uses for something you WANT — so a red box saying
+    // "✦7+2" beside a health bar was a riddle rather than a warning, and a
+    // playtester asked outright what it was. It is an arrow pointing DOWN into
+    // the bar it is about to empty, a skull when the emptying is fatal, and it
+    // carries the sentence it is shorthand for.
+    const glyph = await J(() => {
+      const read = () => ['ash', 'elin', 'mira'].map(id => {
+        const e = document.querySelector('.k-pt-hero[data-hero="' + id + '"] .k-pt-inc');
+        return e ? { g: (e.textContent || '')[0], title: e.title || '' } : null;
+      }).filter(Boolean);
+      const live = read();
+      const c = window.K.state();
+      const was = {};
+      ['ash', 'elin', 'mira'].forEach(id => {
+        was[id] = [c.heroes[id].hp, c.heroes[id].guard];
+        c.heroes[id].hp = 1; c.heroes[id].guard = 0;
+      });
+      window.K.render();
+      const lethal = read();
+      // …and put the fight back exactly as it was: everything below this reads
+      // the same combat, and three heroes left on 1 health is not it.
+      ['ash', 'elin', 'mira'].forEach(id => {
+        c.heroes[id].hp = was[id][0]; c.heroes[id].guard = was[id][1];
+      });
+      window.K.render();
+      return { live, lethal };
+    });
+    check('HUD: the incoming badge is an arrow into the bar, a skull when it kills, and says so in words',
+      glyph.live.length === 3 && glyph.live.every(r => r.g === '\u25be')
+      && glyph.lethal.every(r => r.g === '\u2620')
+      && glyph.live.every(r => /Incoming this turn/.test(r.title) && /\d/.test(r.title)),
+      JSON.stringify(glyph));
+
     check('HUD: the aimed outline means AIMED — not merely alive under a dirge that reaches everyone',
       rows.aimed.length === Object.keys(rows.by).length
       && rows.aimed.every(id => rows.by[id] > 0),

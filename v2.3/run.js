@@ -1611,13 +1611,9 @@
     // fill and is waiting on; a recall is the road paying out on its own, and
     // the gaps between bonds are exactly where it belongs. At most one of
     // either per stop, so over a road they interleave rather than queue.
-    // ONE NODE, ONE EVENT — and a DEBT is settled before anything new is
-    // opened. A mark earned at the last stop is paid here, on arrival, and it
-    // is the whole of this stop's interruption: no scene follows it, and the
-    // stop's own business waits behind it exactly as it waits behind a bond.
-    // A boss stop pays a debt too; what it does not do is start a conversation.
-    if (RUN.pendingSigil && RUN.markPair) { RUN.bondResume = n.id; save();
-      if (openMark(RUN.markPair)) return; }
+    // ONE NODE, ONE EVENT. A debt is NOT settled here: see toMap. By the time
+    // a stop is entered the player has already chosen it and is leaning in, and
+    // the last thing in front of them should be the thing they chose.
     if (n.kind !== 'boss' && (openBondScene(n.id) || openRecall(n.id))) return;
     enterStop(n);
   }
@@ -2159,7 +2155,11 @@
       + (hero === 'all'
           ? '<div class="k-ct-fig k-ct-brazier">' + svgIcon('ember') + '</div>'
           : '<div class="k-ct-fig"><img src="../art/' + ART[hero] + '.webp" alt=""></div>')
-      + '<b>' + HERO_NAME[hero] + '</b></div>'
+      + '<b>' + HERO_NAME[hero] + '</b>'
+      // THE RAIL WAS A FIGURE STANDING IN A HUNDRED AND FIFTY PIXELS OF BLACK.
+      // It is the same sentence the door wore before it was opened, so the
+      // branch keeps saying what it is worth while you are inside it.
+      + '<span class="k-ctb-say">' + branchState(hero).say + '</span></div>'
       + '<div class="k-ctb-fan">' + ns.map(n => nodeHTML(n, seat++)).join('') + '</div>'
       + '</div>';
     wrap.querySelectorAll('.k-tnode').forEach(b => {
@@ -2215,7 +2215,15 @@
       + '<span class="k-tn-lift" aria-hidden="true"></span>'
       + '<span class="k-tn-cost">' + (own ? '✓' : sealed ? 'T' + n.tier : n.cost) + '</span>'
       + '<span class="k-tn-top"><b>' + f.name + '</b></span>'
-      + '<span class="k-tn-what">' + (f.to || f.from) + '</span>'
+      // WHAT IT WAS, AND WHAT IT BECOMES — on the plate, not only in the strip
+      // forty pixels below it. Given a whole branch to itself a plate is
+      // 190x290, and it was spending all of that on a painting with a 10px
+      // name and a 7.5px whisper at the bottom: an enormous object saying
+      // almost nothing, which is what made this page read as a poster gallery
+      // rather than a place you spend embers.
+      + '<span class="k-tn-what">'
+      +   (f.from && f.to && f.from !== f.to ? '<s>' + f.from + '</s>' : '')
+      +   '<em>' + (f.to || f.from) + '</em></span>'
       + (sealed ? '<span class="k-tn-seal">A MEMORY OPENS THIS</span>' : '')
       + '</button>';
   }
@@ -2259,16 +2267,28 @@
     const own = held(n.id);
     const sealed = RUN.tier < n.tier;
     const poor = !own && !sealed && RUN.embers < n.cost;
-    const call = own ? 'ALREADY KINDLED'
-      : sealed ? 'SEALED — A MEMORY OPENS TIER ' + n.tier
-      : poor ? 'NOT ENOUGH EMBERS — ' + n.cost + ' NEEDED'
-      : 'TAP AGAIN TO KINDLE — ' + n.cost + ' EMBERS';
     strip.className = 'k-cr ' + (own ? 'k-cr-own' : sealed ? 'k-cr-sealed' : poor ? 'k-cr-poor' : 'k-cr-go');
+    // A PRICE AND A BUTTON, NOT AN INSTRUCTION. The strip's last word used to
+    // be "TAP AGAIN TO KINDLE — 3 EMBERS", which is a sentence telling the
+    // player how to operate a control that does not exist. Every other shop in
+    // every other game of this kind has a thing you press and a number on it,
+    // and so does this one now; the plate still takes a second tap for anyone
+    // who found that first.
+    const act = own
+      ? '<span class="k-cr-state">KINDLED</span>'
+      : sealed
+        ? '<span class="k-cr-state">A MEMORY OPENS TIER ' + n.tier + '</span>'
+        : '<button type="button" class="k-cr-buy" data-buy="' + n.id + '"'
+          + (poor ? ' disabled' : '') + '>'
+          + (poor ? 'NEEDS ' : 'KINDLE ') + '<b>' + n.cost + '</b>'
+          + '<i class="k-cr-em">' + svgIcon('ember') + '</i></button>';
     strip.innerHTML = '<b>' + f.name + '</b>'
       + (f.from ? '<span class="k-cr-was">' + f.from + '</span>'
                 + '<span class="k-cr-arrow">→</span>' : '')
       + '<span class="k-cr-now">' + f.to + '</span>'
-      + '<em>' + call + '</em>';
+      + act;
+    const buy = strip.querySelector('.k-cr-buy:not([disabled])');
+    if (buy) buy.addEventListener('click', (e) => { e.stopPropagation(); kindle(buy.dataset.buy); });
   }
 
   // The first tap picks a memory up, the second kindles it. Anything you cannot
@@ -2784,14 +2804,18 @@
         _swapPick = { hero: b.dataset.hero, id: b.dataset.id }; renderSwap(); }));
     const go = $('k-swap-go');
     go.disabled = !_swapPick;
-    go.textContent = _swapPick
-      ? 'TRADE ' + K.CARD_DEFS[_swapPick.id].name.toUpperCase() + ' FOR ' + card.name.toUpperCase()
-      : 'PICK A CARD TO TRADE IT FOR';
+    // TWO CARD NAMES IN ONE BUTTON WRAPPED TO TWO LINES, and both of them are
+    // already drawn full size in the panel above it — LEAVES on the left,
+    // JOINS on the right. The button only has to name the act.
+    go.textContent = _swapPick ? 'MAKE THE TRADE' : 'PICK A CARD TO TRADE';
     // THE SECOND DOOR IS ALWAYS OPEN. It is the one answer that is available
     // before anything has been chosen, so it is what the screen offers while
     // the trade button is still asking for a pick.
     const bn = $('k-swap-bench');
-    if (bn) bn.textContent = 'SET ' + card.name.toUpperCase() + ' DOWN FOR NOW';
+    // SHORT, BECAUSE THE CARD IS ON SCREEN. "SET SHIELD THE BLADE DOWN FOR
+    // NOW" wrapped to two lines in a control eight inches wide; the card it
+    // names is drawn full size in the JOINS slot two hundred pixels away.
+    if (bn) bn.textContent = 'SET IT DOWN FOR NOW';
   }
   // THIS, FOR THAT. The card leaving on the left, the card arriving on the
   // right, both as the faces they will be in the hand — same painting, same
@@ -2800,9 +2824,15 @@
   // a picture of the prize.
   function tradePanelHTML(incoming) {
     const K = window.K;
+    // A CARD NOT YET CHOSEN IS A CARD FACE DOWN, not a hole in the layout. The
+    // empty half was a 104x164 dashed rectangle with two words floating in the
+    // middle of it — the largest single shape on the screen, and the first
+    // thing the eye landed on, saying nothing. It is a card back now: the same
+    // frame and the same weight as the card opposite it, waiting to be turned
+    // over by a pick from the lists.
     const out = _swapPick
       ? '<div class="k-swt-face">' + K.staticCardHTML(_swapPick.id, { cls: 'k-card-swt' }) + '</div>'
-      : '<div class="k-swt-empty"><span>CHOOSE<br>A CARD</span></div>';
+      : '<div class="k-swt-back"><i>' + svgIcon('ember') + '</i><span>choose from<br>their fives</span></div>';
     return '<div class="k-sw-trade">'
       + '<div class="k-swt-pair">'
       +   '<div class="k-swt-slot"><em>LEAVES</em>' + out + '</div>'
@@ -3087,7 +3117,7 @@
     RUN.pendingCard = null; RUN.pendingAfter = ''; RUN.swapBack = null;
     save();
     // The mark is owed whether or not the card was carried, and it is owed to
-    // the NEXT stop rather than to this one — see confirmSwap.
+    // the road rather than to this stop — see confirmSwap.
     const p = window.K.pairOf(card);
     if (back !== 'map' && RUN.pendingSigil && p) { RUN.markPair = p.join('|'); save(); }
     if (back === 'map') return toMap();
@@ -3135,8 +3165,8 @@
     // So the mark is left OWED rather than opened. `RUN.pendingSigil` and
     // `RUN.markPair` already survive a closed tab — the resume path has re-asked
     // an unplaced mark since Build 63 — so owing it costs nothing new, and
-    // `enter` pays it on arrival at the next stop, before that stop's business,
-    // exactly the way a bond scene fires where it was earned.
+    // `toMap` pays it the next time the player is standing on the road, which
+    // is a beat for deliberating rather than a doorway into a fight.
     if (back !== 'map' && RUN.pendingSigil && pair) { RUN.markPair = pair.join('|'); save(); }
     // A SWAP KNOWS WHERE IT CAME FROM. The awakening's card arrives before
     // there is a campfire to go back to; returning to one would have shown the
@@ -3202,11 +3232,17 @@
           const already = RUN.sigils[id];
           return '<button type="button" class="k-mk' + (already ? ' k-mk-taken' : '')
             + '" data-id="' + id + '"' + (already ? ' disabled' : '')
-            + '>' + K.staticCardHTML(id, { sigil: already || sig, cls: 'k-card-mk' })
+            // THE NOTE SITS UNDER THE CARD, NOT OVER IT. Both of these were
+            // absolutely positioned inside the button, so every card on the
+            // screen wore two or three lines of small type across its own
+            // effect text — the exact numbers the note existed to compare.
+            + '><span class="k-mk-face">'
+            + K.staticCardHTML(id, { sigil: already || sig, cls: 'k-card-mk' })
+            + '</span>'
             + (already
-                ? '<span class="k-mk-note">already carries ' + K.SIGILS[already].name.toUpperCase() + '</span>'
+                ? '<span class="k-mk-note">carries ' + K.SIGILS[already].name.toUpperCase() + '</span>'
                 : (() => { const d = markDelta(id, sig);
-                     return d ? '<span class="k-mk-delta">' + d + '</span>' : ''; })())
+                     return '<span class="k-mk-delta">' + (d || '') + '</span>'; })())
             + '</button>';
         }).join('')
       + '</div></div>').join('');
@@ -3240,11 +3276,22 @@
       const before = K.effectText(def.base);
       let after = before;
       try { after = K.effectText(K.effectsWithSigil(def.base, sig)); } catch (_) {}
-      return after === before ? '' : before + ' → ' + after;
+      if (after === before) return '';
+      // A CHIP, NOT A SENTENCE. This printed the whole effect line twice —
+      // "7 damage. → 10 damage." — under a card face 82px wide, which wrapped
+      // to three lines and, being absolutely positioned, printed those three
+      // lines ACROSS the card it was describing. The card already shows the
+      // new numbers; the chip only has to show the one that moved.
+      const nb = before.match(/\d+/g) || [], na = after.match(/\d+/g) || [];
+      if (nb.length && nb.length === na.length) {
+        const moved = nb.map((v, i) => i).filter(i => nb[i] !== na[i]);
+        if (moved.length === 1) return nb[moved[0]] + ' \u2192 ' + na[moved[0]];
+      }
+      return before + ' \u2192 ' + after;
     }
     if (sig === 'chain' || sig === 'lead') {
-      return def.cond ? 'its combo is already live'
-                      : '<i class="k-mk-nil">no combo — nothing to arm</i>';
+      return def.cond ? 'combo already live'
+                      : '<i class="k-mk-nil">no combo to arm</i>';
     }
     return '';
   }
@@ -3277,7 +3324,26 @@
     return true;
   }
 
-  function toMap() { screen('map'); renderMap(); }
+  // A DEBT IS SETTLED ON THE ROAD, NOT IN A DOORWAY.
+  //
+  // The mark a bond earns used to be asked for on ARRIVAL at the next stop —
+  // so the last screen between choosing a fight and fighting it was a quiet,
+  // deliberative card-upgrade prompt, wedged into the one moment in the loop
+  // where the player is leaning forward. It is paid here instead: back on the
+  // chart, with the road ahead and nothing yet committed to. Same debt, same
+  // one-event-per-node rule, but it lands on the beat that is already for
+  // thinking rather than the beat that is for fighting.
+  //
+  // No loop: the mark screen's two exits both clear `pendingSigil` before
+  // `endBondChain` comes back through here, and `bondResume` is cleared so
+  // that it does come back here rather than into a stop.
+  function toMap() {
+    if (RUN && !RUN.over && RUN.pendingSigil && RUN.markPair) {
+      RUN.bondResume = null; save();
+      if (openMark(RUN.markPair)) return;
+    }
+    screen('map'); renderMap();
+  }
 
   function newRun(seed) {
     RUN = freshRun(seed);
@@ -3457,7 +3523,9 @@
     map: () => (RUN ? RUN.map : []),
     reachable,
     travel, tapNode, newRun, clear,
-    screen,
+    // the road itself is a destination, and returning to it is where a mark debt
+    // is settled — so the walk a suite drives has to be able to name it
+    screen, toMap,
     render: renderMap,
     REGIONS, regionOf, EVENTS, eventDef, takeEvent, weakestPair,
     RECKONINGS, pickReckoning, openReckoning, takeReckoning, enterEvent,

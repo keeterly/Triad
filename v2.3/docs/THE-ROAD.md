@@ -4028,3 +4028,123 @@ flow 250/250 · road 94/94 · bond 69/69 · slice 58/58 · line 28/28 ·
 camp 45/45 · music 22/22 · beat 10/10 — **586 checks, no page errors**. Six of
 the seven suites took three replacement character plates without a word, which
 is the point of having the whole cast read one export.
+
+---
+
+## Build 103 — five complaints, and what each of them was actually about
+
+A playtest note listing five things. Four were the same fault wearing different
+clothes: **a screen that knows something and does not say it.**
+
+### The white in the hair
+
+The Build 102 export flood-filled from the edge, which cannot reach a gap
+*enclosed* by hair — and every strand kept a halo besides. The matte is a real
+one now (Higgsfield `remove_background`, alpha extrema 0–255 rather than 0/255),
+but that alone was not enough: the model returns the plate **composited over
+white**, so every soft pixel still carries a share of the backdrop. On a dark
+stage that is a pale haze along every strand. Undoing the composite —
+`C = a·F + (1−a)·255`, solved for F — gives the strand its own colour back.
+
+Measured over the head band, pale-and-soft pixels: **4.5 / 6.2 / 5.9%** before,
+**2.6 / 2.4 / 1.3%** after. The export fails now above 3.5%.
+
+The check had to exclude *opaque* pale pixels or Elin's cream habit fails it and
+nobody else does — the thing being measured is backdrop left in the cutout, and
+backdrop left in a cutout is soft by definition.
+
+### "What is the red box on character health?"
+
+It was the incoming-damage badge, and it wore **✦** — a sparkle, the glyph every
+game in the genre uses for something you *want*. A red box reading `✦7+2` beside
+a health bar is a riddle, not a warning.
+
+It is **▾** now, an arrow pointing down into the bar it is about to empty, and
+**☠** when the emptying is fatal. The badge is shorthand; hovering it prints the
+sentence — *"Incoming this turn — 9 aimed at Ash · 3 from the dirge, on
+everyone"* — which also names the two sources separately, the same split the
+telegraph shows.
+
+### "I don't like getting an upgrade prompt before a fight"
+
+Build 100 moved the mark a bond level pays off the stop that earned it and onto
+**arrival at the next stop**, which fixed one-node-one-event and created this:
+the last screen between choosing a fight and fighting it was a quiet,
+deliberative card-upgrade prompt, wedged into the one beat of the loop where the
+player is leaning forward.
+
+The debt is settled in `toMap` now — back on the chart, road ahead, nothing yet
+committed to. Same debt, same rule, but on the beat that is already for
+thinking rather than the beat that is for fighting. No loop is possible: the
+marking screen's two exits both clear `pendingSigil` before `endBondChain` comes
+back through, and `bondResume` is cleared so that it comes back to the road
+rather than into a stop.
+
+### The marking screen printed its own notes across the cards
+
+Both `k-mk-delta` and `k-mk-note` were absolutely positioned *inside* the card
+button, so all ten cards wore two or three lines of small type across their own
+effect text — the exact numbers the note existed to help compare. And the scene
+above them owned 250 of 430px, which pushed the row seven pixels off the bottom
+edge of a container with `overflow: hidden`.
+
+The note sits **under** the card now, in flow; the cinematic is compressed
+(figures 178→124, the seal 54→46) and the ten faces get 169px of their own. The
+surge delta is a chip rather than a sentence — `7 → 10`, the one number that
+moved, because the card face already shows the new ones.
+
+### "What they learned"
+
+The largest single shape on the screen was a 104×164 **dashed empty rectangle**
+labelled LEAVES with two words floating in it — the first thing the eye landed
+on, saying nothing. It is a **card back** now: same frame, same weight, same
+corner radius as the card opposite it, so the panel reads as two cards one of
+which has not been turned over.
+
+Three smaller things: the disabled trade button was a filled slab dimmed to 40%,
+so the screen offered two controls of equal weight one of which does nothing
+(it is a hint now, not a plate); both button labels named cards that are drawn
+full size two hundred pixels away, and wrapped to two lines doing it (`MAKE THE
+TRADE`, `SET IT DOWN FOR NOW`); and the fifth row of each five ran into the
+controls at the bottom edge, which is what made a page with room to spare read
+as crowded.
+
+### The campfire
+
+Two faults, both the same one. A plate given a whole branch to itself is
+190×290 and it was spending all of that on a painting under a **7.5px** whisper
+— an enormous object saying almost nothing, which is how a shop reads as a
+poster gallery. It prints what it becomes at 9.5px now, over what it was, struck
+through.
+
+And the price was a *sentence*: "TAP AGAIN TO KINDLE — 3 EMBERS", an instruction
+for operating a control that was not on the screen. It is a button with the
+number on it. The second tap on a plate still works for anyone who found that
+first.
+
+### The checks that moved, and why
+
+Six checks changed, and each because the claim under it changed rather than
+because it went red:
+
+- `MARK: the debt is paid on arrival at the next stop` → **settled back on the
+  road**, plus a new one asserting that the stop the player then travels to is
+  the only thing waiting at the end of the walk.
+- `FIRE: …not restated on all ten plates` → **a plate says what it becomes, in
+  type a person can read**. A branch shows three plates, not ten; the thing
+  worth asserting is legibility, not silence.
+- `FIRE: the strip … says what taking it would cost` → **the price is a button
+  with the number on it, not an instruction to tap again**.
+- The slice walk answers a debt **before** it travels now, and asserts that
+  paying it hands the road back with the stop still unentered.
+
+`window.R.toMap` is exported for the same reason `travel` is: the road is a
+destination, and a suite driving the walk has to be able to name it.
+
+Three checks were added rather than changed: the badge's glyph and its hover
+sentence; that nothing on the marking screen prints across the card it describes
+or falls off the bottom of it; and that a campfire plate's after-line is legible
+(≥9px) rather than merely present.
+
+flow 251/251 · road 94/94 · bond 71/71 · slice 69/69 · line 28/28 ·
+camp 46/46 · music 22/22 · beat 10/10 — **591 checks, no page errors**.

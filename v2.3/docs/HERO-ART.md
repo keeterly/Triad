@@ -142,3 +142,32 @@ halo as a dotted outline tracing the whole figure.
   28 credits to close, worth doing only if the gap starts to show.
 - **The heroes do not animate.** The five foes carry painted frames now; the
   party is still three stills with a CSS breathe.
+
+---
+
+## Cutting a replacement plate in (Build 103)
+
+`v2.3/docs/art-export.py <src-dir>` takes three matted PNGs and produces the six
+files the game reads. Run the uploads through a real matting model first —
+**not** a flood fill from the edge, which cannot reach a gap enclosed by hair and
+leaves a halo on every strand besides. Build 102 shipped that and the screen
+showed it.
+
+Then one step that is easy to miss: a matting model returns the plate
+**composited over white**, so every soft pixel still carries a share of the
+backdrop. Over a dark battlefield that is a pale haze along every strand — the
+"white background in the hair" a player will describe without being able to point
+at a single white pixel. Undo the composite, `C = a·F + (1−a)·255` solved for F,
+clamped, for every pixel with `0 < a < 255`. It roughly halves the haze:
+measured over the head band, **4.5 / 6.2 / 5.9%** before and **2.6 / 2.4 / 1.3%**
+after.
+
+The script asserts four things, and every one of them is a fault that reached the
+board once:
+
+| assert | what it caught |
+|---|---|
+| 15–72% of the bounding box opaque | Mira shipped as a rectangle of checkerboard |
+| stance centred within 6% of the width | the padding was on the wrong side; Ash ended at 872 of 1142 |
+| pale **soft** pixels in the head band under 3.5% | the backdrop in the hair. Opaque pale pixels are excluded, or Elin's cream habit fails and nobody else does |
+| head found up the stance column | Elin's staff reaches higher than she does |

@@ -203,12 +203,12 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       const p = document.querySelector('.k-sw-trade');
       const face = () => document.querySelectorAll('.k-swt-face .k-card').length;
       const before = { panel: !!p, faces: face(),
-                       empty: !!document.querySelector('.k-swt-empty'),
+                       empty: !!document.querySelector('.k-swt-back'),
                        chip: (document.getElementById('k-swap-new') || {}).innerHTML };
       document.querySelector('#k-swap-cols .k-swapcard').click();
       const box = document.querySelector('.k-swt-face .k-card').getBoundingClientRect();
       return { before, afterFaces: face(),
-               afterEmpty: !!document.querySelector('.k-swt-empty'),
+               afterEmpty: !!document.querySelector('.k-swt-back'),
                w: Math.round(box.width), h: Math.round(box.height),
                names: [...document.querySelectorAll('.k-swt-face .k-cname')]
                  .map(n => n.textContent) };
@@ -259,20 +259,25 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       !owed.onMark && owed.onCamp && owed.pending === owed.want && owed.pair === 'ash|mira',
       JSON.stringify(owed));
 
-    // …AND IT IS PAID ON ARRIVAL AT THE NEXT STOP. Driven through the road's
-    // own door rather than by calling openMark, because "the debt is settled by
-    // travelling" is the whole of what moved.
+    // …AND IT IS PAID BACK ON THE ROAD, NOT IN THE NEXT DOORWAY.
+    //
+    // WHAT MOVED at Build 103: the debt used to be settled on ARRIVAL at the
+    // next stop, which meant the last screen between choosing a fight and
+    // fighting it was a quiet card-upgrade prompt — a deliberative decision
+    // wedged into the one beat of the loop where the player is leaning forward.
+    // Leaving the fire is what settles it now: they are standing on the chart
+    // with nothing yet committed to, which is the beat that is already for
+    // thinking. Driven through the road's own door rather than by calling
+    // openMark, because "returning to the road settles it" is the whole claim.
     await J(() => { window.R.leaveCamp(); });
-    await sleep(260);
-    await J(() => { window.R.travel(window.R.reachable()[0]); });
-    await sleep(560);
+    await sleep(420);
     const marking = await J(() => {
       const up = (id) => !document.getElementById(id).classList.contains('k-hidden');
       const cards = [...document.querySelectorAll('#k-mark-cols .k-mk')];
       // The mark is decided by the pair and the level — ash|mira level 1 —
       // so the screen's title is checked against the map, not a literal.
       const want = window.R.sigilFor('ash|mira', 1);
-      return { onMark: up('k-mark'), onStage: up('k-stage'),
+      return { onMark: up('k-mark'), onStage: up('k-stage'), onMap: up('k-map'),
                want, wantName: window.K.SIGILS[want].name.toUpperCase(),
                pending: window.R.state().pendingSigil,
                title: (document.getElementById('k-mark-title') || {}).textContent,
@@ -286,8 +291,8 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
                faces: cards.filter(c => c.querySelector('.k-card-static')).length,
                wearing: cards.filter(c => c.querySelector('.k-csig')).length };
     });
-    check('MARK: the debt is paid on arrival at the next stop, before that stop’s own business',
-      marking.onMark && !marking.onStage && marking.pending
+    check('MARK: the debt is settled back on the road — never in the doorway of the next stop',
+      marking.onMark && !marking.onStage && !marking.onMap && marking.pending
       && marking.pending === marking.want && marking.title === marking.wantName
       && marking.line > 10,
       JSON.stringify(marking));
@@ -297,6 +302,36 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       JSON.stringify({ offered: marking.offered, faces: marking.faces,
                        wearing: marking.wearing, kind: marking.kind }));
 
+    // NOTHING ON THIS SCREEN MAY PRINT OVER THE CARD IT IS ABOUT, OR FALL OFF
+    // THE BOTTOM OF IT. Both notes — the delta and the "already carries" —
+    // were absolutely positioned INSIDE the card button, so all ten cards wore
+    // two or three lines of small type across their own effect text: the exact
+    // numbers the note existed to help compare. And the scene above them owned
+    // 250 of 430px, which pushed the whole row seven pixels past the bottom
+    // edge of a container with `overflow: hidden`.
+    await sleep(1500);                       // the row fades in on a 620ms delay
+    const fits = await J(() => {
+      const box = document.getElementById('k-mark').getBoundingClientRect();
+      const cards = [...document.querySelectorAll('#k-mark-cols .k-mk')];
+      const over = cards.filter(c => c.getBoundingClientRect().bottom > box.bottom + 0.5).length;
+      const notes = cards.map(c => c.querySelector('.k-mk-delta, .k-mk-note')).filter(Boolean);
+      const onTop = notes.filter(nt => {
+        const f = nt.closest('.k-mk').querySelector('.k-mk-face');
+        if (!f) return true;
+        const a = nt.getBoundingClientRect(), b = f.getBoundingClientRect();
+        return a.top < b.bottom - 0.5;       // the note begins before the card ends
+      }).length;
+      const spill = [...document.querySelectorAll('#k-mark *')].filter(e => {
+        const r = e.getBoundingClientRect();
+        return r.width && (r.bottom > box.bottom + 1 || r.right > box.right + 1
+                        || r.left < box.left - 1);
+      }).length;
+      return { cards: cards.length, notes: notes.length, over, onTop, spill };
+    });
+    check('MARK: every card is inside the screen, and no note is printed across the card it describes',
+      fits.cards === 10 && fits.notes === 10 && fits.over === 0 && fits.onTop === 0
+      && fits.spill === 0, JSON.stringify(fits));
+
     const placed = await J(() => {
       const btn = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
       const id = btn.dataset.id;
@@ -305,7 +340,7 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       const up = (x) => !document.getElementById(x).classList.contains('k-hidden');
       const all = window.K.rosterIds(r.roster);
       return { id, sigil: r.sigils[id], pending: r.pendingSigil,
-               onStage: up('k-stage'), onMark: up('k-mark'),
+               onStage: up('k-stage'), onMark: up('k-mark'), onMap: up('k-map'),
                marks: Object.keys(r.sigils).length,
                owned: all.indexOf(id) >= 0,
                sizes: [r.roster.ash.length, r.roster.elin.length, r.roster.mira.length],
@@ -316,16 +351,23 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       && placed.sizes.every(n => n === 5) && placed.uniq === 15,
       JSON.stringify(placed));
 
-    // …AND PLACING IT LETS THE STOP HAPPEN. The mark interrupted this stop the
-    // way a bond scene does; answering it hands the stop back, rather than
-    // stacking a third screen on the node.
+    // …AND PLACING IT HANDS THE ROAD BACK, with the next stop still unchosen —
+    // and travelling to it then opens THAT STOP, with no screen in front of it.
     const back = await J(() => ({
-      stage: !document.getElementById('k-stage').classList.contains('k-hidden'),
+      map: !document.getElementById('k-map').classList.contains('k-hidden'),
       mark: !document.getElementById('k-mark').classList.contains('k-hidden'),
       swap: !document.getElementById('k-swap').classList.contains('k-hidden'),
     }));
-    check('MARK: answering it hands the stop back — the node gets on with what it was',
-      back.stage && !back.mark && !back.swap, JSON.stringify(back));
+    check('MARK: answering it hands the road back — the chart, with nothing yet chosen',
+      back.map && !back.mark && !back.swap, JSON.stringify(back));
+    await J(() => { window.R.travel(window.R.reachable()[0]); });
+    await sleep(620);
+    const doorway = await J(() => ({
+      stage: !document.getElementById('k-stage').classList.contains('k-hidden'),
+      mark: !document.getElementById('k-mark').classList.contains('k-hidden'),
+    }));
+    check('MARK: and the stop the player chose is the only thing waiting at the end of the walk',
+      doorway.stage && !doorway.mark, JSON.stringify(doorway));
 
     // WHAT MOVED at Build 69: two levels crossed on one road used to be two
     // scenes BACK TO BACK AT THE SAME FIRE. That was the campfire overload —
@@ -351,7 +393,7 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       out.owed = window.R.state().pendingSigil;
       return out;
     });
-    // …and paying a debt at the next stop is how the road settles it.
+    // …and paying a debt back on the road is how it is settled.
     const payDebt = () => J(() => {
       const on = !document.getElementById('k-mark').classList.contains('k-hidden');
       const btn = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
@@ -368,22 +410,23 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     check('TRADE: the conversation hands back to the stop it interrupted, and the fire is only the fire',
       atFire.camp && !atFire.scene, JSON.stringify(atFire));
 
-    // …AND THE NEXT STOP PAYS THE MARK. A debt is settled before anything new
-    // opens, so the second bond scene waits one stop further on.
+    // …AND THE ROAD PAYS THE MARK. A debt is settled the moment the player is
+    // back on the chart, so the walk is: leave the fire, place the mark, then
+    // travel — and the stop they travel to is the stop, not a fourth screen.
     await J(() => { window.R.leaveCamp(); });
-    await sleep(320);
-    await J(() => { const r = window.R.reachable(); if (r.length) window.R.travel(r[0]); });
-    await sleep(560);
+    await sleep(420);
     const paidFirst = await payDebt();
     await sleep(420);
-    // now the road is clear, and the level still owed opens at the stop after
+    // now the road is clear, and the level still owed opens at the next stop
     await J(() => { const r = window.R.reachable(); if (r.length) window.R.travel(r[0]); });
     await sleep(560);
     const opened = await J(() => !document.getElementById('k-scene').classList.contains('k-hidden'));
     const second = opened ? await runOne() : { title: null, markNow: false, owed: null };
     await sleep(320);
-    await J(() => { const r = window.R.reachable(); if (r.length) window.R.travel(r[0]); });
-    await sleep(560);
+    // that stop's own business, and then back to the road, which is where it
+    // is paid — the same seam `leaveCamp` walked through above.
+    await J(() => { window.R.toMap(); });
+    await sleep(420);
     const paidSecond = await payDebt();
     await sleep(320);
     const chain = await J(() => {
@@ -393,7 +436,7 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
                sizes: ['ash', 'elin', 'mira'].map(h => r.roster[h].length),
                uniq: new Set(window.K.rosterIds(r.roster)).size };
     });
-    check('MARK: each level marks one card, and neither mark rides on its own stop',
+    check('MARK: each level marks one card, and neither mark rides on the stop that earned it',
       paidFirst && paidSecond && !first.markNow && !second.markNow
       && !!first.owed && !!second.owed
       && chain.sigils === 2 && chain.pending == null,
@@ -744,9 +787,15 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
                  .filter(id => !document.getElementById(id).classList.contains('k-hidden')),
                n: ids.length, uniq: new Set(ids).size };
     });
+    // The swap is what must not open — there is no card to trade. Where the
+    // chain hands back to is a separate question, and this scene was opened
+    // without a stop under it, so it hands back to the ROAD — which since
+    // Build 103 is exactly where a mark debt is settled. Asserting "not the
+    // marking screen" here would have been asserting the absence of the
+    // behaviour the build added.
     check('TWICE: …and the level still lands and still owes its mark, with no card owed',
       paid.levelled && !paid.owes && !!paid.sigil && paid.n === 15 && paid.uniq === 15
-      && paid.screen.length === 1 && paid.screen.indexOf('k-mark') < 0,
+      && paid.screen.length === 1 && paid.screen.indexOf('k-swap') < 0,
       JSON.stringify(paid));
   }
 

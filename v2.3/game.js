@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 102;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 103;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -5199,6 +5199,16 @@ function setBar(bar, pct) {
   ghost.classList.remove('k-bar-hit'); void ghost.offsetWidth; ghost.classList.add('k-bar-hit');
   ghost._t = setTimeout(() => { ghost.style.width = pct + '%'; }, 190);
 }
+// THE BADGE IS SHORTHAND; THIS IS THE SENTENCE. A number in a red box is only
+// legible to a player who already knows what the box means, so the box says it
+// in words on hover — and the words name the two sources separately, the same
+// split the chip row telegraphs.
+function incTitle(id, aimed, shared) {
+  const parts = [];
+  if (aimed[id]) parts.push(fmtN(aimed[id]) + ' aimed at ' + HEROES23[id].name);
+  if (shared[id]) parts.push(fmtN(shared[id]) + ' from the dirge, on everyone');
+  return 'Incoming this turn — ' + parts.join(' \u00b7 ');
+}
 function renderPartyHud() {
   // what this turn is about to do to each of them, read from the same function
   // the chip row reads — one source, so the two can never disagree
@@ -5232,7 +5242,13 @@ function renderPartyHud() {
     setBar(row.querySelector('.k-bar'), h.hp / h.max * 100);
     row.querySelector('.k-pt-hp').innerHTML = '<b>' + fmtN(h.hp) + '</b> / ' + fmtN(h.max)
       + (h.guard > 0 ? ' <span class="k-pt-guard">⛨' + fmtN(h.guard) + '</span>' : '')
-      + (incoming[id] ? ' <span class="k-pt-inc">\u2726'
+      + (incoming[id] ? ' <span class="k-pt-inc" title="' + incTitle(id, aimed, shared) + '">'
+          // A GLYPH THAT MEANS WHAT IT SHOWS. The badge wore \u2726 — a sparkle,
+          // which every game in the genre uses for something you WANT — so a red
+          // box saying "\u27267" beside a health bar was a riddle rather than a
+          // warning. It is an arrow pointing down into the bar it is about to
+          // empty, and a skull when that emptying is fatal.
+          + (incoming[id] >= h.hp + h.guard && !h.downed ? '\u2620' : '\u25be')
           // a hero nobody is aiming at reads the shared number alone, not "0+3"
           + (aimed[id] ? fmtN(aimed[id]) + (shared[id] ? '<s>+' + fmtN(shared[id]) + '</s>' : '')
                        : fmtN(shared[id] || 0))

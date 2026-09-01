@@ -569,10 +569,12 @@ const { boot } = require('./harness.cjs');
       && plates.ratio > 0.4 && plates.ratio < 0.8,
       JSON.stringify(plates));
 
-    // THE CHANGELOG IS GONE FROM THE GRID. Ten nodes each setting out their own
-    // "7 damage. → 10 damage." is what made this screen read as a spreadsheet.
-    // The before/after belongs to ONE of them at a time, in one strip, at a
-    // size a phone can read — so no plate may carry the struck-through half.
+    // THE BEFORE/AFTER IS ON THE PLATE AND IN THE STRIP, and neither of those
+    // is the spreadsheet this screen used to be — a branch shows THREE plates,
+    // not ten, and a plate given 190x290 of the screen has room to say what it
+    // sells. What it may not do is say it in type nobody can read: the plate
+    // spent all of that on a painting under a 7.5px whisper, which is how a
+    // shop reads as a poster gallery.
     await openDoor('elin');
     const strip = await J(() => {
       const s2 = document.getElementById('k-camp-read');
@@ -582,24 +584,32 @@ const { boot } = require('./harness.cjs');
         name: s2 ? (s2.querySelector('b') || {}).textContent : '',
         was: s2 ? (s2.querySelector('.k-cr-was') || {}).textContent : '',
         now: s2 ? (s2.querySelector('.k-cr-now') || {}).textContent : '',
-        call: s2 ? (s2.querySelector('em') || {}).textContent : '',
+        // the price is a BUTTON now, not a sentence telling you to tap again
+        buy: s2 && s2.querySelector('.k-cr-buy')
+          ? { tag: 'BUTTON', txt: s2.querySelector('.k-cr-buy').textContent.trim(),
+              off: s2.querySelector('.k-cr-buy').disabled } : null,
+        instruction: s2 ? /TAP AGAIN/i.test(s2.textContent || '') : true,
         size: cs ? Math.round(parseFloat(cs.fontSize)) : 0,
         nowSize: s2 && s2.querySelector('.k-cr-now')
           ? +parseFloat(getComputedStyle(s2.querySelector('.k-cr-now')).fontSize).toFixed(1) : 0,
-        // nothing on a plate strikes anything out any more
-        // (a door is open, so the plates being scanned are the ones on screen)
-        diffsOnPlates: [...document.querySelectorAll('#k-camp .k-tnode')]
-          .filter(b => getComputedStyle(b.querySelector('.k-tn-what') || b).textDecorationLine
-            .indexOf('line-through') >= 0).length,
+        // …and the plate's own after-line is legible from a chair
+        plateAfter: (() => {
+          const em = document.querySelector('#k-camp .k-tnode .k-tn-what em');
+          return em ? { txt: (em.textContent || '').trim().length,
+                        px: +parseFloat(getComputedStyle(em).fontSize).toFixed(1) } : null;
+        })(),
       };
     });
-    check('FIRE: the before/after is read in one strip, at a readable size — not restated on all ten plates',
+    check('FIRE: the before/after is read in one strip, at a readable size',
       strip.exists && strip.was && strip.now && strip.was !== strip.now
-      && strip.nowSize >= 11 && strip.diffsOnPlates === 0,
-      JSON.stringify(strip));
-    check('FIRE: the strip names the memory and says what taking it would cost',
-      /\S/.test(strip.name || '') && /\d/.test(strip.call || '') && /EMBER/.test(strip.call || ''),
-      JSON.stringify({ name: strip.name, call: strip.call }));
+      && strip.nowSize >= 11, JSON.stringify(strip));
+    check('FIRE: a plate says what it becomes, in type a person can read',
+      !!strip.plateAfter && strip.plateAfter.txt > 3 && strip.plateAfter.px >= 9,
+      JSON.stringify(strip.plateAfter));
+    check('FIRE: the price is a button with the number on it — not an instruction to tap again',
+      /\S/.test(strip.name || '') && !!strip.buy && /\d/.test(strip.buy.txt)
+      && /KINDLE/.test(strip.buy.txt) && strip.buy.off === false && !strip.instruction,
+      JSON.stringify({ name: strip.name, buy: strip.buy, instruction: strip.instruction }));
 
     // THE PARTY IS AT THE FIRE. The hero header used to be a 22px avatar in a
     // stat bar — a row label. If the three of them are not actually present and
@@ -654,12 +664,15 @@ const { boot } = require('./harness.cjs');
     const sealedRead = await J(() => {
       document.querySelector('[data-node="ash.lastlight"]').click();
       const s2 = document.getElementById('k-camp-read');
-      return { call: (s2.querySelector('em') || {}).textContent,
+      return { call: (s2.querySelector('.k-cr-state') || {}).textContent,
+               // a locked memory offers no price, because there is nothing to buy
+               buy: !!s2.querySelector('.k-cr-buy'),
                now: (s2.querySelector('.k-cr-now') || {}).textContent,
                spent: window.R.state().nodes.indexOf('ash.lastlight') >= 0 };
     });
     check('FIRE: picking up a sealed memory still tells you what it is and what would open it',
-      /MEMORY/.test(sealedRead.call || '') && /\S/.test(sealedRead.now || '') && !sealedRead.spent,
+      /MEMORY/.test(sealedRead.call || '') && /\S/.test(sealedRead.now || '')
+      && !sealedRead.buy && !sealedRead.spent,
       JSON.stringify(sealedRead));
 
     // ARRIVING IS AN EVENT, BUYING IS NOT. The row deals in off the fire when you
