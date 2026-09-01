@@ -245,6 +245,106 @@ const { boot } = require('./harness.cjs');
       JSON.stringify(lands));
   }
 
+
+  // ═══ H · THREE PLACES ON THEIR SIDE TOO ═══
+  // The party has stood in FRONT / MID / BACK since Build 20 and the things it
+  // fought had nowhere at all. Build 99 gave a small foe a lane to SWING at,
+  // decided by an allocation rule; Build 101 gives it a lane to STAND in, and
+  // the swing follows from where it is. The effect is nearly the same and the
+  // cause is now on the screen: two Husks both wanting the front used to mean
+  // the second was silently reassigned, and "why is this one hitting Mira?"
+  // had no answer anywhere in the game.
+  console.log('\n── where a thing stands ──');
+  {
+    const slots = await J(() => {
+      window.K.startCombat({ seed: 5, foes: ['husk', 'cultist', 'wraith'] });
+      const c = window.K.state();
+      const V = window.K._composeVolley();
+      return { rows: c.foes.map(f => f.row),
+               places: window.K.ROWS,
+               // every blow comes down the lane its thrower stands in
+               lanes: V.hits.map(h => ({ src: h.src, from: c.foes[h.src].row, to: h.resolvedRow })),
+               hp: c.foes.map(f => f.hp) };
+    });
+    check('SLOTS: the line stands in the same three places the party does, one to a place',
+      slots.rows.join() === slots.places.join()
+      && new Set(slots.rows).size === slots.rows.length,
+      JSON.stringify(slots.rows));
+    check('SLOTS: a blow comes down the lane its thrower is standing in',
+      slots.lanes.length === 3 && slots.lanes.every(l => l.from === l.to),
+      JSON.stringify(slots.lanes));
+    // …AND EACH BODY KEEPS ITS OWN HEALTH. Three bars, three numbers, three
+    // things to kill in whatever order the player likes.
+    check('SLOTS: every body carries its own health',
+      new Set(slots.hp).size >= 2 && slots.hp.every(h => h > 0), JSON.stringify(slots.hp));
+
+    // THREE PLACES MEANS AT MOST THREE THINGS. A fourth would have nowhere to
+    // stand and would have to share a lane, which is the exact ambiguity the
+    // slots exist to remove.
+    const four = await J(() => {
+      window.K.startCombat({ seed: 5, foes: ['husk', 'husk', 'husk', 'husk'] });
+      const c = window.K.state();
+      return { n: c.foes.length, rows: c.foes.map(f => f.row) };
+    });
+    check('SLOTS: a line never holds more things than there are places to stand',
+      four.n === slots.places.length && new Set(four.rows).size === four.n,
+      JSON.stringify(four));
+
+    // MOVING A HERO CHANGES WHO ANSWERS WHAT. This is the whole point of giving
+    // the line slots: the board decision the game already asks every turn now
+    // decides the matchups, and it does so visibly.
+    const swapped = await J(() => {
+      window.K.startCombat({ seed: 5, foes: ['husk', 'cultist', 'wraith'] });
+      const c = window.K.state();
+      const before = window.K.intentByTarget().map(r => r.who + ':' + r.total);
+      const front = Object.keys(c.heroes).find(id => c.heroes[id].row === 'front');
+      const back = Object.keys(c.heroes).find(id => c.heroes[id].row === 'back');
+      window.K.placeHero(front, 'back');
+      const after = window.K.intentByTarget().map(r => r.who + ':' + r.total);
+      return { front, back, before, after,
+               frontNow: c.heroes[front].row, backNow: c.heroes[back].row };
+    });
+    check('SLOTS: trading places trades who answers which of them',
+      swapped.frontNow === 'back' && swapped.backNow === 'front'
+      && swapped.before.join() !== swapped.after.join(),
+      JSON.stringify(swapped));
+
+    // AND IT IS ON THE FLOOR, not only in a table. A body is placed by the slot
+    // it stands in, so the field and the rule agree by construction.
+    const drawn = await J(() => {
+      window.K.startCombat({ seed: 5, foes: ['husk', 'cultist', 'wraith'] });
+      const S = document.getElementById('k-stage').getBoundingClientRect();
+      const at = (el) => { const r = el.getBoundingClientRect();
+        return { cx: Math.round(r.left + r.width / 2 - S.left),
+                 base: Math.round(r.top + r.height - S.top), w: Math.round(r.width) }; };
+      const foes = [...document.querySelectorAll('#k-boss-art, #k-cast .k-foe-art')]
+        .map(b => ({ row: b.dataset.row, lane: (b.querySelector('.k-foe-lane') || {}).textContent, ...at(b) }));
+      const heroes = {};
+      document.querySelectorAll('.k-hero').forEach(h => {
+        heroes[window.K.state().heroes[h.dataset.hero].row] = at(h);
+      });
+      return { foes, heroes, stage: Math.round(S.width) };
+    });
+    const F = {}; drawn.foes.forEach(f => { F[f.row] = f; });
+    check('SLOTS: every body is drawn in its own slot, wearing the floor’s own word for it',
+      drawn.foes.length === 3 && ['front', 'mid', 'back'].every(r => !!F[r])
+      && F.front.lane === 'FRONT' && F.mid.lane === 'MID' && F.back.lane === 'BACK',
+      JSON.stringify(drawn.foes.map(f => f.row + '=' + f.lane)));
+    // ONE FLOOR, NOT TWO DRAWINGS. A rank steps the same distance and stands at
+    // the same depth on whichever side of the board it is on — the first pass
+    // spaced the line by eye and put the back body half off a 932px stage.
+    check('SLOTS: the line recedes on the party’s own ladder, and stays on the stage',
+      F.front.cx < F.mid.cx && F.mid.cx < F.back.cx
+      && F.front.base > F.mid.base && F.mid.base > F.back.base
+      && F.front.w > F.mid.w && F.mid.w > F.back.w
+      && F.back.cx + F.back.w / 2 <= drawn.stage
+      && Math.abs(F.front.base - drawn.heroes.front.base) <= 12
+      && Math.abs(F.back.base - drawn.heroes.back.base) <= 12,
+      JSON.stringify({ foes: drawn.foes.map(f => f.row + ':' + f.cx + '/' + f.base + '/' + f.w),
+                       heroes: Object.keys(drawn.heroes).map(r => r + ':' + drawn.heroes[r].base),
+                       stage: drawn.stage }));
+  }
+
   const r = report();
   await H.browser.close();
   process.exit(r.passed === r.total && r.errs === 0 ? 0 : 1);

@@ -85,15 +85,53 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-foe-art.k-has-anim img { display: none; }
 .k-foe-art.k-has-anim[data-foe] .k-fig { animation: none; }
 
-/* A LINE OF TWO. The front body drops and comes forward; the second stands
-   back and to the left, behind it in the volume. */
-#k-cast[data-line="2"] #k-boss-art { left: 672px; top: 44px; transform: scale(0.88); transform-origin: 50% 100%; }
-#k-cast[data-line="2"] .k-foe-art[data-ix="1"] { left: 566px; top: 6px; transform: scale(0.70); transform-origin: 50% 100%; opacity: 0.94; }
-/* …AND OF THREE. Tighter, and the deepest one is the smallest thing on the
-   field — which is also the honest reading: it is furthest away. */
-#k-cast[data-line="3"] #k-boss-art { left: 690px; top: 56px; transform: scale(0.80); transform-origin: 50% 100%; }
-#k-cast[data-line="3"] .k-foe-art[data-ix="1"] { left: 596px; top: 20px; transform: scale(0.66); transform-origin: 50% 100%; opacity: 0.95; }
-#k-cast[data-line="3"] .k-foe-art[data-ix="2"] { left: 520px; top: -6px; transform: scale(0.56); transform-origin: 50% 100%; opacity: 0.9; }
+/* THREE PLACES ON THEIR SIDE TOO (Build 101).
+   The party has stood in FRONT / MID / BACK since Build 20 and the things it
+   fights had nowhere at all — a picture at a fixed point on the right. A body
+   is placed by the SLOT IT STANDS IN now, never by its place in the list, so
+   the field and the rule agree by construction: a creature in the middle lane
+   hits the middle lane because it is standing there.
+
+   The line MIRRORS the party across the floor: their front is the innermost,
+   nearest and largest, and the ranks recede away to the right exactly as the
+   party's recede to the left. The two front-liners meet in the middle, which
+   is the read the whole board is built on. */
+/* MEASURED AGAINST THE PARTY, NOT GUESSED. The heroes' projected centres and
+   ground line come out at 240/234, 352/253, 474/276 — ~115px of x per rank and
+   ~21px of lift. The line is laid out to the same ladder running the other way,
+   so the two sides are one floor rather than two drawings: a rank steps the
+   same distance and rises the same amount whichever side of the board it is on.
+   The first pass put the back body's centre at x=912 on a 932 stage — half of
+   it off the edge — because it spaced the ranks by eye. */
+#k-cast.k-line-many .k-foe-art[data-row="front"],
+#k-cast.k-line-many #k-boss-art[data-row="front"] {
+  left: 535px; top: 12px; transform: scale(0.62); transform-origin: 50% 100%; z-index: 3; }
+#k-cast.k-line-many .k-foe-art[data-row="mid"],
+#k-cast.k-line-many #k-boss-art[data-row="mid"] {
+  left: 620px; top: -11px; transform: scale(0.52); transform-origin: 50% 100%;
+  opacity: 0.95; z-index: 2; }
+#k-cast.k-line-many .k-foe-art[data-row="back"],
+#k-cast.k-line-many #k-boss-art[data-row="back"] {
+  left: 695px; top: -32px; transform: scale(0.44); transform-origin: 50% 100%;
+  opacity: 0.9; z-index: 1; }
+/* …and the same air-and-warmth ladder the hero ranks wear, so a rank reads at a
+   glance on both sides of the floor rather than only on one. */
+#k-cast.k-line-many [data-row="back"] img, #k-cast.k-line-many [data-row="back"] .k-fanim {
+  filter: saturate(0.78) brightness(0.84) drop-shadow(0 8px 12px rgba(0,0,0,0.6)); }
+#k-cast.k-line-many [data-row="mid"] img, #k-cast.k-line-many [data-row="mid"] .k-fanim {
+  filter: saturate(0.92) brightness(0.93) drop-shadow(0 8px 12px rgba(0,0,0,0.68)); }
+
+/* WHICH LANE A BODY IS IN, said in the same word the floor uses. Only ever
+   drawn when there is more than one of them — a lone opponent has no lane to
+   distinguish it from. */
+/* AT ITS FEET, NOT BELOW THEM. Hung under the box the front body's label fell
+   behind the card fan — the one lane the player most needs to read was the one
+   the hand covered. */
+.k-foe-lane { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%);
+  z-index: 5; padding: 1px 6px; border-radius: 3px; white-space: nowrap;
+  background: rgba(12,10,16,0.72); border: 1px solid rgba(201,164,92,0.2);
+  font: 700 7.5px/1.3 var(--ui, system-ui), sans-serif; letter-spacing: 0.18em;
+  color: rgba(216,196,160,0.9); text-shadow: 0 1px 3px #000; pointer-events: none; }
 
 /* WHAT YOU ARE POINTED AT. A ring on the floor under the aimed body rather
    than a tint on the body itself: the creature keeps its own colour, and the
@@ -115,9 +153,15 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 /* THE REST OF THE LINE, under the aimed foe's plate. Compact rows: name,
    health, poise. Tapping one is the second way to change your aim, for anyone
    reading the numbers rather than watching the floor. */
-.k-line-strip { display: flex; flex-direction: column; gap: 3px; margin-top: 5px; }
-.k-lrow { display: grid; grid-template-columns: 1fr 54px 30px 26px; align-items: center;
-  gap: 6px; width: 100%; padding: 2px 5px; border-radius: 4px;
+/* ONE READOUT, NOT TWO. With a line on the floor the big plate was printing the
+   aimed foe's name and health directly above a strip that printed the same name
+   and the same health — and it sat across the telegraph, so the two most
+   important things in the top-right corner were fighting for the same pixels.
+   A line of one keeps the plate it has always had; a line replaces it. */
+#k-boss-hud:has(.k-line-strip) .k-foe-plate { display: none; }
+.k-line-strip { display: flex; flex-direction: column; gap: 3px; width: 100%; margin-top: 2px; }
+.k-lrow { display: grid; grid-template-columns: 13px 1fr 52px 30px 26px; align-items: center;
+  gap: 6px; width: 100%; padding: 3px 5px; border-radius: 4px;
   background: rgba(12,10,16,0.42); border: 1px solid rgba(201,164,92,0.14);
   color: #cdc4b8; font: 600 9px/1.1 var(--ui, system-ui), sans-serif;
   letter-spacing: 0.04em; text-align: left; cursor: pointer;
@@ -126,6 +170,10 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-lrow-on { background: rgba(201,164,92,0.16); border-color: rgba(201,164,92,0.55); color: #f0e6d6; }
 .k-lrow-dead { opacity: 0.4; cursor: default; }
 .k-lr-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* WHICH LANE, in the floor's own word — the first column, because "which of
+   these is in front of me" is the question the readout is for. */
+.k-lr-lane { font-style: normal; font-size: 9px; letter-spacing: 0;
+  text-align: center; color: rgba(201,164,92,0.85); }
 .k-lr-bar { height: 5px; border-radius: 3px; overflow: hidden; background: rgba(0,0,0,0.5); }
 .k-lr-hp, .k-lr-brk { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; }
 .k-lr-brk { color: #8fb4d4; }

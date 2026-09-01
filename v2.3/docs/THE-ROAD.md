@@ -3879,3 +3879,79 @@ stacking them at whichever stop happened to cross a threshold.
 bond **69/69** (was 62 — the mark section rewritten, five new bench checks) ·
 flow 250/250 · line 21/21 · camp 45/45 · road 94/94 · slice 59/59 ·
 music 22/22 · beat 10/10.
+
+---
+
+## Build 101 — three places on their side too
+
+The party has stood in FRONT / MID / BACK since Build 20. The things it fought
+had nowhere at all — a picture at a fixed point on the right.
+
+Build 99 gave a small foe a lane to **swing at**, decided by an allocation rule
+that walked the line handing out free rows. The effect was right and the cause
+was invisible: two Husks both wanting the front meant the second was silently
+reassigned to the middle, and *"why is this one hitting Mira?"* had no answer
+anywhere on the screen.
+
+Build 101 gives it a lane to **stand in**, and the swing follows from where it
+is. A creature in the middle lane hits the middle lane because it is standing
+there.
+
+### What that buys
+
+- **Three places, so at most three things.** A fourth body would have nowhere to
+  stand and would have to share a lane — the exact ambiguity slots exist to
+  remove — so the line is capped at the number of places.
+- **Moving a hero trades who answers which of them.** Measured: with three foes
+  the incoming reads `ash:9 mira:9 elin:12`; step Ash back and it becomes
+  `elin:9 mira:9 ash:12`. The board decision this game already asks every turn
+  now decides the matchups, and it does so *visibly*.
+- **One voice per position falls out for free.** One foe to a lane means no hero
+  is ever asked to answer two creatures at once — Build 99's rule, now a
+  consequence of the geometry rather than a rule enforced on top of it.
+- A foe whose lane has no one alive in it reaches the nearest place that does.
+  A creature does not stop swinging because the person opposite it fell.
+
+### One floor, not two drawings
+
+The first pass spaced the line by eye and put the back body's centre at x=912 on
+a 932px stage — half of it off the edge. The fix was to measure the party and
+copy its ladder: their projected centres and ground line come out at 240/234,
+352/253, 474/276 — about 115px of x per rank and 21px of lift. The line runs the
+same ladder the other way, so the two sides read as one floor:
+
+| | party | line |
+| --- | --- | --- |
+| front | 474 / 279 | 670 / 289 |
+| mid | 352 / 254 | 759 / 264 |
+| back | 240 / 233 | 837 / 242 |
+
+Each body wears the rank's own air-and-warmth filter, the same one the hero
+ranks have worn since Build 21, and carries the floor's own word for its lane.
+
+### The readout stopped saying everything twice
+
+With a line on the floor the big foe plate was printing the aimed creature's
+name and health directly above a strip printing the same name and the same
+health — and sitting across the telegraph, so the two most important things in
+that corner fought for the same pixels. A line of one keeps the plate it has
+always had; a line **replaces** it.
+
+Three more readability faults, all caught by looking at it:
+
+- Every name truncated (`The Hollow Hu…`). Every creature in the bestiary is
+  called "The Something", so the article was three characters of nothing
+  repeated down the column. Dropped.
+- The lane column read `Fro / Mid / Bac`. The telegraph has printed **F / M / B**
+  for a hero's rank since Build 96; a readout inventing a second spelling beside
+  it was both wrong and eating the width the names needed.
+- The front body's lane label hung below its box and fell behind the card fan —
+  the one lane the player most needs to read was the one the hand covered.
+
+### Where it stands
+
+**line 28/28** (+7). The slot checks assert the rule rather than the layout:
+one body to a place, a blow comes down its thrower's lane, every body carries
+its own health, a line never holds more than there are places, trading places
+trades who answers what, and the line recedes on the party's own ladder and
+stays on the stage.

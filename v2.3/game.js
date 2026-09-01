@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 100;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 101;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -793,8 +793,17 @@ function packScale(n) { return n > 1 ? 1 / n : 1; }
 function foeRecord(def, ix, bonus, lineSize) {
   const k = packScale(lineSize || 1);
   const hp = Math.max(1, Math.round(foeHp(def) * k)) + Math.max(0, bonus || 0);
+  // WHERE IT STANDS. The party has had FRONT / MID / BACK since Build 20 and
+  // the things it fights had nowhere at all — they were a picture at a fixed
+  // point on the right. A line needs the same three places for the same reason
+  // the party does: so that WHICH of them is in front of WHICH of you is a fact
+  // on the board rather than a number in a table.
+  //
+  // Front of the line stands at the front. There are three places and the line
+  // is capped at three, so no two things ever share one.
+  const row = ROWS[Math.min(ix, ROWS.length - 1)];
   return {
-    ix, def, id: def.id, name: def.name, art: def.art,
+    ix, def, id: def.id, name: def.name, art: def.art, row,
     hp, max: hp, phase: 1,
     breakMax: Math.max(4, Math.round(def.brk * k)), brk: Math.max(4, Math.round(def.brk * k)),
     broken: false, cancelNext: false,
@@ -1104,8 +1113,11 @@ function startCombat(opts) {
   // ONE FOE OR SEVERAL, READ THE SAME WAY. `opts.foes` is a list of bestiary
   // ids; `opts.foe` is the old single-opponent door and still works, because
   // every fight the road already knows how to start comes through it.
+  // THREE PLACES, SO AT MOST THREE THINGS. A fourth body would have nowhere to
+  // stand and would have to share a lane with one that is already there, which
+  // is the exact ambiguity the slots exist to remove.
   const lineup = (opts.foes && opts.foes.length
-    ? opts.foes.map(f => (typeof f === 'string' ? FOES[f] : f)).filter(Boolean)
+    ? opts.foes.map(f => (typeof f === 'string' ? FOES[f] : f)).filter(Boolean).slice(0, ROWS.length)
     : [foe]);
   C = {
     phase: 'INTRO',
@@ -1227,7 +1239,8 @@ function dressEncounter(foe) {
       box = document.createElement('div');
       box.className = 'k-foe-art';
       box.dataset.ix = ix;
-      box.innerHTML = '<span class="k-fig"><img alt=""></span><span class="k-shadow"></span>';
+      box.innerHTML = '<span class="k-fig"><img alt=""></span><span class="k-shadow"></span>'
+        + '<b class="k-foe-lane"></b>';
       // BEHIND THE FIRST, NOT IN FRONT OF THE PARTY. Inserted straight after
       // `#k-boss-art` so the three heroes keep their own stacking order and a
       // second creature cannot end up painted over Ash.
@@ -1244,6 +1257,21 @@ function dressEncounter(foe) {
     // pictures at different HP totals.
     box.dataset.foe = F.id;
     box.dataset.ix = ix;
+    // …AND THE SLOT IT STANDS IN. The stylesheet places a body by its row, not
+    // by its place in the list, so the field and the rule agree by construction
+    // rather than by two tables being kept in step.
+    if (F.row) box.dataset.row = F.row;
+    // THE LANE, IN THE FLOOR'S OWN WORD. The party's rows are labelled FRONT /
+    // MID / BACK under their feet; a line that used the same three places and
+    // named none of them would be asking the player to infer from x-position
+    // the one fact the telegraph is about to quote back at them.
+    let lane = box.querySelector('.k-foe-lane');
+    if (!lane && line.length > 1) {
+      lane = document.createElement('b'); lane.className = 'k-foe-lane';
+      box.appendChild(lane);
+    }
+    if (lane) { lane.textContent = line.length > 1 ? (F.row || '').toUpperCase() : '';
+                lane.classList.toggle('k-hidden', line.length < 2); }
     foeAnimArm(F.id, ix, box);
   });
   const st = el('k-stage');
@@ -1377,10 +1405,10 @@ function composeVolley() {
   const hits = [], acting = [], held = [];
   const taken = {};                 // row -> already answering something
   let notes = 0;
-  const freeRow = (want) => {
-    // …the one it wants, else the nearest place still open. Order matters: a
-    // creature denied the front reaches for the middle before the back, which
-    // is how a pack closes in rather than scattering.
+  // WHERE A BLOW LANDS: the lane the thing throwing it is standing in, and if
+  // nobody is alive in that lane, the nearest place that still has somebody.
+  // A creature does not stop swinging because the person opposite it fell.
+  const reach = (want) => {
     const order = ROWS.indexOf(want) >= 0
       ? [want].concat(ROWS.filter(r => r !== want)) : ROWS.slice();
     return order.find(r => !taken[r] && livingHeroes().some(id => C.heroes[id].row === r)) || null;
@@ -1427,7 +1455,7 @@ function composeVolley() {
         mine.push({ ...h });
         continue;
       }
-      const row = freeRow(h.row);
+      const row = reach(F.row);
       if (!row) { blocked = true; break; }
       taken[row] = true;
       mine.push({ ...h, resolvedRow: row });
@@ -1483,6 +1511,23 @@ function hitRow(hit) {
   if (hit && (hit.resolvedRow || hit.row)) return hit.resolvedRow || hit.row;
   const h = hit && C.heroes[hit.target];
   return h ? h.row : null;
+}
+// THE LANE A BLOW COMES DOWN. A small thing swings at the place it is STANDING
+// IN — not at a place its intent names, which is what Build 99 did.
+//
+// The effect was right and the cause was invisible: two Husks both wanting the
+// front meant the second was quietly reassigned to the middle by an allocation
+// rule nobody could see, so "why is this one hitting Mira?" had no answer on
+// the screen. A creature in the middle lane hits the middle lane because it is
+// standing there. Which also means moving a hero is now a way of choosing WHO
+// answers WHICH of them — the board decision this game already asks every turn,
+// pointed at the thing that was missing from it.
+//
+// A BOSS IS EXEMPT, as ever: its blows name people and cross the party, and
+// that reach is what a boss is.
+function laneOf(hit) {
+  const F = srcFoe(hit);
+  return (F && F.row) || hitRow(hit);
 }
 // One hit's damage RIGHT NOW: phase value, row shelter, then Chill. Chill is
 // spent by the first hit of the action, so only that hit previews the relief.
@@ -5335,7 +5380,15 @@ function renderLineHud() {
     return '<button type="button" class="k-lrow' + (on ? ' k-lrow-on' : '')
       + (F.dead ? ' k-lrow-dead' : '') + '" data-ix="' + F.ix + '"'
       + (F.dead ? ' disabled' : '') + '>'
-      + '<b class="k-lr-name">' + F.name + '</b>'
+      // ONE LETTER, AND THE SAME LETTER THE SKY USES. The telegraph has printed
+      // F / M / B for a hero's rank since Build 96; a readout inventing
+      // "Fro / Mid / Bac" beside it would be a second spelling of one fact, and
+      // it ate the width the names needed.
+      + '<em class="k-lr-lane">' + (ROW_LETTER[F.row] || '?') + '</em>'
+      // …AND THE NAME GETS THE ROOM BACK. Every creature in the bestiary is
+      // called "The Something", so the article is three characters of nothing
+      // repeated down the column — and with it there, all three names truncated.
+      + '<b class="k-lr-name">' + F.name.replace(/^The\s+/, '') + '</b>'
       + '<span class="k-bar k-lr-bar"><span class="k-bar-fill k-bar-boss" style="width:'
       + (F.dead ? 0 : Math.max(0, F.hp / F.max * 100)) + '%"></span></span>'
       + '<em class="k-lr-hp">' + (F.dead ? '—' : fmtN(F.hp)) + '</em>'
@@ -6965,7 +7018,7 @@ window.K = {
   // moment Build 94 shortened the lead-in, reporting a broken promise where
   // there was only a changed constant.
   BEAT_MS, BEAT_LEADIN,
-  intentByTarget, ROW_LETTER,
+  intentByTarget, ROW_LETTER, ROWS, placeHero,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, condText,
   staticCardHTML, staticInspectHTML,
   cam, bgParallax, SIGILS, sigilOf, brighten, effectsWithSigil,
