@@ -951,15 +951,37 @@
   // deepest columns go back to single opponents on purpose — a lone Wraith
   // throwing its whole action into ONE hero is a harder read than three husks
   // throwing one note each, and the road should get harder rather than wider.
+  // A LINE IS ORDINARY, NOT A CURIOSITY.
+  //
+  // MEASURED at Build 105: 19% of fight nodes carried a pack, but a run walks
+  // eleven stops of which maybe five are ordinary fights — so a random walk met
+  // **0.94 packs per run**, and twelve runs in two hundred met none at all. A
+  // player can finish a whole road without seeing the thing the positional line
+  // was built for, which is what happened.
+  //
+  // The first two columns still stand one foe up: the fight has to teach itself
+  // before it teaches the line, and an elite and the Regent stand alone by rule
+  // because what makes them what they are is reach. From column two on, two of
+  // every three draws is a line — around three a run, which is often enough to
+  // be a thing the player learns and rare enough that a solo foe still reads as
+  // a different kind of fight.
+  //
+  // The CEILING here is the road, not the table: a walk takes 4.5 fights and
+  // only 2.95 of them are past column one, so three quarters of those draws
+  // being a line is about two lines a run and nine runs in ten seeing at least
+  // one. Pushing the table further buys tenths.
   const FOE_BY_COL = [
-    ['husk', 'cultist'], ['husk', 'cultist'],
-    ['husk', 'cultist', ['husk', 'husk']],
-    ['cultist', 'wraith', ['husk', 'cultist']],
-    ['cultist', 'wraith', ['husk', 'husk', 'cultist']],
-    ['cultist', 'wraith', ['cultist', 'cultist']],
-    ['wraith', ['husk', 'cultist', 'wraith']],
-    ['wraith', ['cultist', 'wraith']],
-    ['wraith'], ['wraith'], ['mourner'],
+    ['husk', 'cultist'],
+    ['husk', 'cultist'],
+    ['husk', ['husk', 'husk'], ['husk', 'cultist'], ['husk', 'husk']],
+    ['cultist', ['husk', 'cultist'], ['husk', 'husk'], ['cultist', 'husk']],
+    ['wraith', ['husk', 'husk', 'cultist'], ['cultist', 'cultist'], ['husk', 'cultist']],
+    ['cultist', ['cultist', 'cultist'], ['husk', 'cultist', 'wraith'], ['cultist', 'wraith']],
+    ['wraith', ['husk', 'cultist', 'wraith'], ['cultist', 'wraith'], ['cultist', 'cultist']],
+    ['wraith', ['cultist', 'wraith'], ['husk', 'wraith'], ['cultist', 'cultist']],
+    ['wraith', ['cultist', 'wraith'], ['wraith', 'wraith'], ['husk', 'wraith']],
+    ['wraith', ['cultist', 'wraith', 'wraith'], ['cultist', 'wraith']],
+    ['mourner'],
   ];
 
   // ── geometry of the road ──────────────────────────────────────────────────
@@ -1606,17 +1628,15 @@
   // A bond fires where it is EARNED now: on arrival at the next stop, before
   // that stop's own business, at most one. Eleven stops carry the developing
   // half of the game between them instead of three.
-  function enter(n) {
-    // A BOND FIRST, THEN A RECALL. A bond is a threshold the player watched
-    // fill and is waiting on; a recall is the road paying out on its own, and
-    // the gaps between bonds are exactly where it belongs. At most one of
-    // either per stop, so over a road they interleave rather than queue.
-    // ONE NODE, ONE EVENT. A debt is NOT settled here: see toMap. By the time
-    // a stop is entered the player has already chosen it and is leaning in, and
-    // the last thing in front of them should be the thing they chose.
-    if (n.kind !== 'boss' && (openBondScene(n.id) || openRecall(n.id))) return;
-    enterStop(n);
-  }
+  // A NODE IS ITS STOP, AND NOTHING ELSE (Build 106).
+  //
+  // Everything the road wants to say now happens on the ROAD — see toMap. This
+  // used to open a bond scene or a recall on ARRIVAL, which meant choosing a
+  // fight and then being handed a conversation, a fork and a card-swap screen
+  // before the fight started. Build 103 moved the mark debt off this seam for
+  // exactly that reason and left the two conversations behind, so the doorway
+  // still had an upgrade prompt in it — a smaller one, on the same node.
+  function enter(n) { enterStop(n); }
   function enterStop(n) {
     // HOW FAR INTO THIS PLACE THEY HAVE COME. A region is chosen at the top of
     // a run and never changes, so "you are in the Cinders" is true on stop one
@@ -1631,6 +1651,9 @@
     // one seam: a stop writes what it did as its business begins, and whatever
     // that unlocks arrives at the NEXT arrival, which is exactly where a bond
     // level already lands.
+    // …and the road's one conversation is spent per LEG, so arriving at a stop
+    // re-arms it for the walk out of this one.
+    _roadSpent = false;
     if (RUN.journey) RUN.journey.deepest = Math.max(RUN.journey.deepest || 0, n.col || 0);
     if (n.kind === 'camp') return enterCamp(n);
     if (n.kind === 'story') return enterStory(n);
@@ -3354,8 +3377,16 @@
     // "worth nothing here" answer to print — what changes card to card is only
     // how easy the order is to reach, and that is the player's read, not a
     // line of copy's.
-    if (sig === 'chain')  return 'after an ally \u2192 1 AP back';
-    if (sig === 'combo')  return 'after the same hand \u2192 1 AP back';
+    // …AND IT SAYS WHEN IT WOULD ADD NOTHING. A card whose own combo is CHAIN
+    // and already hands the AP back cannot be paid twice — the refund is one a
+    // turn — so marking it is the one wasted place this mark has, and the
+    // screen that sells it is where that belongs.
+    if (sig === 'chain') {
+      return (def.cond && def.cond.type === 'FOLLOW_UP' && def.cond.reward === 'ap')
+        ? '<i class="k-mk-nil">it already pays this</i>'
+        : 'after an ally \u2192 1 AP back';
+    }
+    if (sig === 'combo')  return 'after the same character \u2192 1 AP back';
     if (sig === 'retain') return 'kept at end of turn';
     if (sig === 'rally')  return 'the bond grows by 6';
     return '';
@@ -3403,16 +3434,36 @@
   // No loop: the mark screen's two exits both clear `pendingSigil` before
   // `endBondChain` comes back through here, and `bondResume` is cleared so
   // that it does come back here rather than into a stop.
+  // ONE LEG OF THE ROAD, ONE CONVERSATION. Everything the road wants to say
+  // resolves back through toMap, so without this the whole queue would empty at
+  // once — a bond, then a recall, then another bond, before the player saw the
+  // chart again. Cleared when a stop is entered, so each walk between two nodes
+  // carries at most one.
+  //
+  // A MARK DEBT IS NOT A SECOND CONVERSATION. It is the second half of the
+  // payout the leg has already made, so it does not spend the budget: a bond
+  // level runs scene, fork, trade and mark on the leg it was crossed. It used
+  // to spend it, and the arithmetic was fatal — six bond levels each owing a
+  // mark is twelve legs on a road that has ten, so RECALLS NEVER FIRED AT ALL.
+  // The soak measured 0 across ten runs where it had been measuring 21.
+  let _roadSpent = false;
   function toMap() {
-    if (RUN && !RUN.over && RUN.pendingSigil && RUN.markPair) {
-      RUN.bondResume = null; save();
-      if (openMark(RUN.markPair)) return;
+    if (RUN && !RUN.over && !_roadSpent) {
+      RUN.bondResume = null;
+      // A DEBT FIRST, THEN A BOND, THEN A RECALL. A debt is the second half of
+      // a payout the player is already owed; a bond is a threshold they watched
+      // fill and are waiting on; a recall is the road paying out on its own,
+      // and the gaps between bonds are exactly where it belongs.
+      if (RUN.pendingSigil && RUN.markPair) { save(); if (openMark(RUN.markPair)) return; }
+      save();
+      if (openBondScene(null) || openRecall(null)) { _roadSpent = true; return; }
     }
     screen('map'); renderMap();
   }
 
   function newRun(seed) {
     RUN = freshRun(seed);
+    _roadSpent = false;
     RUN.roster = window.K.baseRoster();
     _pick = null; _busy = false;
     save();

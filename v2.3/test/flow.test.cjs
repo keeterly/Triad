@@ -1578,8 +1578,12 @@ const { boot } = require('./harness.cjs');
       && pool.start.indexOf('REPOSITIONED') < 0 && pool.start.indexOf('WARDED') < 0,
       JSON.stringify({ start: pool.start, whole: pool.all }));
 
+    // ONE WORD FOR ONE TRIGGER (Build 106). "After an Ally" was a description
+    // of the same fact the CHAIN mark names, so the deck was teaching two
+    // phrases for one rule. The tag is the keyword; the sentence is what the
+    // detail view is for.
     check('LOAD: a keyword states its own rule — the name alone teaches nothing',
-      /After an Ally/.test(taught.tag || '') && /different hero/.test(taught.rule || ''),
+      /Chain/.test(taught.tag || '') && /different hero/.test(taught.rule || ''),
       JSON.stringify(taught));
   }
   await settle();
@@ -2788,7 +2792,7 @@ const { boot } = require('./harness.cjs');
     // hierarchy: the base NUMBER is the biggest type on the face, and the
     // payoff never out-sizes it.
     check('CARD: every clause is its own ruled row, and the combo is the last of them',
-      anat.tag === 'After an Ally' && anat.pay === 'costs 1 AP.' && anat.condIcon
+      anat.tag === 'Chain' && anat.pay === 'costs 1 AP.' && anat.condIcon
       && anat.nRows >= 2 && parseFloat(anat.rowRule) >= 1
       && parseFloat(anat.banded) >= 1
       && anat.numSize > anat.proseSize && anat.numSize > anat.paySize

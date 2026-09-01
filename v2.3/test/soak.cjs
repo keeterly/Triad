@@ -154,8 +154,26 @@ const MAX_TURNS = 24;
   // one, and a reload re-asks either — so the soak answers a swap or a mark
   // wherever it turns up rather than only where a script expected it.
   async function clearDebts(where, screen) {
-    let guard = 0;
-    while ((screen === 'k-swap' || screen === 'k-mark') && guard++ < 6) {
+    let guard = 0, legDepth = 0;
+    while ((screen === 'k-swap' || screen === 'k-mark' || screen === 'k-scene') && guard++ < 8) {
+      if (screen === 'k-scene') {
+        // a bond or a recall: play it out and take the fork, which hands on to
+        // the swap the loop already knows how to answer
+        const drove = await J(() => {
+          const sc = window.R.scene();
+          if (!sc || (sc.kind !== 'bond' && sc.kind !== 'recall')) return false;
+          window.R.sceneSkip();
+          if (sc.kind === 'recall') window.R.takeRecall(0); else window.R.takeBond(0);
+          return sc.kind;
+        });
+        if (!drove) break;                       // a memory or a crossroads is the STOP's
+        if (drove === 'recall') recalls++; else bonds++;
+        legDepth++; deepestBond = Math.max(deepestBond, legDepth);
+        note(drove);
+        await sleep(280);
+        screen = await step(where + ' (road)');
+        continue;
+      }
       if (screen === 'k-swap') {
         await J(() => {
           const cards = [...document.querySelectorAll('#k-swap-cols .k-swapcard')];
@@ -327,10 +345,17 @@ const MAX_TURNS = 24;
         await J(() => window.R.leaveCamp());
         await sleep(260);
       } else if (kind === 'story') {
+        // WATCH THIS MEMORY, NOT "ANY SCENE". A memory closes itself and hands
+        // the road back — and since Build 106 the road may answer with a bond
+        // or a recall, on the same screen. Waiting for `scene()` to go null
+        // therefore waited for a conversation that ends on a FORK, not on a
+        // last beat, and reported a memory that had closed perfectly well as
+        // one that never closed. It is identity, not emptiness, that ends it.
         const closed = await J(() => {
+          const mine = window.R.scene();
           let n = 0;
-          while (n++ < 30 && window.R.scene()) window.R.sceneNext();
-          return !window.R.scene();
+          while (n++ < 30 && window.R.scene() === mine) window.R.sceneNext();
+          return window.R.scene() !== mine;
         });
         if (!closed) fail('col ' + col + ': the memory never closed');
         note('memory');
@@ -383,11 +408,11 @@ const MAX_TURNS = 24;
       }
 
       await sleep(200);
-      // A DEBT IS SETTLED ON THE ROAD (Build 103). A stop hands back to the
-      // chart — and if a mark is owed, the chart asks for it before the player
-      // chooses anything. That is the road, not a stop that failed to end, so
-      // the marking screen is answered here and the hand-back is checked
-      // against what is left afterwards.
+      // THE ROAD IS WHERE THE ROAD TALKS (Build 103, 106). A stop hands back
+      // to the chart — and the chart may then ask for a mark it is owed, or
+      // open the one conversation this leg carries. That is the road, not a
+      // stop that failed to end, so all of it is answered here and the
+      // hand-back is checked against what is left afterwards.
       let back = await step('back from ' + kind);
       back = await clearDebts('after ' + kind, back);
       if (back !== 'k-map') { fail('col ' + col + ': a ' + kind + ' did not hand the road back (' + back + ')'); break; }

@@ -1039,6 +1039,13 @@ const { boot } = require('./harness.cjs');
     // and the header carrying the new numbers. That is what this asserts now.
     const back = await J(() => ({
       onMap: !document.getElementById('k-map').classList.contains('k-hidden'),
+      // …OR THE ROAD'S ONE CONVERSATION (Build 106). A crossroads hands back to
+      // the ROAD LAYER, and the road may have something to say before the chart
+      // — a bond level crossed, a recall due, a mark owed. What this check is
+      // about is the STOP being spent, not which of the road's screens is up.
+      onRoad: ['k-map', 'k-scene', 'k-mark', 'k-swap']
+        .some(id => !document.getElementById(id).classList.contains('k-hidden')),
+      onScene: !document.getElementById('k-scene').classList.contains('k-hidden'),
       card: document.getElementById('k-map-card').textContent.replace(/\s+/g, ' '),
       done: document.querySelectorAll('.k-n-done').length,
       pending: window.R.state().pending,
@@ -1047,10 +1054,11 @@ const { boot } = require('./harness.cjs');
       embersReal: String(window.R.state().embers),
     }));
     check('MYSTERY: the crossroads hands the road back, the stop is spent, and the header carries the trade',
-      back.onMap && back.pending === null && back.done >= 1
-      && back.embersShown === back.embersReal
+      back.onRoad && back.pending === null && back.done >= 1
+      && (back.onScene || back.embersShown === back.embersReal)
       && took.flash && took.flash.icon === 'event' && (took.flash.gainSub || '').length > 3,
-      JSON.stringify({ onMap: back.onMap, done: back.done, embers: back.embersShown, flash: took.flash }));
+      JSON.stringify({ onMap: back.onMap, onScene: back.onScene, done: back.done,
+                       embers: back.embersShown, flash: took.flash }));
     check('MYSTERY: …and it does NOT re-announce it on a banner over the chart',
       back.card === '', JSON.stringify({ card: back.card.slice(0, 80) }));
 

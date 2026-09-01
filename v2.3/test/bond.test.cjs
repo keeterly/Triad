@@ -16,13 +16,19 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
 
   const R = () => J(() => JSON.parse(JSON.stringify(window.R.state())));
   const reset = (seed) => J((s) => { window.R.newRun(s); window.R.resetProfile(); return true; }, seed);
+  // …AND THE ROAD IS WHERE A CONVERSATION HAPPENS (Build 106). `_set` writes
+  // the run and paints the map directly; `toMap` is the seam that asks whether
+  // anything is owed. A walk that skipped it would never meet a bond scene at
+  // all, because a node no longer opens one.
   const atCamp = (patch) => J((p) => {
     const camp = window.R.map().find(n => n.kind === 'camp');
     const prev = window.R.map().find(m => m.col === camp.col - 1 && m.to.indexOf(camp.id) >= 0);
     window.R._set(Object.assign({ at: prev.id, path: [prev.id], stop: prev.col + 1 }, p || {}));
-    window.R.travel(camp.id);
+    window.R.toMap();
     return camp.id;
   }, patch);
+  // once the road has had its say, the stop the walk was aiming at
+  const goCamp = (id) => J((c) => { window.R.travel(c); return true; }, id);
 
   await reset(11);
 
@@ -134,17 +140,23 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       scenes.pairs === 3 && scenes.n === 6 && scenes.forks && scenes.cards === 12 && scenes.beats,
       JSON.stringify(scenes));
 
-    // a pair over the threshold gets their scene AT the fire, before the tree
+    // A PAIR OVER THE THRESHOLD IS HEARD ON THE ROAD (Build 106), before the
+    // player has chosen where to go next — not on arrival at whatever stop they
+    // chose. It used to fire in the doorway, which meant picking a fight and
+    // then being handed a conversation, a fork and a card-swap screen before
+    // the fight began: the same "upgrade prompt before a fight" the mark debt
+    // was moved off this seam for at Build 103.
     const opened = await atCamp({ bonds: { 'ash|mira': 20, 'ash|elin': 0, 'elin|mira': 0 }, embers: 6, tier: 2 });
     await sleep(420);
     const at = await J(() => ({
       scene: !document.getElementById('k-scene').classList.contains('k-hidden'),
       camp: !document.getElementById('k-camp').classList.contains('k-hidden'),
+      map: !document.getElementById('k-map').classList.contains('k-hidden'),
       cast: document.querySelectorAll('#k-scene-cast .k-sc-fig').length,
       title: document.getElementById('k-scene-title').textContent,
     }));
-    check('SCENE: a pair that crossed a level is heard at the fire, before the tree',
-      at.scene && !at.camp && at.cast === 2, JSON.stringify(at));
+    check('SCENE: a pair that crossed a level is heard on the road — not in the doorway of the next stop',
+      at.scene && !at.camp && !at.map && at.cast === 2, JSON.stringify(at));
     check('SCENE: a bond scene is a two-hander — only the pair is in the shot',
       at.cast === 2, at.cast + ' figures');
 
@@ -239,25 +251,39 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     check('TRADE: five slots a hero, fifteen cards — the deck never grows',
       done.sizes.every(n => n === 5) && done.total === 15, JSON.stringify(done.sizes));
 
-    // A BOND LEVEL PAYS TWICE — AND THE TWO HALVES ARE TWO STOPS APART.
+    // A BOND LEVEL PAYS TWICE — AND THE TWO HALVES ARE A LEG OF THE ROAD APART.
     //
     // WHAT MOVED at Build 100: the scene, the fork, the swap and the marking
-    // screen all used to arrive back to back, four screens deep before the stop
-    // the player had actually chosen began. That is three events on one node,
-    // against the road's own rule that a node is ONE event. The mark is left
-    // OWED here and paid on arrival at the NEXT stop — so what this asserts
-    // first is that the trade hands you on to the fire, with the mark on the
-    // books and no second screen in the way.
+    // screen arrived back to back, four screens deep before the stop the player
+    // had chosen began. WHAT MOVED at Build 106: the conversation itself came
+    // off the node too, so all of this happens on the ROAD — and the road spends
+    // ONE screen per leg, or the queue would simply empty in a different place.
+    // So the trade hands back to the CHART with the mark on the books.
     const owed = await J(() => {
       const up = (id) => !document.getElementById(id).classList.contains('k-hidden');
       const r = window.R.state();
-      return { onMark: up('k-mark'), onCamp: up('k-camp'),
+      return { onMark: up('k-mark'), onMap: up('k-map'), onCamp: up('k-camp'),
                pending: r.pendingSigil, pair: r.markPair,
                want: window.R.sigilFor('ash|mira', 1) };
     });
-    check('MARK: a level leaves the mark OWED — one stop, one event, and the fire is not queued behind it',
-      !owed.onMark && owed.onCamp && owed.pending === owed.want && owed.pair === 'ash|mira',
+    check('MARK: a level leaves the mark OWED — one leg of the road, one conversation',
+      !owed.onMark && owed.onMap && !owed.onCamp
+      && owed.pending === owed.want && owed.pair === 'ash|mira',
       JSON.stringify(owed));
+
+    // …AND THE STOP THE PLAYER THEN CHOOSES OPENS ON ITS OWN BUSINESS. This is
+    // the whole point of moving the conversation: the doorway is empty.
+    // (the fire this road carries — named here rather than carried in from the
+    // block above, where `opened` belongs to a different walk)
+    await J(() => { window.R.travel(window.R.map().find(n => n.kind === 'camp').id); });
+    await sleep(460);
+    const doorway0 = await J(() => {
+      const up = (id) => !document.getElementById(id).classList.contains('k-hidden');
+      return { camp: up('k-camp'), scene: up('k-scene'), swap: up('k-swap'), mark: up('k-mark') };
+    });
+    check('MARK: the fire opens as the fire — nothing is queued in the doorway of a stop',
+      doorway0.camp && !doorway0.scene && !doorway0.swap && !doorway0.mark,
+      JSON.stringify(doorway0));
 
     // …AND IT IS PAID BACK ON THE ROAD, NOT IN THE NEXT DOORWAY.
     //
@@ -426,35 +452,39 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       document.getElementById('k-mark-place').click();       // and mark it
       return on;
     });
+    // A LEG OF THE ROAD IS A CONVERSATION AND THE STOP IS THE STOP. The walk
+    // has to move to see the second one: a leg out, a stop, a leg back.
+    const leg = async () => {
+      // resolve wherever we are and step to the next stop, then hand the road
+      // back the way a finished stop does
+      await J(() => { const r = window.R.reachable(); if (r.length) window.R.travel(r[0]); });
+      await sleep(420);
+      await J(() => window.R.toMap());
+      await sleep(420);
+    };
     const first = await runOne();
-    await sleep(320);
-    // …and the fire it interrupted is what it hands back to, not another scene
-    const atFire = await J(() => ({
-      camp: !document.getElementById('k-camp').classList.contains('k-hidden'),
+    await sleep(360);
+    // …and the CHART is what it hands back to, with nothing else stacked on it
+    const atChart = await J(() => ({
+      map: !document.getElementById('k-map').classList.contains('k-hidden'),
       scene: !document.getElementById('k-scene').classList.contains('k-hidden'),
+      mark: !document.getElementById('k-mark').classList.contains('k-hidden'),
     }));
-    check('TRADE: the conversation hands back to the stop it interrupted, and the fire is only the fire',
-      atFire.camp && !atFire.scene, JSON.stringify(atFire));
+    check('TRADE: the conversation hands back to the chart — one leg of the road, one screen',
+      atChart.map && !atChart.scene && !atChart.mark, JSON.stringify(atChart));
 
-    // …AND THE ROAD PAYS THE MARK. A debt is settled the moment the player is
-    // back on the chart, so the walk is: leave the fire, place the mark, then
-    // travel — and the stop they travel to is the stop, not a fourth screen.
-    await J(() => { window.R.leaveCamp(); });
-    await sleep(420);
+    // the next leg pays the debt the first one left on the books
+    await leg();
     const paidFirst = await payDebt();
-    await sleep(420);
-    // now the road is clear, and the level still owed opens at the next stop
-    await J(() => { const r = window.R.reachable(); if (r.length) window.R.travel(r[0]); });
-    await sleep(560);
+    await sleep(460);
+    // …and the leg after that opens the level still owed
+    await leg();
     const opened = await J(() => !document.getElementById('k-scene').classList.contains('k-hidden'));
     const second = opened ? await runOne() : { title: null, markNow: false, owed: null };
-    await sleep(320);
-    // that stop's own business, and then back to the road, which is where it
-    // is paid — the same seam `leaveCamp` walked through above.
-    await J(() => { window.R.toMap(); });
-    await sleep(420);
+    await sleep(360);
+    await leg();
     const paidSecond = await payDebt();
-    await sleep(320);
+    await sleep(360);
     const chain = await J(() => {
       const r = window.R.state();
       return { sigils: Object.keys(r.sigils).length, pending: r.pendingSigil,
@@ -462,16 +492,17 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
                sizes: ['ash', 'elin', 'mira'].map(h => r.roster[h].length),
                uniq: new Set(window.K.rosterIds(r.roster)).size };
     });
-    check('MARK: each level marks one card, and neither mark rides on the stop that earned it',
+    check('MARK: each level marks one card, and neither mark rides on the leg that earned it',
       paidFirst && paidSecond && !first.markNow && !second.markNow
       && !!first.owed && !!second.owed
       && chain.sigils === 2 && chain.pending == null,
-      JSON.stringify({ paid: [paidFirst, paidSecond], sameStop: [first.markNow, second.markNow],
+      JSON.stringify({ paid: [paidFirst, paidSecond], sameLeg: [first.markNow, second.markNow],
                        owed: [first.owed, second.owed], sigils: chain.sigils, pending: chain.pending }));
-    check('TRADE: two levels crossed on one road is two scenes at TWO stops, and still 5/5/5',
+    check('TRADE: two levels crossed on one road is two conversations on TWO legs, and still 5/5/5',
       opened && first.title !== second.title && chain.level === 2
       && chain.sizes.every(n => n === 5) && chain.uniq === 15,
       JSON.stringify({ titles: [first.title, second.title], opened, ...chain }));
+
   }
 
   // ═══ E · WHAT SURVIVES A DEATH ═══

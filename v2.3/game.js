@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 105;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 106;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1696,7 +1696,7 @@ const SIGILS = {
   chain:  { name: 'Chain',  glyph: 'follow',
             line: 'Play it after an ally and 1 AP comes back.' },
   combo:  { name: 'Combo',  glyph: 'move',
-            line: 'Play it after the same hand and 1 AP comes back.' },
+            line: 'Play it after the same character and 1 AP comes back.' },
   rally:  { name: 'Rally',  glyph: 'finale',
             line: 'They feel it every time it is played. The bond grows by 6.' },
   // SURGE SAYS THE HALF THE MARK OWNS, and lets EXHAUST say the rest. "Pyre"
@@ -1791,16 +1791,22 @@ function evalCondition(cond, ownerId, selfId) {
 // about: who acted immediately before this card, in this turn. Nothing yet
 // played means neither pays — there is nothing to follow.
 //
-// The comparison is against `card.owner` rather than `primaryHero`, which is
-// the same string FOLLOW_UP compares, so a pair card behaves the same way
-// under a mark as it does under the combo vocabulary the player already reads:
-// CHAIN wants anybody else, COMBO wants that same pair again.
+// IT IS ABOUT PEOPLE, NOT ABOUT OWNER STRINGS. The comparison used to be
+// `last.ownerId === card.owner`, which is what FOLLOW_UP compares — and on a
+// PAIR card that reads "the same pair played again", not "the same character
+// played again". Ash following his own Cross Sever with Shield the Blade is
+// plainly the same hand at work, and a string compare said it was not.
+//
+// So both marks read the two owner SETS and ask whether they overlap: COMBO
+// wants a shared character, CHAIN wants none.
 function markFollows(card, sigil) {
   if (sigil !== 'chain' && sigil !== 'combo') return false;
   const ts = C.turnState, last = ts.actionsPlayed[ts.actionsPlayed.length - 1];
   if (!last) return false;
-  return sigil === 'chain' ? last.ownerId !== card.owner
-                           : last.ownerId === card.owner;
+  const mine = ownerHeroes(card);
+  const prev = ownerHeroes({ owner: last.ownerId });
+  const shared = prev.some(h => mine.indexOf(h) >= 0);
+  return sigil === 'combo' ? shared : !shared;
 }
 function evaluateCard(cardId) {
   const card = cardDef(cardId);
@@ -5616,7 +5622,12 @@ function renderHand() {
 // condition in the two or three words the card has room for, and the inspect
 // panel spells it out in full.
 const COND_LABEL = {
-  FOLLOW_UP: 'After an Ally', FINALE: 'All Three',
+  // ONE WORD FOR ONE TRIGGER. "After an Ally" and the CHAIN mark are the same
+  // fact about the same turn — a different hand went immediately before this
+  // one — and the deck was printing them as two unrelated phrases: a
+  // description on the combo strip and a keyword in the band beneath it. The
+  // keyword is the word; the description is what the detail view is for.
+  FOLLOW_UP: 'Chain', FINALE: 'All Three',
   BROKEN: 'When Broken',
   // …and this one is NOT the same keyword. It armed against an un-Broken foe
   // at 8/98 health while its own tag said WHEN BROKEN — a card lying about
@@ -5627,7 +5638,7 @@ const COND_LABEL = {
   WARDED: 'Behind a Guard',
 };
 const COND_RULE = {
-  FOLLOW_UP: 'Play this straight after a different hero acts, in the same turn.',
+  FOLLOW_UP: 'CHAIN \u2014 play this straight after a different hero acts, in the same turn.',
   FINALE: 'Play this as the card that completes all three heroes in one turn.',
   BROKEN: 'The Regent must be BROKEN.',
   BROKEN_OR_LOW: 'The Regent must be BROKEN, or under 30% health.',
@@ -5755,12 +5766,24 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
   // what the card does, always, in the biggest type on the face. The bottom is
   // the COMBO — a banded strip with a named tag, because "Finale: +5 damage"
   // set as one more grey sentence read as a footnote instead of the payoff.
+  // ONE TRIGGER, ONE BAND. A card whose combo is CHAIN, wearing the CHAIN
+  // mark, was printing the word twice — once as its own condition and once as
+  // the keyword beneath it — which reads as two rules and is one. The mark's
+  // payoff joins the band that already carries the trigger.
+  //
+  // …and it joins it only when it ADDS something. The refund is capped at one
+  // a turn (see evaluateCard), so a FOLLOW_UP card whose combo already hands
+  // the AP back gains nothing at all from CHAIN: the band says the trigger and
+  // the payoff it actually has, and stops.
+  const sameTrigger = !!c.cond && c.cond.type === 'FOLLOW_UP' && ev.sigil === 'chain';
+  const stacks = sameTrigger && c.cond.reward !== 'ap';
   const cond = c.cond
     ? '<span class="k-combo' + (ev.condActive ? ' on' : '') + '">'
       + '<span class="k-combo-tag">' + icon(COND_ICON[c.cond.type] || 'follow')
       + (COND_LABEL[c.cond.type] || c.cond.type)
       + (ev.condActive ? '<i class="k-combo-state">ON</i>' : '') + '</span>'
-      + '<span class="k-combo-pay">' + condReward(c, ev.sigil) + '</span></span>'
+      + '<span class="k-combo-pay">' + condReward(c, ev.sigil)
+      + (stacks ? ' <b>+1</b> AP back.' : '') + '</span></span>'
     // EXHAUST SAID ITSELF TWICE. The tag read EXHAUST and the line under it
     // read "Leaves the fight when played." — twenty-nine characters, the longest
     // line in the deck, restating a keyword directly above it. The word stands
@@ -5782,7 +5805,7 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
   // card that also has a combo would then be four lines of small type under
   // its own prose. The keyword is what belongs on the face; the sentence lives
   // where it always has — the pickup panel, and the screen that granted it.
-  const mark = ev.sigil && SIGILS[ev.sigil]
+  const mark = ev.sigil && SIGILS[ev.sigil] && !sameTrigger
     ? '<span class="k-combo k-combo-mark k-combo-mk-' + ev.sigil
       + ' k-combo-bare' + (ev.markLive ? ' on' : '') + '">'
       + '<span class="k-combo-tag">' + icon(SIGILS[ev.sigil].glyph || 'finale')
@@ -5835,7 +5858,10 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
   // clipping. Measured without this: Quick Throw — four clauses, a combo AND a
   // mark — hung 1.5px past its own face, and Cross Sever's text block scrolled
   // 7px inside itself.
-  const nRows = rowLines(rowsHTML) + (cond ? 1 : 0) + (mark ? 1 : 0);
+  // …and a MERGED band is two lines, not one: the combo's own payoff plus the
+  // mark's. Cross Sever + Chain is the card that found this, hanging 4px past
+  // its own text block.
+  const nRows = rowLines(rowsHTML) + (cond ? 1 : 0) + (stacks ? 1 : 0) + (mark ? 1 : 0);
   const rowClass = 'k-ctext' + (nRows >= 5 ? ' k-rows-5' : nRows === 4 ? ' k-rows-4'
     : nRows === 3 ? ' k-rows-3' : '');
   // WHOSE CARD THIS IS, SAID rather than pictured. The corner held a 17px

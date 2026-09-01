@@ -4310,3 +4310,86 @@ Light and Last Vigil needed it at three rows, Quick Throw at five.
 flow 253/253 · road 94/94 · bond 73/73 · slice 69/69 · line 28/28 ·
 camp 46/46 · music 22/22 · beat 10/10 · soak 5/5 — no page errors. Ten
 randomised runs, six to the Regent, no invariant breached.
+
+---
+
+## Build 106 — the road talks, the node fights
+
+Four notes, and two of them are the same one I only half-fixed at Build 103.
+
+### "I'm still getting upgrades before a fight on the same node"
+
+Build 103 moved the **mark debt** off the arrival seam and onto the road. It
+left the two **conversations** — a bond level and a recall — exactly where they
+were: opening on arrival at whatever stop the player had just chosen. So the
+doorway still had an upgrade prompt in it, a smaller one, on the same node: pick
+a fight, get a scene, a fork, and a card-swap screen, and only then the fight.
+
+`enter(n)` is one line now — `enterStop(n)` — and everything the road wants to
+say happens on the road, in `toMap`. **A node is its stop and nothing else.**
+
+Two rules keep that from becoming a queue in a new place:
+
+- **One leg of the road, one conversation.** `_roadSpent` is set when the road
+  opens something and cleared when a stop is entered, so each walk between two
+  nodes carries at most one.
+- **A mark debt is not a second conversation.** It is the second half of the
+  payout that leg has already made, so it does not spend the budget: a bond
+  level runs scene, fork, trade and mark on the leg it was crossed.
+
+That second rule is not a nicety. With the debt spending a leg, six bond levels
+each owing a mark is twelve legs on a road that has ten — and the soak measured
+**0 recalls across ten runs** where it had been measuring 21. The road had no
+room left to remember anything.
+
+### "I haven't seen any multiple enemy fights yet"
+
+Measured, and the note is exactly right. 19% of fight nodes carried a pack — but
+a run walks eleven stops of which **2.95** are ordinary fights past column one,
+so a random walk met **0.94 packs per run**, and one run in six met none at all.
+A player could finish a whole road without ever seeing the thing the positional
+line was built for.
+
+From column two on, three of every four draws is a line now — **~2 a run, and
+90% of runs see at least one**. The first two columns still stand one foe up
+(the fight has to teach itself before it teaches the line) and an elite and the
+Regent stand alone by rule, because what makes them what they are is reach. The
+ceiling here is the road, not the table: pushing the draw further buys tenths.
+
+### "After an Ally should be replaced with Chain"
+
+`FOLLOW_UP`'s label was **After an Ally** while the mark that reads the same
+fact was called **Chain** — two phrases for one rule, printed on the same card.
+One word: the combo tag says CHAIN, and the sentence lives in the detail view
+where a sentence fits.
+
+Which exposed a second thing. A card whose combo is CHAIN, wearing the CHAIN
+mark, was printing the word twice — its own condition, and the keyword beneath
+it. **One trigger, one band**: the mark's payoff joins the band that already
+carries the trigger (`costs 1 AP. +1 AP back.`), and joins it only when it adds
+something — the refund is capped at one a turn, so a FOLLOW_UP card that already
+hands the AP back gains *nothing* from CHAIN. The band says so by staying quiet,
+and the marking screen says it out loud: *"it already pays this."*
+
+### "Combo is on the same character that previously performed"
+
+It was comparing owner STRINGS — the same thing FOLLOW_UP compares — so on a
+pair card it meant "the same pair played again". Ash following his own Cross
+Sever with Shield the Blade is plainly the same hand at work, and a string
+compare said it was not. Both marks read the two owner **sets** now and ask
+whether they overlap: COMBO wants a shared character, CHAIN wants none.
+
+### What the harnesses had to learn
+
+The bond suite's walk went through `_set` + `travel`, which paints the map
+directly and skips the seam that asks whether anything is owed — so it would
+never have met a conversation at all. It goes through `toMap` now. The slice
+walk answers the road's one conversation *before* it travels, and asserts that
+each stop opens on its own business. And the soak's story handler waited for
+`scene()` to go null, which since this build can mean "a bond opened behind the
+memory" — it watches the memory's own identity now, not emptiness.
+
+flow 253/253 · road 94/94 · bond 74/74 · slice 88/88 · line 28/28 ·
+camp 46/46 · music 22/22 · beat 10/10 · soak 5/5 — no page errors. Ten
+randomised runs, eight to the Regent, 36 bond scenes, 27 recalls, and the
+deepest queue of conversations at one stop is still 1.

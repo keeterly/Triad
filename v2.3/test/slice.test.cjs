@@ -252,47 +252,37 @@ const MAX_TURNS = 30;
         JSON.stringify(debt));
       await sleep(300);
       const road = await visible();
+      // …AND IT HANDS THE ROAD BACK. Either the chart, or the one conversation
+      // this leg still carries — a mark debt is the second half of a payout the
+      // leg has already made, so it does not spend the leg's budget. What it
+      // may never be is the stop: that is the whole of what moved.
       check(`SLICE: paying it hands the road back — stop ${col} has not been entered yet`,
-        road.length === 1 && road[0] === 'k-map', road.join(','));
+        road.length === 1 && (road[0] === 'k-map' || road[0] === 'k-scene'),
+        road.join(','));
     }
 
-    await J((id) => window.R.travel(id), pickId);
-    await sleep(400);
-
-    let v = await visible();
-    // A CAMPFIRE MAY OPEN A BOND SCENE FIRST. Two of them crossing a level on
-    // the road get heard before the tree, and the fork they end on is a card
-    // that has to be traded into somebody's five. The gate walks that whole
-    // path — it is the one place the social layer, the deck and the road all
-    // touch at once.
-    // WHAT MOVED at Build 69: this used to be `kind === 'camp'`, because a bond
-    // only ever opened at a fire — every level crossed on the road queued up and
-    // arrived there at once, which is the campfire overload. A bond fires where
-    // it is earned now, at most one per stop, so ANY stop can open with a
-    // conversation. Which means the walk can no longer tell a bond from a
-    // memory by the screen alone (both are k-scene): it asks the scene what it
-    // is.
-    // …AND AT BUILD 98 THERE ARE TWO KINDS OF CONVERSATION. A recall opens at
-    // the same seam, on the same screen, and ends on the same fork — the only
-    // differences are that one person is remembering rather than two talking,
-    // and that it pays a card and NOT a mark. The walk asks the scene which it
-    // is and answers it accordingly; a recall that quietly started paying a
-    // bond level's sigil would fail the assertion below rather than pass a
-    // looser one written to accommodate both.
-    // ── A DEBT COMES FIRST (Build 100) ──
-    // The mark a bond level pays no longer rides on the same stop as the card:
-    // one node is one event, so the mark is left OWED and paid on arrival at
-    // the NEXT stop, before that stop's business. The walk answers a debt the
-    // moment it meets one, and asserts it was actually owed — a marking screen
-    // opening on a stop that owed nothing would be the old back-to-back chain
-    // creeping back in.
+    // ── AND THE ROAD'S ONE CONVERSATION (Build 106) ──
+    // A bond scene and a recall came off the node too. They used to open on
+    // ARRIVAL, which meant choosing a fight and then being handed a scene, a
+    // fork and a card-swap screen before the fight began — the same upgrade
+    // prompt in the same doorway the mark debt was moved out of at Build 103.
+    // The road says at most ONE thing per leg, so this is an `if` and not a
+    // loop: a walk that met two conversations between two stops would be the
+    // queue emptying in a new place.
+    //
+    // Bond and recall arrive on the same screen and end on the same fork; the
+    // difference is that one pays a mark and the other pays nothing, so the
+    // walk asks the scene which it is and asserts what its KIND pays. A recall
+    // that quietly started paying a bond level's sigil would fail here rather
+    // than pass a looser check written to accommodate both.
     let bonds = 0;
     const convo = () => J(() => {
       const sc = window.R.scene();
       return (sc && (sc.kind === 'bond' || sc.kind === 'recall')) ? sc.kind : null;
     });
-    let kindNow = v[0] === 'k-scene' ? await convo() : null;
-    while (kindNow && bonds < 6) {
+    let vRoad = await visible();
+    let kindNow = vRoad[0] === 'k-scene' ? await convo() : null;
+    if (kindNow) {
       bonds++;
       const traded = await J((k) => {
         window.R.sceneSkip();
@@ -321,16 +311,31 @@ const MAX_TURNS = 30;
                  sizes: ['ash', 'elin', 'mira'].map(h => r.roster[h].length),
                  uniq: new Set(window.K.rosterIds(r.roster)).size };
       }, kindNow);
-      log.push(`stop ${col}: ${kindNow} — took ${traded.card}, gave up ${traded.dropped}`);
-      check(`SLICE: the ${kindNow} at stop ${col} trades one for one — still five slots a hero`,
+      log.push(`before stop ${col}: ${kindNow} — took ${traded.card}, gave up ${traded.dropped}`);
+      check(`SLICE: the ${kindNow} before stop ${col} trades one for one — still five slots a hero`,
         traded.sizes.every(n => n === 5) && traded.uniq === 15, JSON.stringify(traded));
-      check(`SLICE: the ${kindNow} at stop ${col} pays exactly what its kind pays, and stacks no second screen on the node`,
+      check(`SLICE: the ${kindNow} before stop ${col} pays exactly what its kind pays, and stacks no second screen on the road`,
         !traded.marked && (kindNow === 'bond' ? !!traded.owed : !traded.owed),
         JSON.stringify({ kind: kindNow, markedNow: traded.marked, owed: traded.owed }));
-      await sleep(300);
-      v = await visible();
-      kindNow = v[0] === 'k-scene' ? await convo() : null;
+      await sleep(320);
+      const back = await visible();
+      check(`SLICE: the ${kindNow} before stop ${col} hands the road back — the stop is still unentered`,
+        back.length === 1 && back[0] === 'k-map', back.join(','));
     }
+
+    await J((id) => window.R.travel(id), pickId);
+    await sleep(400);
+
+    let v = await visible();
+    // AND THE STOP OPENS ON ITS OWN BUSINESS, with nothing in front of it —
+    // which is the whole of what Build 106 moved. The conversations were
+    // answered on the road above; a scene here would be one that had followed
+    // the player through the door.
+    check(`SLICE: stop ${col} opens on its own business — nothing was queued in its doorway`,
+      v.length === 1 && v[0] !== 'k-swap' && v[0] !== 'k-mark', v.join(','));
+    // …and the run's copy of the walk's own bookkeeping stays honest
+    void bonds;
+
     const want = kind === 'camp' ? 'k-camp'
       : (kind === 'story' || kind === 'event') ? 'k-scene' : 'k-stage';
     check(`SLICE: stop ${col} is a ${kind.toUpperCase()} and it opens the ${want.replace('k-', '')}`,
