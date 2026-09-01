@@ -1393,9 +1393,12 @@
     const n = RUN.at ? node(RUN.at) : null;
     if (!n) { you.classList.add('k-hidden'); you.dataset.on = ''; return; }
     if (!you.dataset.drawn) {
+      // THE FACE PLATE, LIKE EVERY OTHER COIN-SIZED PORTRAIT. A full figure in
+      // a 33px circle is a silhouette; the whole job of the roster on the road
+      // is telling the three of them apart at a glance.
       const art = { ash: 'kai', elin: 'elin', mira: 'mira' };
       you.innerHTML = Object.keys(art).map(id =>
-        '<img src="../art/' + art[id] + '.webp" alt="" data-hero="' + id + '">').join('');
+        '<img src="../art/' + art[id] + '-face.webp" alt="" data-hero="' + id + '">').join('');
       you.dataset.drawn = '1';
     }
     // arriving on the road for the first time is a placement, not a walk
@@ -2773,7 +2776,7 @@
       const rows = (RUN.roster[h] || []).map(id =>
         '<button type="button" class="k-swapcard' + (_swapPick && _swapPick.id === id && _swapPick.hero === h ? ' k-sw-on' : '')
         + '" data-hero="' + h + '" data-id="' + id + '">' + swapCardHTML(id, false) + '</button>').join('');
-      return '<div class="k-sw-col"><header><img src="../art/' + art + '.webp" alt="">'
+      return '<div class="k-sw-col"><header><img src="../art/' + art + '-face.webp" alt="">'
         + '<b>' + h.toUpperCase() + '</b><em>' + (RUN.roster[h] || []).length + '/5</em></header>' + rows + '</div>';
     }).join('') + tradePanelHTML(card);
     $('k-swap-cols').querySelectorAll('.k-swapcard').forEach(b =>

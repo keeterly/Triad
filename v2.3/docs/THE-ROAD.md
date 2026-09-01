@@ -3959,3 +3959,54 @@ stays on the stage.
 Everything else held with the slots in: flow 250/250 · road 94/94 · bond 69/69 ·
 slice 59/59 · camp 45/45 · music 22/22 · beat 10/10 — **587 checks, no page
 errors**.
+
+---
+
+## Build 102 — new faces
+
+Three replacement character plates, cut in and framed.
+
+### They arrived opaque
+
+The uploads were fully opaque with a studio-white backdrop; the game composites
+these over a painted battlefield, so they had to be matted first. A brightness
+threshold was never an option — Ash's scarf and tunic and the whole of Elin's
+habit are the same near-white as the backdrop, and "every pale pixel is
+background" would have cut the clothes off both of them. A **flood fill from the
+edge** only reaches what is connected to the outside, so the enclosed whites are
+safe by construction.
+
+Two things the screen caught that the code did not:
+
+- **Mira shipped as a rectangle of checkerboard.** Her backdrop had the
+  transparency checker painted in as real pixels, two tones 16 apart — and PIL's
+  flood `thresh` compares the *sum* across channels, so 16 is a difference of 48
+  and my threshold of 42 stopped dead at the first dark square. The pass now
+  measures its own result: a standing figure covers a third to a half of its own
+  bounding box, so a cutout outside 15–72% opaque fails the export rather than
+  reaching the board.
+- **The stance padding was backwards.** These three all trail cloth or a staff
+  off to one side, and `anchorFor()` puts the parry ring at the *centre of a
+  hero's element* — so an off-centre figure would take its ring in mid-air
+  beside it. The fix pads the short side so the FEET land in the middle… except
+  the first cut padded left when the stance sat right of centre, which pushes it
+  further out. Ash ended at 872 of 1142. Both the centring and the head-finding
+  now assert what they produced.
+
+### A face is not a figure
+
+A full-body plate squeezed into a 36px circle is a silhouette — three dark
+shapes that cannot be told apart, which is the roster's only job. Each hero now
+carries a **face plate** beside their figure, used by all three coin-sized
+portraits: the party stack, the road's roster, and the swap screen's column
+headers.
+
+The head is found by looking **up the stance column** rather than for the topmost
+opaque pixel — Elin's staff reaches higher than she does, and the first version
+put her face on its crossguard.
+
+### Where it stands
+
+Every screen that draws a hero — the board, the scene cast, the marking screen,
+the campfire doors, the deck and swap columns, the road's roster — reads the same
+three files, so the swap is one export rather than a hunt.
