@@ -3955,3 +3955,7 @@ one body to a place, a blow comes down its thrower's lane, every body carries
 its own health, a line never holds more than there are places, trading places
 trades who answers what, and the line recedes on the party's own ladder and
 stays on the stage.
+
+Everything else held with the slots in: flow 250/250 · road 94/94 · bond 69/69 ·
+slice 59/59 · camp 45/45 · music 22/22 · beat 10/10 — **587 checks, no page
+errors**.
