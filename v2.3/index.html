@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=103" />
+  <link rel="stylesheet" href="styles.css?v=104" />
 </head>
 <body>
   <div id="k-scale">
@@ -359,8 +359,20 @@
         <span id="k-mark-line"></span>
       </header>
       <p id="k-mark-say"></p>
+      <!-- TWO BEATS, BECAUSE THEY ARE TWO DIFFERENT THINGS. The moment — the
+           two of them and the mark burning between them — was sharing 430px
+           with the ten-card decision, so the scene got two thirds of the board
+           and the cards were shrunk to 62% and stacked five to a half-width
+           column: unreadable, and crammed against the bottom edge. The scene
+           gets the screen it deserves, then hands over to a chooser built the
+           way every other trade in this game is built — scannable rows on the
+           left, the card itself at full size on the right. -->
+      <button type="button" id="k-mark-go">WHICH CARD LEARNS IT?</button>
       <p id="k-mark-ask"></p>
       <div id="k-mark-cols"></div>
+      <div id="k-mark-go-row">
+        <button type="button" id="k-mark-place" disabled>PICK A CARD</button>
+      </div>
     </section>
     <!-- THE TITLE. The game used to open on the awakening — a fork with three
          cards on it, before the player has been told what any of this is. A
@@ -501,8 +513,8 @@
     setTimeout(check, 2500);
   })();
   </script>
-  <script src="run.js?v=103"></script>
-  <script src="game.js?v=103"></script>
+  <script src="run.js?v=104"></script>
+  <script src="game.js?v=104"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

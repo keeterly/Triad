@@ -166,8 +166,13 @@ const MAX_TURNS = 24;
         note('swap');
       } else {
         await J(() => {
+          // TWO BEATS (Build 104): the moment, then the decision, then the mark.
+          const go1 = document.getElementById('k-mark-go');
+          if (go1) go1.click();
           const mk = [...document.querySelectorAll('#k-mark-cols .k-mk:not([disabled])')];
           if (mk.length) mk[Math.floor(Math.random() * mk.length)].click();
+          const pl = document.getElementById('k-mark-place');
+          if (pl && !pl.disabled) pl.click();
         });
         note('mark');
       }
@@ -378,7 +383,13 @@ const MAX_TURNS = 24;
       }
 
       await sleep(200);
-      const back = await step('back from ' + kind);
+      // A DEBT IS SETTLED ON THE ROAD (Build 103). A stop hands back to the
+      // chart — and if a mark is owed, the chart asks for it before the player
+      // chooses anything. That is the road, not a stop that failed to end, so
+      // the marking screen is answered here and the hand-back is checked
+      // against what is left afterwards.
+      let back = await step('back from ' + kind);
+      back = await clearDebts('after ' + kind, back);
       if (back !== 'k-map') { fail('col ' + col + ': a ' + kind + ' did not hand the road back (' + back + ')'); break; }
 
       // ── the reload ────────────────────────────────────────────────────────

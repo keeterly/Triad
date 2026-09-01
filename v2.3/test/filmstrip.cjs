@@ -78,7 +78,15 @@ fs.mkdirSync(OUT, { recursive: true });
       }
       if (scr === 'k-mark') {
         await shot('mark');
-        await J(() => { const b = document.querySelector('#k-mark-cols .k-mk:not([disabled])'); if (b) b.click(); });
+        await J(() => {
+          // TWO BEATS (Build 104): the moment, then the decision, then the mark.
+          const go1 = document.getElementById('k-mark-go');
+          if (go1) go1.click();
+          const mk = [...document.querySelectorAll('#k-mark-cols .k-mk:not([disabled])')];
+          if (mk.length) mk[0].click();
+          const pl = document.getElementById('k-mark-place');
+          if (pl && !pl.disabled) pl.click();
+        });
         await sleep(700);
         scr = (await up())[0];
       }

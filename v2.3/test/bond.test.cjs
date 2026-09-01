@@ -273,11 +273,20 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     await sleep(420);
     const marking = await J(() => {
       const up = (id) => !document.getElementById(id).classList.contains('k-hidden');
+      // TWO BEATS (Build 104). The screen opens on the MOMENT — the two of them
+      // and the mark burning between them — and hands over to the decision. So
+      // the walk answers the moment before it can be asked which card.
+      const beat1 = { beat: window.R.markBeat(),
+                      cards: document.querySelectorAll('#k-mark-cols .k-mk').length,
+                      go: !!document.getElementById('k-mark-go'),
+                      cast: document.querySelectorAll('#k-mark-cast .k-mkc-fig').length };
+      document.getElementById('k-mark-go').click();
       const cards = [...document.querySelectorAll('#k-mark-cols .k-mk')];
       // The mark is decided by the pair and the level — ash|mira level 1 —
       // so the screen's title is checked against the map, not a literal.
       const want = window.R.sigilFor('ash|mira', 1);
-      return { onMark: up('k-mark'), onStage: up('k-stage'), onMap: up('k-map'),
+      return { beat1, beat2: window.R.markBeat(),
+               onMark: up('k-mark'), onStage: up('k-stage'), onMap: up('k-map'),
                want, wantName: window.K.SIGILS[want].name.toUpperCase(),
                pending: window.R.state().pendingSigil,
                title: (document.getElementById('k-mark-title') || {}).textContent,
@@ -288,54 +297,68 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
                // them, or that it was permanent.
                kind: ((document.getElementById('k-mark-kind') || {}).textContent || ''),
                offered: cards.length,
-               faces: cards.filter(c => c.querySelector('.k-card-static')).length,
-               wearing: cards.filter(c => c.querySelector('.k-csig')).length };
+               named: cards.filter(c => (c.querySelector('.k-sw-body b') || {}).textContent).length,
+               said: cards.filter(c => ((c.querySelector('.k-sw-body em') || {}).textContent || '').length > 3).length,
+               // nothing is drawn as a face until one is picked up
+               facesIdle: document.querySelectorAll('#k-mark-cols .k-mkp-face').length,
+               backs: document.querySelectorAll('#k-mark-cols .k-mkp-back').length };
     });
     check('MARK: the debt is settled back on the road — never in the doorway of the next stop',
       marking.onMark && !marking.onStage && !marking.onMap && marking.pending
       && marking.pending === marking.want && marking.title === marking.wantName
       && marking.line > 10,
       JSON.stringify(marking));
-    check('MARK: every card it may land on is DRAWN wearing it, under a line saying what a mark IS',
-      marking.offered === 10 && marking.faces === 10 && marking.wearing === 10
+    check('MARK: the screen opens on the moment — the two of them, the mark, and one way forward',
+      marking.beat1.beat === 1 && marking.beat1.cards === 0
+      && marking.beat1.go && marking.beat1.cast === 2 && marking.beat2 === 2,
+      JSON.stringify(marking.beat1));
+    // TEN CARDS SCANNABLE, ONE READABLE — the trade screen's split, because it
+    // is the trade screen's question. Ten faces shrunk to 62% and stacked five
+    // to a half-width column was neither.
+    check('MARK: all ten are offered as rows that say what they do, under a line saying what a mark IS',
+      marking.offered === 10 && marking.named === 10 && marking.said === 10
+      && marking.facesIdle === 0 && marking.backs === 2
       && /MARK/.test(marking.kind) && /REST OF THE RUN/.test(marking.kind),
-      JSON.stringify({ offered: marking.offered, faces: marking.faces,
-                       wearing: marking.wearing, kind: marking.kind }));
+      JSON.stringify({ offered: marking.offered, named: marking.named, said: marking.said,
+                       facesIdle: marking.facesIdle, backs: marking.backs, kind: marking.kind }));
 
-    // NOTHING ON THIS SCREEN MAY PRINT OVER THE CARD IT IS ABOUT, OR FALL OFF
-    // THE BOTTOM OF IT. Both notes — the delta and the "already carries" —
-    // were absolutely positioned INSIDE the card button, so all ten cards wore
-    // two or three lines of small type across their own effect text: the exact
-    // numbers the note existed to help compare. And the scene above them owned
-    // 250 of 430px, which pushed the whole row seven pixels past the bottom
-    // edge of a container with `overflow: hidden`.
-    await sleep(1500);                       // the row fades in on a 620ms delay
-    const fits = await J(() => {
+    // NOTHING MAY BE TOO SMALL TO READ, OR FALL OFF THE BOTTOM. The screen this
+    // replaces printed each card's note ACROSS the card it described, scaled all
+    // ten faces to 62%, and hung the row seven pixels past the bottom edge of a
+    // container with `overflow: hidden`.
+    await sleep(700);
+    const picked = await J(() => {
       const box = document.getElementById('k-mark').getBoundingClientRect();
-      const cards = [...document.querySelectorAll('#k-mark-cols .k-mk')];
-      const over = cards.filter(c => c.getBoundingClientRect().bottom > box.bottom + 0.5).length;
-      const notes = cards.map(c => c.querySelector('.k-mk-delta, .k-mk-note')).filter(Boolean);
-      const onTop = notes.filter(nt => {
-        const f = nt.closest('.k-mk').querySelector('.k-mk-face');
-        if (!f) return true;
-        const a = nt.getBoundingClientRect(), b = f.getBoundingClientRect();
-        return a.top < b.bottom - 0.5;       // the note begins before the card ends
-      }).length;
+      const first = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
+      const id = first.dataset.id;
+      first.click();                       // the first tap picks it up, and only that
+      const faces = [...document.querySelectorAll('#k-mark-cols .k-mkp-face')];
+      const rows = [...document.querySelectorAll('#k-mark-cols .k-mk')];
       const spill = [...document.querySelectorAll('#k-mark *')].filter(e => {
         const r = e.getBoundingClientRect();
         return r.width && (r.bottom > box.bottom + 1 || r.right > box.right + 1
                         || r.left < box.left - 1);
       }).length;
-      return { cards: cards.length, notes: notes.length, over, onTop, spill };
+      const place = document.getElementById('k-mark-place');
+      return { id, held: window.R.markHeld(), spent: !!window.R.state().sigils[id],
+               on: !!document.querySelector('#k-mark-cols .k-mk.k-mk-on'),
+               faces: faces.length,
+               faceW: faces[0] ? Math.round(faces[0].getBoundingClientRect().width) : 0,
+               rowPx: rows[0]
+                 ? +parseFloat(getComputedStyle(rows[0].querySelector('.k-sw-body b')).fontSize).toFixed(1)
+                 : 0,
+               placeOff: place.disabled, placeSays: place.textContent, spill };
     });
-    check('MARK: every card is inside the screen, and no note is printed across the card it describes',
-      fits.cards === 10 && fits.notes === 10 && fits.over === 0 && fits.onTop === 0
-      && fits.spill === 0, JSON.stringify(fits));
+    check('MARK: the first tap picks a card up and draws it twice — as it is, and as it would be',
+      picked.held === picked.id && !picked.spent && picked.on
+      && picked.faces === 2 && picked.faceW >= 96 && picked.placeOff === false,
+      JSON.stringify(picked));
+    check('MARK: every row is legible and nothing hangs off the screen',
+      picked.rowPx >= 11 && picked.spill === 0, JSON.stringify(picked));
 
     const placed = await J(() => {
-      const btn = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
-      const id = btn.dataset.id;
-      btn.click();
+      const id = window.R.markHeld();
+      document.getElementById('k-mark-place').click();
       const r = window.R.state();
       const up = (x) => !document.getElementById(x).classList.contains('k-hidden');
       const all = window.K.rosterIds(r.roster);
@@ -396,8 +419,11 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     // …and paying a debt back on the road is how it is settled.
     const payDebt = () => J(() => {
       const on = !document.getElementById('k-mark').classList.contains('k-hidden');
+      if (!on) return false;
+      document.getElementById('k-mark-go').click();          // the moment
       const btn = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
-      if (btn) btn.click();
+      if (btn) btn.click();                                  // pick it up
+      document.getElementById('k-mark-place').click();       // and mark it
       return on;
     });
     const first = await runOne();

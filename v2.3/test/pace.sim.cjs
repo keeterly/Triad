@@ -110,9 +110,14 @@ const SKILLS = process.env.PACE_SKILL
           });
           await sleep(200);
           const marked = await J(() => {
-            const mk = [...document.querySelectorAll('#k-mark-cols .k-mk:not([disabled])')];
-            if (!mk.length) return false;
-            mk[0].click(); return true;
+          // TWO BEATS (Build 104): the moment, then the decision, then the mark.
+          const go1 = document.getElementById('k-mark-go');
+          if (go1) go1.click();
+          const mk = [...document.querySelectorAll('#k-mark-cols .k-mk:not([disabled])')];
+          if (mk.length) mk[0].click();
+          const pl = document.getElementById('k-mark-place');
+          if (pl && !pl.disabled) pl.click();
+            return mk.length > 0;
           });
           if (marked) tally.marks++;
           await sleep(200);

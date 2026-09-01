@@ -3193,13 +3193,34 @@
     rally:  'Neither of them can say what changed. They will both feel it, every time.',
     surge:  '{A} shows {B} how to spend everything in one breath. It only works once.',
   };
+  // TWO BEATS. `1` is the moment — the two of them, the mark burning between
+  // them, the line that passed between them. `2` is the decision. They were one
+  // screen, and the decision lost: the scene took two thirds of 430px and the
+  // ten cards were scaled to 62% and stacked five to a half-width column,
+  // unreadable and crammed against the bottom edge.
+  let _markBeat = 1;
+  let _markPick = null;                 // the card being read, not yet marked
+  function markGo() {
+    if (!RUN || !RUN.pendingSigil) return false;
+    _markBeat = 2; renderMark(); return true;
+  }
+  function markPickCard(id) {
+    if (!RUN || !RUN.pendingSigil) return false;
+    if (RUN.sigils[id]) return false;
+    // THE CAMPFIRE'S GRAMMAR, because this is the campfire's decision: the
+    // first tap picks the card up and the panel reads out what the mark does to
+    // it, the second tap on the same card places it. One stray thumb must never
+    // spend a mark that lasts the rest of the run.
+    if (_markPick === id) return placeSigil(id);
+    _markPick = id; renderMark(); return true;
+  }
   function renderMark() {
     const K = window.K, sig = RUN.pendingSigil, def = K.SIGILS[sig];
     if (!def) return leaveMark();
     const pair = _markPair || PAIRS[0];
     const heroes = pair.split('|');
     const A = CAST[heroes[0]], B = CAST[heroes[1]];
-    $('k-mark').className = 'k-mk-sig-' + sig;
+    $('k-mark').className = 'k-mk-sig-' + sig + ' k-mk-beat' + _markBeat;
     $('k-mark-title').textContent = def.name.toUpperCase();
     $('k-mark-line').textContent = def.line;
     // THE SCENE. The two of them, the mark burning between them, and the road
@@ -3214,41 +3235,82 @@
     if (gl) gl.innerHTML = K.icon(def.glyph || 'finale');
     $('k-mark-say').textContent = (MARK_SAY[sig] || '')
       .replace('{A}', A.n).replace('{B}', B.n);
-    // WHICH CARD, AND WHAT IT WOULD DO TO IT. "WHICH CARD LEARNS IT?" over ten
-    // faces already wearing the mark was a question with no way to answer it:
-    // every card showed its NEW number and none showed the old one, so there
-    // was nothing to compare and the choice was a shrug. The campfire has
-    // printed before -> after on every node it sells since Build 95; this is
-    // the same decision and it gets the same sentence.
-    $('k-mark-ask').textContent = 'WHICH CARD LEARNS IT? — EACH ONE SHOWS WHAT IT BECOMES';
     // NOBODY LEFT TO TEACH. Six marks is the most a road can grant and a pair
     // owns ten cards, so this cannot happen today — but a screen whose only
     // exit is a button that might all be disabled is one roster change away
     // from being a dead end, and there is no skip.
     if (heroes.every(h => (RUN.roster[h] || []).every(id => RUN.sigils[id]))) return leaveMark();
-    $('k-mark-cols').innerHTML = heroes.map(h =>
-      '<div class="k-mk-col"><header><b>' + h.toUpperCase() + '</b></header><div class="k-mk-row">'
-      + (RUN.roster[h] || []).map(id => {
-          const already = RUN.sigils[id];
-          return '<button type="button" class="k-mk' + (already ? ' k-mk-taken' : '')
-            + '" data-id="' + id + '"' + (already ? ' disabled' : '')
-            // THE NOTE SITS UNDER THE CARD, NOT OVER IT. Both of these were
-            // absolutely positioned inside the button, so every card on the
-            // screen wore two or three lines of small type across its own
-            // effect text — the exact numbers the note existed to compare.
-            + '><span class="k-mk-face">'
-            + K.staticCardHTML(id, { sigil: already || sig, cls: 'k-card-mk' })
-            + '</span>'
-            + (already
-                ? '<span class="k-mk-note">carries ' + K.SIGILS[already].name.toUpperCase() + '</span>'
-                : (() => { const d = markDelta(id, sig);
-                     return '<span class="k-mk-delta">' + (d || '') + '</span>'; })())
-            + '</button>';
-        }).join('')
-      + '</div></div>').join('');
+    const go = $('k-mark-go');
+    if (go && !go.dataset.wired) { go.dataset.wired = '1';
+      go.addEventListener('click', (e) => { e.stopPropagation(); markGo(); }); }
+    if (_markBeat === 1) { $('k-mark-cols').innerHTML = ''; _markPick = null; return; }
+
+    // ── the decision ────────────────────────────────────────────────────────
+    // THE SAME SHAPE AS EVERY OTHER TRADE IN THIS GAME. Ten cards have to be
+    // SCANNABLE, so they are compact rows — cost, name, what it does, who owns
+    // it — and the ONE that is being considered is drawn at full size in the
+    // panel beside them, twice: as it is, and as it would be. That is the
+    // comparison the screen exists to offer, and shrinking ten faces to 62%
+    // offered it to nobody.
+    if (_markPick && RUN.sigils[_markPick]) _markPick = null;
+    $('k-mark-ask').textContent = 'WHICH CARD LEARNS IT? \u2014 PICK ONE TO SEE WHAT IT BECOMES';
+    $('k-mark-cols').innerHTML = heroes.map(h => {
+      const art = ({ ash: 'kai', elin: 'elin', mira: 'mira' })[h] || h;
+      const rows = (RUN.roster[h] || []).map(id => {
+        const already = RUN.sigils[id];
+        return '<button type="button" class="k-mk'
+          + (already ? ' k-mk-taken' : '') + (_markPick === id ? ' k-mk-on' : '')
+          + '" data-id="' + id + '"' + (already ? ' disabled' : '') + '>'
+          + swapCardHTML(id, false)
+          + (already ? '<span class="k-mk-note">' + K.SIGILS[already].name.toUpperCase() + '</span>'
+                     : '')
+          + '</button>';
+      }).join('');
+      return '<div class="k-mk-col"><header><img src="../art/' + art + '-face.webp" alt="">'
+        + '<b>' + h.toUpperCase() + '</b></header>' + rows + '</div>';
+    }).join('') + markPanelHTML(sig);
     $('k-mark-cols').querySelectorAll('.k-mk:not([disabled])').forEach(b =>
-      b.addEventListener('click', (e) => { e.stopPropagation(); placeSigil(b.dataset.id); }));
+      b.addEventListener('click', (e) => { e.stopPropagation(); markPickCard(b.dataset.id); }));
+    const place = $('k-mark-place');
+    if (place) {
+      place.disabled = !_markPick;
+      place.textContent = _markPick
+        ? 'MARK IT \u2014 ' + def.name.toUpperCase()
+        : 'PICK A CARD';
+      if (!place.dataset.wired) { place.dataset.wired = '1';
+        place.addEventListener('click', (e) => { e.stopPropagation();
+          if (_markPick) placeSigil(_markPick); }); }
+    }
   }
+
+  // NOW, AND WHAT IT BECOMES — two full-size faces, the same panel the trade
+  // screen uses for LEAVES and JOINS, because it is the same kind of question.
+  function markPanelHTML(sig) {
+    const K = window.K;
+    const now = _markPick
+      ? '<div class="k-mkp-face">' + K.staticCardHTML(_markPick, { cls: 'k-card-mkp' }) + '</div>'
+      : '<div class="k-mkp-back"><i>' + svgIcon('ember') + '</i>'
+        + '<span>pick one<br>of their tens</span></div>';
+    const after = _markPick
+      ? '<div class="k-mkp-face">'
+        + K.staticCardHTML(_markPick, { sigil: sig, cls: 'k-card-mkp' }) + '</div>'
+      : '<div class="k-mkp-back k-mkp-ghost"><i>' + (window.K.icon(K.SIGILS[sig].glyph || 'finale'))
+        + '</i><span>' + K.SIGILS[sig].name + '</span></div>';
+    const d = _markPick ? markDelta(_markPick, sig) : '';
+    return '<div class="k-mk-trade">'
+      + '<div class="k-mkp-pair">'
+      +   '<div class="k-mkp-slot"><em>NOW</em>' + now + '</div>'
+      +   '<span class="k-mkp-arrow" aria-hidden="true">'
+      +     '<svg viewBox="0 0 24 24"><path d="M3 12 H19 M15 7 L20 12 L15 17"'
+      +     ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"'
+      +     ' stroke-linejoin="round"/></svg></span>'
+      +   '<div class="k-mkp-slot"><em>' + K.SIGILS[sig].name.toUpperCase() + '</em>'
+      +     after + '</div>'
+      + '</div>'
+      + '<p class="k-mkp-delta">' + (d || '') + '</p>'
+      + '</div>';
+  }
+
   // WHAT THIS MARK WOULD DO TO THIS CARD — and nothing if the answer is the
   // same for all ten.
   //
@@ -3277,11 +3339,10 @@
       let after = before;
       try { after = K.effectText(K.effectsWithSigil(def.base, sig)); } catch (_) {}
       if (after === before) return '';
-      // A CHIP, NOT A SENTENCE. This printed the whole effect line twice —
-      // "7 damage. → 10 damage." — under a card face 82px wide, which wrapped
-      // to three lines and, being absolutely positioned, printed those three
-      // lines ACROSS the card it was describing. The card already shows the
-      // new numbers; the chip only has to show the one that moved.
+      // A CHIP, NOT A SENTENCE. Both faces are on screen side by side in the
+      // panel, so the whole effect line printed twice is the comparison the
+      // player is already looking at. The chip only names the one number that
+      // moved between them.
       const nb = before.match(/\d+/g) || [], na = after.match(/\d+/g) || [];
       if (nb.length && nb.length === na.length) {
         const moved = nb.map((v, i) => i).filter(i => nb[i] !== na[i]);
@@ -3307,12 +3368,12 @@
              + window.K.SIGILS[RUN.pendingSigil].name.toUpperCase(),
       sub: window.K.SIGILS[RUN.pendingSigil].line,
       gain: 'the bond', gainSub: 'changes what you already carry' };
-    RUN.pendingSigil = null; RUN.markPair = null; _markPair = null;
+    RUN.pendingSigil = null; RUN.markPair = null; _markPair = null; _markPick = null;
     save();
     leaveMark();
   }
   function leaveMark() {
-    RUN.pendingSigil = null; RUN.markPair = null; _markPair = null; save();
+    RUN.pendingSigil = null; RUN.markPair = null; _markPair = null; _markPick = null; save();
     endBondChain();
   }
   function openMark(pair) {
@@ -3320,6 +3381,7 @@
     _markPair = pair || RUN.markPair;
     if (!_markPair) return false;
     RUN.markPair = _markPair; save();
+    _markBeat = 1; _markPick = null;
     screen('mark'); renderMark();
     return true;
   }
@@ -3534,6 +3596,7 @@
     RECALLS, pendingRecall, openRecall, takeRecall,
     WAKES, wakeOffer, takeWake, renderWake, wakeDef, wakePair,
     SIGIL_BY_PAIR, sigilFor, renderMark, placeSigil, openMark, leaveMark,
+    markGo, markPickCard, markBeat: () => _markBeat, markHeld: () => _markPick,
     swapPick: () => _swapPick, pendingCard: () => _pendingCard, benchSwap,
     PAIRS, BOND_STEPS, BONDS, bondLevel, bondScene, PAIR_NAME,
     profile: () => PROFILE, resetProfile() { PROFILE = { heard: [], won: [] }; saveProfile(); },

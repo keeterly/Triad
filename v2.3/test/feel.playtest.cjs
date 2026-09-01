@@ -150,7 +150,13 @@ const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
             return 'swap';
           }
           if (shot('k-mark')) {
-            const b = document.querySelector('.k-mk'); if (b) b.click();
+          // TWO BEATS (Build 104): the moment, then the decision, then the mark.
+          const go1 = document.getElementById('k-mark-go');
+          if (go1) go1.click();
+          const mk = [...document.querySelectorAll('#k-mark-cols .k-mk:not([disabled])')];
+          if (mk.length) mk[0].click();
+          const pl = document.getElementById('k-mark-place');
+          if (pl && !pl.disabled) pl.click();
             return 'mark';
           }
           return null;
@@ -177,8 +183,16 @@ const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
             const go = document.getElementById('k-swap-go'); if (go) go.click();
             return 'swap';
           }
-          if (shot('k-mark')) { const b = document.querySelector('.k-mk');
-            if (b) { b.click(); return 'mark'; } }
+          if (shot('k-mark')) {
+          // TWO BEATS (Build 104): the moment, then the decision, then the mark.
+          const go1 = document.getElementById('k-mark-go');
+          if (go1) go1.click();
+          const mk = [...document.querySelectorAll('#k-mark-cols .k-mk:not([disabled])')];
+          if (mk.length) mk[0].click();
+          const pl = document.getElementById('k-mark-place');
+          if (pl && !pl.disabled) pl.click();
+            return 'mark';
+          }
           return null;
         });
         if (!cleared) break;

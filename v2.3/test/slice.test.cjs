@@ -231,16 +231,24 @@ const MAX_TURNS = 30;
       const debt = await J(() => {
         const r = window.R.state();
         const owed = r.pendingSigil, pair = r.markPair;
+        // TWO BEATS (Build 104): the moment, then the decision. The walk plays
+        // the moment out, picks a card up, and marks it.
+        document.getElementById('k-mark-go').click();
         const mk = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
         const id = mk ? mk.dataset.id : null;
         if (mk) mk.click();
+        const held = window.R.markHeld();
+        const early = !!(id && window.R.state().sigils[id]);
+        document.getElementById('k-mark-place').click();
         const after = window.R.state();
-        return { owed, pair, id, sigil: (id && after.sigils[id]) || null,
+        return { owed, pair, id, held, early, sigil: (id && after.sigils[id]) || null,
                  spent: after.pendingSigil == null };
       });
       log.push(`before stop ${col}: mark — ${debt.owed} onto ${debt.id}`);
       check(`SLICE: the mark owed before stop ${col} is paid on the road, and it was really owed`,
-        !!debt.owed && !!debt.pair && !!debt.id && debt.sigil === debt.owed && debt.spent,
+        !!debt.owed && !!debt.pair && !!debt.id && debt.sigil === debt.owed && debt.spent
+        // …and one tap never spends a mark that lasts the rest of the run
+        && debt.held === debt.id && debt.early === false,
         JSON.stringify(debt));
       await sleep(300);
       const road = await visible();

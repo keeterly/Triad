@@ -4148,3 +4148,81 @@ or falls off the bottom of it; and that a campfire plate's after-line is legible
 
 flow 251/251 · road 94/94 · bond 71/71 · slice 69/69 · line 28/28 ·
 camp 46/46 · music 22/22 · beat 10/10 — **591 checks, no page errors**.
+
+---
+
+## Build 104 — the marking screen becomes two beats
+
+The Build 103 pass made the marking screen *fit*. It did not make it
+**readable**, and a playtester said so: crammed, and you can't read any of the
+cards.
+
+### One screen was doing two jobs
+
+430 pixels were carrying a cinematic — the two of them, the mark burning between
+them, the line that passed between them — **and** a ten-card decision. The scene
+won. It took two thirds of the board, and the ten cards it was asking about got
+the rest: scaled to 62% and stacked five to a half-width column, with their
+before/after notes printed across their own effect text.
+
+Making the scene smaller only made the cinematic worse. They are two different
+things and they get two beats.
+
+**Beat one is the moment.** The whole board: both figures at 196px, the seal
+burning between them at 62px, the mark's name at 26px, the line under it, and
+the prose. One door out, and it names the next question rather than being an
+arrow: `WHICH CARD LEARNS IT?`
+
+**Beat two is the decision**, and it is built the way every other trade in this
+game is built, because it is the same question: **ten cards have to be scannable
+and one has to be readable.** Two columns of five compact rows — cost, name, what
+it does, who owns it, the same anatomy as the swap screen's rows — and a panel on
+the right that draws the card you are holding **twice**, at full size: as it is,
+and as it would be wearing the mark. The one number that moves is named under
+them.
+
+Rows are 47px with 11.5px names. The old faces were 82px wide.
+
+### The campfire's grammar, because it is the campfire's decision
+
+First tap picks the card up and the panel reads out what the mark would do to
+it; second tap on the same card places it — and there is an explicit
+`MARK IT — CHAIN` button beside it for anyone who wants one. A mark lasts the
+rest of the run; one stray thumb must never spend it.
+
+The scene does **not** stay behind the decision. Kept at 30% opacity it sat
+directly under the two columns — a figure the height of five rows, printed
+through them. The moment has happened; what it handed over is in the title, in
+the colour running through the whole screen, and drawn on the card face in the
+panel.
+
+### What the soak caught that the suites did not
+
+Build 103 moved the mark debt onto the road and every suite went green — but the
+**soak** was never run, and it had an invariant that said *a stop hands the road
+back*. Settling a debt on arrival at the chart is the road, not a stop that
+failed to end, and six of ten seeds duly reported a breach. The soak answers a
+debt at that seam now and checks the hand-back against what is left afterwards.
+
+Ten random runs, six to the Regent, no invariant breached, no page errors, and
+the deepest queue of conversations at one stop is still 1.
+
+### The checks
+
+Three changed and two were added, all in the same direction — from *is it
+present* to *can it be read*:
+
+- `every card it may land on is DRAWN wearing it` → **all ten are offered as
+  rows that say what they do**, with nothing drawn as a face until one is picked
+  up.
+- new: **the screen opens on the moment** — two figures, no cards, one way
+  forward.
+- new: **the first tap picks a card up and draws it twice**, as it is and as it
+  would be, and does not spend the mark.
+- `nothing prints over the card it describes` → **every row is legible (≥11px)
+  and nothing hangs off the screen**.
+- The slice walk and the four non-gating harnesses (soak, pace, filmstrip, feel)
+  all learned the three-step grammar.
+
+flow 251/251 · road 94/94 · bond 73/73 · slice 65/65 · line 28/28 ·
+camp 46/46 · music 22/22 · beat 10/10 · soak 5/5 — no page errors.
