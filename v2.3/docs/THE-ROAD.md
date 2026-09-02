@@ -4553,3 +4553,39 @@ short: 5.4 to 8.2 of the ~8 open nodes are affordable at every fire, and a run
 ends holding 12 to 17 unspent embers. The constraint is **fires** — 1.2 to 1.4 a
 run. The tree does not go unspent because the player cannot pay; it goes unspent
 because they are almost never standing in front of it.
+
+---
+
+## Build 109 — a number orphaned from its words
+
+Playtested the new deck, and the first hand caught something no check had ever
+asked about: **Lumen Cascade's second row wrapped**, printing `4` on one line
+and `GUARD · LOWEST` under it. Which reads as a broken card rather than a long
+one — and it is now a card the player draws three times as often as anything
+else Elin owns.
+
+Four cards were doing it: Lumen Cascade, Shieldsong, Cut the Cord and A Quiet
+Word. Nothing caught it because **the suite measured overflow PAST the card**,
+and a wrapped row does not overflow — it costs a LINE, which the row-density
+tiers quietly absorb. The card fits. It just looks wrong.
+
+`Guard to all` → `Guard · all` and `Guard · lowest` → `Guard · low`, which also
+makes the three members of that family parallel: one verb, three targets, one
+grammar. `A free step for anyone` → `A free step`, because the icon and the
+absence of a name already say the rest.
+
+### …and the combo's payoff is counted the same way the clauses are
+
+Shared Grace then clipped by 4px, and the cause was next to the last one: the
+row counter measures every clause on the card by its length and then assumed
+**the combo's payoff was one line**. It is not — `the AP comes back.` is
+eighteen characters against a fifteen-character line — so the one card that
+gained a combo this build was the one card that hung past its own box. The
+exception is gone; the payoff is counted like everything else.
+
+New check: **no clause wraps inside its own row**, swept across every card. It
+is the third distinct way a card face can fail to read — past the bottom, off
+the side, and now inside — and it is the one that had never been asked.
+
+flow 257/257 · road 94/94 · bond 74/74 · slice 80/80 · line 32/32 ·
+camp 46/46 · music 22/22 · beat 10/10 — no page errors.

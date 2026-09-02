@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 108;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 109;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -5932,7 +5932,18 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
   // …and a MERGED band is two lines, not one: the combo's own payoff plus the
   // mark's. Cross Sever + Chain is the card that found this, hanging 4px past
   // its own text block.
-  const nRows = rowLines(rowsHTML) + (cond ? 1 : 0) + (stacks ? 1 : 0) + (mark ? 1 : 0);
+  //
+  // THE COMBO'S PAYOFF IS COUNTED THE SAME WAY THE CLAUSES ARE. It was assumed
+  // to be one line, and it is not: "the AP comes back." is eighteen characters
+  // against a fifteen-character line, so Shared Grace — two short clauses and
+  // that payoff — hung 4px past its own box the moment it gained a combo. The
+  // counter already measures every other line on the card by its length; this
+  // one was the exception, and exceptions are where the clipping was.
+  const payLines = cond
+    ? Math.max(1, Math.ceil(condReward(c, ev.sigil)
+        .replace(/<svg[\s\S]*?<\/svg>/g, '~~').replace(/<[^>]+>/g, '').trim().length / LINE_CHARS))
+    : 0;
+  const nRows = rowLines(rowsHTML) + payLines + (cond ? 1 : 0) + (stacks ? 1 : 0) + (mark ? 1 : 0);
   const rowClass = 'k-ctext' + (nRows >= 5 ? ' k-rows-5' : nRows === 4 ? ' k-rows-4'
     : nRows === 3 ? ' k-rows-3' : '');
   // WHOSE CARD THIS IS, SAID rather than pictured. The corner held a 17px
@@ -6038,9 +6049,18 @@ function prose(effects, plain) {
   for (const fx of effects) {
     if (fx.brk) out.push(I('brk') + '<b>' + fx.brk + '</b> Break.');
     if (fx.guardSelf) out.push(I('guard') + '<b>' + fmtN(fx.guardSelf) + '</b> Guard.');
-    if (fx.guardAll) out.push(I('guard') + '<b>' + fmtN(fx.guardAll) + '</b> Guard to all.');
+    // ONE FAMILY, ONE GRAMMAR, AND ALL OF IT ON ONE LINE. "Guard to all" and
+    // "Guard · lowest" were the two longest clauses in the deck and both WRAPPED
+    // inside their own row — the number on one line and the words under it,
+    // which reads as a broken card rather than a long one. Nothing caught it:
+    // the suite measured overflow PAST the card, and a wrapped row costs a line
+    // that the row-density tiers quietly absorb.
+    //
+    // `· all` and `· low` also make the three of them parallel, which is the
+    // point — they are one verb with three targets, not three phrasings.
+    if (fx.guardAll) out.push(I('guard') + '<b>' + fmtN(fx.guardAll) + '</b> Guard \u00b7 all.');
     if (fx.guardAlly) out.push(I('guard') + '<b>' + fmtN(fx.guardAlly) + '</b> Guard \u00b7 ally.');
-    if (fx.guardLowest) out.push(I('guard') + '<b>' + fmtN(fx.guardLowest) + '</b> Guard \u00b7 lowest.');
+    if (fx.guardLowest) out.push(I('guard') + '<b>' + fmtN(fx.guardLowest) + '</b> Guard \u00b7 low.');
     if (fx.heal) out.push(I('heal') + 'Heal <b>' + fmtN(fx.heal) + '</b>.');
     if (fx.healAll) out.push(I('heal') + 'Heal <b>' + fmtN(fx.healAll) + '</b> to all.');
     if (fx.bleed) out.push(I('bleed') + '<b>' + fmtN(fx.bleed) + '</b> Bleed.');
@@ -6052,7 +6072,9 @@ function prose(effects, plain) {
     // want it — the panel that opens when the card is picked up.
     if (fx.intercede) out.push(I('guard') + 'Intercede.');
     if (fx.moveSelf) out.push(I('move') + 'Step <b>' + fx.moveSelf + '</b>.');
-    if (fx.freeMove) out.push(I('move') + 'A <b>free</b> step for anyone.');
+    // …and the last one that wrapped. "for anyone" is what the icon and the
+    // absence of a name already say.
+    if (fx.freeMove) out.push(I('move') + 'A <b>free</b> step.');
     // TWO CLAUSES, BECAUSE IT IS TWO THINGS. As one row this wrapped at the
     // comma inside a 73px face and printed "Draw 1" over ", discard 1", which
     // reads as a rendering fault rather than as a rule. A row is one clause.

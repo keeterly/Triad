@@ -553,6 +553,34 @@ const { boot } = require('./harness.cjs');
     const clipped = room.ids.filter(id => room.bare[id].over > 1);
     check('CARD: no card in the deck clips its own text — all twenty-eight fit their face',
       clipped.length === 0, JSON.stringify({ clipped, n: room.ids.length }));
+    // A ROW THAT WRAPS INSIDE ITS OWN BOX. Nothing ever asked this: the suite
+    // measured overflow PAST the card and the width of the text block, and a
+    // wrapped row does neither — it costs a LINE, which the row-density tiers
+    // quietly absorb, so the card fits and looks broken. Four cards were doing
+    // it, and one of them was Lumen Cascade, which a player now draws three
+    // times as often as anything else Elin owns.
+    const wrapped = await J(() => {
+      const host = document.createElement('div');
+      host.style.cssText = 'position:absolute;left:-2000px;top:0;display:flex;flex-wrap:wrap;width:1600px';
+      document.body.appendChild(host);
+      const bad = [];
+      Object.keys(window.K.CARD_DEFS).forEach(id => {
+        host.innerHTML = window.K.staticCardHTML(id, {});
+        const card = host.querySelector('.k-card'); if (!card) return;
+        [...card.querySelectorAll('.k-crow')].forEach(r => {
+          const cs = getComputedStyle(r);
+          const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.15;
+          const inner = r.getBoundingClientRect().height
+                      - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+          if (inner > lh * 1.5) bad.push(id + ': ' + (r.textContent || '').trim());
+        });
+      });
+      host.remove();
+      return bad;
+    });
+    check('CARD: no clause wraps inside its own row — a number orphaned from its words reads as a broken card',
+      wrapped.length === 0, JSON.stringify({ wrapped, n: wrapped.length }));
+
     // The same question sideways, which nothing asked until Build 42.
     const spilled = room.ids.filter(id => room.bare[id].wide > 1 || room.bare[id].past > 0.5);
     check('CARD: no clause runs off the side of its card — rows wrap, they do not clip',
