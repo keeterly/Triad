@@ -4526,3 +4526,30 @@ one condition on three cards, and eight verbs or fewer.
 
 flow 256/256 · road 94/94 · bond 74/74 · slice 85/85 · line 32/32 ·
 camp 46/46 · music 22/22 · beat 10/10 · soak 5/5 — no page errors.
+
+### …and the pace sim, once it was measuring a run that develops
+
+Build 106 moved the conversations onto the road and only the MARK was taught to
+`pace.sim`, so it walked ten roads taking no cards and no marks and duly
+reported that a run does not develop. The harness was the thing that had stopped
+developing. Its "cards swapped in" column was also reading `bonds` — the number
+of conversations HEARD, which is not the same number, because a fork can hand
+over nothing when the party already carries both of its picks.
+
+Fixed, ten runs per skill level, against the new deck:
+
+| skill | won | nodes kindled | cards swapped in | marks | embers left | short at a fire |
+|---|---|---|---|---|---|---|
+| clumsy | **5/10** | 2.5 | 5.5 | 2.7 | 11.7 | 0/12 |
+| ordinary | **7/10** | 3.3 | 5.3 | 2.4 | 12.5 | 2/14 |
+| sharp | **9/10** | 4.8 | 6.7 | 3.8 | 17.3 | 0/12 |
+
+A clean monotonic skill curve — 50 / 70 / 90 — and a run that changes eight to
+fifteen things about the party between the trailhead and the Regent, against the
+sim's own floor of four.
+
+**And it names the tree's real problem, which is not the price.** Nobody is ever
+short: 5.4 to 8.2 of the ~8 open nodes are affordable at every fire, and a run
+ends holding 12 to 17 unspent embers. The constraint is **fires** — 1.2 to 1.4 a
+run. The tree does not go unspent because the player cannot pay; it goes unspent
+because they are almost never standing in front of it.
