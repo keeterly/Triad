@@ -4589,3 +4589,71 @@ the side, and now inside — and it is the one that had never been asked.
 
 flow 257/257 · road 94/94 · bond 74/74 · slice 80/80 · line 32/32 ·
 camp 46/46 · music 22/22 · beat 10/10 — no page errors.
+
+---
+
+## Build 110 — which mark, and whose memory
+
+Two questions about progression, and the map of what a run can gain answers
+both. Every door, measured:
+
+| Door | Gives | Per run |
+|---|---|---|
+| Bond scene (3 pairs × 2 levels) | a card, and a mark | up to 6 |
+| Recall (4 in the table) | a card | up to 4 |
+| Campfire tree (11 nodes) | sharpens a card, +1 AP, a better all-out | 2.5–4.8 bought |
+| Awakening | a memory | 1 |
+| Crossroads | health, embers, bond | ~1.5 |
+
+Actuals from the pace sim: **5–7 cards swapped in, 2.4–3.8 marks, 2.5–4.8 nodes
+a run.** Plenty of gaining. Almost none of it a *choice about what kind of run
+this is*, and the map says exactly why.
+
+### The mark was a delivery schedule
+
+`SIGIL_BY_PAIR` gave each pair one mark per level. The player chose which card
+wore it and **never which mark it was** — which made the most build-defining
+system in the game (five marks, six placements, every one permanent) into a
+rota. A run that stacks Surge and a run that stacks Chain play completely
+differently, and nothing let a player aim at either.
+
+Each level is a **fork of two** now. The first is the pair's own — what these
+two are for — and the second is the branch, so a player can lean into the pair's
+character or steer the run somewhere else. Deterministic from pair and level, so
+a seed still deals the same road.
+
+The moment ends on that fork: two marks side by side under the figures, each
+with its glyph, its name and its rule, in its own colour — the same shape every
+other conversation on this road ends on. The header holds its tongue while the
+fork is open (`WHAT THEY LEARNED — Two things came out of it. One of them
+stays.`), because printing one of the two at the top would be the screen
+choosing for the player.
+
+### Both card-doors were the same door
+
+All twelve cards the road could hand over were **bond cards** — pair cards, two
+owners each — and both doors drew from that one pool. So "one person remembering
+their own trick" handed over something owned by two people, and the road's
+entire card supply had one flavour.
+
+Meanwhile the six cards the 3/1/1 deck displaced — Counterstance, Last Light,
+Frost Bind, Intercession, Backstab, Execute — were painted, defined, *upgraded*
+and completely unreachable.
+
+The two doors mean different things now. **A bond scene gives what two of them
+learn together; a recall gives what one of them already knew.** Each memory
+offers two of its own hero's solo cards, and between the four of them every
+displaced card is reachable again. That is a check: nothing the opening fifteen
+put down is stranded.
+
+### A memory with nothing left to give
+
+Ash has two recalls and two cards to remember, so taking both at the first one
+left the second with an **empty fork** — a scene with no way out of it. The bond
+scenes have had that fallback since Build 97; the recalls never did, and nothing
+found it because they used to draw from a pool of eight rather than a hero's own
+two. Widening the door found the hole in it.
+
+flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
+camp 46/46 · music 22/22 · beat 10/10 · soak 5/5 — no page errors. Ten runs,
+eight to the Regent, 31 recalls.

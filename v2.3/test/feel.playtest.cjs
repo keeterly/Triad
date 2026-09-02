@@ -151,8 +151,15 @@ const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
           }
           if (shot('k-mark')) {
           // TWO BEATS (Build 104): the moment, then the decision, then the mark.
-          const go1 = document.getElementById('k-mark-go');
-          if (go1) go1.click();
+          (() => {
+            // TAKE THE FORK (Build 110): the moment ends on two marks now, and
+            // one of them has to be chosen before the cards are offered.
+            const f = document.querySelector('#k-mark-fork .k-mkf');
+            if (f) { f.click(); return true; }
+            const g = document.getElementById('k-mark-go');
+            if (g) { g.click(); return true; }
+            return false;
+          })();
           const mk = [...document.querySelectorAll('#k-mark-cols .k-mk:not([disabled])')];
           if (mk.length) mk[0].click();
           const pl = document.getElementById('k-mark-place');
@@ -185,8 +192,15 @@ const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
           }
           if (shot('k-mark')) {
           // TWO BEATS (Build 104): the moment, then the decision, then the mark.
-          const go1 = document.getElementById('k-mark-go');
-          if (go1) go1.click();
+          (() => {
+            // TAKE THE FORK (Build 110): the moment ends on two marks now, and
+            // one of them has to be chosen before the cards are offered.
+            const f = document.querySelector('#k-mark-fork .k-mkf');
+            if (f) { f.click(); return true; }
+            const g = document.getElementById('k-mark-go');
+            if (g) { g.click(); return true; }
+            return false;
+          })();
           const mk = [...document.querySelectorAll('#k-mark-cols .k-mk:not([disabled])')];
           if (mk.length) mk[0].click();
           const pl = document.getElementById('k-mark-place');

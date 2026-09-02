@@ -302,16 +302,24 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       // TWO BEATS (Build 104). The screen opens on the MOMENT — the two of them
       // and the mark burning between them — and hands over to the decision. So
       // the walk answers the moment before it can be asked which card.
+      // …AND THE MOMENT ENDS ON A FORK (Build 110). A mark used to be handed
+      // over — the player chose the card and never which mark it was, which
+      // made the run's most build-defining system a delivery schedule. Beat one
+      // offers two, and taking one is what opens the cards.
+      const forks = [...document.querySelectorAll('#k-mark-fork .k-mkf')];
       const beat1 = { beat: window.R.markBeat(),
                       cards: document.querySelectorAll('#k-mark-cols .k-mk').length,
-                      go: !!document.getElementById('k-mark-go'),
+                      forks: forks.length,
+                      offered: forks.map(f => (f.querySelector('b') || {}).textContent),
                       cast: document.querySelectorAll('#k-mark-cast .k-mkc-fig').length };
-      document.getElementById('k-mark-go').click();
+      // take the SECOND, so a fall-through to the default cannot pass by luck
+      forks[forks.length - 1].click();
+      const took = window.R.state().pendingSigil;
       const cards = [...document.querySelectorAll('#k-mark-cols .k-mk')];
       // The mark is decided by the pair and the level — ash|mira level 1 —
       // so the screen's title is checked against the map, not a literal.
       const want = window.R.sigilFor('ash|mira', 1);
-      return { beat1, beat2: window.R.markBeat(),
+      return { beat1, beat2: window.R.markBeat(), took,
                onMark: up('k-mark'), onStage: up('k-stage'), onMap: up('k-map'),
                want, wantName: window.K.SIGILS[want].name.toUpperCase(),
                pending: window.R.state().pendingSigil,
@@ -331,13 +339,24 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     });
     check('MARK: the debt is settled back on the road — never in the doorway of the next stop',
       marking.onMark && !marking.onStage && !marking.onMap && marking.pending
-      && marking.pending === marking.want && marking.title === marking.wantName
+      // WHAT THE LEVEL OWES IS NOW A FORK, so the title has to match what was
+      // TAKEN rather than what the table lists first — asserting the default
+      // here would assert the absence of the choice this build added.
+      && marking.pending === marking.took
+      && marking.title === marking.took.toUpperCase()
       && marking.line > 10,
       JSON.stringify(marking));
-    check('MARK: the screen opens on the moment — the two of them, the mark, and one way forward',
+    check('MARK: the screen opens on the moment — the two of them, and a fork of two marks',
       marking.beat1.beat === 1 && marking.beat1.cards === 0
-      && marking.beat1.go && marking.beat1.cast === 2 && marking.beat2 === 2,
+      && marking.beat1.forks === 2 && marking.beat1.cast === 2 && marking.beat2 === 2
+      && marking.beat1.offered.every(n => /\S/.test(n || '')),
       JSON.stringify(marking.beat1));
+    // WHICH MARK IS THE PLAYER'S, and taking the second has to actually take it
+    check('MARK: the fork is a real choice — taking the second is the mark the run learns',
+      marking.took === marking.beat1.offered[1].toLowerCase()
+      && marking.pending === marking.took,
+      JSON.stringify({ offered: marking.beat1.offered, took: marking.took,
+                       pending: marking.pending })); 
     // TEN CARDS SCANNABLE, ONE READABLE — the trade screen's split, because it
     // is the trade screen's question. Ten faces shrunk to 62% and stacked five
     // to a half-width column was neither.
@@ -446,7 +465,9 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     const payDebt = () => J(() => {
       const on = !document.getElementById('k-mark').classList.contains('k-hidden');
       if (!on) return false;
-      document.getElementById('k-mark-go').click();          // the moment
+      // the moment, which ends on a fork
+      const f0 = document.querySelector('#k-mark-fork .k-mkf');
+      if (f0) f0.click();
       const btn = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
       if (btn) btn.click();                                  // pick it up
       document.getElementById('k-mark-place').click();       // and mark it
@@ -966,15 +987,34 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       && new Set(T.map(r => r.id)).size === T.length,
       JSON.stringify(T.map(r => r.id + ':' + r.who + ':' + r.beats)));
 
-    // A MEMORY BELONGS TO THE PERSON HAVING IT. Every card a recall can hand
-    // over is owned by a pair the remembering hero is IN — otherwise Ash
-    // remembers something and Elin and Mira quietly get better at it.
+    // A MEMORY BELONGS TO THE PERSON HAVING IT — and since Build 110 that is
+    // literal: a recall hands over a card the rememberer owns ALONE.
+    //
+    // WHAT MOVED: both card-doors drew from the same twelve BOND cards, so the
+    // road's entire card pool was one flavour and "one person remembering their
+    // own trick" handed over something owned by two people. The two doors mean
+    // different things now — a bond scene gives what two of them learn
+    // together, a recall gives what one of them already knew — and it un-parks
+    // the six solo cards the 3/1/1 deck displaced, which were painted, defined,
+    // upgraded and unreachable.
     const owned = await J(() => window.R.RECALLS.map(r => ({
       id: r.id, who: r.who,
-      pairs: r.picks.map(p => (window.K.pairOf(p.card) || []).join('|')) })));
-    check('RECALL: every card a memory offers belongs to a pair the rememberer is in',
-      owned.every(r => r.pairs.every(k => k.split('|').indexOf(r.who) >= 0)),
+      owners: r.picks.map(p => window.K.CARD_DEFS[p.card].owner) })));
+    check('RECALL: every card a memory offers is one the rememberer owns alone',
+      owned.every(r => r.owners.every(o => o === r.who)),
       JSON.stringify(owned));
+    // …and between them the memories reach every card the opening fifteen left
+    // behind, or those cards are in the game and out of the player's reach
+    const reach = await J(() => {
+      const K = window.K, D = K.CARD_DEFS;
+      const base = new Set(K.rosterIds(K.baseRoster()).map(id => D[id].sameAs || id));
+      const parked = Object.keys(D).filter(id => !D[id].sameAs && !base.has(id)
+        && K.BOND_IDS.indexOf(id) < 0 && id !== 'lightsteel');
+      const offered = new Set(window.R.RECALLS.flatMap(r => r.picks.map(p => p.card)));
+      return { parked, missed: parked.filter(id => !offered.has(id)) };
+    });
+    check('RECALL: nothing the opening fifteen displaced is stranded — every one is remembered by somebody',
+      reach.parked.length === 6 && reach.missed.length === 0, JSON.stringify(reach));
 
     // …AND THE TWO ARE A FORK, NOT A RANKING. Two cards that do the same thing
     // to different numbers is the direct-upgrade trap the campfire already

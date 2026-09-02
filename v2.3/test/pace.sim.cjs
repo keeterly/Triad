@@ -119,7 +119,9 @@ const SKILLS = process.env.PACE_SKILL
       const payMark = async () => {
         const paid = await J(() => {
           if (document.getElementById('k-mark').classList.contains('k-hidden')) return false;
-          document.getElementById('k-mark-go').click();          // the moment
+          // the moment, which ends on a fork of two marks (Build 110)
+          const f0 = document.querySelector('#k-mark-fork .k-mkf');
+          if (f0) f0.click(); else { const g0 = document.getElementById('k-mark-go'); if (g0) g0.click(); }
           const mk = [...document.querySelectorAll('#k-mark-cols .k-mk:not([disabled])')];
           if (!mk.length) return false;
           mk[Math.floor(Math.random() * mk.length)].click();     // pick it up

@@ -284,12 +284,30 @@
   // player's. One decision, one screen. Letting the player choose both would
   // be two screens for one reward, and it would cost each pair the identity
   // that makes their level-up feel like theirs rather than a menu.
+  // ── WHICH MARK, AND THAT IS THE QUESTION (Build 110) ──────────────────────
+  //
+  // A mark was FIXED by pair and level: the player chose which card wore it and
+  // never which one it was. That made the single most build-defining system in
+  // the game — five marks, six placements, each one permanent — into a delivery
+  // schedule. A run that stacked Surge and a run that stacked Chain play
+  // completely differently, and nothing let a player aim at either.
+  //
+  // Each level is a FORK of two now. The first is the pair's own — what these
+  // two are for — and the second is the branch, so a player can lean into the
+  // pair's character or steer the run somewhere else. Deterministic from pair
+  // and level, so a seed still deals the same road.
   const SIGIL_BY_PAIR = {
-    'ash|elin':  ['retain', 'surge'],  // she holds the line; he keeps one back
-    'ash|mira':  ['chain', 'rally'],   // the two quick ones — a move flows on
-    'elin|mira': ['combo', 'surge'],   // they are the ones who press an advantage
+    // she holds the line, he keeps one back — or it burns brighter
+    'ash|elin':  [['retain', 'surge'], ['surge', 'rally']],
+    // the two quick ones: a move flows on — into an ally, or into itself
+    'ash|mira':  [['chain', 'combo'], ['rally', 'surge']],
+    // they are the ones who press an advantage
+    'elin|mira': [['combo', 'retain'], ['surge', 'chain']],
   };
-  const sigilFor = (pair, lv) => (SIGIL_BY_PAIR[pair] || [])[lv - 1] || null;
+  const sigilFork = (pair, lv) => ((SIGIL_BY_PAIR[pair] || [])[lv - 1] || []).slice();
+  // …and the FIRST of the fork is still what a level owes by default, so a debt
+  // that survives a closed tab is never nothing.
+  const sigilFor = (pair, lv) => sigilFork(pair, lv)[0] || null;
 
   const PAIRS = ['ash|elin', 'ash|mira', 'elin|mira'];
   const BOND_STEPS = [12, 30];               // points to reach level 1, then 2
@@ -339,10 +357,10 @@
       ],
       ask: 'What does he do with that?',
       picks: [
-        { line: 'He plants himself and lets it come to him.', card: 'lastvigil',
+        { line: 'He plants himself and lets it come to him.', card: 'cstance',
           after: 'If the road will not end, he will simply stop moving first.' },
-        { line: 'He stops counting and keeps walking.', card: 'gravebloom',
-          after: 'Whatever this place is taking, he decides not to notice it going.' },
+        { line: 'He decides how it ends instead.', card: 'lastlight',
+          after: 'Not how far in they are. How the round closes.' },
       ] },
     // ── A MONSTER ──
     { id: 'rc-wraith', who: 'mira', title: 'SHE KNEW THAT ONE',
@@ -356,10 +374,10 @@
       ],
       ask: 'What does she take from it?',
       picks: [
-        { line: 'The trick of coming apart on purpose.', card: 'cutthecord',
-          after: 'Open it, step out of reach — and the line moves with her.' },
-        { line: 'The trick of not being where the grief lands.', card: 'coldmercy',
-          after: 'Slow the song before it reaches anyone.' },
+        { line: 'The trick of not being where the grief lands.', card: 'backstab',
+          after: 'Out of the back, into the gap, before it turns.' },
+        { line: 'The trick of knowing where it is already open.', card: 'execute',
+          after: 'She has seen one come apart. She knows the seam.' },
       ] },
     // ── AN INTERACTION: somebody nearly lost ──
     { id: 'rc-brink', who: 'elin', title: 'THE COUNT',
@@ -372,10 +390,10 @@
       ],
       ask: 'What does she reach for?',
       picks: [
-        { line: 'The thing that keeps everyone standing.', card: 'shieldsong',
-          after: 'Nobody strikes. The whole line simply stops being open.' },
-        { line: 'The thing that finds the one who is worst.', card: 'quietword',
-          after: 'Cover the one who needs it, and find the next answer.' },
+        { line: 'The habit of standing where the blow was going.', card: 'intercession',
+          after: 'She takes it instead. That is the whole of the number.' },
+        { line: 'The habit of slowing it before it arrives.', card: 'frostbind',
+          after: 'Nobody has to be got to in time if it never gets there.' },
       ] },
     // ── A DECISION ──
     { id: 'rc-chose', who: 'ash', title: 'WHAT IT COST',
@@ -388,10 +406,10 @@
       ],
       ask: 'What does he carry out of it?',
       picks: [
-        { line: 'The willingness to pay up front.', card: 'ashenoath',
-          after: 'Everything, at once, and nothing held back.' },
-        { line: 'The habit of covering the one who did not choose.', card: 'shieldblade',
-          after: 'He stands in front. She works behind him.' },
+        { line: 'The habit of taking it so nobody else has to.', card: 'cstance',
+          after: 'He chose. He can be the one it lands on.' },
+        { line: 'The habit of finishing what he started.', card: 'lastlight',
+          after: 'A thing chosen is a thing you see through to the end of the round.' },
       ] },
   ];
 
@@ -1989,6 +2007,7 @@
     saveProfile();
     // The level also teaches them something about what they already carry.
     RUN.pendingSigil = sigilFor(pair, _scene.lv);
+    RUN.sigilFork = sigilFork(pair, _scene.lv);
     const card = pick.card, after = pick.after;
     closeScene();
     // Nothing to hand over — they already carry everything this scene could
@@ -2033,6 +2052,16 @@
     const held = new Set(window.K.rosterIds(RUN.roster));
     _scene = { ...rc, kind: 'recall' };
     _scene.picks = rc.picks.filter(p => !held.has(p.card));
+    // A MEMORY WITH NOTHING LEFT TO HAND OVER IS STILL A MEMORY. Ash has two
+    // recalls and two cards to remember, so taking both at the first one left
+    // the second with an empty fork — a scene the player could not leave. The
+    // bond scenes have had this fallback since Build 97; the recalls never did,
+    // and nothing found it because the recalls used to draw from a pool of
+    // eight rather than a hero's own two.
+    if (!_scene.picks.length) {
+      _scene.picks = [{ line: 'He has it already. It was not new the first time either.',
+                        card: null, after: '' }];
+    }
     _beat = 0;
     save();
     screen('scene');
@@ -3229,8 +3258,14 @@
   // unreadable and crammed against the bottom edge.
   let _markBeat = 1;
   let _markPick = null;                 // the card being read, not yet marked
-  function markGo() {
+  // TAKING ONE OF THE TWO IS WHAT ENDS THE MOMENT. `ix` names which; called
+  // with nothing it takes the first, which is what a resumed run does when the
+  // fork was never recorded.
+  function markGo(ix) {
     if (!RUN || !RUN.pendingSigil) return false;
+    const fork = (RUN.sigilFork && RUN.sigilFork.length) ? RUN.sigilFork : [RUN.pendingSigil];
+    const took = fork[ix || 0] || fork[0];
+    if (took && took !== RUN.pendingSigil) { RUN.pendingSigil = took; save(); }
     _markBeat = 2; renderMark(); return true;
   }
   function markPickCard(id) {
@@ -3250,8 +3285,12 @@
     const heroes = pair.split('|');
     const A = CAST[heroes[0]], B = CAST[heroes[1]];
     $('k-mark').className = 'k-mk-sig-' + sig + ' k-mk-beat' + _markBeat;
-    $('k-mark-title').textContent = def.name.toUpperCase();
-    $('k-mark-line').textContent = def.line;
+    // THE HEADER NAMES THE MARK ONLY ONCE IT IS ONE. While the fork is open
+    // there is no answer yet, and printing one of the two at the top would be
+    // the screen choosing for the player.
+    const forkNow = (RUN.sigilFork && RUN.sigilFork.length > 1 && _markBeat === 1);
+    $('k-mark-title').textContent = forkNow ? 'WHAT THEY LEARNED' : def.name.toUpperCase();
+    $('k-mark-line').textContent = forkNow ? 'Two things came out of it. One of them stays.' : def.line;
     // THE SCENE. The two of them, the mark burning between them, and the road
     // they are standing on — the same painting the map is drawn over, so the
     // moment happens somewhere rather than in a void.
@@ -3269,9 +3308,20 @@
     // exit is a button that might all be disabled is one roster change away
     // from being a dead end, and there is no skip.
     if (heroes.every(h => (RUN.roster[h] || []).every(id => RUN.sigils[id]))) return leaveMark();
-    const go = $('k-mark-go');
-    if (go && !go.dataset.wired) { go.dataset.wired = '1';
-      go.addEventListener('click', (e) => { e.stopPropagation(); markGo(); }); }
+    // ── beat one's fork: which of the two this level teaches ────────────────
+    const forkBox = $('k-mark-fork');
+    if (forkBox) {
+      const fork = (RUN.sigilFork && RUN.sigilFork.length) ? RUN.sigilFork : [sig];
+      forkBox.innerHTML = fork.map((sg, i) => {
+        const d = K.SIGILS[sg]; if (!d) return '';
+        return '<button type="button" class="k-mkf k-mkf-' + sg + '" data-ix="' + i + '">'
+          + '<i>' + K.icon(d.glyph || 'finale') + '</i>'
+          + '<b>' + d.name.toUpperCase() + '</b>'
+          + '<span>' + d.line + '</span></button>';
+      }).join('');
+      forkBox.querySelectorAll('.k-mkf').forEach(b =>
+        b.addEventListener('click', (e) => { e.stopPropagation(); markGo(+b.dataset.ix); }));
+    }
     if (_markBeat === 1) { $('k-mark-cols').innerHTML = ''; _markPick = null; return; }
 
     // ── the decision ────────────────────────────────────────────────────────
@@ -3658,6 +3708,7 @@
     WAKES, wakeOffer, takeWake, renderWake, wakeDef, wakePair,
     SIGIL_BY_PAIR, sigilFor, renderMark, placeSigil, openMark, leaveMark,
     markGo, markPickCard, markBeat: () => _markBeat, markHeld: () => _markPick,
+    sigilFork, markForkNow: () => (RUN && RUN.sigilFork) || [],
     swapPick: () => _swapPick, pendingCard: () => _pendingCard, benchSwap,
     PAIRS, BOND_STEPS, BONDS, bondLevel, bondScene, PAIR_NAME,
     profile: () => PROFILE, resetProfile() { PROFILE = { heard: [], won: [] }; saveProfile(); },
