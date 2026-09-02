@@ -357,6 +357,76 @@ const { boot } = require('./harness.cjs');
                        partyStep, lineStep, stage: drawn.stage }));
   }
 
+  // ═══ I · THE CARD NAMES WHAT IT HITS ═══
+  console.log('\n── which one ──');
+  {
+    // "ENEMY — ONE ANSWER, THE FOE" WAS TRUE WHEN THERE WAS ONE FOE. Both ways
+    // of playing an attack offered exactly one target, `#k-boss-art`, so every
+    // blow in a pack fight landed on whichever creature `C.aim` happened to be
+    // — and the aim could only be moved by separately tapping a body or a
+    // readout row, which nothing on the screen announces. A player with a card
+    // in their hand, pointing at a creature, should hit that creature.
+    const aim = await J(() => {
+      window.K.startCombat({ seed: 5, foes: ['husk', 'cultist', 'wraith'] });
+      window.K.forceHand(['cleave', 'serrate', 'mend', 'qthrow', 'frostbind']);
+      window.K.render();
+      const btn = document.querySelector('.k-card[data-card="cleave"]');
+      btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }));
+      btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1 }));
+      const rets = [...document.querySelectorAll('#k-pick .k-pk-ret')];
+      const before = window.K.state().foes.map(f => f.hp);
+      // press the arc drawn over the LAST creature — the one furthest from the
+      // aim, so a fall-through to `C.aim` cannot pass by accident
+      rets[rets.length - 1].dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, pointerId: 2 }));
+      const after = window.K.state().foes.map(f => f.hp);
+      return { arcs: rets.length, before, after, aim: window.K.state().aim,
+               moved: before.map((v, i) => v - after[i]) };
+    });
+    check('AIM: an attack draws an arc to every living creature, not one to the first',
+      aim.arcs === 3, JSON.stringify({ arcs: aim.arcs }));
+    check('AIM: the arc the player presses is the creature that takes the blow',
+      aim.moved[0] === 0 && aim.moved[1] === 0 && aim.moved[2] > 0 && aim.aim === 2,
+      JSON.stringify(aim));
+
+    // …AND THE SAME IS TRUE OF THE DRAG, which is the gesture the game teaches
+    // first. Only `#k-boss-art` was a drop zone, so dragging an attack at the
+    // second or third creature snapped back to the first and the card went
+    // where the aim already was — the drag saying otherwise the whole way down.
+    const drops = await J(() => {
+      window.K.startCombat({ seed: 5, foes: ['husk', 'cultist', 'wraith'] });
+      window.K.forceHand(['cleave', 'serrate', 'mend', 'qthrow', 'frostbind']);
+      window.K.render();
+      return [0, 1, 2].map(ix => {
+        const b = ix ? document.querySelector('#k-cast .k-foe-art[data-ix="' + ix + '"]')
+                     : document.getElementById('k-boss-art');
+        const r2 = b.getBoundingClientRect();
+        const t = window.K.dropTargetAt(r2.left + r2.width / 2, r2.top + r2.height / 2, 'cleave');
+        return t ? { zone: t.zone, foe: t.foe == null ? 0 : t.foe } : null;
+      });
+    });
+    check('AIM: dropping a card on a body targets THAT body — every one of them is a drop zone',
+      drops.every((d, i) => d && d.zone === 'enemy' && d.foe === i),
+      JSON.stringify(drops));
+
+    // A FIGHT AGAINST ONE THING IS UNCHANGED: one arc, one zone, and no
+    // decision the player did not have before.
+    const solo = await J(() => {
+      window.K.startCombat({ seed: 5 });
+      window.K.forceHand(['cleave', 'serrate', 'mend', 'qthrow', 'frostbind']);
+      window.K.render();
+      const btn = document.querySelector('.k-card[data-card="cleave"]');
+      btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 3 }));
+      btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 3 }));
+      const n = document.querySelectorAll('#k-pick .k-pk-ret').length;
+      const b = document.getElementById('k-boss-art').getBoundingClientRect();
+      const t = window.K.dropTargetAt(b.left + b.width / 2, b.top + b.height / 2, 'cleave');
+      return { arcs: n, zone: t && t.zone, foes: window.K.state().foes.length };
+    });
+    check('AIM: one creature is still one answer — a solo fight asks nothing new',
+      solo.foes === 1 && solo.arcs === 1 && solo.zone === 'enemy', JSON.stringify(solo));
+  }
+
   const r = report();
   await H.browser.close();
   process.exit(r.passed === r.total && r.errs === 0 ? 0 : 1);

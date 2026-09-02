@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 106;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 107;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -6201,8 +6201,19 @@ function dropTargetAt(x, y, cardId) {
   const want = cardId ? (cardDef(cardId).target === 'enemy' ? 'enemy' : 'party') : null;
   const cands = [];
   if (!want || want === 'enemy') {
-    const b = el('k-boss-art');
-    if (b) cands.push({ zone: 'enemy', el: b, r: b.getBoundingClientRect() });
+    // EVERY BODY IS A DROP ZONE. Only `#k-boss-art` was, so dragging an attack
+    // at the second or third creature snapped back to the first — the card went
+    // where the aim already was, and the drag said otherwise the whole way down.
+    const line = C && C.foes ? livingFoes() : [];
+    if (line.length) {
+      line.forEach(F => {
+        const b = foeBox(F.ix);
+        if (b) cands.push({ zone: 'enemy', foe: F.ix, el: b, r: b.getBoundingClientRect() });
+      });
+    } else {
+      const b = el('k-boss-art');
+      if (b) cands.push({ zone: 'enemy', el: b, r: b.getBoundingClientRect() });
+    }
   }
   if (!want || want === 'party') {
     document.querySelectorAll('.k-hero').forEach(h => {
@@ -6221,13 +6232,15 @@ function dropTargetAt(x, y, cardId) {
     if (d < bestD) { bestD = d; best = c; }
   }
   if (!best || bestD > SNAP_RADIUS) return null;
-  return { zone: best.zone, hero: best.hero, el: best.el, snapped: bestD > 0 };
+  return { zone: best.zone, hero: best.hero, foe: best.foe, el: best.el, snapped: bestD > 0 };
 }
 function dropCommit(id, drop) {
   if (!drop) return false;
   if (drop.zone === 'piles') return cycleCard(id);
   const want = cardDef(id).target === 'enemy' ? 'enemy' : 'party';
   if (drop.zone !== want) return false;
+  // …and the body it was dropped on is the body it hits
+  if (drop.foe != null) aimAt(drop.foe);
   return playCard(id, drop.hero && drop.hero !== cardDef(id).owner ? drop.hero : undefined);
 }
 // ═════════════════════════════════════════════════════════════════════════════
@@ -6609,18 +6622,29 @@ function pickClear() {
 // over Elin healed Ash, and the check caught it.
 //
 // So there are three cases, and only the middle one is a decision:
-//   enemy  — one answer, the foe
+//   enemy  — the player names the creature, and every living one is offered
 //   ally   — the player names the ally, and every living one is offered
 //   party  — the card's own rule picks, and the arcs SHOW that pick: the most
 //            wounded for a heal, the lowest for a ward, everyone for an all
+//
+// "ENEMY — ONE ANSWER, THE FOE" WAS TRUE WHEN THERE WAS ONE FOE. It has been
+// false since the line shipped: this returned `#k-boss-art` alone, so an attack
+// drew a single arc to the FIRST creature no matter how many were standing, and
+// every blow in the game landed on whatever `C.aim` happened to be. The aim
+// could only be moved by separately tapping a body or a readout row first —
+// an affordance nothing on the screen announces, and a rule nobody should have
+// to learn when the card is already in their hand and pointing at things.
 function pickTargets(cardId) {
   const ev = evaluateCard(cardId);
   const c = ev.card;
   const out = [];
   const fig = (id) => document.querySelector('.k-hero[data-hero="' + id + '"]');
   if (c.target === 'enemy') {
-    const b = el('k-boss-art');
-    if (b) out.push({ node: b, hero: null, yf: 0.42 });
+    livingFoes().forEach(F => {
+      const b = foeBox(F.ix);
+      if (b) out.push({ node: b, hero: null, foe: F.ix, yf: 0.42 });
+    });
+    if (!out.length) { const b = el('k-boss-art'); if (b) out.push({ node: b, hero: null, yf: 0.42 }); }
     return out;
   }
   const live = livingHeroes();
@@ -6689,7 +6713,7 @@ function showPick(cardId) {
     g.addEventListener('pointerdown', (e) => {
       e.stopPropagation(); e.preventDefault();
       const t = targets[+g.dataset.i];
-      commitCard(cardId, t && t.hero);
+      commitCard(cardId, t && t.hero, t && t.foe);
     });
   });
   const step = () => {
@@ -6702,10 +6726,15 @@ function showPick(cardId) {
   };
   _pick.raf = requestAnimationFrame(step);
 }
-function commitCard(cardId, allyId) {
+// AND THE POINT THE PLAYER PRESSED IS THE THING THAT GETS HIT. The aim is
+// moved BEFORE the card resolves, so every downstream reader of `C.aim` — the
+// evaluator, the camera, the damage popup, the death check — sees the creature
+// the arc was drawn to rather than the one that happened to be aimed at.
+function commitCard(cardId, allyId, foeIx) {
   lockHand();
   _sel = null;
   pickClear();
+  if (foeIx != null) aimAt(foeIx);
   playCard(cardId, allyId);
 }
 // MTG ARENA INSPECT — hold a card and it blows up, centred and legible, over a

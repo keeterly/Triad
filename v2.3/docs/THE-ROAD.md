@@ -4393,3 +4393,41 @@ flow 253/253 · road 94/94 · bond 74/74 · slice 88/88 · line 28/28 ·
 camp 46/46 · music 22/22 · beat 10/10 · soak 5/5 — no page errors. Ten
 randomised runs, eight to the Regent, 36 bond scenes, 27 recalls, and the
 deepest queue of conversations at one stop is still 1.
+
+---
+
+## Build 107 — the card names what it hits
+
+"I should be able to target different enemies." The aim system was there — tap a
+body, or a row in the readout, and the reticle moves. The gesture that plays a
+card could not reach it.
+
+### One arc, to the first creature, always
+
+`pickTargets` for an enemy card returned exactly one node, `#k-boss-art`, under
+a comment that said *"enemy — one answer, the foe"*. That was true when there
+was one foe and has been false since the line shipped: an attack drew a single
+arc to the first creature no matter how many were standing, and the blow landed
+on whatever `C.aim` happened to be.
+
+`dropTargetAt` had the same hole from the other side — only `#k-boss-art` was an
+enemy drop zone, so dragging an attack at the second or third creature snapped
+back to the first. The card went where the aim already was, and the drag said
+otherwise the whole way down.
+
+So the only way to choose a target was to tap a body *before* picking up a card
+— an affordance nothing on the screen announces, and a rule nobody should have
+to learn while holding a card and pointing at things.
+
+Both paths offer every living creature now. The tap path draws an arc to each
+and the one you press is the one that takes the blow; the drag path makes every
+body a drop zone and snaps to the nearest. `commitCard` and `dropCommit` move
+the aim **before** the card resolves, so every downstream reader of `C.aim` —
+the evaluator, the camera, the damage popup, the death check — sees the creature
+the player pointed at rather than the one that happened to be aimed at.
+
+A fight against one thing is unchanged: one arc, one zone, and no decision the
+player did not have before. That is its own check.
+
+flow 253/253 · road 94/94 · bond 74/74 · slice 85/85 · line 32/32 ·
+camp 46/46 · music 22/22 · beat 10/10 · soak 5/5 — no page errors.
