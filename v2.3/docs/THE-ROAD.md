@@ -4657,3 +4657,68 @@ two. Widening the door found the hole in it.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 46/46 · music 22/22 · beat 10/10 · soak 5/5 — no page errors. Ten runs,
 eight to the Regent, 31 recalls.
+
+## Build 111 — the learn node
+
+The fire sold eleven nodes and nine of them did the same thing: a card you
+already own becomes a better version of itself. That is vertical. Your deck
+gets *stronger* over a run and never gets *different*, so the run's shape was
+settled by the road's two card doors and its marks, with the campfire only
+turning the volume up.
+
+A **LEARN** node is the first thing on this tree that changes what a deck *is*.
+It trades one copy of a hero's basic for a **second copy of the card that
+carries their combo**:
+
+| Node | Takes | Drops |
+|---|---|---|
+| ASH · learn | a second Cross Sever | one Cleave |
+| ELIN · learn | a second Shared Grace | one Lumen Cascade |
+| MIRA · learn | a second Twin Fang | one Serrate |
+
+The deck stays fifteen. It becomes **less consistent** — two of the reliable
+thing instead of three — and far more pointed, because the run's one condition
+now turns up twice as often. It is the move a deckbuilder's player already
+knows: you found the thing that works, so you take another one.
+
+### Priced against the measurement, not against the other nodes
+
+The obvious price was 5 or 6 — dearest on the tree, done. The pace sim says
+that would have been a gift. Embers are **not** the scarce currency: five to
+eight of the ~8 open nodes are affordable at every fire and a run ends holding
+twelve to seventeen spare. **Fires** are scarce — 1.2 to 1.4 a run. So a cheap
+learn node is not a fork, it is one more thing swept up on the way past.
+
+At **seven** it is the most expensive object at the campfire, and a fire reads
+as *sharpen two, or learn one* — a fork at the fire the player is standing at,
+rather than a fork at fires they never reach.
+
+### A second copy is an alias, not a duplicate
+
+`crosssever2`, `sgrace2` and `twinfang2` carry `sameAs` pointing at the card
+they copy, which is the same machinery the opening fifteen's repeated basics
+use (Build 108). One id per copy, because the hand layer selects, drags, flies
+and inspects by `data-card` and two identical ids in one hand would collide on
+all four. One *face*, because `buildCards` resolves upgrades through `sameAs`
+and `cardArt` resolves paintings through the art alias — so buying ASH's tier-3
+sharpening upgrades **both** Cross Severs, and both wear the same painting.
+
+That last part broke the camp suite honestly: twelve card-shaped plates now
+wear nine paintings, and the check asserted `carded === 9 && distinct === 9`.
+Those were two coincidences dressed as a claim. Both are read off `TREE` now —
+every node that sells a card wears that card's painting, however many nodes
+share a face. Third de-literalised check this week; the pattern is worth
+naming, because a literal in a check is a fact about the build you wrote it on
+and nothing else.
+
+### The fan had room for three
+
+The learn node is a fourth plate in a branch sized for three, and it went
+straight off the right edge — invisible to eight green suites and obvious in
+the first screenshot. `renderCampBranch` counts its own plates onto the fan now
+(`data-n`) and the CSS shortens them at four and five, so the branch fits
+whatever the tree grows.
+
+flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
+camp 48/48 · music 22/22 · beat 10/10 · soak 5/5 — no page errors. Ten runs,
+eight to the Regent, 28 recalls, 19 nodes kindled.

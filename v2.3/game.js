@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 110;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 111;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -119,6 +119,21 @@ const CARD_DEFS = {
   // The setup card: the thing you play mid-combo to arm next turn's BROKEN
   // payoffs. Its Follow-Up landed 94% of the time, so the clause was a tax on
   // reading rather than a decision — it just does both now.
+  // ── AND A SECOND OF EACH, for the fire to teach (Build 111) ──────────────
+  // The tree only ever made a card BETTER. These are what it hands over when a
+  // hero doubles down instead: a second copy of the card that carries their
+  // combo, in exchange for one of the three copies of their basic. The deck
+  // stays fifteen and becomes less consistent and more pointed, which is the
+  // whole trade. Same face, same painting, sharpened by the same node.
+  crosssever2: { owner: 'ash', name: 'Cross Sever', sameAs: 'crosssever', cost: 2, target: 'enemy',
+                 base: [{ dmg: 9 }, { brk: 2 }],
+                 cond: { type: 'FOLLOW_UP', reward: 'cost', costTo: 1 } },
+  sgrace2:     { owner: 'elin', name: 'Shared Grace', sameAs: 'sgrace', cost: 1, target: 'party',
+                 base: [{ guardAll: 3 }, { brk: 2 }],
+                 cond: { type: 'FOLLOW_UP', reward: 'ap', ap: 1 } },
+  twinfang2:   { owner: 'mira', name: 'Twin Fang', sameAs: 'twinfang', cost: 1, target: 'enemy',
+                 base: [{ dmg: 4 }, { dmg: 4 }],
+                 cond: { type: 'FOLLOW_UP', reward: 'output', bonus: [{ dmg: 4 }] } },
   // ONE CONDITION, THREE PAYOFFS. All three specials trigger on CHAIN — the
   // player learns the word once — and then each pays in its own currency:
   // Ash's is the discount (his is the only 2-cost card in the deck, so a
@@ -5733,6 +5748,7 @@ const CARD_ART = {
   lightsteel: 1,
   // the copies of a basic are the same card, so they are the same painting
   cleave2: 'cleave', cleave3: 'cleave',
+  crosssever2: 'crosssever', sgrace2: 'sgrace', twinfang2: 'twinfang',
   lcascade2: 'lcascade', lcascade3: 'lcascade',
   serrate2: 'serrate', serrate3: 'serrate',
   // THE TWELVE BOND CARDS, and every one of them is a TWO-FIGURE painting —

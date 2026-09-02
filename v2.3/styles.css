@@ -2630,6 +2630,13 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-ctb-fan { flex: 1; min-width: 0; display: flex; gap: 18px;
   align-items: center; justify-content: center; }
 .k-ctb-fan .k-tnode { flex: 0 0 auto; height: 92%; aspect-ratio: 0.66; max-width: 30%; }
+/* …AND A FOURTH PLATE IS SHORTER, NOT NARROWER. Width derives from height
+   through the card's aspect ratio, so a branch that grew from three memories to
+   four simply ran off the right edge. Measured: the fan has ~702px, four plates
+   and three gaps leave 162px each, and 162 at 0.66 is 245px tall against the
+   ~340 the tree gets. */
+.k-ctb-fan[data-n="4"] .k-tnode { height: 72%; }
+.k-ctb-fan[data-n="5"] .k-tnode { height: 58%; }
 /* the strip has nothing to describe until a door is open */
 .k-cr.k-cr-idle { opacity: 0; pointer-events: none; }
 .k-ct-col { display: flex; flex-direction: column; justify-content: space-between;

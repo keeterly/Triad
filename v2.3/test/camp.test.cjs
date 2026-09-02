@@ -36,12 +36,51 @@ const { boot } = require('./harness.cjs');
   console.log('\n── the shape of the tree ──');
   {
     const T = await J(() => window.R.TREE.map(n => ({ ...n })));
-    check('TREE: eleven nodes — three tiers for each of the three, and two they share',
-      T.length === 11 && ['ash', 'elin', 'mira'].every(h => T.filter(n => n.hero === h).length === 3)
-      && T.filter(n => n.hero === 'all').length === 2,
-      T.map(n => n.hero).join(','));
-    check('TREE: every hero node sharpens a card the party already owns',
-      T.filter(n => n.hero !== 'all').every(n => !!n.card), 'cards: ' + T.filter(n => n.card).length);
+    // FOURTEEN NODES (Build 111): three sharpenings and one LEARN for each of
+    // the three, and two they share. Nine of the eleven the tree used to hold
+    // made a card better — vertical, so a deck got stronger and never got
+    // DIFFERENT. A learn node is the only thing here that changes what the deck
+    // IS: one copy of a hero's basic, traded for a second copy of the card that
+    // carries their combo.
+    check('TREE: fourteen nodes — three sharpenings and a learn for each of the three, and two they share',
+      T.length === 14 && ['ash', 'elin', 'mira'].every(h => T.filter(n => n.hero === h).length === 4)
+      && T.filter(n => n.hero === 'all').length === 2
+      && ['ash', 'elin', 'mira'].every(h => T.filter(n => n.hero === h && n.learn).length === 1),
+      T.map(n => n.hero + (n.learn ? '*' : '')).join(','));
+    check('TREE: every hero node either sharpens a card or teaches a second of one',
+      T.filter(n => n.hero !== 'all').every(n => !!n.card || !!n.learn),
+      'sharpen: ' + T.filter(n => n.card).length + ' · learn: ' + T.filter(n => n.learn).length);
+    // A LEARN NODE IS A TRADE, AND BOTH SIDES HAVE TO BE REAL: what it takes up
+    // is a card the hero owns a second of, what it sets down is a copy of their
+    // basic, and the deck is the same size afterwards.
+    const learn = await J(() => {
+      const K = window.K, D = K.CARD_DEFS, base = K.baseRoster();
+      return window.R.TREE.filter(n => n.learn).map(n => {
+        const take = D[n.learn.take], drop = D[n.learn.drop];
+        const fam = (id) => D[id].sameAs || id;
+        return { id: n.id, cost: n.cost,
+                 takeOwner: take && take.owner, dropOwner: drop && drop.owner,
+                 // the taken card is a COPY of something the hero already has
+                 copyOf: take && take.sameAs,
+                 heldAlready: base[n.hero].map(fam).indexOf(take.sameAs) >= 0,
+                 // and there are copies of the basic to set down
+                 copies: base[n.hero].map(fam).filter(f => f === n.learn.drop).length };
+      });
+    });
+    check('TREE: a learn node trades a copy of the basic for a second of the card that combos',
+      learn.length === 3
+      && learn.every(l => l.takeOwner === l.dropOwner && l.heldAlready
+                       && l.copyOf && l.copies === 3),
+      JSON.stringify(learn));
+    // …AND IT IS THE DEAREST THING ON THE TREE, on purpose. The pace sim's
+    // finding is that embers are NOT scarce — five to eight of the ~8 open
+    // nodes are affordable at every fire and a run ends holding twelve to
+    // seventeen spare — so a cheap learn node would be one more thing swept up
+    // rather than a fork at the fire the player is actually standing at.
+    check('TREE: learning costs more than sharpening — a fire is “two of those, or one of these”',
+      learn.every(l => l.cost > Math.max(...T.filter(n => n.card).map(n => n.cost))),
+      JSON.stringify({ learn: learn.map(l => l.cost),
+                       sharpen: [...new Set(T.filter(n => n.card).map(n => n.cost))] }));
     // THE CARD LADDER AND THE SHARED NODES ARE PRICED ON DIFFERENT AXES, and
     // they always were: CRESCENDO has sat at tier 3 for 6 embers since Build 27
     // while every tier-3 card cost 5, and this check only passed because 6
@@ -123,9 +162,16 @@ const { boot } = require('./harness.cjs');
     });
     // eleven nodes now: three open at tier 1, and eight sealed behind a memory
     // (three heroes x two deeper tiers, plus the two the fire itself owns)
+    // …counted from the tree rather than written down, because the tree has
+    // changed shape three times and this number is a fact about it, not about
+    // the lock this check is for.
+    const tiers = await J(() => {
+      const t1 = window.R.TREE.filter(n => n.tier <= 1).length;
+      return { t1, rest: window.R.TREE.length - t1 };
+    });
     check('LOCK: a full purse at tier 1 still cannot buy a tier-2 node',
-      rich.sealed.length === 8 && rich.open.length === 3,
-      `sealed ${rich.sealed.length} · open ${rich.open.length}`);
+      rich.sealed.length === tiers.rest && rich.open.length === tiers.t1,
+      `sealed ${rich.sealed.length}/${tiers.rest} · open ${rich.open.length}/${tiers.t1}`);
     check('LOCK: …and the fire\u2019s own door says so before it is opened',
       rich.doors === 4 && rich.doorsSaySealed === 1,
       JSON.stringify({ doors: rich.doors, sealed: rich.doorsSaySealed }));
@@ -232,7 +278,7 @@ const { boot } = require('./harness.cjs');
     });
     check('FIRE: every door and everything behind it fits — nothing clipped, nothing under the button',
       fits.bad.length === 0
-      && Object.values(fits.perBranch).reduce((a, b) => a + b, 0) === 11,
+      && Object.values(fits.perBranch).reduce((a, b) => a + b, 0) === 14,
       JSON.stringify(fits));
 
     const bought = await J(() => {
@@ -532,6 +578,16 @@ const { boot } = require('./harness.cjs');
       // the plates live behind the doors now, so they are gathered by walking
       // every branch — the contract is about the PLATE, not about where it sits
       const all = [];
+      // WHAT THE TREE ACTUALLY SELLS, read off the tree (Build 111). This used
+      // to assert `carded === 9 && distinct === 9`, which was true of the tree
+      // as it stood and of nothing else — two coincidences dressed as a claim.
+      // The claim is: every node that sells a CARD wears that card's painting.
+      // The learn nodes take that literally, so twelve plates wear nine
+      // paintings — a second Cross Sever is a Cross Sever, and it had better
+      // look like one.
+      const sells = window.R.TREE.filter(n => n.card || n.learn);
+      const faces = sells.map(n => window.K.cardArt(n.card || n.learn.take));
+      const wantCards = sells.length, wantFaces = new Set(faces).size;
       for (const hero of ['ash', 'elin', 'mira', 'all']) {
         window.R.openBranch(hero);
         all.push(...document.querySelectorAll('#k-camp .k-tnode'));
@@ -553,6 +609,7 @@ const { boot } = require('./harness.cjs');
       const r = idle ? idle.getBoundingClientRect() : { width: 0, height: 0 };
       return {
         total: all.length, carded: carded.length, distinct: new Set(srcs).size,
+        wantCards, wantFaces,
         painted: srcs.every(x => /\/cards\//.test(x)),
         // the picture is LIT now, not pushed to the back
         lit: bg ? parseFloat(getComputedStyle(bg).opacity) >= 0.85 : false,
@@ -564,7 +621,7 @@ const { boot } = require('./harness.cjs');
       };
     });
     check('FIRE: every memory is a card-shaped object wearing its own painting, lit, with its name over it',
-      plates.carded === 9 && plates.distinct === 9 && plates.painted
+      plates.carded === plates.wantCards && plates.distinct === plates.wantFaces && plates.painted
       && plates.lit && plates.named && plates.above
       && plates.ratio > 0.4 && plates.ratio < 0.8,
       JSON.stringify(plates));

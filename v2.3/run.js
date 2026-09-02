@@ -97,6 +97,33 @@
     { id: 'ash.crosssever',  hero: 'ash',  tier: 3, cost: 5, card: 'crosssever' },
     { id: 'elin.sgrace',     hero: 'elin', tier: 3, cost: 5, card: 'sgrace' },
     { id: 'mira.twinfang',   hero: 'mira', tier: 3, cost: 5, card: 'twinfang' },
+    // ── THE LEARN NODES: the only thing here that changes what a deck IS ─────
+    //
+    // Nine of eleven nodes made a card BETTER. That is vertical: your deck gets
+    // stronger and never gets DIFFERENT, and a run's shape was therefore
+    // settled by the road's cards and its marks with the fire only turning the
+    // volume up.
+    //
+    // A LEARN node trades one copy of a hero's basic for a SECOND copy of the
+    // card that carries their combo. The deck stays fifteen. It becomes less
+    // consistent — two of the reliable thing instead of three — and far more
+    // pointed, because the run's one condition now shows up twice as often. It
+    // is the move a deckbuilder's player already knows: you found the thing
+    // that works, so you take another one.
+    //
+    // PRICED TO COMPETE, and that is not decoration. The pace sim's finding was
+    // that embers are NOT the scarce thing — five to eight of the ~8 open nodes
+    // are affordable at every fire and a run ends holding twelve to seventeen
+    // spare — so a cheap node would just be one more thing swept up. At seven
+    // it is the most expensive object on the tree and a fire becomes "sharpen
+    // two, or learn one", which is a fork at the fire the player is actually
+    // standing at rather than a fork at fires they never reach.
+    { id: 'ash.learn',  hero: 'ash',  tier: 2, cost: 7,
+      learn: { take: 'crosssever2', drop: 'cleave' } },
+    { id: 'elin.learn', hero: 'elin', tier: 2, cost: 7,
+      learn: { take: 'sgrace2', drop: 'lcascade' } },
+    { id: 'mira.learn', hero: 'mira', tier: 2, cost: 7,
+      learn: { take: 'twinfang2', drop: 'serrate' } },
     // ── the shared nodes: what all three of them own together ──
     // NINE OF TEN NODES WERE THE SAME CHOICE. Every tier offered one hero's
     // card traded for a bigger version of that card, which is a number going up
@@ -132,6 +159,18 @@
   // A tree that describes its own effects in prose is a tree that goes stale
   // the first time a card is retuned.
   function nodeFace(n) {
+    // A LEARN NODE IS A TRADE, so it is drawn as one: what is set down, struck
+    // through, and what is taken up under it — the same before/after grammar
+    // every sharpening node on this tree already uses.
+    if (n.learn) {
+      const K = window.K, D = K.CARD_DEFS;
+      const take = D[n.learn.take], drop = D[n.learn.drop];
+      if (!take || !drop) return { name: n.id, from: '', to: '' };
+      const cd = take.cond && K.condText ? K.condText(take) : '';
+      return { name: 'A second ' + take.name,
+               from: 'one ' + drop.name,
+               to: K.effectText(take.base) + (cd ? ' \u00b7 ' + cd : '') };
+    }
     if (!n.card) return { name: n.name, from: '', to: n.blurb || '' };
     const K = window.K;
     const base = K.CARD_DEFS ? K.CARD_DEFS[n.card] : null;
@@ -2218,7 +2257,12 @@
       // It is the same sentence the door wore before it was opened, so the
       // branch keeps saying what it is worth while you are inside it.
       + '<span class="k-ctb-say">' + branchState(hero).say + '</span></div>'
-      + '<div class="k-ctb-fan">' + ns.map(n => nodeHTML(n, seat++)).join('') + '</div>'
+      // HOW MANY ARE BEHIND THIS DOOR, on the element. A plate is sized by its
+      // HEIGHT with a card's aspect ratio deriving the width, so a fourth one
+      // does not squeeze — it runs off the edge. The stylesheet needs the count
+      // to know how tall they may be.
+      + '<div class="k-ctb-fan" data-n="' + ns.length + '">'
+      + ns.map(n => nodeHTML(n, seat++)).join('') + '</div>'
       + '</div>';
     wrap.querySelectorAll('.k-tnode').forEach(b => {
       b.addEventListener('click', (e) => { e.stopPropagation(); tapMemory(b.dataset.node); });
@@ -2265,7 +2309,8 @@
     if (own) cls.push('k-tn-own');
     if (sealed) cls.push('k-tn-sealed');
     if (poor) cls.push('k-tn-poor');
-    const art = n.card && window.K.cardArt ? window.K.cardArt(n.card) : null;
+    const art = window.K.cardArt
+      ? window.K.cardArt(n.card || (n.learn && n.learn.take) || '') : null;
     cls.push(art ? 'k-tn-art' : 'k-tn-plain');
     return '<button type="button" class="' + cls.join(' ') + '" data-node="' + n.id + '"'
       + ' style="--seat:' + (seat || 0) + '">'
@@ -2363,8 +2408,27 @@
     // could still be spent from a console. Cheap to close, so close it.
     if (RUN.over) return;
     if (!n || held(id) || RUN.tier < n.tier || RUN.embers < n.cost) return;
+    // A LEARN NODE HAS TO HAVE SOMETHING TO SET DOWN. There are three copies of
+    // a basic and one learn node per hero, so this cannot fail today — but a
+    // node that silently takes seven embers and changes nothing is the exact
+    // shape of the bug the camp suite found hiding behind a literal, and it
+    // costs one line to make impossible.
+    const fam = (cid) => (window.K.CARD_DEFS[cid] || {}).sameAs || cid;
+    let swapAt = -1;
+    if (n.learn) {
+      const list = RUN.roster[n.hero] || [];
+      swapAt = list.map(fam).lastIndexOf(n.learn.drop);
+      if (swapAt < 0) return;
+    }
     RUN.embers -= n.cost;
     RUN.nodes.push(id);
+    if (n.learn) {
+      RUN.roster[n.hero][swapAt] = n.learn.take;
+      RUN.flash = { icon: 'camp', tone: 'gold',
+        title: window.K.CARD_DEFS[n.learn.take].name.toUpperCase() + ' \u2014 AGAIN',
+        sub: 'One fewer of the simple thing, one more of the sharp one.',
+        gain: 'the deck', gainSub: 'still fifteen, and pointed differently' };
+    }
     save();
     renderCamp();
     const btn = document.querySelector('[data-node="' + id + '"]');
