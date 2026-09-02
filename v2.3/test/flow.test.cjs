@@ -1570,6 +1570,40 @@ const { boot } = require('./harness.cjs');
     check('SETUP: a hero displaced by somebody else\u2019s step has moved too',
       pairs.movedBy.length >= 2, pairs.movedBy.join(', '));
 
+    // ── THE OPENING FIFTEEN, AS A NUMBER (Build 108) ────────────────────────
+    // MEASURED at Build 107: fifteen cards, fifteen distinct faces, thirteen
+    // verbs, FOUR conditions, three reward kinds, and a hand that was three
+    // conditional cards more than half the time. Slay the Spire opens on
+    // Strike, Strike, Defend, Strike, Defend. This is the check that keeps the
+    // deck from drifting back: it is about the SIZE of what a first fight asks
+    // a player to hold, and every number in it was a measurement before it was
+    // an assertion.
+    const fifteen = await J(() => {
+      const K = window.K, D = K.CARD_DEFS, base = K.baseRoster();
+      const ids = K.rosterIds(base);
+      const faces = new Set(ids.map(id => D[id].sameAs || id));
+      const verbs = new Set(ids.flatMap(id => D[id].base.flatMap(fx =>
+        Object.keys(fx).filter(k => fx[k] !== false && fx[k] != null))));
+      const conds = new Set(ids.map(id => D[id].cond && D[id].cond.type).filter(Boolean));
+      const combo = ids.filter(id => D[id].cond).length;
+      // …and every hero is built the same way: three of one card, then two
+      const shape = ['ash', 'elin', 'mira'].map(h => {
+        const counts = {};
+        base[h].forEach(id => { const k = D[id].sameAs || id; counts[k] = (counts[k] || 0) + 1; });
+        return Object.values(counts).sort((a, b) => b - a).join('/');
+      });
+      return { n: ids.length, faces: faces.size, verbs: [...verbs], conds: [...conds],
+               combo, shape };
+    });
+    check('LOAD: fifteen cards, NINE faces — three of a basic, a modifier and a special, each',
+      fifteen.n === 15 && fifteen.faces === 9 && fifteen.shape.every(s2 => s2 === '3/1/1'),
+      JSON.stringify({ n: fifteen.n, faces: fifteen.faces, shape: fifteen.shape }));
+    check('LOAD: one combo condition in the whole opening deck, on three cards — Chain, learned once',
+      fifteen.conds.length === 1 && fifteen.conds[0] === 'FOLLOW_UP' && fifteen.combo === 3,
+      JSON.stringify({ conds: fifteen.conds, cardsWithCombo: fifteen.combo }));
+    check('LOAD: eight verbs, down from thirteen — the first fight is a vocabulary, not a glossary',
+      fifteen.verbs.length <= 8, JSON.stringify({ n: fifteen.verbs.length, verbs: fifteen.verbs }));
+
     check('LOAD: the starting fifteen still teach four keywords and no more',
       pool.start.length <= 4, pool.start.join(', '));
     check('LOAD: …and the two the road can add arrive on bond cards, never in the opening hand',
@@ -1588,9 +1622,16 @@ const { boot } = require('./harness.cjs');
   }
   await settle();
   // ── two finales, so the trio is a fork and not a script ──
+  //
+  // FINALE IS AN UPGRADE NOW (Build 108). The opening fifteen teaches ONE
+  // condition — Chain, on three cards — and All Three arrives when the fire
+  // sharpens Mend. So the fork this asserts is still in the game and still
+  // matters; it is simply not something a player meets in their first fight,
+  // which is the whole point of the change. Bought here, then measured.
   await fresh(21);
   {
     const fork = await J(() => {
+      window.K.startCombat({ seed: 21, upgrades: ['mend'] });
       window.K.forceHand(['serrate', 'cleave', 'mend', 'twinfang', 'frostbind']);
       const st = window.K.state();
       st.heroes.elin.hp = 20; st.heroes.ash.hp = 30; st.heroes.mira.hp = 24;
@@ -1649,21 +1690,30 @@ const { boot } = require('./harness.cjs');
       !back.fromFront && back.fromBack && back.coldDmg === 5 && back.dealt === 10
       && back.row === 'front', JSON.stringify(back));
 
+    // ONE CONDITION, THREE PAYOFFS (Build 108). All three specials trigger on
+    // CHAIN and each pays in its own currency: Ash's in the discount, Elin's in
+    // the refund, Mira's in damage. That is the shape the opening deck teaches
+    // — one word to learn, then read what the card pays.
     const chain = await J(() => {
       window.K.startCombat({ seed: 17 });
-      window.K.forceHand(['serrate', 'cstance', 'sgrace', 'cleave', 'mend']);
-      const cold = window.K.evaluateCard('cstance').condActive;
-      window.K.playCard('serrate');                    // Mira opens
-      const held = window.K.state().hand.length;
-      window.K.playCard('cstance');                    // Ash follows: draws
-      const drew = window.K.state().hand.length - (held - 1);
-      const brk0 = window.K.state().boss.brk;
-      window.K.playCard('sgrace');                     // Elin follows: 2 Break
-      return { cold, drew, broke: brk0 - window.K.state().boss.brk,
-               ap: window.K.state().ap, cost: window.K.evaluateCard('sgrace').currentCost };
+      window.K.forceHand(['cleave', 'sgrace', 'twinfang', 'crosssever', 'mend']);
+      const cold = window.K.evaluateCard('sgrace').condActive;
+      window.K.playCard('cleave');                     // Ash opens
+      const ap0 = window.K.state().ap;
+      const warmG = window.K.evaluateCard('sgrace');   // Elin follows: the AP comes back
+      window.K.playCard('sgrace');
+      const apBack = window.K.state().ap === ap0 - 1 + warmG.refund;
+      const warmF = window.K.evaluateCard('twinfang'); // Mira follows: +4 damage
+      const dealt = warmF.resolvedEffects.reduce((n, f) => n + (f.dmg || 0), 0);
+      const warmX = window.K.evaluateCard('crosssever');   // Ash's own is the discount
+      return { cold, refund: warmG.refund, apBack,
+               fangLive: warmF.condActive, dealt,
+               severLive: warmX.condActive, severCost: warmX.currentCost };
     });
-    check('CHAIN: a follow-up Counterstance draws, and a follow-up Shared Grace chips Break',
-      !chain.cold && chain.drew === 1 && chain.broke === 2 && chain.ap === 0 && chain.cost === 1,
+    check('CHAIN: one condition, three payoffs — Elin refunds, Mira hits harder, Ash pays less',
+      chain.cold === false && chain.refund === 1 && chain.apBack
+      && chain.fangLive === true && chain.dealt === 12
+      && chain.severLive === true && chain.severCost === 1,
       JSON.stringify(chain));
   }
 
@@ -1806,19 +1856,23 @@ const { boot } = require('./harness.cjs');
       gear.base === 3 && gear.one === 4 && gear.many === 5 && gear.next === 3,
       JSON.stringify(gear));
 
+    // THE REFUND MOVED TO SHARED GRACE (Build 108). The opening fifteen carries
+    // its combos on the three SPECIALS and nowhere else, and Elin's is the one
+    // that pays in AP — she is the hero who keeps the turn going. The rule this
+    // asserts has not moved an inch; the card carrying it has.
     const refund = await J(() => {
       window.K.startCombat({ seed: 5 });
-      window.K.forceHand(['lcascade', 'cleave', 'serrate', 'mend', 'frostbind']);
-      const cold = window.K.evaluateCard('lcascade');
+      window.K.forceHand(['sgrace', 'cleave', 'serrate', 'mend', 'guardcut']);
+      const cold = window.K.evaluateCard('sgrace');
       const ap0 = window.K.state().ap;
-      window.K.playCard('lcascade');              // led with it: nothing to follow
+      window.K.playCard('sgrace');                // led with it: nothing to follow
       const afterCold = window.K.state().ap;
       window.K.startCombat({ seed: 5 });
-      window.K.forceHand(['lcascade', 'cleave', 'serrate', 'mend', 'frostbind']);
+      window.K.forceHand(['sgrace', 'cleave', 'serrate', 'mend', 'guardcut']);
       window.K.playCard('cleave');                // an ally acts first
       const mid = window.K.state().ap;
-      const warm = window.K.evaluateCard('lcascade');
-      window.K.playCard('lcascade');
+      const warm = window.K.evaluateCard('sgrace');
+      window.K.playCard('sgrace');
       return { coldLive: cold.condActive, coldRefund: cold.refund, ap0, afterCold,
                warmLive: warm.condActive, warmRefund: warm.refund,
                mid, afterWarm: window.K.state().ap };
@@ -1827,15 +1881,19 @@ const { boot } = require('./harness.cjs');
     // cards, and the ~half-parry band moved 59% -> 75% on the refunds alone
     // (the all-out's gear, for comparison, moved it one point). The cap is what
     // keeps the refund a line-enabler rather than a way to play the whole hand.
+    // …AND THE CAP IS SHARED WITH THE MARKS. The base fifteen carries exactly
+    // one AP combo now, so the second refunding card in this hand is a MARKED
+    // one — which is the case that matters most: a player who marks a card with
+    // Chain and also holds Shared Grace must not get two free cards out of it.
     const once = await J(() => {
-      window.K.startCombat({ seed: 5 });
+      window.K.startCombat({ seed: 5, sigils: { serrate: 'chain' } });
       window.K.state().ap = 9;
-      window.K.forceHand(['cleave', 'lcascade', 'qthrow', 'mend', 'serrate']);
+      window.K.forceHand(['cleave', 'sgrace', 'serrate', 'mend', 'guardcut']);
       window.K.playCard('cleave');                       // an ally acts
-      const first = window.K.evaluateCard('lcascade').refund;
-      window.K.playCard('lcascade');                     // …and is refunded
-      const second = window.K.evaluateCard('qthrow').refund;   // the ally still acted
-      return { first, second, live: window.K.evaluateCard('qthrow').condActive };
+      const first = window.K.evaluateCard('sgrace').refund;
+      window.K.playCard('sgrace');                       // …and is refunded
+      const second = window.K.evaluateCard('serrate').refund;  // the ally still acted
+      return { first, second, live: window.K.evaluateCard('serrate').markLive };
     });
     check('AP · THE TURN: only the first combo of a turn pays its AP back',
       once.first === 1 && once.live === true && once.second === 0,
@@ -2728,11 +2786,13 @@ const { boot } = require('./harness.cjs');
       // and the card looks like it is cropping something it is not.
       const ir = { width: img.offsetWidth, height: img.offsetHeight };
       const pr = { width: plate.offsetWidth, height: plate.offsetHeight };
-      // THE WHOLE DECK IS PAINTED NOW. This used to assert that a bond card
-      // FALLS BACK to its owner's portrait, which was true and worth asserting
-      // while the twelve bond cards had no art of their own. They do now, so
-      // the rule it guards has CHANGED rather than gone: every card in the deck
-      // carries its own painting, and no card anywhere falls back.
+      // THE WHOLE DECK IS PAINTED, AND A COPY SHARES ITS ORIGINAL'S PAINTING.
+      // This asserted one painting per ID, which was right until a hero's basic
+      // became three ids wearing one face (Build 108) — three Cleaves showing
+      // three different pictures would be three different cards. What has to
+      // hold is that every card RESOLVES a painting, that no card falls back to
+      // a hero portrait, and that the number of distinct paintings is the number
+      // of distinct FACES.
       const every = Object.keys(window.K.CARD_DEFS).map(id => ({
         id, art: window.K.cardArt(id) }));
       return {
@@ -2760,18 +2820,25 @@ const { boot } = require('./harness.cjs');
         deck: every.length,
         unpainted: every.filter(c => !c.art).map(c => c.id),
         allDistinct: new Set(every.map(c => c.art)).size,
+        faces: new Set(Object.keys(window.K.CARD_DEFS)
+          .map(id => window.K.CARD_DEFS[id].sameAs || id)).size,
+        // a copy must show the SAME painting as the card it is a copy of
+        copiesMatch: Object.keys(window.K.CARD_DEFS)
+          .filter(id => window.K.CARD_DEFS[id].sameAs)
+          .every(id => window.K.cardArt(id)
+                    === window.K.cardArt(window.K.CARD_DEFS[id].sameAs)),
         // …and the fallback is still WIRED, because it is what a card added
         // tomorrow lands on before anyone paints it
         unknownFallsBack: window.K.cardArt('__no_such_card__') === null,
       };
     });
-    check('CARD: every card in the deck carries its own painting — none falls back',
-      art.distinct === 5 && art.painted && art.fills
-      && art.unpainted.length === 0 && art.allDistinct === art.deck
+    check('CARD: every card is painted, a copy wears its original’s painting, and none falls back',
+      art.painted && art.fills && art.unpainted.length === 0
+      && art.allDistinct === art.faces && art.copiesMatch
       && art.unknownFallsBack,
       JSON.stringify({ distinct: art.distinct, fills: art.fills, fill: art._fill, deck: art.deck,
-        unpainted: art.unpainted, allDistinct: art.allDistinct,
-        fallbackWired: art.unknownFallsBack }));
+        faces: art.faces, unpainted: art.unpainted, allDistinct: art.allDistinct,
+        copiesMatch: art.copiesMatch, fallbackWired: art.unknownFallsBack }));
 
     check('CARD: the portrait is bled through the plate and stays UNDER the words',
       legible.hasArt && legible.scrim && legible.plateImg

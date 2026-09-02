@@ -4431,3 +4431,98 @@ player did not have before. That is its own check.
 
 flow 253/253 · road 94/94 · bond 74/74 · slice 85/85 · line 32/32 ·
 camp 46/46 · music 22/22 · beat 10/10 · soak 5/5 — no page errors.
+
+---
+
+## Build 108 — the opening fifteen: three of one card, a modifier, a special
+
+Slay the Spire opens on Strike, Strike, Defend, Strike, Defend. Three distinct
+cards, two of them the same idea. This game opened on fifteen cards nobody had
+ever seen — and the measurement was worse than "all different":
+
+| | Build 107 | Build 108 |
+|---|---|---|
+| Cards | 15 | 15 |
+| Distinct **faces** | **15** | **9** |
+| Distinct verbs | 13 | **8** |
+| Combo **conditions** | 4 | **1** — Chain |
+| Cards carrying a combo | 8 of 15 | **3 of 15** |
+| Distinct faces per 5-card hand | 5.00 | **4.28** |
+| Conditional cards per hand | 2.6 | **0.98** |
+| Hands with 3+ conditions | **54%** | **2.5%** |
+| Hands with 2+ unreachable combos | 7.2% | **0%** |
+
+Nothing was mechanically broken — across 600 deals there was never a hand
+without damage and never a single-hero hand, before or after. The whole problem
+was teaching, and more than half the time a player's hand was a majority of
+rules they had to hold in their head at once.
+
+### Three of one card, and the card is the hero
+
+Each hero carries **three copies of one BASIC, one MODIFIER, one SPECIAL** — and
+the three basics share one pattern: *a hit, plus what this hero is for.* Ash's
+colour is force, so his is simply the bigger hit; Elin's is the ward; Mira's is
+the wound that keeps arriving. One rule with three accents, not three rules.
+
+The **special is the only card in the opening deck with a combo on it**, and all
+three trigger on CHAIN. One word to learn, then read what each pays: Ash's is
+the discount (his is the only 2-cost card, so a discount can mean something),
+Elin's is the **refund**, Mira's is damage.
+
+Elin holds the refund on purpose. The first cut of this deck lost it entirely —
+both `reward: 'ap'` cards were modifiers, the modifiers lost their combos, and
+the base fifteen went from two refunds to none. The AP ladder's own measurement
+is that the refunds are worth **sixteen points of winrate** against one for the
+all-out's gear. Not a rung to drop by accident.
+
+### A copy is an ID, not a count
+
+The whole hand layer keys off `data-card` — selection, drag, the flight
+animations, hold-to-inspect, eight `querySelector` calls — so two cards in one
+hand sharing an id would collide on every one of them. Giving the deck real
+instance identity is a deep change touching every `cardDef`/`sigilOf`/upgrade
+lookup.
+
+Three ids wearing one face costs **six table rows and changes no machinery**.
+`rosterValid`'s fifteen-unique rule and the no-second-copy rule at every swap
+door both keep working untouched. `sameAs` is the only thing in the engine that
+knows a copy is a copy, and it does two jobs: the copies share a painting, and
+**sharpening a basic sharpens all three of them** — otherwise the deck would
+carry two Cleave and one Cleave+ with no way to tell which you drew.
+
+### The tree got better by accident, then on purpose
+
+Nine tree nodes sharpen nine cards, so the deck's nine faces should be exactly
+those nine — and **tier one is now the basic**, which means the first three
+embers a player spends change three of their fifteen cards. Nothing else on the
+tree is worth its price by as clear a margin, and nothing teaches what buying a
+node *does* as quickly. Tier two is the modifier, tier three the special.
+
+Guarding Cut, Serrate and Quick Throw had no upgrade at all — the fire could not
+touch three of the deck's nine faces — so they have one now.
+
+Counterstance, Last Light, Frost Bind, Intercession, Backstab and Execute leave
+the opening deck. Their definitions, paintings and upgrades stay in the game;
+they are the natural pool for a "learn a new card" node, which is the next piece
+of work rather than part of this one.
+
+### Four checks that were measuring the wrong thing
+
+- `camp`: two checks named a tree node by id (`elin.mend`, `ash.lastlight`) and
+  a price by literal (`3`). A node id and a price are facts about the tree's
+  *shape*, and the shape moved. They ask the tree now — which node is sealed,
+  what this one costs, what this tier can afford. One of them had been failing
+  **silently**: `kindle` refused a purchase that was no longer in tier, the deal
+  class was never cleared, and the check reported the screen re-dealing when
+  nothing had been bought at all.
+- `flow`: the painting check asserted one painting per id, which cannot be true
+  of a copy. It asserts one painting per FACE now, plus that a copy wears its
+  original's.
+- `flow`: the two-finales fork buys Mend+ first, because All Three is an upgrade
+  now rather than something a first fight teaches.
+
+And three new ones hold the shape: fifteen cards / nine faces / 3-1-1 per hero,
+one condition on three cards, and eight verbs or fewer.
+
+flow 256/256 · road 94/94 · bond 74/74 · slice 85/85 · line 32/32 ·
+camp 46/46 · music 22/22 · beat 10/10 · soak 5/5 — no page errors.

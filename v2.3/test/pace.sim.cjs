@@ -41,7 +41,7 @@ const SKILLS = process.env.PACE_SKILL
   const rows = [];
 
   for (const [name, pSkill] of SKILLS) {
-    const tally = { runs: 0, won: 0, wiped: 0, kindled: [], bonds: 0, marks: 0,
+    const tally = { runs: 0, won: 0, wiped: 0, kindled: [], bonds: 0, cards: 0, marks: 0,
                     tiers: [], embersLeft: [], brokeAtFire: 0, fires: 0, stops: {},
                     // WHY the tree goes unspent, not just THAT it does. A purse
                     // full at the end can mean three different things — no fire
@@ -87,6 +87,35 @@ const SKILLS = process.env.PACE_SKILL
       // so it is answered HERE, standing on the chart before a stop is chosen,
       // and not wherever the swap that owed it happened to end. Left in the old
       // place this tallied zero marks a run and walked past the debt.
+      // …AND THE ROAD'S ONE CONVERSATION, for the same reason. Build 106 took the
+      // bond scene and the recall off the node too, and only the mark was
+      // taught to this sim — so it walked ten roads taking no cards and no
+      // marks and duly reported that a run does not develop. The harness was
+      // the thing that had stopped developing.
+      const roadTalk = async () => {
+        const kind = await J(() => {
+          if (document.getElementById('k-scene').classList.contains('k-hidden')) return null;
+          const sc = window.R.scene();
+          if (!sc || (sc.kind !== 'bond' && sc.kind !== 'recall')) return null;
+          window.R.sceneSkip();
+          if (sc.kind === 'recall') window.R.takeRecall(0); else window.R.takeBond(0);
+          return sc.kind;
+        });
+        if (!kind) return;
+        tally.bonds++;
+        await sleep(200);
+        const took = await J(() => {
+          const cards = [...document.querySelectorAll('#k-swap-cols .k-swapcard')];
+          if (cards.length) { cards[0].click();
+            const go = document.getElementById('k-swap-go');
+            if (go && !go.disabled) { go.click(); return true; } }
+          const bn = document.getElementById('k-swap-bench');
+          if (bn && !document.getElementById('k-swap').classList.contains('k-hidden')) bn.click();
+          return false;
+        });
+        if (took) tally.cards++;
+        await sleep(200);
+      };
       const payMark = async () => {
         const paid = await J(() => {
           if (document.getElementById('k-mark').classList.contains('k-hidden')) return false;
@@ -101,6 +130,10 @@ const SKILLS = process.env.PACE_SKILL
       };
 
       for (let col = 0; col < STOPS; col++) {
+        // a debt rides with the leg that earned it, so it is answered on both
+        // sides of the conversation that owed it
+        await payMark();
+        await roadTalk();
         await payMark();
         const open = await J(() => window.R.reachable());
         if (!open.length) break;
@@ -226,7 +259,10 @@ const SKILLS = process.env.PACE_SKILL
       + String(r.won).padStart(3) + '/' + r.runs
       + String(r.wiped).padStart(7)
       + String(r.avgKindled).padStart(16)
-      + String(+(r.bonds / r.runs).toFixed(2)).padStart(19)
+      // CARDS SWAPPED IN, which is what the column has always said and is not
+      // the same number as conversations heard: a fork can hand over nothing
+      // when the party already carries both of its picks.
+      + String(+(r.cards / r.runs).toFixed(2)).padStart(19)
       + String(+(r.marks / r.runs).toFixed(2)).padStart(8)
       + String(r.medTier).padStart(7)
       + String(r.avgEmbers).padStart(14)

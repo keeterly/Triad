@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 107;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 108;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -69,7 +69,21 @@ const CARD_DEFS = {
   // Build 23 gave Cleave a row condition and it worked; it also meant nine of
   // fifteen cards had a clause to check. This is the deck's plain hard hit: the
   // best flat number in it, nothing to read, nothing to set up.
+  // ── THE THREE BASICS ─────────────────────────────────────────────────────
+  // ONE PATTERN, THREE COLOURS: a hit, plus what this hero is for. Ash's colour
+  // is force, so his is just the bigger hit; Elin's is the ward; Mira's is the
+  // wound that keeps arriving. A player learns ONE rule with three accents
+  // rather than three unrelated cards, and three copies of it means the floor
+  // of a hand is always something they already understand.
   cleave:      { owner: 'ash', name: 'Cleave',        cost: 1, target: 'enemy', base: [{ dmg: 7 }], cond: null },
+  // …AND A COPY IS AN ID, NOT A COUNT. The whole hand layer keys off
+  // `data-card` — selection, drag, the flight animations, hold-to-inspect,
+  // eight `querySelector` calls — so two cards in one hand sharing an id would
+  // collide on every one of them. Three ids wearing one face costs six table
+  // rows and changes no machinery: `rosterValid`'s fifteen-unique rule and the
+  // no-second-copy rule at every swap door both keep working untouched.
+  cleave2:     { owner: 'ash', name: 'Cleave', sameAs: 'cleave', cost: 1, target: 'enemy', base: [{ dmg: 7 }], cond: null },
+  cleave3:     { owner: 'ash', name: 'Cleave', sameAs: 'cleave', cost: 1, target: 'enemy', base: [{ dmg: 7 }], cond: null },
   guardcut:    { owner: 'ash', name: 'Guarding Cut',  cost: 1, target: 'enemy', base: [{ dmg: 4 }, { guardSelf: 4 }], cond: null },
   // A chain that can extend itself is what makes a combo deck play. Counterstance
   // was 0.15 plays a fight: Guard competes with a parry that negates outright,
@@ -94,22 +108,36 @@ const CARD_DEFS = {
   // the MIDDLE of the line changes the arithmetic of the whole plan: Ash, then
   // this for free, then the finisher, and there is still an AP for a fourth
   // card. That is the turn this game wanted and could not pay for.
-  lcascade:    { owner: 'elin', name: 'Lumen Cascade', cost: 1, target: 'enemy', base: [{ dmg: 4 }, { guardLowest: 5 }],
-                 cond: { type: 'FOLLOW_UP', reward: 'ap', ap: 1 } },
-  // THE SECOND FINALE, so the trio is a fork and not a script: close the round
-  // with Ash and it is a killing blow, close it with Elin and the party stands
-  // back up. One turn, one finisher, two very different turns.
-  mend:        { owner: 'elin', name: 'Mend',          cost: 1, target: 'party', base: [{ heal: 6 }],
-                 cond: { type: 'FINALE', reward: 'output', bonus: [{ healAll: 5 }] } },
+  lcascade:    { owner: 'elin', name: 'Lumen Cascade', cost: 1, target: 'enemy',
+                 base: [{ dmg: 4 }, { guardLowest: 4 }], cond: null },
+  lcascade2:   { owner: 'elin', name: 'Lumen Cascade', sameAs: 'lcascade', cost: 1, target: 'enemy',
+                 base: [{ dmg: 4 }, { guardLowest: 4 }], cond: null },
+  lcascade3:   { owner: 'elin', name: 'Lumen Cascade', sameAs: 'lcascade', cost: 1, target: 'enemy',
+                 base: [{ dmg: 4 }, { guardLowest: 4 }], cond: null },
+  mend:        { owner: 'elin', name: 'Mend',          cost: 1, target: 'party', base: [{ heal: 6 }], cond: null },
   frostbind:   { owner: 'elin', name: 'Frost Bind',    cost: 1, target: 'enemy', base: [{ dmg: 4 }, { chill: 4 }], cond: null },
   // The setup card: the thing you play mid-combo to arm next turn's BROKEN
   // payoffs. Its Follow-Up landed 94% of the time, so the clause was a tax on
   // reading rather than a decision — it just does both now.
+  // ONE CONDITION, THREE PAYOFFS. All three specials trigger on CHAIN — the
+  // player learns the word once — and then each pays in its own currency:
+  // Ash's is the discount (his is the only 2-cost card in the deck, so a
+  // discount can mean something), Elin's is the REFUND, and Mira's is damage.
+  //
+  // Elin holds the refund because the first cut of this deck lost it entirely:
+  // both `reward: 'ap'` cards were modifiers, the modifiers lost their combos,
+  // and the base fifteen went from two refunds to none. The AP ladder's own
+  // measurement is that the refunds are worth sixteen points of winrate against
+  // one for the all-out's gear — not a rung to drop by accident — and "the one
+  // who keeps the turn going" is the role her whole card set already argues.
   sgrace:      { owner: 'elin', name: 'Shared Grace',  cost: 1, target: 'party',
-                 base: [{ guardAll: 3 }, { brk: 2 }], cond: null },
+                 base: [{ guardAll: 3 }, { brk: 2 }],
+                 cond: { type: 'FOLLOW_UP', reward: 'ap', ap: 1 } },
   intercession:{ owner: 'elin', name: 'Intercession',  cost: 1, target: 'ally',  base: [{ guardSelf: 3 }, { guardAlly: 3 }, { intercede: true }], cond: null },
   // ── Mira — Shade ──
-  serrate:     { owner: 'mira', name: 'Serrate',       cost: 1, target: 'enemy', base: [{ dmg: 3 }, { bleed: 3 }], cond: null },
+  serrate:     { owner: 'mira', name: 'Serrate',       cost: 1, target: 'enemy', base: [{ dmg: 4 }, { bleed: 3 }], cond: null },
+  serrate2:    { owner: 'mira', name: 'Serrate', sameAs: 'serrate', cost: 1, target: 'enemy', base: [{ dmg: 4 }, { bleed: 3 }], cond: null },
+  serrate3:    { owner: 'mira', name: 'Serrate', sameAs: 'serrate', cost: 1, target: 'enemy', base: [{ dmg: 4 }, { bleed: 3 }], cond: null },
   // The deck's only filter: what you play to FIND the hero missing from the
   // round you are building. Nudged to 5 so it is never strictly worse than the
   // vanilla strike while doing that job.
@@ -117,24 +145,11 @@ const CARD_DEFS = {
   // you are building used to cost an AP, which meant the card that finds the
   // combo competed with the combo. Played after an ally it is free, so looking
   // is no longer a turn you spent not acting.
-  qthrow:      { owner: 'mira', name: 'Quick Throw',   cost: 1, target: 'enemy', base: [{ dmg: 5 }, { drawDiscard: true }],
-                 cond: { type: 'FOLLOW_UP', reward: 'ap', ap: 1 } },
-  // Two strikes, always. Its Follow-Up landed 97% of the time — a clause that
-  // is almost always true is not a decision, it is a thing to read every turn.
-  // STILL PLAIN, AND DELIBERATELY. The first draft of this build gave it the
-  // SAME_HERO fork and the suite caught what that cost: with Quick Throw and
-  // Twin Fang both carrying clauses, Mira had exactly ONE card left with
-  // nothing to read, and a check that needed two of them crashed. Build 25
-  // spent itself cutting the deck's reading load from nine conditional cards
-  // to six; three back is the fix for a combo layer that was too quiet, four
-  // is walking back into the room Build 25 left. The fork lives on Guarding
-  // Cut instead, where it costs the hero who has the most reason to hold
-  // ground rather than the one who already reads four clauses.
+  qthrow:      { owner: 'mira', name: 'Quick Throw',   cost: 1, target: 'enemy',
+                 base: [{ dmg: 5 }, { drawDiscard: true }], cond: null },
   twinfang:    { owner: 'mira', name: 'Twin Fang',     cost: 1, target: 'enemy',
-                 base: [{ dmg: 4 }, { dmg: 4 }], cond: null },
-  // Backstab already steps Mira across the rows; now the row she steps OUT of
-  // is the condition. "If Broken" fired 7% of the time and was a coin; this is
-  // a two-beat plan the player sets up themselves.
+                 base: [{ dmg: 4 }, { dmg: 4 }],
+                 cond: { type: 'FOLLOW_UP', reward: 'output', bonus: [{ dmg: 4 }] } },
   backstab:    { owner: 'mira', name: 'Backstab',      cost: 1, target: 'enemy', base: [{ moveSelf: 'front' }, { dmg: 5 }],
                  cond: { type: 'BACK_ROW', reward: 'output', bonus: [{ dmg: 5 }] } },
   // An execute should be dead weight until the target is finishable and then
@@ -161,6 +176,15 @@ const CARD_DEFS = {
 // spent itself reducing the reading load of fifteen cards, and answering a
 // progression system by handing the player eighteen would undo it.
 const CARD_UPS = {
+  // ── THE THREE BASICS SHARPEN THREE AT A TIME ─────────────────────────────
+  // This is the best node on the tree and it is tier one, which is the point:
+  // the first thing a player buys changes three of their fifteen cards, so they
+  // learn what an upgrade IS on the card they have seen most. `sameAs` carries
+  // it to the copies (see buildCards).
+  //
+  // Each basic gains its hero's SECOND idea rather than a bigger number — the
+  // stagger for Ash, the draw for Elin, the wound for Mira — so the floor of
+  // every hand gets deeper without getting louder.
   // ── ASH ──
   // THE PLAIN HIT BECOMES THE STAGGER. 7 damage to 10 damage is a number going
   // up; this is a different tool. Poise is the resource two of Mira's cards are
@@ -188,18 +212,37 @@ const CARD_UPS = {
                  cond: { type: 'FINALE', reward: 'output', bonus: [{ healAll: 5 }] } },
   // THE SETUP SETS UP TWO THINGS. It armed the BROKEN payoffs; now it also
   // slows the blow that is coming, so one card answers both halves of a turn.
+  // THE SETUP SETS UP TWO THINGS, and it keeps its refund. It armed the BROKEN
+  // payoffs; now it also slows the blow that is coming, so one card answers
+  // both halves of a turn — and still hands the AP back on a Chain.
   sgrace:      { name: 'Shared Grace+',  cost: 1, target: 'party',
-                 base: [{ guardAll: 3 }, { brk: 2 }, { chill: 4 }], cond: null },
+                 base: [{ guardAll: 3 }, { brk: 2 }, { chill: 4 }],
+                 cond: { type: 'FOLLOW_UP', reward: 'ap', ap: 1 } },
   // THE LINE-ENABLER ALSO FINDS THE LINE. It was already the card that makes a
   // three-hero turn affordable; sharpened, the turn it pays for also refills.
   lcascade:    { name: 'Lumen Cascade+', cost: 1, target: 'enemy',
                  base: [{ dmg: 4 }, { guardLowest: 4 }, { draw: 1 }],
                  cond: { type: 'FOLLOW_UP', reward: 'ap', ap: 1 } },
+  // THE COVER BECOMES A COUNTER. Guarding Cut is Ash's second colour and it was
+  // the one card of his the fire could not touch; sharpened it answers the bar
+  // it survives, so holding the line pays for itself.
+  guardcut:    { name: 'Guarding Cut+',  cost: 1, target: 'enemy',
+                 base: [{ dmg: 4 }, { guardSelf: 4 }, { counterstance: true }], cond: null },
   // ── MIRA ──
   // THE DOUBLE LEARNS TO SMELL BLOOD. 4x2 to 6x2 is four damage; this is the
   // card that turns Ash's stagger into a payoff, and it is the second half of
   // the loop Cleave+ opens. Its base face is unchanged, so it is still the
   // plain double when nothing is broken — the clause is upside, not a tax.
+  // THE WOUND LEARNS TO SPREAD. Serrate is the card Mira draws most, so this is
+  // the upgrade her whole hand feels: the bleed arrives at the top of the enemy
+  // phase, and a second stack of it is a second tick on every bar after.
+  serrate:     { name: 'Serrate+',       cost: 1, target: 'enemy',
+                 base: [{ dmg: 4 }, { bleed: 3 }, { bleed: 3 }], cond: null },
+  // THE CYCLE STOPS COSTING A CARD. Draw one discard one is a filter; draw one
+  // is a card. It is the smallest-looking node on the tree and the one that
+  // makes a three-hero turn reachable twice in a fight.
+  qthrow:      { name: 'Quick Throw+',   cost: 1, target: 'enemy',
+                 base: [{ dmg: 5 }, { draw: 1 }], cond: null },
   twinfang:    { name: 'Twin Fang+',     cost: 1, target: 'enemy',
                  base: [{ dmg: 4 }, { dmg: 4 }],
                  cond: { type: 'BROKEN_OR_LOW', reward: 'output', bonus: [{ dmg: 6 }] } },
@@ -222,11 +265,19 @@ const CARD_UPS = {
 function cardDef(id) {
   return (C && C.cards && C.cards[id]) || CARD_DEFS[id];
 }
+// A COPY IS SHARPENED WITH ITS ORIGINAL. The three copies of a hero's basic are
+// three ids wearing one face, so buying "Cleave" at the fire has to sharpen all
+// three — otherwise the deck carries two Cleave and one Cleave+ and the player
+// has no way of telling which one they just drew. `sameAs` is that link, and it
+// is the only thing in the engine that knows a copy is a copy.
 function buildCards(upgrades) {
+  const on = upgrades || [];
   const out = {};
   for (const id of Object.keys(CARD_DEFS)) {
-    const up = (upgrades && upgrades.indexOf(id) >= 0) ? CARD_UPS[id] : null;
-    out[id] = up ? { ...CARD_DEFS[id], ...up, upgraded: true } : CARD_DEFS[id];
+    const c = CARD_DEFS[id];
+    const key = c.sameAs || id;
+    const up = on.indexOf(key) >= 0 ? (CARD_UPS[key] || null) : null;
+    out[id] = up ? { ...c, ...up, upgraded: true } : c;
   }
   return out;
 }
@@ -341,11 +392,25 @@ const DECK_IDS = Object.keys(CARD_DEFS)
 // bond card cost something — the pair card goes into one of its two heroes'
 // five, and whatever was in that slot leaves.
 const SLOTS_PER_HERO = 5;
+// ── THE OPENING FIFTEEN: 3 / 1 / 1 ───────────────────────────────────────────
+// MEASURED at Build 107: fifteen cards, fifteen distinct faces, thirteen verbs,
+// FOUR combo conditions and three reward kinds — and a five-card hand drew five
+// cards the player had never seen, 54% of them with three or more conditions
+// attached. Slay the Spire opens on Strike, Strike, Defend, Strike, Defend.
+//
+// Each hero now carries three copies of one BASIC, one MODIFIER, and one
+// SPECIAL — and the special is the only card in the opening deck with a combo
+// on it. Nine faces, one condition (Chain), learned once. Everything the fifteen
+// used to teach at once — All Three, From the Back, Broken or Low — arrives as
+// an upgrade instead, which is where a second rule belongs.
 function baseRoster() {
-  const r = { ash: [], elin: [], mira: [] };
-  for (const id of DECK_IDS) r[CARD_DEFS[id].owner].push(id);
-  return r;
+  return {
+    ash:  ['cleave', 'cleave2', 'cleave3', 'guardcut', 'crosssever'],
+    elin: ['lcascade', 'lcascade2', 'lcascade3', 'mend', 'sgrace'],
+    mira: ['serrate', 'serrate2', 'serrate3', 'qthrow', 'twinfang'],
+  };
 }
+
 function rosterIds(roster) {
   const r = roster || baseRoster();
   return ['ash', 'elin', 'mira'].reduce((a, h) => a.concat(r[h] || []), []);
@@ -5666,6 +5731,10 @@ const CARD_ART = {
   lcascade: 1, mend: 1, frostbind: 1, sgrace: 1, intercession: 1,
   serrate: 1, qthrow: 1, twinfang: 1, backstab: 1, execute: 1,
   lightsteel: 1,
+  // the copies of a basic are the same card, so they are the same painting
+  cleave2: 'cleave', cleave3: 'cleave',
+  lcascade2: 'lcascade', lcascade3: 'lcascade',
+  serrate2: 'serrate', serrate3: 'serrate',
   // THE TWELVE BOND CARDS, and every one of them is a TWO-FIGURE painting —
   // which is the whole reason they were worth painting rather than just worth
   // filling in. A bond card is about two people doing one thing: Shield the
@@ -5681,7 +5750,9 @@ const CARD_ART = {
 // The id is the BASE id, not the upgraded one — Cleave+ is the same swing as
 // Cleave and shares its painting rather than going bare.
 function cardArt(cardId) {
-  return CARD_ART[cardId] ? '../art/cards/' + cardId + '.webp' : null;
+  const a = CARD_ART[cardId];
+  if (!a) return null;
+  return '../art/cards/' + (typeof a === 'string' ? a : cardId) + '.webp';
 }
 
 // THREE OF THESE DID NOT READ, and they were the three that appear most.

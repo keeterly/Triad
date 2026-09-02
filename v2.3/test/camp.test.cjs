@@ -650,25 +650,35 @@ const { boot } = require('./harness.cjs');
                        reads: (document.getElementById('k-camp-read').querySelector('b') || {}).textContent };
       tap('elin.mend');
       const bought = { embers: window.R.state().embers, nodes: window.R.state().nodes.slice() };
-      return { first, picked, bought };
+      // THE PRICE IS THE TREE'S TO STATE. Written as a literal 3 this went red
+      // the moment a node changed tier — which is a fact about the tree, not
+      // about the two-tap rule this check is for.
+      return { first, picked, bought, cost: window.R.treeNode('elin.mend').cost };
     });
     check('FIRE: the first tap picks a memory up and reads it out, the second spends the embers',
       twoTap.first.embers === 12 && !twoTap.first.focused
       && twoTap.picked.embers === 12 && twoTap.picked.focused && /Mend/i.test(twoTap.picked.reads || '')
-      && twoTap.bought.embers === 9 && twoTap.bought.nodes.indexOf('elin.mend') >= 0,
+      && twoTap.bought.embers === twoTap.picked.embers - twoTap.cost
+      && twoTap.bought.nodes.indexOf('elin.mend') >= 0,
       JSON.stringify(twoTap));
 
     // …and a memory you cannot reach still has to explain itself when you pick
     // it up, or the lock is just a greyed-out box.
     await openDoor('ash');
     const sealedRead = await J(() => {
-      document.querySelector('[data-node="ash.lastlight"]').click();
+      // ASK THE TREE WHICH ONE IS SEALED, rather than naming a node. A node id
+      // is a fact about the tree's shape, and the tree's shape has moved twice;
+      // what this check is about is what a SEALED memory says when you pick it
+      // up, and the tree can be asked which of Ash's is sealed at this tier.
+      const sealed = window.R.TREE.find(n => n.hero === 'ash'
+        && n.tier > window.R.state().tier);
+      document.querySelector('[data-node="' + sealed.id + '"]').click();
       const s2 = document.getElementById('k-camp-read');
       return { call: (s2.querySelector('.k-cr-state') || {}).textContent,
                // a locked memory offers no price, because there is nothing to buy
                buy: !!s2.querySelector('.k-cr-buy'),
                now: (s2.querySelector('.k-cr-now') || {}).textContent,
-               spent: window.R.state().nodes.indexOf('ash.lastlight') >= 0 };
+               spent: window.R.state().nodes.indexOf(sealed.id) >= 0 };
     });
     check('FIRE: picking up a sealed memory still tells you what it is and what would open it',
       /MEMORY/.test(sealedRead.call || '') && /\S/.test(sealedRead.now || '')
@@ -691,13 +701,21 @@ const { boot } = require('./harness.cjs');
         .map(b2 => b2.style.getPropertyValue('--seat').trim());
       const delays = [...wrap.querySelectorAll('.k-ctdoor')]
         .map(b2 => parseFloat(getComputedStyle(b2).animationDelay) || 0);
-      window.R.kindle('mira.twinfang');
+      // BUY WHATEVER THIS TIER ACTUALLY SELLS. Named as a literal, this went
+      // quiet rather than red when the node moved tier: kindle refused the
+      // purchase, the deal class was never cleared, and the check reported the
+      // screen re-dealing when nothing had been bought at all.
+      const s2 = window.R.state();
+      const buyable = window.R.TREE.find(n => n.tier <= s2.tier && n.cost <= s2.embers
+        && s2.nodes.indexOf(n.id) < 0);
+      window.R.kindle(buyable.id);
       return { on, seats, rising: delays[delays.length - 1] > delays[0],
+               bought: window.R.state().nodes.indexOf(buyable.id) >= 0,
                afterBuy: document.getElementById('k-camp-tree').classList.contains('k-ct-deal') };
     });
     check('FIRE: the doors deal in when you sit down, and stay put when you spend',
       deal.on && deal.rising && deal.seats.length === 4
-      && new Set(deal.seats).size === 4 && !deal.afterBuy,
+      && new Set(deal.seats).size === 4 && deal.bought && !deal.afterBuy,
       JSON.stringify(deal));
 
   }

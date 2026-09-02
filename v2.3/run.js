@@ -80,17 +80,23 @@
   // Build 26 before there was anything for it to gate.
   const TREE = [
     // tier 1 — open from the first campfire
+    // TIER ONE IS THE BASIC, AND IT IS THREE CARDS AT ONCE (Build 108). The
+    // first thing a player buys should change the card they have seen most —
+    // and a hero's basic is three of their five, so one node moves a fifth of
+    // the whole deck. Nothing else on this tree is worth three embers by as
+    // clear a margin, and nothing else teaches what buying a node DOES as
+    // quickly.
     { id: 'ash.cleave',      hero: 'ash',  tier: 1, cost: 3, card: 'cleave' },
-    { id: 'elin.mend',       hero: 'elin', tier: 1, cost: 3, card: 'mend' },
-    { id: 'mira.twinfang',   hero: 'mira', tier: 1, cost: 3, card: 'twinfang' },
-    // tier 2 — one memory
-    { id: 'ash.crosssever',  hero: 'ash',  tier: 2, cost: 4, card: 'crosssever' },
-    { id: 'elin.sgrace',     hero: 'elin', tier: 2, cost: 4, card: 'sgrace' },
-    { id: 'mira.backstab',   hero: 'mira', tier: 2, cost: 4, card: 'backstab' },
-    // tier 3 — both memories
-    { id: 'ash.lastlight',   hero: 'ash',  tier: 3, cost: 5, card: 'lastlight' },
-    { id: 'elin.lcascade',   hero: 'elin', tier: 3, cost: 5, card: 'lcascade' },
-    { id: 'mira.execute',    hero: 'mira', tier: 3, cost: 5, card: 'execute' },
+    { id: 'elin.lcascade',   hero: 'elin', tier: 1, cost: 3, card: 'lcascade' },
+    { id: 'mira.serrate',    hero: 'mira', tier: 1, cost: 3, card: 'serrate' },
+    // tier 2 — one memory · the modifier, a hero's second colour
+    { id: 'ash.guardcut',    hero: 'ash',  tier: 2, cost: 4, card: 'guardcut' },
+    { id: 'elin.mend',       hero: 'elin', tier: 2, cost: 4, card: 'mend' },
+    { id: 'mira.qthrow',     hero: 'mira', tier: 2, cost: 4, card: 'qthrow' },
+    // tier 3 — both memories · the special, the card that already combos
+    { id: 'ash.crosssever',  hero: 'ash',  tier: 3, cost: 5, card: 'crosssever' },
+    { id: 'elin.sgrace',     hero: 'elin', tier: 3, cost: 5, card: 'sgrace' },
+    { id: 'mira.twinfang',   hero: 'mira', tier: 3, cost: 5, card: 'twinfang' },
     // ── the shared nodes: what all three of them own together ──
     // NINE OF TEN NODES WERE THE SAME CHOICE. Every tier offered one hero's
     // card traded for a bigger version of that card, which is a number going up
