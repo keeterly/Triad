@@ -4719,6 +4719,38 @@ the first screenshot. `renderCampBranch` counts its own plates onto the fan now
 (`data-n`) and the CSS shortens them at four and five, so the branch fits
 whatever the tree grows.
 
+### The sim said the learn node is bought 0% of the time
+
+It is not. The pace sim's fire bot buys **strictly cheapest-first in tree
+order**, and at three to five embers a sharpening node it hoovers the purse
+empty long before it reaches a seven. "Took one at 0% of 99 fires" was a fact
+about the bot, and I nearly wrote it down as a fact about the price.
+
+Two changes make the instrument answer the question. The fork is now measured
+**arithmetically**, independent of what any bot prefers: count what the purse
+buys cheapest-first, count again with seven taken off the top, and the gap is
+what a learn node costs *in other nodes*. And there is a fourth arm — not a
+skill, a **preference**: an ordinary player (0.7) who takes the learn node
+whenever they can pay for it, against the ordinary player who never does.
+
+| | affordable at | took one | …and still bought more | cost in sharpenings |
+|---|---|---|---|---|
+| clumsy | 52% of fires | — | — | 2.15 |
+| ordinary | 46% | — | — | 1.92 |
+| sharp | 60% | — | — | 1.72 |
+| **learner** | 45% | **45%** | **40%** | 1.56 |
+
+So: payable at about half the fires a run reaches, and it costs **1.6 to 2.2
+sharpenings** — "sharpen two, or learn one", measured rather than asserted. A
+learner who takes it still buys something else at 40% of fires, so it is a
+spend and not a lockout.
+
+**Won 14/24 against ordinary's 16/24 at the same skill.** That gap is inside
+the noise at twenty-four runs, and the two arms did not walk the same roads
+(0.83 fires a run against 1.17), so the honest reading is *not a trap and not a
+must-buy* and nothing finer than that. Which is what a fork is supposed to look
+like — if a learner had won 21 or won 8, the price would be wrong.
+
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · soak 5/5 — no page errors. Ten runs,
 eight to the Regent, 28 recalls, 19 nodes kindled.

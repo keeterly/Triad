@@ -19,7 +19,15 @@ const { BOT } = require('./bot.cjs');
 
 const RUNS = +(process.env.PACE_RUNS || 24);
 const MAX_TURNS = 30;
-const ALL_SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92]];
+// THE FOURTH ARM IS NOT A SKILL, IT IS A PREFERENCE (Build 111). The first
+// three ask "how well do you play"; this one asks "what do you buy" — an
+// ordinary player who spends the fire on the LEARN node whenever they can pay
+// for it, against an ordinary player who never does. The other three buy
+// strictly cheapest-first, which at three embers a node means they hoover the
+// purse empty before they ever reach a seven and would report the learn node
+// as bought 0% of the time — a fact about the bot, not about the price.
+const ALL_SKILLS = [['clumsy', 0.45], ['ordinary', 0.7], ['sharp', 0.92],
+                    ['learner', 0.7, { learnFirst: true }]];
 const SKILLS = process.env.PACE_SKILL
   ? ALL_SKILLS.filter(s => s[0] === process.env.PACE_SKILL) : ALL_SKILLS;
 
@@ -40,7 +48,8 @@ const SKILLS = process.env.PACE_SKILL
 
   const rows = [];
 
-  for (const [name, pSkill] of SKILLS) {
+  for (const [name, pSkill, opt] of SKILLS) {
+    const learnFirst = !!(opt && opt.learnFirst);
     const tally = { runs: 0, won: 0, wiped: 0, kindled: [], bonds: 0, cards: 0, marks: 0,
                     tiers: [], embersLeft: [], brokeAtFire: 0, fires: 0, stops: {},
                     // WHY the tree goes unspent, not just THAT it does. A purse
@@ -166,24 +175,56 @@ const SKILLS = process.env.PACE_SKILL
 
         if (kind === 'camp') {
           tally.fires++; fireCount++;
-          const spent = await J(() => {
+          // `learnFirst` lives in Node and the buy loop runs in the page, so it
+          // is handed across rather than closed over.
+          const spent = await J((learnFirst) => {
             const st = window.R.state();
             const purse = st.embers, tier = st.tier;
             const unheld = window.R.TREE.filter(t => st.nodes.indexOf(t.id) < 0);
             const open = unheld.filter(t => t.tier <= tier);           // your tier allows it
             const afford = open.filter(t => t.cost <= purse);          // …and you can pay
-            let n = 0, g = 0;
+            // WHAT A LEARN NODE COSTS YOU, in the only currency the fire deals
+            // in: other nodes. Count what this purse could buy cheapest-first,
+            // then count again with seven taken off the top. The gap is the
+            // fork — "sharpen N, or learn one and sharpen N-gap" — and it is
+            // arithmetic, so it holds whatever the bot happens to prefer.
+            const fits = (purseNow) => {
+              let left = purseNow, k = 0;
+              for (const t of open.filter(t => !t.learn).slice().sort((a, b) => a.cost - b.cost)) {
+                if (t.cost > left) break;
+                left -= t.cost; k++;
+              }
+              return k;
+            };
+            const learnOpen = open.filter(t => t.learn);
+            const couldLearn = learnOpen.some(t => t.cost <= purse);
+            const forkCost = couldLearn ? fits(purse) - fits(purse - learnOpen[0].cost) : 0;
+            let n = 0, g = 0, tookLearn = 0;
+            if (learnFirst && couldLearn) {
+              window.R.kindle(learnOpen.find(t => t.cost <= purse).id); n++; tookLearn = 1;
+            }
             while (g++ < 10) {
               const s2 = window.R.state();
-              const next = window.R.TREE.find(t => s2.nodes.indexOf(t.id) < 0 && t.tier <= s2.tier && t.cost <= s2.embers);
+              const next = window.R.TREE.find(t => s2.nodes.indexOf(t.id) < 0 && !t.learn
+                                                && t.tier <= s2.tier && t.cost <= s2.embers);
               if (!next) break;
               window.R.kindle(next.id); n++;
             }
             const left = window.R.state().embers;
+            // THE FORK THE PRICE IS SUPPOSED TO BUY (Build 111). A learn node
+            // costs seven where sharpening costs three to five, so the claim
+            // is "sharpen two, or learn one" — and that claim is only true if
+            // the purse at a fire is usually enough for ONE of them and not
+            // both. `couldLearn` is how many fires could have paid for a learn
+            // node at all; `learned` is how many actually took one; `alsoElse`
+            // is how many took one AND still bought something else, which is
+            // the number that says the price is too low.
             window.R.leaveCamp();
             return { n, purse, tier, col: st.stop - 1, left,
-                     sealed: unheld.length - open.length, open: open.length, afford: afford.length };
-          });
+                     sealed: unheld.length - open.length, open: open.length, afford: afford.length,
+                     couldLearn: couldLearn ? 1 : 0, forkCost, learned: tookLearn,
+                     alsoElse: tookLearn && n > 1 ? 1 : 0 };
+          }, learnFirst);
           tally.atFire.push(spent);
           // THE FIRE MUST BE A CHOICE. StS2's live complaint is that its
           // campfires collapsed into "always rest"; this game mends for free,
@@ -274,6 +315,20 @@ const SKILLS = process.env.PACE_SKILL
   // and indexing rows[1] blind crashed the summary after a 15-minute sweep.
   const mid = rows[Math.min(1, rows.length - 1)];
   console.log('\n  stops walked (' + mid.name + '): ' + JSON.stringify(mid.stops));
+  // WHAT THE LEARN NODE COSTS IN PRACTICE, not in intention.
+  console.log('\n── the fork at the fire ──');
+  rows.forEach(r => {
+    const f = r.atFire, n = f.length || 1;
+    const sum = (k) => f.reduce((s, x) => s + (x[k] || 0), 0);
+    console.log('  ' + r.name.padEnd(10)
+      + 'fires ' + f.length
+      + ' · could afford a learn node at ' + Math.round(100 * sum('couldLearn') / n) + '%'
+      + ' · took one at ' + Math.round(100 * sum('learned') / n) + '%'
+      + ' · and still bought something else at ' + Math.round(100 * sum('alsoElse') / n) + '%'
+      + ' · it cost ' + (sum('couldLearn')
+          ? +(sum('forkCost') / sum('couldLearn')).toFixed(2) : 0) + ' sharpenings');
+  });
+
   console.log('\n── why the tree goes unspent ──');
   rows.forEach(r => {
     const f = r.atFire;
