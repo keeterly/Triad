@@ -624,6 +624,59 @@ const Cast3D = (() => {
   // the 2D ladder was always drawing; it is a place now rather than a drawing
   // of one.
   const EYE = { x: 0, y: 1.70, z: 7.50 };
+
+  // ── THE TRIPOD AND THE OPERATOR'S HANDS (Build 120) ────────────────────────
+  //
+  // Build 119 gave the fight a real camera but left it where the painted stage
+  // had always stood: one spot, in front, looking in. `cam()`'s six properties
+  // are a HANDHELD offset — a nudge, a push, a roll — and they are the right
+  // shape for that and the wrong shape for "swing around behind the party".
+  // Their limits say so: pan is clamped to 34 px and yaw to 7 degrees, because
+  // past that the CSS lens they were written for fell apart.
+  //
+  // So a shot is a separate thing, stated the way a camera operator states one:
+  // stand this far from the fight, this far around it, at this height, looking
+  // at this. The handheld offset then applies ON TOP, in the camera's own axes,
+  // which is why the two never fight — the tripod chooses the angle, the hands
+  // do the breathing, and every camPush written since Build 22 keeps working
+  // from wherever the tripod happens to be standing.
+  //
+  // `home` is not a taste: it is Build 119's camera written in the new terms,
+  // and the suite holds it to the frame the painted stage framed.
+  const BOARD = [0, 0, 0.15];          // the middle of the fight, on the floor
+  const SHOTS = {
+    // the board, as it has been framed since Build 4
+    home:      { az:   0, dist: 7.35, height: 1.70, aimY: 1.70, at: 'board' },
+    // a finisher: come around the party's shoulder and get low enough that the
+    // Regent is above you, which is the whole feeling of fighting one
+    duel:      { az: -33, dist: 5.85, height: 1.28, aimY: 1.62, at: 'foe' },
+    // the all-out arcs behind the party and looks back down the line at what
+    // all three of them are about to hit
+    // 54 degrees put all four bodies in one clump behind the Regent — a shot
+    // where the thing the player is about to do cannot be read. 33 keeps the
+    // line legible and still swings hard enough to feel like a camera move.
+    allout:    { az:  33, dist: 7.10, height: 2.35, aimY: 1.40, at: 'board' },
+    // the parry is one hero's moment: in close, slightly under, so the incoming
+    // blow reads as coming down at you
+    parry:     { az: -13, dist: 5.10, height: 1.42, aimY: 1.58, at: 'party' },
+    // after the kill, stand back up and take the room in
+    reckoning: { az:  19, dist: 8.70, height: 2.60, aimY: 1.30, at: 'board' },
+  };
+  // where a shot may be aimed. `party` and `foe` are read off the world rather
+  // than written down, so a shot follows whoever is actually standing there.
+  function aimPoint(at) {
+    if (Array.isArray(at)) return at;
+    if (at === 'party' || at === 'foe') {
+      const want = at === 'foe';
+      let n = 0, x = 0, z = 0;
+      for (const id of Object.keys(figs)) {
+        if (!!CAST[id].foe !== want || !figs[id].root.visible) continue;
+        x += figs[id].root.position.x; z += figs[id].root.position.z; n++;
+      }
+      if (n) return [x / n, 0, z / n];
+    }
+    return BOARD;
+  }
   const STAGE = {
     hero: { front: [0.00, 0.54], mid: [-1.23, -0.03], back: [-2.76, -1.06] },
     foe:  { front: [2.10, 0.60], mid: [3.30, -0.10], back: [4.45, -0.95] },
@@ -639,94 +692,46 @@ const Cast3D = (() => {
   // px per metre at the plane the party stands on: the conversion between the
   // camera language game.js already speaks (pixels) and the world (metres).
   const PX_M = VIEW.focal / EYE.z;
+  // the ground runs well past the cyclorama, so its edge is never in shot
+  const FLOOR_SPAN = 100;
+  // the cyclorama's radius, which is also what decides the skyline's height:
+  // the painting's top row sits 0.202 of the radius above the horizon, so 45 m
+  // puts the tallest ruins about nine metres up. Bigger makes a taller city.
+  const SKY_R = 45;
 
-  // ── THE FLOOR IS PAINTED, NOT PHOTOGRAPHED ─────────────────────────────────
-  //
-  // A photographic stone tile under watercolour figures reads as a photograph
-  // with cartoons standing on it — the exact failure the whole look exists to
-  // avoid. So the ground is painted the way the cast is painted: a warm paper
-  // wash, pigment pooling where a real wash pools, joints drawn as wobbling
-  // brush strokes rather than ruled lines, and the paper grain over all of it.
-  //
-  // It is generated, not downloaded. 512 square in a canvas costs nothing to
-  // ship and nothing to load, and the thing that actually sells the floor is
-  // not its texture anyway — it is the four figures casting real shadows onto
-  // it, which no painted plate has ever been able to fake.
-  function groundTexture() {
-    const S = 512;
+  // ── THE TWO TEXTURES THE PAINTING WAS CUT INTO ─────────────────────────────
+  // `tools/horizon.cjs` splits `bg23-plaza-pano.png` at its measured horizon
+  // and writes the halves out. Nothing here decides anything about them; it
+  // loads them and puts them where the measurement says they go.
+  function loadTex(url) {
+    return new Promise((res, rej) => new THREE.TextureLoader().load(url, res, undefined, rej));
+  }
+
+  // ── AND THE WEATHER, WHICH IS NOT PAINTED AT ALL ───────────────────────────
+  // Everything outside the painted arc. A vertical band the colour of the
+  // painting's own mist, darkening toward the ground so the fog cylinder does
+  // not glow along the floor line — three stops and a little grain, which is
+  // all that is left of a city once it is far enough away.
+  function fogBand() {
     const c = document.createElement('canvas');
-    c.width = c.height = S;
+    c.width = 8; c.height = 256;
     const x = c.getContext('2d');
-    x.fillStyle = '#c6b8a2';
-    x.fillRect(0, 0, S, S);
-    // PIGMENT POOLS. Drawn four times, wrapped, or every blotch would stop
-    // dead at the tile edge and the repeat would read as a grid of stamps.
-    for (let i = 0; i < 110; i++) {
-      const cx = Math.random() * S, cy = Math.random() * S;
-      const r = 16 + Math.random() * 78;
-      const dark = Math.random() < 0.55;
-      for (const [ox, oy] of [[0, 0], [S, 0], [0, S], [-S, 0], [0, -S]]) {
-        const g = x.createRadialGradient(cx + ox, cy + oy, 0, cx + ox, cy + oy, r);
-        g.addColorStop(0, dark ? 'rgba(112,95,78,0.15)' : 'rgba(242,235,219,0.17)');
-        g.addColorStop(1, 'rgba(0,0,0,0)');
-        x.fillStyle = g;
-        x.beginPath(); x.arc(cx + ox, cy + oy, r, 0, 7); x.fill();
-      }
+    const g = x.createLinearGradient(0, 0, 0, 256);
+    g.addColorStop(0.00, '#8f959d');
+    g.addColorStop(0.42, '#9aa0a6');
+    g.addColorStop(0.78, '#8a8d90');
+    g.addColorStop(1.00, '#6e7073');
+    x.fillStyle = g; x.fillRect(0, 0, 8, 256);
+    const im = x.getImageData(0, 0, 8, 256);
+    for (let i = 0; i < im.data.length; i += 4) {
+      const n = (Math.random() - 0.5) * 9;
+      im.data[i] += n; im.data[i + 1] += n; im.data[i + 2] += n;
     }
-    // THE JOINTS WOBBLE. A flagstone edge drawn with a ruler is the single
-    // fastest way to lose the painted look. They also stop short of the tile
-    // border: a wobbling line cannot meet its own other end across a seam, so
-    // the seam simply carries no line and the wash hides where it falls.
-    x.lineCap = 'round';
-    const stroke = (x0, y0, x1, y1, w, a) => {
-      x.strokeStyle = 'rgba(78,64,52,' + a + ')';
-      x.lineWidth = w;
-      x.beginPath(); x.moveTo(x0, y0);
-      for (let s = 1; s <= 8; s++) {
-        const t = s / 8;
-        x.lineTo(x0 + (x1 - x0) * t + (Math.random() - 0.5) * 4.2,
-                 y0 + (y1 - y0) * t + (Math.random() - 0.5) * 4.2);
-      }
-      x.stroke();
-    };
-    const N = 4, cell = S / N, pad = 10;
-    for (let i = 1; i < N; i++) {
-      stroke(i * cell, pad, i * cell, S - pad, 1.3 + Math.random(), 0.26 + Math.random() * 0.16);
-      stroke(pad, i * cell, S - pad, i * cell, 1.3 + Math.random(), 0.26 + Math.random() * 0.16);
-    }
-    // the same paper grain the figures wear, so floor and cast share a surface
-    const img = x.getImageData(0, 0, S, S), d = img.data;
-    for (let i = 0; i < d.length; i += 4) {
-      const n = (Math.random() - 0.5) * 24;
-      d[i] += n; d[i + 1] += n; d[i + 2] += n;
-    }
-    x.putImageData(img, 0, 0);
+    x.putImageData(im, 0, 0);
     return c;
   }
 
-  // The floor must not END. A plane that stops has an edge, and an edge in the
-  // middle of a painted plaza is worse than no floor at all, so it dissolves
-  // into the backdrop instead of meeting it.
-  function groundFade() {
-    const S = 256;
-    const c = document.createElement('canvas');
-    c.width = c.height = S;
-    const x = c.getContext('2d');
-    // TIGHT, AND GONE LONG BEFORE THE EDGE. The wash is here to seat four
-    // figures on the plate, not to lay a veil over a painting that is already
-    // finished — measured across the frame, the first pass was obscuring a
-    // fifth of the plaza, which is a filter rather than a floor.
-    const g = x.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
-    g.addColorStop(0, '#ffffff');
-    g.addColorStop(0.30, '#ffffff');
-    g.addColorStop(0.78, '#2a2a2a');
-    g.addColorStop(1, '#000000');
-    x.fillStyle = g;
-    x.fillRect(0, 0, S, S);
-    return c;
-  }
-
-  function build() {
+  async function build() {
     const host = document.getElementById('k-cast');
     if (!host) return false;
     canvas = document.createElement('canvas');
@@ -767,58 +772,96 @@ const Cast3D = (() => {
     const r = new THREE.DirectionalLight(0x9fb6d8, 0.72);
     r.position.set(-5, 3.5, -4);
     scene.add(k, r);
+    scene.userData.key = k;
 
-    // ── THE FLOOR THAT IS ALREADY THERE ──────────────────────────────────────
+    // ── THE WORLD IN THE ROUND (Build 120) ───────────────────────────────────
     //
-    // The first version of this laid a big lit plane across the whole lower
-    // half of the frame, and it was a plain mistake: `bg23-plaza.webp` is a
-    // PAINTING OF A PLAZA, floor included, in the right perspective, and
-    // covering it with procedural stone traded good art for a pale slab and
-    // took the painted look down with it.
+    // Build 119 left the painted plate doing the scenery and gave the ground
+    // nothing but a shadow to catch, which was right while the camera stood
+    // still. A plate is correct from exactly one viewpoint: swing thirty
+    // degrees and the painted floor is seen edge-on and the painted buildings
+    // slide with you. So the painting comes apart AT THE HORIZON, which is the
+    // one line where the two halves of a street painting can be separated
+    // cleanly (see tools/horizon.cjs, where it is measured rather than guessed):
     //
-    // What a painting cannot do is know where anybody is standing. So the
-    // ground here is not scenery — it is THE SURFACE THE FIGURES TOUCH — and it
-    // is two planes doing one job each:
+    //   ABOVE it, a curved PANEL at 45 metres. Buildings and mist have no
+    //   parallax worth having, so a cylinder section carries them correctly
+    //   from every angle — undistorted, at the painting's own resolution,
+    //   across the 84 degrees it actually covers.
     //
-    //   THE CATCHER carries nothing but shadow. `ShadowMaterial` is fully
-    //   transparent everywhere light reaches and darkens only where a figure
-    //   blocks it, so what lands on the painted plaza is four real contact
-    //   shadows and not one pixel besides. This is the whole return on the
-    //   floor being real: the shadows move when the figures move, stretch when
-    //   somebody lunges, and fall across each other.
+    //   BELOW it, the GROUND, tiled from the nearest painted stone. A floor is
+    //   a plane, and a plane is right from everywhere.
     //
-    //   THE WASH is a whisper of painted ground under the party — the pooled
-    //   pigment and paper tooth the cast itself is painted with — pulling the
-    //   figures down onto the plate rather than letting them hover in front of
-    //   it. It fades out well inside its own edges, because a floor with a
-    //   visible edge in the middle of a plaza is worse than no floor at all.
+    // They need no blending: at the horizon both are infinitely far, so they
+    // meet by construction.
     //
-    // Build 120 replaces the plate with geometry, because a billboard cannot be
-    // orbited. Until then the painting beats anything that would replace it,
-    // and this stays out of its way.
-    const fade = new THREE.CanvasTexture(groundFade());
-    const tex = new THREE.CanvasTexture(groundTexture());
+    // Behind the painted arc there is no painting, and pretending otherwise is
+    // what mirror-folding does — four copies of the same lit doorway around the
+    // horizon. What is actually behind you in a drowned city is weather, so
+    // that is what is there: a fog cylinder, generated here, costing nothing.
+    const lens = await fetch(ART + 'lens.json').then(r => r.json()).catch(() => null);
+    const L = lens || { halfFov: 41.975, skyAbove: 0.20219, skyBelow: 0.055, floorM: 6.48 };
+
+    const tex = await loadTex(ART + 'floor.webp');
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(4, 4);
+    tex.repeat.set(FLOOR_SPAN / L.floorM, FLOOR_SPAN / L.floorM);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    const wash = new THREE.Mesh(
-      new THREE.PlaneGeometry(17, 17),
-      new THREE.MeshBasicMaterial({ map: tex, alphaMap: fade, transparent: true,
-                                    opacity: LOOK.floor, depthWrite: false }));
-    wash.rotation.x = -Math.PI / 2;
-    wash.position.set(0.8, 0.002, 0.4);
-    wash.renderOrder = -1;
-    scene.add(wash);
-
     ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(30, 30),
-      new THREE.ShadowMaterial({ opacity: LOOK.shade, transparent: true }));
+      new THREE.PlaneGeometry(FLOOR_SPAN, FLOOR_SPAN),
+      new THREE.MeshStandardMaterial({ map: tex, roughness: 0.62, metalness: 0.08,
+                                       color: new THREE.Color().setScalar(0.5 + LOOK.floor * 1.6) }));
     ground.rotation.x = -Math.PI / 2;
-    ground.position.set(0.8, 0.004, 0.4);
     ground.receiveShadow = true;
-    ground.userData.wash = wash;
     scene.add(ground);
+
+    // THE PANEL. Its band is stated in units of the radius by the mill, so the
+    // radius alone decides how tall the skyline stands — pick it and the
+    // geometry follows, with the angles staying honest either way.
+    const half = L.halfFov * D;
+    const top = SKY_R * L.skyAbove, bot = SKY_R * L.skyBelow;
+    const skyTex = await loadTex(ART + 'sky.webp');
+    skyTex.colorSpace = THREE.SRGBColorSpace;
+    // WHICH WAY ROUND, MEASURED NOT REASONED. three builds a cylinder with
+    // theta 0 at +Z and winds toward +X; seen from inside, looking down -Z at
+    // the board, that lays the painting on backwards. Flipping the texture is
+    // one line and the alternative is a negative arc length.
+    skyTex.wrapS = THREE.RepeatWrapping;
+    skyTex.repeat.x = -1; skyTex.offset.x = 1;
+    const panel = new THREE.Mesh(
+      new THREE.CylinderGeometry(SKY_R, SKY_R, top + bot, 96, 1, true,
+                                 Math.PI - half, half * 2),
+      new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, transparent: true,
+                                    fog: false, depthWrite: false }));
+    panel.position.y = EYE.y + (top - bot) / 2;
+    panel.renderOrder = -3;
+    scene.add(panel);
+
+    // THE WEATHER BEHIND IT. A hair further out so it never z-fights the panel,
+    // and tall enough that no orbit finds its lip.
+    const fogTex = new THREE.CanvasTexture(fogBand());
+    fogTex.colorSpace = THREE.SRGBColorSpace;
+    const haze = new THREE.Mesh(
+      new THREE.CylinderGeometry(SKY_R + 3, SKY_R + 3, (top + bot) * 1.9, 64, 1, true),
+      new THREE.MeshBasicMaterial({ map: fogTex, side: THREE.BackSide,
+                                    fog: false, depthWrite: false }));
+    haze.position.y = EYE.y + (top - bot) / 2;
+    haze.renderOrder = -4;
+    scene.add(haze);
+    ground.userData.panel = panel;
+    ground.userData.haze = haze;
+
+    // …AND THE AIR BETWEEN. Real distance fog is what makes forty metres of
+    // floor read as forty metres rather than as a big flat sheet, and it is
+    // what hides the ground plane's edge without a fade texture. At the seven
+    // metres the party stands at it is imperceptible; by the cyclorama it has
+    // taken a third of the contrast, which is what the painting does too.
+    // The seam between the floor and the panel is the horizon, and a horizon
+    // that is a hard line is a horizon nobody believes. At 0.0155 the fog was
+    // too thin to close it; this takes about seventy per cent of the floor's
+    // contrast by the time it reaches the cyclorama and still leaves the party,
+    // seven metres out, untouched at four.
+    scene.fog = new THREE.FogExp2(0x9aa0a6, 0.0285);
 
     cam = new THREE.PerspectiveCamera(FOV, VIEW.w / FULL_H, 0.1, 90);
     cam.setViewOffset(VIEW.w, FULL_H, 0, OFF_Y, VIEW.w, VIEW.h);
@@ -885,8 +928,14 @@ const Cast3D = (() => {
     // channel to find where a figure begins and ends, and a ground plane
     // spanning the frame fills every pixel of it — leave it in and every
     // figure measures as exactly one screen tall.
-    const groundWas = ground && ground.visible;
-    if (ground) { ground.visible = false; ground.userData.wash.visible = false; }
+    // THE WORLD IS NOT PART OF ANYBODY'S SILHOUETTE. This reads the alpha
+    // channel to find where a figure begins and ends, and a floor and a
+    // horizon fill every pixel of the frame — leave them in and every figure
+    // measures as exactly one screen tall.
+    const worldWas = ground && ground.visible;
+    const world = ground ? [ground, ground.userData.panel, ground.userData.haze] : [];
+    for (const o of world) if (o) o.visible = false;
+    const fogWas = scene.fog; scene.fog = null;
 
     for (let pass = 0; pass < 5; pass++) {
       const aspect = W / H;
@@ -921,7 +970,8 @@ const Cast3D = (() => {
 
     renderer.setRenderTarget(prevTarget);
     renderer.setScissorTest(scissorWas);
-    if (ground) { ground.visible = groundWas; ground.userData.wash.visible = groundWas; }
+    for (const o of world) if (o) o.visible = worldWas;
+    scene.fog = fogWas;
     for (const id of Object.keys(figs)) figs[id].root.visible = wasVisible[id];
     target.dispose();
   }
@@ -1018,13 +1068,32 @@ const Cast3D = (() => {
     ready = true;
   }
 
+  // ── WHOSE ELEMENT IS THIS? ─────────────────────────────────────────────────
+  //
+  // A FOE IS FOUND BY WHO IT IS, NOT BY WHICH SLOT IT STANDS IN. Build 118
+  // gave the Regent `sel: '#k-boss-art'` — the DOM slot the first opponent
+  // occupies — and that is true of the Regent and of every other creature in
+  // the game, so the Kneeling Revenant, the Hollow Husk and the rest were all
+  // being drawn wearing the Regent's body. It reads as "the boss turned up
+  // early" rather than as a bug, which is why it shipped.
+  //
+  // game.js has stamped `data-foe` with the creature's own id since Build 101
+  // for exactly this kind of question, so the lookup asks that. Four of the
+  // five foes have no model yet; they get their paintings back instead of
+  // somebody else's body, which is the honest thing for the layer to do with
+  // an actor it does not have.
+  function nodeOf(id) {
+    if (!CAST[id].foe) return document.querySelector(CAST[id].sel);
+    return document.querySelector('#k-cast [data-foe="' + id + '"]');
+  }
+
   // ── WHICH SLOT IS THIS BODY STANDING IN? ───────────────────────────────────
   // game.js stays the authority on WHO IS WHERE IN GAME TERMS — it has set the
   // row class and `data-row` since Build 101 and nothing here second-guesses
   // it. What the world owns is what that means in metres. The two never
   // disagree because only one of them has an opinion.
   function slotOf(id) {
-    const node = document.querySelector(CAST[id].sel);
+    const node = nodeOf(id);
     if (!node) return null;
     const row = node.dataset.row
       || (node.classList.contains('k-row-front') ? 'front'
@@ -1054,16 +1123,43 @@ const Cast3D = (() => {
   // point behind the camera comes back mirrored through the origin rather than
   // off-screen — a hero would appear to leap to the opposite side of the frame
   // rather than leave it.
+  // ── TWO PIXEL SPACES, AND THEY ARE NOT THE SAME ONE ────────────────────────
+  //
+  // `#k-scale` magnifies the whole 932x430 board to fill whatever window it is
+  // opened in, so a hero's CSS transform is written in STAGE UNITS — where the
+  // board is 932 wide, always — while `getBoundingClientRect()` answers in
+  // RENDERED pixels, where on a laptop the same board is 2000 wide.
+  //
+  // Projecting into the rendered size and handing the number to a CSS transform
+  // therefore multiplies by the zoom TWICE: at a 2.15x window the Regent's
+  // anchor came out at x=1515 on a stage 932 wide, which put the drag beam off
+  // the right-hand edge of the screen. The figure was drawn correctly the whole
+  // time — the canvas is in rendered pixels and always was — so nothing looked
+  // wrong except the beam pointing into the void.
+  //
+  // IT SURVIVED NINE SUITES BECAUSE THE HARNESS BOOTS AT EXACTLY 932x430. At
+  // that one window the zoom is 1 and the two spaces are numerically equal, so
+  // every check that has ever measured this measured the only case that cannot
+  // fail. `offsetWidth` is the layout size, which is the space the transform
+  // lives in, and it is the same number at every window size.
+  //
+  // (Build 112 shipped the mirror image of this and it read identically from a
+  // distance: `setViewport` applies the pixel ratio itself, so pre-multiplying
+  // put the whole party off the top-right corner. Whenever a thing is drawn in
+  // one space and positioned in another, ask which one each number is in.)
+  function hostBox(host) {
+    return { w: host.offsetWidth || VIEW.w, h: host.offsetHeight || VIEW.h };
+  }
   const _w = new THREE.Vector3(), _foot = new THREE.Vector3(), _crown = new THREE.Vector3();
   function toScreen(world, b) {
     _w.copy(world).applyMatrix4(cam.matrixWorldInverse);
     const behind = _w.z > -0.05;
     _w.applyMatrix4(cam.projectionMatrix);
-    return { x: (_w.x * 0.5 + 0.5) * b.width, y: (-_w.y * 0.5 + 0.5) * b.height, behind };
+    return { x: (_w.x * 0.5 + 0.5) * b.w, y: (-_w.y * 0.5 + 0.5) * b.h, behind };
   }
 
   function follow(id, f, b) {
-    const node = document.querySelector(CAST[id].sel);
+    const node = nodeOf(id);
     if (!node) return;
     const foot = toScreen(_foot.copy(f.root.position), b);
     const crown = toScreen(_crown.set(f.root.position.x,
@@ -1075,6 +1171,36 @@ const Cast3D = (() => {
     node.style.setProperty('--w-y', foot.y.toFixed(1));
     node.style.setProperty('--w-s', s.toFixed(4));
     node.style.setProperty('--w-off', (foot.behind || crown.behind) ? '1' : '0');
+  }
+
+  // ── THE FLOOR MARKS FOLLOW TOO ─────────────────────────────────────────────
+  //
+  // FRONT / MID / BACK are painted on the floor as three ellipses, and they are
+  // also the drop targets: `rowTargetAt` in game.js picks a lane by asking which
+  // marker's rect the finger is nearest. While the camera stood still, CSS
+  // could park them at fixed pixels and both jobs were done.
+  //
+  // A camera that can swing behind the party breaks BOTH at once, and the
+  // second one silently: the marks would sit where the board used to be, and
+  // dragging a hero would put them in a lane chosen by where that lane was
+  // painted three builds ago. Projecting the marks from the same world the
+  // figures stand in fixes the picture and the aim in one go — no raycast, no
+  // second copy of the layout, and `rowTargetAt` never learns anything changed.
+  const _mark = new THREE.Vector3(), _edge = new THREE.Vector3();
+  const MARK_M = 0.78;                    // a lane mark is about this wide, in metres
+  function followRows(b) {
+    const rows = document.querySelectorAll('#k-rows .k-row');
+    for (const el of rows) {
+      const slot = STAGE.hero[el.dataset.row];
+      if (!slot) continue;
+      const c = toScreen(_mark.set(slot[0], 0, slot[1]), b);
+      const e = toScreen(_edge.set(slot[0] + MARK_M, 0, slot[1]), b);
+      const w = Math.abs(e.x - c.x) * 2;
+      el.style.setProperty('--w-x', c.x.toFixed(1));
+      el.style.setProperty('--w-y', c.y.toFixed(1));
+      el.style.setProperty('--w-s', Math.max(0.05, w / (el.offsetWidth || 140)).toFixed(4));
+      el.style.setProperty('--w-off', c.behind ? '1' : '0');
+    }
   }
 
   // ── THE CAMERA LANGUAGE ALREADY EXISTED ────────────────────────────────────
@@ -1095,6 +1221,22 @@ const Cast3D = (() => {
   // than being reverse-engineered out of a matrix every frame.
   const RIG = { x: 0, y: 0, dz: 0, r: 0, yaw: 0, pitch: 0 };
   const WANT = { x: 0, y: 0, dz: 0, r: 0, yaw: 0, pitch: 0 };
+  // the tripod: where it is standing now, and where it has been asked to stand
+  const TRIPOD = Object.assign({}, SHOTS.home, { atP: BOARD.slice() });
+  const SHOT = Object.assign({}, SHOTS.home);
+  let shotSpeed = 1.6;
+  const _eye = new THREE.Vector3(), _look = new THREE.Vector3();
+
+  // AZIMUTH TAKES THE SHORT WAY ROUND. Easing 350 degrees to 10 by subtracting
+  // sends the camera the long way through everything behind it; a shot is a
+  // move a camera operator could make, so it takes the shorter arc every time.
+  function easeAngle(now, want, k) {
+    let d = want - now;
+    while (d > 180) d -= 360;
+    while (d < -180) d += 360;
+    return now + d * k;
+  }
+
   function rig(host, dt) {
     const cs = getComputedStyle(host);
     const n = (k) => { const v = parseFloat(cs.getPropertyValue(k)); return isNaN(v) ? 0 : v; };
@@ -1102,10 +1244,39 @@ const Cast3D = (() => {
     WANT.r = n('--cam-r'); WANT.yaw = n('--cam-yaw'); WANT.pitch = n('--cam-pitch');
     const k = Math.min(1, dt * 7.5);
     for (const key of Object.keys(RIG)) RIG[key] += (WANT[key] - RIG[key]) * k;
-    // pixels are what game.js speaks; metres are what the world is in
+
+    // ── the tripod walks to its mark ──
+    const ks = Math.min(1, dt * shotSpeed * 2.6);
+    const target = aimPoint(SHOT.at);
+    TRIPOD.az = easeAngle(TRIPOD.az, SHOT.az, ks);
+    for (const key of ['dist', 'height', 'aimY']) TRIPOD[key] += (SHOT[key] - TRIPOD[key]) * ks;
+    for (let i = 0; i < 3; i++) TRIPOD.atP[i] += (target[i] - TRIPOD.atP[i]) * ks;
+
+    const a = TRIPOD.az * D;
+    _eye.set(TRIPOD.atP[0] + Math.sin(a) * TRIPOD.dist,
+             TRIPOD.height,
+             TRIPOD.atP[2] + Math.cos(a) * TRIPOD.dist);
+    _look.set(TRIPOD.atP[0], TRIPOD.aimY, TRIPOD.atP[2]);
+    cam.position.copy(_eye);
+    cam.up.set(0, 1, 0);
+    cam.lookAt(_look);
+
+    // ── and the operator's hands, in the camera's own axes ──
+    //
+    // IN THE CAMERA'S AXES, NOT THE WORLD'S. A push-in has always meant "toward
+    // what I am looking at"; while the camera stood at one spot facing one way
+    // that was also "along -Z in the world", so Build 119 could get away with
+    // writing it as a world offset. The moment the tripod can stand anywhere,
+    // the two part company — a push from behind the party would have dollied
+    // sideways. Translating along the camera's own basis is what the words
+    // meant all along.
     const m = 1 / PX_M;
-    cam.position.set(EYE.x - RIG.x * m, EYE.y + RIG.y * m, EYE.z - RIG.dz * m);
-    cam.rotation.set(-RIG.pitch * D, -RIG.yaw * D, RIG.r * D);
+    cam.translateX(-RIG.x * m);
+    cam.translateY(RIG.y * m);
+    cam.translateZ(-RIG.dz * m);
+    cam.rotateX(-RIG.pitch * D);
+    cam.rotateY(-RIG.yaw * D);
+    cam.rotateZ(RIG.r * D);
     cam.updateMatrixWorld();
   }
 
@@ -1124,6 +1295,9 @@ const Cast3D = (() => {
 
     const b = host.getBoundingClientRect();
     if (!b.width) return;
+    // stage units for placing the DOM, rendered pixels for the drawing buffer
+    const css = hostBox(host);
+    const zoom = b.width / css.w || 1;
     // ── RESIZE ONLY WHEN THE SIZE CHANGED ────────────────────────────────────
     //
     // This was costing 570 ms A FRAME, and it had been since Build 112.
@@ -1157,21 +1331,36 @@ const Cast3D = (() => {
     // measures is a function of pixel density: geometry, facing, motion and
     // projection are all scale-free, and the two checks that count pixels
     // count them as a FRACTION of the box they are in.
-    const dpr = Math.min(TEST ? 1 : 2, window.devicePixelRatio || 1);
-    if (b.width !== sized.w || b.height !== sized.h || dpr !== sized.dpr) {
-      sized.w = b.width; sized.h = b.height; sized.dpr = dpr;
+    //
+    // …AND THE BUFFER FOLLOWS THE ZOOM, NOT THE LAYOUT. The canvas's CSS box is
+    // the stage's 932x430 whatever window it is in; the ancestor transform is
+    // what makes it big. So crispness at a magnified window comes from folding
+    // the zoom into the pixel ratio, not from resizing a box that never
+    // changes — and the cap is on the product, so a very large monitor asks for
+    // a sharper picture rather than an unbounded one.
+    const dpr = Math.min(TEST ? 1 : 2.5, (window.devicePixelRatio || 1) * zoom);
+    if (css.w !== sized.w || css.h !== sized.h || dpr !== sized.dpr) {
+      sized.w = css.w; sized.h = css.h; sized.dpr = dpr;
       renderer.setPixelRatio(dpr);
-      renderer.setSize(b.width, b.height, false);
+      renderer.setSize(css.w, css.h, false);
     }
 
     rig(host, dt);
 
+    // WHICH ELEMENTS ARE WEARING A FIGURE THIS FRAME. An element only gives up
+    // its painting to a model that is actually standing on it — see `nodeOf` —
+    // so the claim is made here, per frame, rather than assumed once at load.
+    const claimed = [];
     for (const id of Object.keys(figs)) {
       const f = figs[id];
       f.step(dt);
-      const node = document.querySelector(CAST[id].sel);
+      const node = nodeOf(id);
       const vis = !!node && node.offsetParent !== null;
       f.root.visible = vis;
+      if (vis) {
+        claimed.push(node);
+        if (!node.classList.contains('k-cast3d-on')) node.classList.add('k-cast3d-on');
+      }
       if (!vis) continue;
       // THE WALK IS A WALK NOW. A row change used to be a 380ms CSS transition
       // on a transform: the figure slid because the rectangle it was painted
@@ -1191,12 +1380,19 @@ const Cast3D = (() => {
       }
     }
 
+    // …and anything that WAS wearing a figure and is not any more takes its
+    // painting back, or a foe that has been replaced mid-run leaves an empty
+    // box standing where a creature ought to be.
+    for (const n of document.querySelectorAll('#k-cast .k-cast3d-on'))
+      if (claimed.indexOf(n) < 0) n.classList.remove('k-cast3d-on');
+
     // ONE SCENE, ONE CAMERA, ONE PASS. Four scissored renders and four
     // orthographic frames are what it took to fake a shared space; a shared
     // space needs none of them.
     renderer.render(scene, cam);
 
-    for (const id of Object.keys(figs)) follow(id, figs[id], b);
+    for (const id of Object.keys(figs)) follow(id, figs[id], css);
+    followRows(css);
 
     if (pending) {
       const cv = document.createElement('canvas');
@@ -1211,15 +1407,13 @@ const Cast3D = (() => {
     wanted: () => /(^|[?&])cast=3d(&|$)/.test(location.search),
     async enable() {
       if (on) return true;
-      if (!build()) return false;
+      if (!(await build())) return false;
       try { await load(); } catch (err) { failed = 'load: ' + err.message; return false; }
       document.body.classList.add('k-cast3d');
-    // the CSS hides every 2D plate under `.k-cast3d`; anything that failed to
-    // load gets its painting back rather than standing there invisible
-    for (const id of missing) {
-      const el = document.querySelector(CAST[id].sel);
-      if (el) el.classList.add('k-cast3d-off');
-    }
+    // NOTHING NEEDS MARKING AS ABSENT ANY MORE. A plate keeps its painting
+    // until a figure claims it by name every frame, so a model that failed to
+    // load — or a creature nobody has generated yet — is handled by the same
+    // rule that handles a creature standing in somebody else's slot.
       on = true; last = 0;
       if (!raf) raf = requestAnimationFrame(frame);
       return true;
@@ -1260,7 +1454,8 @@ const Cast3D = (() => {
     // was supposed to cause; this exists so the world's checks cannot.
     _world: () => {
       const host = document.getElementById('k-cast');
-      const b = host ? host.getBoundingClientRect() : { width: VIEW.w, height: VIEW.h };
+      // stage units, like everything the DOM is placed in — see hostBox
+      const b = host ? hostBox(host) : { w: VIEW.w, h: VIEW.h };
       const out = { scenes: 1, ground: !!(ground && ground.parent),
                     shadows: !!(renderer && renderer.shadowMap.enabled),
                     cam: { kind: cam ? cam.type : null,
@@ -1347,6 +1542,22 @@ const Cast3D = (() => {
       }
       return this.turn();
     },
+    // ── THE SHOT (Build 120) ─────────────────────────────────────────────────
+    //
+    // `Cast3D.shot('duel')` or a spec of your own. The fight names a shot the
+    // way a director does — the tripod walks there, the handheld offset keeps
+    // doing whatever it was doing, and nothing else in the game has to know a
+    // camera moved. Called with nothing it reports where the camera is
+    // actually standing, which is not always where it was last sent.
+    shot(name, opts) {
+      if (name == null) return { asked: { ...SHOT }, at: { ...TRIPOD, atP: TRIPOD.atP.slice() } };
+      const base = typeof name === 'string' ? SHOTS[name] : name;
+      if (!base) return false;
+      Object.assign(SHOT, SHOTS.home, base, opts || {});
+      shotSpeed = (opts && opts.speed) || 1.6;
+      return true;
+    },
+    shots: () => Object.keys(SHOTS),
     _figure: (id) => figs[id] || null,
     // Tune the look without a reload: Cast3D.look({ bands: 5, wash: 0.4 }).
     // Called with nothing it reports what is currently set.
@@ -1357,8 +1568,12 @@ const Cast3D = (() => {
       // they are set where they live rather than looked for on four figures
       // that do not have them.
       if (ground) {
-        if (next.shade != null) ground.material.opacity = next.shade;
-        if (next.floor != null) ground.userData.wash.material.opacity = next.floor;
+        // the floor is real geometry now, so its dials are its own: how dark a
+        // contact shadow lands, and how bright the painted stone reads
+        if (next.shade != null && scene.userData.key)
+          scene.userData.key.intensity = 1.45 * (1 - next.shade) + 0.45;
+        if (next.floor != null)
+          ground.material.color.setScalar(0.5 + next.floor * 1.6);
       }
       for (const id of Object.keys(figs)) {
         const u = figs[id].root.userData.mat.userData.u;

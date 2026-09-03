@@ -1835,6 +1835,11 @@
     _rbeat = 0;
     save();
     stage.classList.add('k-reckoning');
+    // THE FIGHT IS OVER: STAND BACK UP AND TAKE THE ROOM IN (Build 120). Called
+    // through window rather than through game.js's helper because this file is
+    // loaded first — and because a camera that is not there should cost one
+    // property read, which is exactly what this is on the painted stage.
+    if (window.Cast3D && window.Cast3D.shot) window.Cast3D.shot('reckoning', { speed: 0.85 });
     renderReck();
     return true;
   }
@@ -1923,6 +1928,7 @@
     if (box) { box.classList.add('k-hidden'); const f = $('k-reck-fork'); if (f) f.innerHTML = ''; }
     const stage = $('k-stage');
     if (stage) stage.classList.remove('k-reckoning');
+    if (window.Cast3D && window.Cast3D.shot) window.Cast3D.shot('home');
     ['ash', 'elin', 'mira'].forEach(id => {
       const fig = document.querySelector('.k-hero[data-hero="' + id + '"]');
       if (fig) fig.classList.remove('k-reck-in', 'k-reck-out', 'k-reck-say');

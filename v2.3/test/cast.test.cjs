@@ -191,16 +191,36 @@ const { boot } = require('./harness.cjs');
                y0: (r.top - b.top) * sy, y1: (r.bottom - b.top) * sy };
     });
     const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-    let sum = 0, n = 0;
+    let sum = 0, n = 0, lum = 0, lum2 = 0;
     for (let y = 0; y < c.height; y += 2) for (let x = 0; x < c.width; x += 2) {
       if (boxes.some(q => x >= q.x0 && x <= q.x1 && y >= q.y0 && y <= q.y1)) continue;
-      sum += d[(y * c.width + x) * 4 + 3]; n++;
+      const i = (y * c.width + x) * 4;
+      sum += d[i + 3];
+      const L = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+      lum += L; lum2 += L * L; n++;
     }
-    return { meanAlpha: +(sum / n / 255).toFixed(4), sampled: n };
+    const mean = lum / n;
+    return { meanAlpha: +(sum / n / 255).toFixed(4),
+             spread: +Math.sqrt(Math.max(0, lum2 / n - mean * mean)).toFixed(1),
+             meanLum: +mean.toFixed(1), sampled: n };
   });
-  check('INK: the floor lets the painted plaza through — it is shadow, not a second floor',
-    outside.meanAlpha > 0.005 && outside.meanAlpha < 0.22,
-    JSON.stringify(outside) + ' — mean alpha outside every actor\u2019s box');
+  // THIS CHECK HAS NOW BEEN WRONG TWICE, IN OPPOSITE DIRECTIONS, and both times
+  // because the layer changed what it IS rather than what it draws.
+  //
+  //   Build 118: it counted lit pixels, so a wash at 8% alpha and a slab at
+  //   100% scored the same — and the slab was the bug it existed to catch.
+  //   Build 119: it measured mean alpha, which was right for a transparent
+  //   layer floating over a painted plate. Build 120 retired the plate. The
+  //   layer is the whole scene now, so alpha is 1 everywhere by design and the
+  //   check failed on a world that had just started working properly.
+  //
+  // What is worth asserting outlives both: the frame is PAINTED and it is not
+  // painted FLAT. A world that renders nothing and a world that renders one
+  // grey fill are the two real failures, and tonal spread separates a floor
+  // receding into mist from either of them.
+  check('INK: the world fills the frame, and it is a place rather than a fill',
+    outside.meanAlpha > 0.9 && outside.spread > 12,
+    JSON.stringify(outside));
 
   // ═══ D · THE IDLE IS ACTUALLY MOVING ═══
   // The single most important clip in a turn-based game: almost all of the
@@ -333,9 +353,25 @@ const { boot } = require('./harness.cjs');
       const w = Math.round(r.width * sx), h = Math.round(r.height * sy);
       const d = c.getContext('2d').getImageData(
         Math.round((r.left - b.left) * sx), Math.round((r.top - b.top) * sy), w, h).data;
-      const mask = []; let lit = 0;
-      for (let i = 3; i < d.length; i += 4) { const on = d[i] > 24 ? 1 : 0; mask.push(on); lit += on; }
-      return { mask, lit };
+      // ALPHA STOPPED BEING A SILHOUETTE IN BUILD 120. The layer used to be a
+      // transparent sheet over a painted plate, so "is this pixel opaque" WAS
+      // "is this pixel the figure", and counting opaque pixels counted the
+      // body. The world fills the frame now, every pixel is opaque, and the
+      // check duly reported that no action changes anything.
+      //
+      // Thresholding on TONE instead was the next wrong answer: the floor
+      // inside a hero's box has bright and dark pixels of its own, so two
+      // thirds of the box came out "changed" for every verb and a knock-down
+      // could not stand out from a parry.
+      //
+      // What actually answers the question is the PICTURE, compared with
+      // itself. The background does not move between two frames of the same
+      // shot, so it cancels; what is left is the figure. No threshold on what
+      // a figure looks like, which is the assumption that broke twice.
+      const lum = [];
+      for (let i = 0; i < d.length; i += 4)
+        lum.push(d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
+      return { mask: lum, lit: lum.length };
     };
     // THE MIXER'S CLOCK IS DRIVEN DIRECTLY. Sleeping for a chosen number of
     // milliseconds measures the harness's frame rate, not the clip — headless
@@ -355,12 +391,30 @@ const { boot } = require('./harness.cjs');
     f.clear();
     await new Promise(r => requestAnimationFrame(r));
     const base = await shot();
-    const out = {};
+    const out = {}, shots = {};
     for (const [verb, t] of [['slash', 0.55], ['cast', 0.55], ['ward', 0.45], ['down', 0.95]]) {
       const s = await hold(verb, t);
       let diff = 0;
-      for (let i = 0; i < base.mask.length; i++) if (base.mask[i] !== s.mask[i]) diff++;
+      for (let i = 0; i < base.mask.length; i++)
+        if (Math.abs(base.mask[i] - s.mask[i]) > 16) diff++;
       out[verb] = +(diff / base.lit * 100).toFixed(1);
+      shots[verb] = s.mask;
+    }
+    // …AND EACH VERB AGAINST THE OTHERS. This is the failure the whole section
+    // exists for: when skinning silently drops out — a raw ShaderMaterial
+    // without the skinning chunks, a clone sharing the original's skeleton —
+    // every action renders the SAME bind pose. Each one still differs from the
+    // idle, so measuring only against the idle passes; what collapses is the
+    // difference between them, and that is a thing to measure rather than to
+    // hope for.
+    const verbs = Object.keys(shots);
+    out.apart = 100; out.closest = null;
+    for (let a = 0; a < verbs.length; a++) for (let b2 = a + 1; b2 < verbs.length; b2++) {
+      let d2 = 0;
+      for (let i = 0; i < base.mask.length; i++)
+        if (Math.abs(shots[verbs[a]][i] - shots[verbs[b2]][i]) > 16) d2++;
+      const pct = +(d2 / base.lit * 100).toFixed(1);
+      if (pct < out.apart) { out.apart = pct; out.closest = verbs[a] + '/' + verbs[b2]; }
     }
     f.clear();
     return out;
@@ -373,10 +427,32 @@ const { boot } = require('./harness.cjs');
   // percentage: it is that every action visibly redraws the body, and that
   // being knocked to the ground redraws it by far the most. That survives a
   // camera change, a model swap and a new clip; a threshold does not.
-  const worst = Math.max(silhouette.slash, silhouette.cast, silhouette.ward);
+  // THE `down > 20%` HALF OF THIS WAS A NUMBER READ OFF ONE RENDERER, and it
+  // has now been wrong under two of them: the alpha silhouette that produced it
+  // made a knock-down look twice as large as a swing, and a picture diff — a
+  // better instrument — puts them at 32 against 27, because every action moves
+  // a great deal of the body. "Down dwarfs the rest" was a property of the
+  // measurement, not of the game.
+  //
+  // What the section is actually guarding is that the POSE REACHES THE PIXELS,
+  // and its real enemy is skinning dropping out, which makes every verb render
+  // the same bind pose. So: every action repaints a solid part of the figure,
+  // and no two actions look alike. Both survive a camera change, a model swap
+  // and a new clip; neither is a threshold anybody had to choose.
   check('POSE: an action visibly changes the figure, not just its bone numbers',
-    ['slash', 'cast', 'ward'].every(c => silhouette[c] > 5) && silhouette.down > worst * 1.6,
-    JSON.stringify(silhouette) + ' % of the silhouette redrawn — down must dwarf the rest');
+    ['slash', 'cast', 'ward', 'down'].every(c => silhouette[c] > 8),
+    JSON.stringify(silhouette) + ' % of the box repainted');
+  // THE BAR IS LOW ON PURPOSE AND THAT IS THE POINT. The failure this catches
+  // is total — skinning gone means every verb renders the identical bind pose,
+  // and the closest pair reads 0.0. Two genuinely different poses that happen
+  // to share a stance (a cast and a ward are both standing with the arms up)
+  // sit around four or five, so anything comfortably above zero is the right
+  // line to draw. A tighter bound here would only be a bound on which two clips
+  // Meshy happened to author most alike.
+  check('POSE: and no two actions render the same body',
+    silhouette.apart > 2.5,
+    JSON.stringify({ closestPair: silhouette.closest, apart: silhouette.apart })
+      + '% — a lost skeleton reads 0.0');
 
   // ═══ F · THE WORLD PLACES, AND THE DOM FOLLOWS ═══
   //
@@ -677,6 +753,222 @@ const { boot } = require('./harness.cjs');
   check('CAMERA: and a push-in is parallax \u2014 the near rank grows more than the far',
     dolly.nearGrew > dolly.farGrew + 0.01,
     JSON.stringify({ front: dolly.nearGrew, back: dolly.farGrew }));
+
+  // ═══ K · THE TWO SPACES, AND THE ONE THE SUITE HAS NEVER SEEN ═══
+  //
+  // `#k-scale` magnifies the whole 932x430 board to fill whatever window it is
+  // opened in. A hero's CSS transform is written in STAGE UNITS, where the
+  // board is always 932 wide; `getBoundingClientRect()` answers in RENDERED
+  // pixels, where on a laptop the same board is 2000 wide.
+  //
+  // THIS HARNESS BOOTS AT EXACTLY 932x430, so the zoom is 1 and the two spaces
+  // are numerically identical. Every check in this file — every check in every
+  // file — has therefore only ever measured the one window size at which this
+  // class of bug cannot show up. Build 119 projected into the rendered size and
+  // handed the number to a CSS transform, multiplying by the zoom twice: at a
+  // 2.15x window the Regent's anchor came out at x=1515 on a stage 932 wide and
+  // the drag beam pointed off the right-hand edge of the screen. Nine suites
+  // passed. A screenshot found it.
+  console.log('\n── the same board in a bigger window ──');
+  await page.setViewportSize({ width: 1864, height: 900 });
+  const zoomed = await J(async () => {
+    for (let i = 0; i < 30; i++) await new Promise(r => requestAnimationFrame(r));
+    const st = document.getElementById('k-stage');
+    const sr = st.getBoundingClientRect();
+    const k = sr.width / st.offsetWidth;
+    const w = window.Cast3D._world();
+    const out = { zoom: +k.toFixed(3), actors: {} };
+    for (const id of Object.keys(w.actors)) {
+      const n = document.querySelector(id === 'mourner' ? '#k-boss-art' : '.k-hero[data-hero="' + id + '"]');
+      const r = n.getBoundingClientRect();
+      out.actors[id] = {
+        // the element's centre and ground line, converted back to stage units
+        gapX: +Math.abs((r.left + r.width / 2 - sr.left) / k - w.actors[id].screen.x).toFixed(2),
+        gapY: +Math.abs((r.top + r.height - sr.top) / k - w.actors[id].screen.ground).toFixed(2),
+        onStage: (r.left + r.width / 2 - sr.left) / k < st.offsetWidth,
+      };
+    }
+    return out;
+  });
+  check('SCALE: magnify the board and the DOM still lands on the figure',
+    zoomed.zoom > 1.5
+    && Object.values(zoomed.actors).every(a => a.gapX < 1.5 && a.gapY < 1.5 && a.onStage),
+    JSON.stringify(zoomed));
+
+  // …which is the thing the drag beam reads. `aimAnchor` takes the foe's rect,
+  // and an anchor past the right edge of a 932-wide stage is a beam pointing
+  // into the void — exactly what the screenshot showed.
+  const beam = await J(() => {
+    const st = document.getElementById('k-stage');
+    const sr = st.getBoundingClientRect();
+    const k = sr.width / st.offsetWidth;
+    const boss = document.getElementById('k-boss-art');
+    const br = boss.getBoundingClientRect();
+    const card = document.querySelector('.k-card');
+    const cr = card.getBoundingClientRect();
+    const at = (x, y, t) => card.dispatchEvent(new PointerEvent(t,
+      { bubbles: true, clientX: x, clientY: y, pointerId: 5 }));
+    at(cr.left + cr.width / 2, cr.top + 10, 'pointerdown');
+    at(cr.left + cr.width / 2 + 40, cr.top - 40, 'pointermove');
+    at(br.left + br.width / 2, br.top + br.height / 2, 'pointermove');
+    const d = document.querySelector('#k-aim .k-aim-dash');
+    const path = d ? d.getAttribute('d') : '';
+    at(br.left + br.width / 2, br.top + br.height / 2, 'pointerup');
+    // every coordinate the beam was drawn with has to be inside the board
+    const nums = (path.match(/-?\d+(\.\d+)?/g) || []).map(Number);
+    const xs = nums.filter((_, i) => i % 2 === 0);
+    return { path, maxX: xs.length ? +Math.max(...xs).toFixed(1) : null, stageW: st.offsetWidth };
+  });
+  check('SCALE: and the drag beam ends on the foe, not off the edge of the screen',
+    beam.maxX != null && beam.maxX <= beam.stageW,
+    JSON.stringify(beam));
+  await page.setViewportSize({ width: 932, height: 430 });
+
+  // ═══ L · A PLATE ONLY STEPS ASIDE FOR ITS OWN CREATURE ═══
+  //
+  // Build 118 gave the Regent `sel: '#k-boss-art'` — the slot the first
+  // opponent stands in, which is true of the Regent AND of the four creatures
+  // there is no model for. So the Kneeling Revenant, the Hollow Husk and the
+  // rest all fought the party wearing the boss's body. It reads as "the boss
+  // turned up early" rather than as a bug, which is how it shipped.
+  console.log('\n── the right body on the right creature ──');
+  const plate = await J(async () => {
+    const boss = document.getElementById('k-boss-art');
+    const settle = async () => { for (let i = 0; i < 8; i++) await new Promise(r => requestAnimationFrame(r)); };
+    const was = boss.dataset.foe;
+    await settle();
+    const asRegent = { on: boss.classList.contains('k-cast3d-on'),
+                       drawn: window.Cast3D._figure('mourner').root.visible };
+    boss.dataset.foe = 'revenant';               // a creature with no model
+    await settle();
+    const asRevenant = { on: boss.classList.contains('k-cast3d-on'),
+                         drawn: window.Cast3D._figure('mourner').root.visible,
+                         paintOpacity: getComputedStyle(boss.querySelector('img')).opacity };
+    boss.dataset.foe = was;
+    await settle();
+    const back = { on: boss.classList.contains('k-cast3d-on'),
+                   drawn: window.Cast3D._figure('mourner').root.visible };
+    return { was, asRegent, asRevenant, back };
+  });
+  check('PLATE: the Regent\u2019s body is drawn for the Regent',
+    plate.asRegent.on && plate.asRegent.drawn, JSON.stringify(plate.asRegent));
+  check('PLATE: a creature there is no model of keeps its own painting',
+    !plate.asRevenant.on && !plate.asRevenant.drawn && plate.asRevenant.paintOpacity === '1',
+    JSON.stringify(plate.asRevenant));
+  check('PLATE: and the body comes back when its own creature does',
+    plate.back.on && plate.back.drawn, JSON.stringify(plate.back));
+
+  // ═══ M · THE CAMERA LEAVES ITS SPOT (Build 120) ═══
+  //
+  // Build 119 gave the fight a real camera and left it standing where the
+  // painted stage always stood. These are the checks that it can go somewhere
+  // and that the world holds up when it does — which is the whole build.
+  console.log('\n── the camera roams ──');
+  const roam = await J(async () => {
+    const settle = async (n) => { for (let i = 0; i < n; i++) await new Promise(r => requestAnimationFrame(r)); };
+    const out = {};
+    for (const name of ['home', 'duel', 'parry', 'allout', 'reckoning']) {
+      window.Cast3D.shot(name, { speed: 40 });
+      await settle(50);
+      const w = window.Cast3D._world();
+      const on = (k) => w.actors[k].screen.x > -60 && w.actors[k].screen.x < 992;
+      // what the shot was named for: the foe for a duel, the defender for a
+      // parry, the whole board otherwise
+      const subj = name === 'duel' ? ['mourner']
+                 : name === 'parry' ? ['ash', 'elin', 'mira']
+                 : ['ash', 'mourner'];
+      out[name] = { x: w.cam.x, y: w.cam.y, z: w.cam.z,
+                    behind: Object.keys(w.actors).filter(k => w.actors[k].screen.behind),
+                    subject: subj.some(on),
+                    onStage: Object.keys(w.actors).filter(on).length };
+    }
+    window.Cast3D.shot('home', { speed: 40 });
+    await settle(50);
+    return out;
+  });
+  check('SHOT: the fight can name a shot and the camera walks there',
+    Object.keys(roam).length === 5
+    && Object.values(roam).every(s => s.x != null),
+    JSON.stringify(Object.fromEntries(Object.entries(roam).map(([k, v]) =>
+      [k, v.x.toFixed(2) + ',' + v.y.toFixed(2) + ',' + v.z.toFixed(2)]))));
+
+  // THEY ARE ACTUALLY DIFFERENT PLACES. A shot table whose entries all resolve
+  // to the same spot is a shot table nobody would notice was broken.
+  const spots = Object.values(roam).map(s => [s.x, s.y, s.z]);
+  let spread = Infinity;
+  for (let i = 0; i < spots.length; i++) for (let j = i + 1; j < spots.length; j++)
+    spread = Math.min(spread, Math.hypot(spots[i][0] - spots[j][0],
+                                       spots[i][1] - spots[j][1], spots[i][2] - spots[j][2]));
+  check('SHOT: and they are five different places, not five names for one',
+    spread > 0.7, JSON.stringify({ closestPair: +spread.toFixed(2) }) + ' m spread');
+
+  // …AND EVERY ONE OF THEM IS A SHOT YOU COULD CUT TO. The first version of
+  // this demanded all four bodies in frame for every shot, and that is not what
+  // a cinematic camera owes you: `duel` comes over Ash's shoulder ON PURPOSE,
+  // and the two heroes behind him are behind him. What a shot does owe you is
+  // its own SUBJECT — the thing it was named for — and that nobody has ended up
+  // behind the lens, which is the one failure that puts a hero on the wrong
+  // side of the screen instead of off it.
+  check('SHOT: every shot frames its own subject, and nobody is behind the lens',
+    Object.values(roam).every(s => s.subject && !s.behind.length),
+    JSON.stringify(Object.fromEntries(Object.entries(roam).map(([k, v]) =>
+      [k, (v.subject ? 'subject framed' : 'SUBJECT LOST') + ', ' + v.onStage + ' of 4 in frame']))));
+
+  // THE FLOOR MARKS ARE THE DROP TARGETS. `rowTargetAt` picks a lane by asking
+  // which marker the finger is nearest, so a marker that does not follow the
+  // camera hands a dragged hero to whichever lane used to be painted there.
+  // This is the check that the aim survives the orbit, not just the picture.
+  const marks = await J(async () => {
+    const settle = async (n) => { for (let i = 0; i < n; i++) await new Promise(r => requestAnimationFrame(r)); };
+    const read = () => {
+      const b = document.getElementById('k-cast').getBoundingClientRect();
+      const o = {};
+      for (const el of document.querySelectorAll('#k-rows .k-row')) {
+        const r = el.getBoundingClientRect();
+        o[el.dataset.row] = +(r.left - b.left + r.width / 2).toFixed(1);
+      }
+      return o;
+    };
+    window.Cast3D.shot('home', { speed: 40 }); await settle(50);
+    const atHome = read();
+    window.Cast3D.shot('allout', { speed: 40 }); await settle(50);
+    const atAllout = read();
+    // …and does each mark still sit under the hero standing in that lane?
+    const w = window.Cast3D._world();
+    const under = Math.abs(atAllout.front - w.actors.ash.screen.x);
+    window.Cast3D.shot('home', { speed: 40 }); await settle(50);
+    return { atHome, atAllout, under: +under.toFixed(1) };
+  });
+  // ACROSS ALL THREE, not the one that happens to move least. A swing around
+  // the board pivots the line of marks: the far end travels a long way and the
+  // near end barely moves, so reading `front` alone measures the pivot rather
+  // than the swing and calls a working camera broken.
+  const markMove = ['back', 'mid', 'front']
+    .reduce((s, r) => s + Math.abs(marks.atAllout[r] - marks.atHome[r]), 0);
+  check('MARKS: the lane marks move with the camera, so the drop targets do too',
+    markMove > 90, JSON.stringify({ ...marks, totalTravel: +markMove.toFixed(1) }));
+  check('MARKS: and the front mark stays under whoever is standing in front',
+    marks.under < 40, JSON.stringify({ gap: marks.under }) + ' px from Ash');
+
+  // THE WORLD IS IN THE ROUND. A painted plate cannot be orbited, so the
+  // painting was cut at its horizon: the half above it onto a curved panel
+  // forty-five metres out, the half below it onto the actual ground.
+  const round = await J(() => {
+    const P = window.Cast3D._parts();
+    let panel = 0, haze = 0, floor = 0;
+    P.scene.traverse(o => {
+      if (!o.isMesh) return;
+      if (o.geometry.type === 'CylinderGeometry') { o.material.transparent ? panel++ : haze++; }
+      if (o.geometry.type === 'PlaneGeometry') floor++;
+    });
+    return { panel, haze, floor, fog: !!P.scene.fog,
+             plateHidden: getComputedStyle(document.getElementById('k-backdrop')).opacity };
+  });
+  check('ROUND: there is a horizon on every side and a floor under everything',
+    round.panel >= 1 && round.haze >= 1 && round.floor >= 1 && round.fog,
+    JSON.stringify(round));
+  check('ROUND: and the flat painted plate has stood down',
+    round.plateHidden === '0', JSON.stringify({ backdropOpacity: round.plateHidden }));
 
   await shot('cast3d');
   const out = report();

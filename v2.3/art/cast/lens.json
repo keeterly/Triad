@@ -1,0 +1,14 @@
+{
+ "horizon": 356,
+ "focal": 1760.76,
+ "cx": 1582.83,
+ "halfFov": 41.975,
+ "skyW": 2048,
+ "skyH": 293,
+ "skyAbove": 0.20219,
+ "skyBelow": 0.055,
+ "floorM": 10,
+ "camZ": 7.5,
+ "corr": 0.4869,
+ "scale": 0.74
+}

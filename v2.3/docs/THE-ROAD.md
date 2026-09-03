@@ -5175,6 +5175,178 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 120 — the camera leaves its spot, and the painting comes apart at the horizon
+
+**The ask.** *"aim is off the screen fix that and build 120"* — and, from the
+build before, *"Full cinematic, orbit anywhere."*
+
+### First: the aim, and the blind spot nine suites shared
+
+The screenshot showed the drag beam leaving the right-hand edge of the screen
+instead of landing on the Kneeling Revenant. It reproduced instantly once the
+right thing was varied:
+
+```
+at the harness's 932x430 window   --w-x = 704   beam ends on the foe
+at the player's 2000x975 window   --w-x = 1515  on a stage 932 wide
+```
+
+`#k-scale` magnifies the whole board to fill whatever window it is opened in, so
+there are **two pixel spaces**: a hero's CSS transform is written in stage units,
+where the board is 932 wide always, while `getBoundingClientRect()` answers in
+rendered pixels, where the same board is 2000 wide. Build 119 projected into the
+rendered size and handed the number to a CSS transform — multiplying by the zoom
+twice. `aimAnchor` reads the foe's rect, so the anchor landed 583 px past the
+edge of the board and the beam pointed into the void.
+
+The figure was drawn correctly the whole time, because the canvas *is* in
+rendered pixels. Nothing looked wrong except the beam.
+
+**It survived nine suites because the harness boots at exactly 932×430** — the
+one window where the zoom is 1 and the two spaces are numerically equal. Every
+check that has ever measured this measured the only case that cannot fail. The
+suite now resizes and re-measures, and it is worth stating plainly: a harness
+that only ever runs at one size is not testing size.
+
+(Build 112 shipped the mirror image of this — `setViewport` applies the pixel
+ratio itself, so pre-multiplying put the whole party off the top-right corner.
+Whenever a thing is drawn in one space and positioned in another, ask which one
+each number is in.)
+
+### Second: the Revenant was wearing the Regent's body
+
+The same screenshot showed *The Kneeling Revenant* fighting in the Mourning
+Regent's gown. Build 118 gave the Regent `sel: '#k-boss-art'` — the slot the
+first opponent stands in, which is true of the Regent and of the four creatures
+there is no model for. It reads as "the boss turned up early" rather than as a
+bug, which is how it shipped.
+
+A foe is found by **who it is** now, not by which slot it stands in: game.js has
+stamped `data-foe` with the creature's own id since Build 101. A plate only
+gives up its painting to a figure that claims it by name, every frame, so the
+four unmodelled foes keep their paintings — and so does anything whose model
+fails to load, by the same rule rather than a second one.
+
+### And then: the world in the round
+
+A painted plate is correct from exactly one viewpoint. Swing thirty degrees and
+the painted floor is a painted floor seen edge-on and the painted buildings
+slide with you. But a painting of a street is two things stuck together, and
+they come apart cleanly **at the horizon**:
+
+| | what it is | where it goes |
+|---|---|---|
+| above the horizon | buildings, mist, sky — no parallax worth having | a curved **panel** at 45 m |
+| below the horizon | the ground, which is a **plane** | the actual floor |
+
+They need no blending: at the horizon both are infinitely far, so they meet by
+construction. That is the whole trick, and it made this a build step
+(`tools/horizon.cjs`) rather than a shader.
+
+**The lens was measured, not assumed.** Two numbers, both found by looking:
+
+- **The horizon**, as the row where the image stops changing vertically — a
+  street receding to a vanishing point has its least vertical gradient exactly
+  where everything converges. It came out at row **356 of 1344, 26.5%**.
+- **The scale**, by cross-correlating the original 1600×893 plate against the
+  outpainted 3168×1344 one. It sits at **74% of the panorama's width**, which
+  gives a focal length of **1761 px** and an **83.9°** field.
+
+Both cross-check hard: the principal point lands at **x = 1583 on a 3168-wide
+image** — dead centre, which nothing forced — and the horizon predicted from the
+plate's own lens falls within **5 px** of the one measured off the panorama.
+
+The extra width came from outpainting `bg23-plaza.webp` to twice its size (2
+credits), so the wings of the horizon are the same painting extended rather than
+a different one generated.
+
+### Three wrong floors, and why each was wrong
+
+The floor took three attempts and each failure taught something:
+
+1. **A lit procedural plane** (Build 119's first pass) laid a pale slab over the
+   lower half of the frame. The plate is a *painting of a plaza, floor
+   included*, in the right perspective — covering it traded good art for grey.
+2. **Un-projecting the painted floor** — the textbook move, and the maths was
+   right. It produced a fan of radial smears, because **that floor is a mirror,
+   not a texture**: nearly every pixel below the horizon is a reflection of
+   something above it, and a reflection is a property of the view, not of the
+   ground. Un-projecting it stretches every vertical feature to infinity.
+3. **Tiling the nearest painted strip** made choppy water. The nearest ground is
+   also the *darkest* — mean luminance 17 of 255, the part in shadow — so
+   lifting it to something a floor can be needed a gain of 5.7, which amplifies
+   mottling into waves; and a 6.5 m tile over forty metres reads as a pattern.
+
+So the painting is asked for the only thing it can answer reliably: **what
+colour this plaza is.** rgb(73,74,77), its own hue at a value a floor can be.
+Everything else is drawn — flagstones, pooling, standing water, paper grain — at
+a 10 m tile that falls into fog before anybody can count the repeat.
+
+Behind the painted 84° there is no painting, and pretending otherwise is what
+mirror-folding does: four copies of the same lit doorway around the horizon.
+What is actually behind you in a drowned city is weather, so that is what is
+there. The panel carries its own alpha and dissolves into it; nothing is ever
+seen to end.
+
+### The tripod and the operator's hands
+
+`cam()` has spoken in dolly, pan, roll, yaw and pitch since Build 22, and its
+limits say what it is: pan clamped to 34 px, yaw to 7°. That is a **handheld
+offset**, and it is the wrong shape for "swing around behind the party".
+
+So a **shot** is a separate thing, stated the way an operator states one — stand
+this far from the fight, this far around it, at this height, looking at this —
+and the handheld offset applies on top, **in the camera's own axes**. That last
+part matters: a push-in has always meant "toward what I am looking at", and
+while the camera stood in one place that was also "along −Z in the world". The
+moment the tripod can stand anywhere the two part company, and a push from
+behind the party would have dollied sideways.
+
+Five shots, wired to beats the fight already had: `home` on the player's turn,
+`duel` on the enemy telegraph, `parry` when the bar opens, `allout` when three
+of them cross the floor, `reckoning` when it is over. `home` is not a taste — it
+is Build 119's camera written in the new terms, and the suite holds it to the
+frame the painted stage framed.
+
+**The floor marks came along, and that was not cosmetic.** FRONT / MID / BACK are
+the drop targets: `rowTargetAt` picks a lane by asking which marker the finger is
+nearest. A camera that can swing would have broken the picture visibly and the
+*aim* silently — dragging a hero into whichever lane used to be painted there.
+Projecting the marks from the same world the figures stand in fixed both at once,
+with no raycast and no second copy of the layout.
+
+### Four checks were measuring the wrong thing
+
+`INK` has now been wrong twice in opposite directions, and both times because the
+layer changed what it **is** rather than what it draws — counting lit pixels in
+118, mean alpha in 119, and the layer became the whole scene in 120. It asserts
+what outlives all three: the frame is painted, and it is not painted flat.
+
+`POSE` was worse. It carried `down > 20%` from an alpha-silhouette instrument;
+alpha stopped being a silhouette when the world filled the frame, and
+thresholding on tone instead let the floor inside a hero's box vote. Comparing
+the **pictures** works — the background does not move between two frames of one
+shot, so it cancels — and the honest finding is that *"a knock-down dwarfs a
+swing" was a property of the old measurement, not of the game*: 32% against 27%.
+What the section actually guards is that skinning has not dropped out, which
+makes every verb render the same bind pose, so the check that matters is that no
+two actions render the same body.
+
+`SHOT` first demanded all four bodies in frame for every shot. That is not what a
+cinematic camera owes you: `duel` comes over Ash's shoulder on purpose. It checks
+each shot frames its own **subject** and that nobody has ended up behind the lens.
+
+`MARKS` read the front mark alone, and a swing pivots the line — the far end
+travels a long way, the near end barely moves. It measures all three.
+
+**Suites:** flow 257, road 94, bond 76, slice 85, line 32, camp 48, music 22,
+beat 10, cast 50 — 674 checks, all green.
+
+**Payload:** the world costs 266 KB (sky 50, floor 216) and retires a 58 KB
+plate. The cast is still 9.9 MB and still the textures.
+
+---
+
 ## Build 119 — one world, and the arrow turns around
 
 **The ask.** *"Now I'm wondering if my battlefield should also be 3d with the

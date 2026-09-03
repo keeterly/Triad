@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 119;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 120;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -983,6 +983,13 @@ function setPhase(p) {
   // the lens hangs toward the party; on the Regent's it swings to feature her.
   if (p === 'PLAYER_READY') camPose(CAM_POSE_PLAYER);
   else if (p === 'ENEMY_TELEGRAPH') camPose(CAM_POSE_ENEMY);
+  // …AND THE TRIPOD, WHERE THERE IS ONE (Build 120). The six properties above
+  // are a handheld nudge and always were; a SHOT is where the camera is
+  // standing. They layer, so this adds a stance to the composition rather than
+  // replacing it — and on the 2D stage `castShot` is a no-op, which is why
+  // nothing above this line had to change.
+  if (p === 'PLAYER_READY' || p === 'VICTORY' || p === 'DEFEAT') castShot('home');
+  else if (p === 'ENEMY_TELEGRAPH') castShot('duel', { speed: 1.1 });
   // THE FOE STANDS DOWN whenever the turn leaves its hands — including on the
   // early returns out of the enemy phase, which is why this lives here rather
   // than only at the bottom of endTurn. A posture held past its act is a foe
@@ -4458,8 +4465,17 @@ const CAM_POSE_PARRY = { x: 6, y: 2, dz: 62, r: 0, yaw: 0, pitch: 1.2 };
 function camParryOpen() {
   if (camReduced()) return;
   cam(Object.assign({}, CAM_POSE_PARRY, { ms: 380, ease: CAM_SETTLE, force: true }));
+  // …and in three dimensions the same intent is a stance: in close on the
+  // defender and slightly under, so the blow reads as coming down at you.
+  castShot('parry', { speed: 1.5 });
 }
-function camHold(on) { _camHeld = on ? 1 : 0; if (!on) camReset(520); }
+function camHold(on) {
+  _camHeld = on ? 1 : 0;
+  // A SHOT HAS TO BE LET GO OF TOO. The handheld offset eases back on its own;
+  // the tripod does not, so a parry that ended would have left the camera
+  // standing in close on a hero who is no longer defending anything.
+  if (!on) { camReset(520); castShot('home'); }
+}
 function screenKick(power) {
   const s = document.getElementById('k-stage'); if (!s) return;
   const cls = power > 1.5 ? 'k-kick-xl' : power > 0.8 ? 'k-kick-lg' : 'k-kick';
@@ -4623,6 +4639,13 @@ function fxSlash(node, i, heavy) {
 // is the one the game ALREADY has — actionKind() has returned heal, cast,
 // slash and ward since Build 36 — so a clip is a lookup by the name the fight
 // already uses rather than a second table that drifts away from the first.
+// THE FIGHT NAMES A SHOT THE WAY A DIRECTOR DOES, and the 3D layer walks the
+// camera there. Guarded like every other cast call: with the painted stage this
+// costs one property read and does nothing at all.
+function castShot(name, opts) {
+  const C3 = window.Cast3D;
+  if (C3 && C3.shot) C3.shot(name, opts);
+}
 function castPlay(heroId, clip) {
   const C3 = window.Cast3D;
   if (C3 && heroId && clip) C3.play(heroId, clip);
@@ -5433,6 +5456,9 @@ async function fxAllOut(living) {
   const stage = el('k-stage'); if (!stage) return;
   stage.classList.add('k-allout');
   camPush(3, foeBox(C ? C.aim : 0) || document.getElementById('k-boss-art'));
+  // the payoff shot: swing off the axis so all three crossing the floor read as
+  // three, and stand up a little so the line of them is legible
+  castShot('allout', { speed: 1.3 });
   const tag = document.createElement('div');
   tag.className = 'k-combo-call k-combo-call-big k-allout-call';
   tag.textContent = 'All-Out';
@@ -5448,6 +5474,7 @@ async function fxAllOut(living) {
   await sleep(520);
   tag.remove();
   stage.classList.remove('k-allout');
+  castShot('home', { speed: 1.1 });
 }
 function renderBossHud() {
   el('k-bhp').textContent = fmtN(C.boss.hp);

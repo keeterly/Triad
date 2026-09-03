@@ -4258,7 +4258,13 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    shadow, the drag, the aim target, the popups) is exactly as it was, which
    is why the figure follows a walk between rows for free: its position IS
    this element's box, read fresh every frame. */
-body.k-cast3d .k-hero .k-fig img { opacity: 0; }
+/* A PLATE ONLY STEPS ASIDE FOR A FIGURE THAT IS ACTUALLY STANDING ON IT
+   (Build 120). `.k-cast3d-on` is written every frame by the layer onto the
+   element whose creature it has a model for. Build 118 hid `#k-boss-art`'s
+   painting unconditionally and drew the Regent into it — which is right for
+   the Regent and wrong for the other four, so the Kneeling Revenant fought
+   the party wearing the boss's body. */
+body.k-cast3d .k-cast3d-on .k-fig img { opacity: 0; }
 /* the canvas is under the DOM heroes, above the painted floor */
 body.k-cast3d #k-cast3d { position: absolute; inset: 0; pointer-events: none; }
 /* THE PAINTED SHADOW RETIRES (Build 119). It was welcome for as long as there
@@ -4272,13 +4278,12 @@ body.k-cast3d .k-hero .k-shadow { opacity: 0; }
 
 /* THE FOE JOINS THE CAST (Build 118). Same rule as the heroes: the painted
    plate steps aside for the figure, and everything else about the element —
-   its box, its shadow, its nameplate, the intent rail above it — is untouched. */
-body.k-cast3d #k-boss-art img,
-body.k-cast3d #k-boss-art .k-fanim { opacity: 0; }
-/* …unless that actor never loaded, in which case it keeps its painting */
-body.k-cast3d .k-cast3d-off img,
-body.k-cast3d .k-cast3d-off .k-fanim,
-body.k-cast3d .k-cast3d-off .k-fig img { opacity: 1; }
+   its box, its shadow, its nameplate, the intent rail above it — is untouched.
+   Only for a creature there is a model of, though: everything else keeps the
+   painting it has always had, which is also what happens to an actor whose
+   model failed to load. */
+body.k-cast3d .k-cast3d-on img,
+body.k-cast3d .k-cast3d-on .k-fanim { opacity: 0; }
 
 /* ═══ THE WORLD PLACES, THE DOM FOLLOWS (Build 119) ════════════════════════
    Until now this file's lane ladder was the truth and the 3D layer read it:
@@ -4297,15 +4302,26 @@ body.k-cast3d .k-cast3d-off .k-fig img { opacity: 1; }
    zone, the aim target and every damage popup are anchored to this element and
    have never cared how it got where it is. */
 body.k-cast3d #k-field { perspective: none; }
+/* THE PAINTED PLATE RETIRES FROM COMBAT (Build 120). The world carries the
+   painting now — the half above the horizon on a curved panel forty-five
+   metres out, the half below it on the actual ground — so the flat plate
+   behind everything would be a second, wrong copy of the same street that does
+   not turn when the camera does. It keeps every other screen it has ever been
+   on; it is only the battlefield that has somewhere better to put it. */
+body.k-cast3d #k-backdrop { opacity: 0; }
 body.k-cast3d #k-cast { transform: none; transition: none; }
 /* THE TRANSITIONS COME OFF, AND THE WALK GETS BETTER FOR IT. A row change used
    to be a 380ms ease on a transform — the picture slid because its rectangle
    slid. The world eases the actual position now, so the model crosses the
    floor and drags its shadow across with it; a CSS transition on top of that
    would only make the DOM lag a frame behind the figure it is labelling. */
-body.k-cast3d .k-hero,
-body.k-cast3d #k-cast #k-boss-art,
-body.k-cast3d #k-cast .k-foe-art {
+/* …and only a claimed element is placed by the projection. A painted foe the
+   layer has no model for must keep the position the stylesheet gives it, or it
+   would be parked on the last set of world coordinates somebody else left in
+   its custom properties. */
+body.k-cast3d .k-hero.k-cast3d-on,
+body.k-cast3d #k-cast #k-boss-art.k-cast3d-on,
+body.k-cast3d #k-cast .k-foe-art.k-cast3d-on {
   left: 0 !important; top: 0 !important; right: auto; bottom: auto !important;
   transform-origin: 50% 100%;
   transform: translate(calc(var(--w-x, 466) * 1px - 50%),
@@ -4314,12 +4330,25 @@ body.k-cast3d #k-cast .k-foe-art {
   transition: filter 0.3s var(--ease-out), opacity 0.3s var(--ease-out);
   opacity: 1;
 }
+/* …and the three floor marks are placed the same way, which is not only how
+   they are drawn but how they are AIMED AT: rowTargetAt picks a lane by asking
+   which marker the finger is nearest, so a marker left at a fixed pixel would
+   quietly hand a dragged hero to whichever lane used to be there. */
+body.k-cast3d #k-rows .k-row {
+  left: 0 !important; right: auto; bottom: auto !important; top: 0 !important;
+  transform-origin: 50% 50%;
+  transform: translate(calc(var(--w-x, 466) * 1px - 50%),
+                       calc(var(--w-y, 300) * 1px - 50%))
+             scale(var(--w-s, 1)) !important;
+  transition: opacity 0.18s var(--ease-out);
+}
+body.k-cast3d #k-rows .k-row[style*="--w-off: 1"] { visibility: hidden; }
+
 /* AN ACTOR CAN END UP BEHIND THE CAMERA once it is allowed to cross the line,
    and a point behind a camera projects MIRRORED THROUGH THE ORIGIN rather than
    off-screen — a hero would appear to leap to the far side of the frame rather
    than leave it. The world flags it; this hides it. */
-body.k-cast3d .k-hero[style*="--w-off: 1"],
-body.k-cast3d #k-cast [style*="--w-off: 1"] { visibility: hidden; }
+body.k-cast3d .k-cast3d-on[style*="--w-off: 1"] { visibility: hidden; }
 /* the rank ladder in air and warmth is the WORLD's job now — it is computed
    from real distance rather than from which class the element is wearing —
    and doing it twice reads as a hero dimming when he steps back and then
