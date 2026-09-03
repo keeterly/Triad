@@ -274,6 +274,49 @@ const { boot } = require('./harness.cjs');
   check('FOLLOW: move the element and the figure is drawn at the new box',
     follow.moved > 60 && follow.density > 0.06, JSON.stringify(follow));
 
+  // ═══ G · THE PANEL, AND THAT IT STAYS OUT OF THE WAY ═══
+  // `?cast=3d&tune=1`. Its whole reason to exist is that a look chosen by
+  // editing a constant and reloading is a look chosen by argument — but two
+  // hundred pixels of it parked over the party HUD would make the build it
+  // ships in unplayable, so it starts as a tab.
+  console.log('\n── the tuning panel ──');
+  const noPanel = await J(() => !!document.getElementById('k-cast-tune'));
+  check('PANEL: it is not there unless it is asked for',
+    !noPanel, JSON.stringify({ present: noPanel }));
+
+  await page.goto(page.url().replace('?test=1', '?test=1&tune=1'), { waitUntil: 'networkidle' });
+  await page.evaluate(() => {
+    const t = document.getElementById('k-title');
+    const go = t && t.querySelector('.k-tt-go');
+    if (go) go.click();
+  });
+  await page.waitForFunction(() => window.Cast3D && window.Cast3D._state().ready, null, { timeout: 30000 });
+  await sleep(300);
+  const panel = await J(() => {
+    const b = document.getElementById('k-cast-tune');
+    const tab = document.getElementById('k-cast-tab');
+    return b ? { dials: b.querySelectorAll('input[type=range]').length,
+                 clips: b.querySelectorAll('button[data-clip]').length,
+                 startsClosed: b.style.display === 'none' && !!tab && tab.style.display !== 'none',
+                 json: b.querySelector('#k-ct-json').textContent } : null;
+  });
+  check('PANEL: six dials, every clip, and it starts as a tab over nothing',
+    !!panel && panel.dials === 6 && panel.clips === 8 && panel.startsClosed,
+    JSON.stringify(panel));
+
+  // …and a dial has to reach the shader, not just move a number in a readout
+  const dial = await J(() => {
+    document.getElementById('k-cast-tab').click();
+    const r = document.querySelector('#k-cast-tune input[data-k="wash"]');
+    const before = window.Cast3D.look().wash;
+    r.value = '0.2'; r.dispatchEvent(new Event('input', { bubbles: true }));
+    const f = window.Cast3D._figure('ash');
+    const u = f.root.userData.mat.userData.u;
+    return { before, look: window.Cast3D.look().wash, uniform: u.uWash.value };
+  });
+  check('PANEL: dragging a dial reaches the shader uniform, not just the readout',
+    dial.look === 0.2 && dial.uniform === 0.2 && dial.before !== 0.2, JSON.stringify(dial));
+
   await shot('cast3d');
   const out = report();
   await browser.close();

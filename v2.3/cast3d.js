@@ -49,6 +49,28 @@ const CAST = {
 };
 const MODEL = './art/cast/aspirant.glb';
 
+// ── the look, in one place ─────────────────────────────────────────────────
+// `?cast=3d` reads these; window.Cast3D.look({...}) overrides them live, which
+// is how they were chosen.
+const LOOK = {
+  bands: 5.0,   // how many washes the tone is stepped into
+  wash:  0.55,  // …and how much of the real painting survives the stepping
+  lift:  0.36,  // watercolour has no true black; the paper shows through
+  edge:  0.78,  // pigment pooling at the silhouette — the signature move
+  grain: 0.16,  // the paper's tooth, in screen space
+  air:   0.78,  // how hard the row ladder washes out the back ranks
+};
+// what each dial does, for the panel — and so the next person to open this
+// file does not have to read the shader to find out
+const LOOK_HELP = {
+  bands: ['washes', 2, 8, 1, 'how many flat tones the brush lays down'],
+  wash:  ['flatten', 0, 1, 0.01, 'how much of the real painting the wash eats'],
+  lift:  ['paper', 0, 0.8, 0.01, 'how far the blacks lift toward paper'],
+  edge:  ['pooling', 0, 1.4, 0.01, 'pigment gathering at the silhouette'],
+  grain: ['tooth', 0, 0.5, 0.01, 'the paper grain, in screen space'],
+  air:   ['distance', 0, 1.6, 0.01, 'how hard the back ranks wash out'],
+};
+
 // ── the animation ──────────────────────────────────────────────────────────
 //
 // THE MODEL ARRIVED WITH NO ANIMATION. Its one clip is 0.3s long and holds a
@@ -236,18 +258,24 @@ function watercolour(map, tone) {
   // there would have quietly deleted the strongest depth cue on the board.
   // So the same ladder is a uniform: 1 at the front, 0 at the back.
   m.userData.depth = { value: 1 };
+  // EVERY KNOB STAYS REACHABLE. Tuning a look by editing a constant, reloading
+  // and comparing two screenshots taken a minute apart is how you end up
+  // arguing about it; holding them all on the material means a sweep is one
+  // page load and the comparison is side by side.
+  m.userData.u = {
+    uBands: { value: LOOK.bands }, uGrain: { value: LOOK.grain },
+    uEdge:  { value: LOOK.edge },  uLift:  { value: LOOK.lift },
+    uWash:  { value: LOOK.wash },  uAir:   { value: LOOK.air },
+    uPaper: { value: new THREE.Color(tone.paper) },
+    uShadow: { value: new THREE.Color(tone.shadow) },
+    uInk:   { value: new THREE.Color(tone.ink) },
+  };
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uDepth = m.userData.depth;
-    sh.uniforms.uBands  = { value: 3.0 };
-    sh.uniforms.uGrain  = { value: 0.20 };
-    sh.uniforms.uEdge   = { value: 0.86 };
-    sh.uniforms.uLift   = { value: 0.52 };
-    sh.uniforms.uPaper  = { value: new THREE.Color(tone.paper) };
-    sh.uniforms.uShadow = { value: new THREE.Color(tone.shadow) };
-    sh.uniforms.uInk    = { value: new THREE.Color(tone.ink) };
+    Object.assign(sh.uniforms, m.userData.u);
     sh.fragmentShader = sh.fragmentShader
       .replace('void main() {', `
-        uniform float uBands, uGrain, uEdge, uLift, uDepth;
+        uniform float uBands, uGrain, uEdge, uLift, uDepth, uWash, uAir;
         uniform vec3 uPaper, uShadow, uInk;
         float wcHash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         float wcTooth(vec2 p){
@@ -266,18 +294,25 @@ function watercolour(map, tone) {
           vec3 c = gl_FragColor.rgb;
           c = mix(vec3(uLift), vec3(1.0), c);
           float lum = dot(c, vec3(0.299, 0.587, 0.114));
+          // 2 · wash — quantise tone, and MIX BACK toward the true value.
+          // At full strength three bands throw away every mark in the
+          // texture, and a robe painted with a hundred folds arrives as
+          // three flat shapes. uWash decides how much of the painting is
+          // allowed to survive the brush.
           float q = max(floor(lum * uBands + 0.5) / uBands, 1.0 / (uBands * 2.0));
-          c *= q / max(lum, 0.001);
-          c = mix(c * uShadow, c * uPaper, smoothstep(0.30, 0.86, q));
+          float t = mix(lum, q, uWash);
+          c *= t / max(lum, 0.001);
+          c = mix(c * uShadow, c * uPaper, smoothstep(0.26, 0.88, t));
           float fres = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), 3.6);
           c = mix(c, uInk, clamp(fres * uEdge, 0.0, 0.55));
           c *= 1.0 - uGrain * (1.0 - wcTooth(gl_FragCoord.xy * 0.85));
           // the ladder: back ranks lose saturation and sit down in value, and
           // drift toward the paper as if there were air in between
           float g = dot(c, vec3(0.299, 0.587, 0.114));
-          c = mix(vec3(g), c, mix(0.74, 1.10, uDepth));
-          c *= mix(0.84, 1.06, uDepth);
-          c = mix(c, uPaper * 0.92, (1.0 - uDepth) * 0.16);
+          float air = (1.0 - uDepth) * uAir;
+          c = mix(c, vec3(g), air * 0.42);
+          c *= 1.0 - air * 0.18;
+          c = mix(c, uPaper * 0.92, air * 0.20);
           gl_FragColor.rgb = c;
         }`);
   };
@@ -576,6 +611,20 @@ const Cast3D = (() => {
       return [+(e.x / D).toFixed(2), +(e.y / D).toFixed(2), +(e.z / D).toFixed(2)];
     },
     _figure: (id) => figs[id] || null,
+    // Tune the look without a reload: Cast3D.look({ bands: 5, wash: 0.4 }).
+    // Called with nothing it reports what is currently set.
+    look(next) {
+      if (!next) return { ...LOOK };
+      for (const id of Object.keys(figs)) {
+        const u = figs[id].root.userData.mat.userData.u;
+        for (const k of Object.keys(next)) {
+          const key = 'u' + k[0].toUpperCase() + k.slice(1);
+          if (u[key]) u[key].value = next[k];
+        }
+      }
+      Object.assign(LOOK, next);
+      return { ...LOOK };
+    },
     // test-only: A WEBGL CANVAS IS EMPTY BY THE TIME ANYONE ELSE LOOKS AT IT.
     // Without `preserveDrawingBuffer` — which costs real performance on a
     // phone and is not worth paying for a test — the buffer is gone at the end
@@ -590,10 +639,82 @@ const Cast3D = (() => {
   };
 })();
 
+// ── the tuning panel ───────────────────────────────────────────────────────
+// `?cast=3d&tune=1`. Six dials, the eight clips, and a line of JSON to copy
+// back. A look chosen by editing a constant, reloading, and comparing two
+// screenshots taken a minute apart is a look chosen by argument; this makes it
+// a look chosen by looking.
+function tunePanel() {
+  const box = document.createElement('div');
+  box.id = 'k-cast-tune';
+  box.style.cssText = 'position:fixed;left:8px;top:8px;z-index:9999;width:212px;'
+    + 'font:10px/1.5 ui-monospace,Menlo,monospace;color:#d8d0c4;'
+    + 'background:rgba(14,13,17,0.92);border:1px solid #3a3630;border-radius:6px;'
+    + 'padding:8px 9px;backdrop-filter:blur(3px);user-select:none;';
+  let html = '<b style="letter-spacing:.1em;color:#c8b98e">THE CAST</b>'
+    + '<span id="k-ct-hide" style="float:right;cursor:pointer;opacity:.6">\u2715</span>';
+  for (const k of Object.keys(LOOK_HELP)) {
+    const [label, min, max, step] = LOOK_HELP[k];
+    html += '<div style="margin-top:5px">'
+      + '<label style="display:flex;justify-content:space-between">'
+      + '<span>' + label + '</span><b id="k-ctv-' + k + '">' + LOOK[k] + '</b></label>'
+      + '<input type="range" data-k="' + k + '" min="' + min + '" max="' + max
+      + '" step="' + step + '" value="' + LOOK[k] + '" style="width:100%;height:12px">'
+      + '</div>';
+  }
+  html += '<div style="margin-top:7px;border-top:1px solid #332f2a;padding-top:6px">';
+  for (const c of Object.keys(CLIPS)) {
+    html += '<button data-clip="' + c + '" style="margin:1px 2px 1px 0;padding:2px 5px;'
+      + 'font:9px ui-monospace,monospace;background:#241f28;color:#cfc6b6;'
+      + 'border:1px solid #453d34;border-radius:3px;cursor:pointer">' + c + '</button>';
+  }
+  html += '</div><div id="k-ct-json" style="margin-top:6px;color:#8d8578;'
+    + 'word-break:break-all;cursor:pointer" title="click to copy"></div>';
+  box.innerHTML = html;
+  document.body.appendChild(box);
+
+  // IT STARTS OUT OF THE WAY. Two hundred pixels of debug panel parked over
+  // the party HUD makes the demo unplayable, which defeats the point of
+  // having it in a build you are meant to play. Closed, it is a tab.
+  const tab = document.createElement('button');
+  tab.id = 'k-cast-tab';
+  tab.textContent = '\u25c8';
+  tab.style.cssText = 'position:fixed;left:8px;top:8px;z-index:9999;width:22px;height:22px;'
+    + 'font:12px/1 ui-monospace,monospace;color:#c8b98e;background:rgba(14,13,17,0.86);'
+    + 'border:1px solid #45403a;border-radius:5px;cursor:pointer;padding:0;';
+  document.body.appendChild(tab);
+  const open = (yes) => { box.style.display = yes ? '' : 'none'; tab.style.display = yes ? 'none' : ''; };
+  tab.addEventListener('click', () => open(true));
+  open(false);
+
+  const json = box.querySelector('#k-ct-json');
+  const show = () => {
+    json.textContent = JSON.stringify(Cast3D.look());
+    for (const k of Object.keys(LOOK_HELP)) {
+      const v = box.querySelector('#k-ctv-' + k);
+      if (v) v.textContent = LOOK[k];
+    }
+  };
+  box.addEventListener('input', (e) => {
+    const k = e.target.dataset.k;
+    if (!k) return;
+    Cast3D.look({ [k]: parseFloat(e.target.value) });
+    show();
+  });
+  box.addEventListener('click', (e) => {
+    if (e.target.id === 'k-ct-hide') { open(false); return; }
+    const c = e.target.dataset.clip;
+    if (c) { Cast3D.all(c); return; }
+    if (e.target === json && navigator.clipboard) navigator.clipboard.writeText(json.textContent);
+  });
+  show();
+}
+
 window.Cast3D = Cast3D;
 if (Cast3D.wanted()) {
   const go = () => Cast3D.enable().then(ok => {
-    if (!ok) console.warn('[cast3d] stayed on the painted stage:', Cast3D._state().failed);
+    if (!ok) { console.warn('[cast3d] stayed on the painted stage:', Cast3D._state().failed); return; }
+    if (/(^|[?&])tune=1(&|$)/.test(location.search)) tunePanel();
   });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go);
   else go();

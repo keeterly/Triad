@@ -4876,3 +4876,52 @@ people, it can carry three different figures into one party.
 
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 20/20** · soak 5/5 across ten runs — no page errors.
+
+## Build 113 — tune the party, and hand over the dials
+
+Build 112 shipped the cast layer with a look I had chosen by editing constants
+and comparing screenshots taken a minute apart. That is a look chosen by
+argument. Two changes make it a look chosen by looking.
+
+### The original texture, back
+
+The pipeline downsized the map to 1024² on the way in. At the size a hero gets
+that is nearly invisible — but "nearly" is doing work, and the party read as
+flat colour silhouettes, so the resolution was worth ruling out rather than
+assuming about. **2048², webp at q95: the model goes 678 KB → 1.6 MB.**
+
+It was not the resolution. The flattening was the wash: three bands quantising
+luminance with nothing mixed back, so a robe painted with a hundred folds
+arrived as three flat shapes. The wash is a **dial** now — `wash` decides how
+much of the real painting survives the brush — and at 0.55 with five bands the
+folds, the belt, the sash and the hem tatters all come back. The full-resolution
+map is the right call anyway now that there is detail to resolve.
+
+### Six dials, and a panel to move them
+
+`?cast=3d&tune=1` puts the look on screen: **washes** (how many flat tones),
+**flatten** (how much painting the wash eats), **paper** (how far blacks lift —
+watercolour has no true black), **pooling** (pigment gathering at the
+silhouette, the signature move), **tooth** (paper grain), **distance** (how hard
+the back ranks wash out). Plus a button per clip, and a line of JSON to copy
+back.
+
+It starts as a tab, not a panel. Two hundred pixels of debug furniture parked
+over the party HUD would make the build it ships in unplayable, which defeats
+the point of putting it in a build you are meant to play.
+
+The defaults moved with it: 5 washes, flatten 0.55, paper 0.36, pooling 0.78,
+tooth 0.16, distance 0.78.
+
+### Playable
+
+`https://keeterly.github.io/Triad/v2.3/index.html?cast=3d` — and `&tune=1` for
+the dials. Pages deploys from `main` on push, so it is the same build this
+entry describes.
+
+flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
+camp 48/48 · music 22/22 · beat 10/10 · **cast 23/23** — no page errors.
+
+(slice reports 80–85 depending on the run: which stop each conversation lands
+on moves with the fight outcomes, so the loop that walks them runs a different
+number of times. Same checks, same kinds, no failure — logged, not chased.)
