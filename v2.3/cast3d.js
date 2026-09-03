@@ -161,24 +161,28 @@ const VERB = {
 // the idle when it finishes; going down stays down until the fight says
 // otherwise, which is the difference between a corpse and a stumble.
 const HOLDS = { down: true };
-
-// ── HOW LONG EACH ACTION TAKES ─────────────────────────────────────────────
+// ── HOW LONG EACH VERB TAKES IS THE LIBRARY'S BUSINESS (Build 121) ─────────
 //
-// SECONDS, NOT SPEEDS. The first pass set a playback multiplier per clip and
-// they were pure guesses — a number like 2.6 says nothing about whether the
-// swing lands with the damage number. These are the durations the fight wants,
-// and the layer works the speed out from the clip's own measured motion window,
-// so swapping a clip for a longer or shorter one changes nothing here.
+// This was a table here and a table in the mill, and two tables that have to
+// agree are one bug waiting for somebody to edit the wrong one. `clips.json`
+// now carries a `beat` — how long the clip is meant to take on screen — and a
+// `loop` flag, both written by `tools/rewindow.cjs` where the windows are
+// chosen, so the rate is arithmetic rather than a second opinion.
 //
-// A parry is the shortest thing in the game and has to be: it is a reaction
-// inside a rhythm window. A knock-down is the longest, because it is the last
-// thing that hero does.
-const BEAT = {
-  idle: 2.4,        // a loop, calm — the party is waiting, not jogging on the spot
-  sword: 1.00, daggers: 0.95, staff: 0.90,
-  cast: 1.10, heal: 1.05, ward: 0.85,
-  parry: 0.42, hurt: 0.50, down: 1.40,
-};
+// AND THE WINDOW IS CHOSEN BY THE BEAT NOW, which is the fix for the pace.
+// Build 118 kept the shortest span holding 86% of a clip's motion and then
+// divided by the beat, composing two reasonable questions into a bad answer: a
+// sword swing came out 3.05 seconds long against a one-second beat and played
+// at 3.05x. A parry played at 3.52x. Past about a quarter over, motion stops
+// reading as motion and reads as a fault. The beat is the fixed thing — it says
+// what the fight can afford — so the window is simply the best span OF THAT
+// LENGTH, and playback lands at 1.2x for everything: urgent, not broken.
+//
+// LOOPS KEEP EVERY FRAME THEY WERE AUTHORED WITH. You cannot cut an arbitrary
+// window out of a loop and expect it to loop — the pose you cut in at is not
+// the pose you cut out at. Measured on the shipped library, the idle's authored
+// loop closes to 1.4 degrees and the windowed one to 7.2: a five-fold worse
+// seam, snapping once a cycle, for a clip that is on screen almost all the time.
 
 // ── the animation ──────────────────────────────────────────────────────────
 //
@@ -451,7 +455,7 @@ function sampleQuat(track, t, into) {
 // stops, and an acting clip is CROSS-FADED over the top of it and faded back
 // out — which is also why nothing ever snaps.
 class Figure {
-  constructor(root, tone, clips, restSrc, parentOf, windows) {
+  constructor(root, tone, clips, restSrc, parentOf, windows, meta) {
     this.root = root;
     this.tone = tone;
     // THE BONES AND THEIR REST POSE FIRST — the retarget needs them, and after
@@ -461,16 +465,20 @@ class Figure {
     this.mixer = new THREE.AnimationMixer(root);
     this.actions = {};
     for (const name of Object.keys(clips)) {
-      const rt = retarget(clips[name], restSrc, parentOf, this.bones, windows[name]);
+      const loops = !!(meta[name] && meta[name].loop);
+      const rt = retarget(clips[name], restSrc, parentOf, this.bones,
+                          loops ? null : windows[name]);
       const a = this.mixer.clipAction(rt);
       a.setEffectiveWeight(0);
-      // SPEED IS DERIVED, not chosen: the clip is as long as its motion window
-      // and has to finish inside the beat the fight gives it.
-      a.timeScale = BEAT[name] ? (rt.duration / BEAT[name]) : 1;
+      // SPEED IS DERIVED, not chosen: the window is the length the beat can
+      // afford, so the division lands just over 1 rather than at three.
+      const beat = meta[name] && meta[name].beat;
+      a.timeScale = (loops || !beat) ? 1 : (rt.duration / beat);
       if (HOLDS[name]) { a.loop = THREE.LoopOnce; a.clampWhenFinished = true; }
-      else if (name !== 'idle') a.loop = THREE.LoopOnce;
+      else if (!loops) a.loop = THREE.LoopOnce;
       this.actions[name] = a;
     }
+    this.meta = meta || {};
     this.idle = this.actions.idle || null;
     if (this.idle) {
       this.idle.loop = THREE.LoopRepeat;
@@ -736,9 +744,21 @@ const Cast3D = (() => {
     if (!host) return false;
     canvas = document.createElement('canvas');
     canvas.id = 'k-cast3d';
-    // it sits UNDER the DOM heroes, which keep the rows, drags and popups
+    // ── THE CANVAS SITS AT THE BOTTOM, AND IT HAS TO (Build 121) ─────────────
+    //
+    // At z-index 1 it was fine for as long as it was mostly TRANSPARENT: the
+    // scissored figures painted where the figures were and everything else
+    // showed the DOM through. Build 120 made it opaque — floor, horizon, fog,
+    // the whole frame — and a solo foe plate carries `z-index: auto`, so the
+    // world quietly painted over every enemy there is no model for. The plate
+    // reported opacity 1, visibility visible, and the right rectangle; it was
+    // simply behind a wall.
+    //
+    // Zero puts it under everything in this stacking context and changes no
+    // other relationship: the row markers, the heroes' nameplates and the
+    // foes' own 1/2/3 depth ordering all keep the order they have always had.
     canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;'
-      + 'pointer-events:none;z-index:1;';
+      + 'pointer-events:none;z-index:0;';
     host.insertBefore(canvas, host.firstChild);
     try {
       renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
@@ -997,11 +1017,12 @@ const Cast3D = (() => {
     ]);
     const restSrc = lib.__rest || {};
     const parentOf = lib.__parent || {};
-    const clips = {}, windows = {};
+    const clips = {}, windows = {}, meta = {};
     for (const name of Object.keys(lib)) {
       if (name === '__rest' || name === '__parent') continue;
       clips[name] = THREE.AnimationClip.parse(lib[name]);
       if (lib[name].window) windows[name] = lib[name].window;
+      meta[name] = { beat: lib[name].beat, loop: !!lib[name].loop };
     }
     clipNames = Object.keys(clips);
 
@@ -1021,7 +1042,7 @@ const Cast3D = (() => {
       root.scale.setScalar(tone.tall);
       root.userData.mat = mat;
       scene.add(root);
-      figs[id] = new Figure(root, tone, clips, restSrc, parentOf, windows);
+      figs[id] = new Figure(root, tone, clips, restSrc, parentOf, windows, meta);
     });
     // one frame of the idle, so the measurement sees a standing figure rather
     // than whatever the bind pose happens to be
@@ -1501,6 +1522,39 @@ const Cast3D = (() => {
     //
     // It also returns everything in one call: twenty-four round trips per
     // sampled frame, four times over, was most of what made the suite slow.
+    // test-only: what every clip is actually doing — the rate it plays at, and
+    // whether it is a loop. Two builds shipped with a sword swing at 3.05x and
+    // an idle snapping 7 degrees once a cycle, and no check could see either,
+    // because nothing exposed the number that would have said so.
+    _pace: (heroId) => {
+      const f = figs[heroId || Object.keys(figs)[0]]; if (!f) return null;
+      const out = {};
+      for (const n of Object.keys(f.actions)) {
+        const a = f.actions[n];
+        out[n] = { rate: +a.timeScale.toFixed(3),
+                   dur: +a.getClip().duration.toFixed(3),
+                   loop: a.loop === THREE.LoopRepeat };
+      }
+      return out;
+    },
+    // test-only: how far a clip's last pose is from its first, in degrees. A
+    // loop that does not close snaps once a cycle, which is what windowing the
+    // idle did to it — and the only way to see it is to measure the seam.
+    _seam: (heroId, clipName) => {
+      const f = figs[heroId || Object.keys(figs)[0]]; if (!f) return null;
+      const a = f.actions[clipName]; if (!a) return null;
+      const clip = a.getClip();
+      let worst = 0;
+      for (const tr of clip.tracks) {
+        if (!/\.quaternion$/.test(tr.name)) continue;
+        const v = tr.values, last = tr.times.length - 1;
+        let dot = 0;
+        for (let k = 0; k < 4; k++) dot += v[k] * v[last * 4 + k];
+        const deg = 2 * Math.acos(Math.min(1, Math.abs(dot))) / D;
+        if (deg > worst) worst = deg;
+      }
+      return +worst.toFixed(2);
+    },
     _bonePose: (heroId) => {
       const f = figs[heroId]; if (!f) return null;
       const out = {};

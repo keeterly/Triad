@@ -294,6 +294,35 @@ const { boot } = require('./harness.cjs');
     && apart(phases.mira, phases.mourner),
     JSON.stringify(phases));
 
+  // ═══ D2 · THE PACE, AND THE SEAM ═══
+  //
+  // Neither of these had a check, and both shipped broken for three builds.
+  console.log('\n── the pace ──');
+  const pace = await J(() => window.Cast3D._pace('ash'));
+
+  // NOTHING IS FAST-FORWARDED. Build 118 measured where a clip's motion lives
+  // and kept 86% of it, then divided that span by the beat — composing two
+  // reasonable questions into a bad answer. A sword swing came out 3.05 seconds
+  // against a one-second beat and played at 3.05x; a parry at 3.52x. Past about
+  // a quarter over, motion stops reading as motion and reads as a fault. The
+  // window is chosen BY the beat now, so the division lands just over one.
+  const rates = Object.fromEntries(Object.entries(pace).map(([k, v]) => [k, v.rate]));
+  check('PACE: no clip is fast-forwarded — everything plays near the speed it was authored at',
+    Object.values(pace).every(v => v.rate >= 0.85 && v.rate <= 1.35),
+    JSON.stringify(rates));
+
+  // A LOOP HAS TO CLOSE ON ITSELF. You cannot cut an arbitrary window out of a
+  // loop and expect it to loop: the pose you cut in at is not the pose you cut
+  // out at. Windowing the idle took its seam from the 1.4 degrees it was
+  // authored with to 7.2 — a snap once a cycle, on the one clip that is on
+  // screen almost all the time, and the reason it read as unnatural.
+  const seams = await J((names) => Object.fromEntries(
+    names.map(n => [n, window.Cast3D._seam('ash', n)])),
+    Object.keys(pace).filter(n => pace[n].loop));
+  check('LOOP: every looping clip closes on itself, so it does not snap once a cycle',
+    Object.keys(seams).length > 0 && Object.values(seams).every(v => v != null && v < 3),
+    JSON.stringify(seams) + ' degrees between the first pose and the last');
+
   // ═══ E · EVERY VERB REACHES A CLIP ═══
   console.log('\n── the verbs ──');
   for (const v of ['slash', 'cast', 'ward', 'heal', 'hurt', 'parry']) {
@@ -855,6 +884,112 @@ const { boot } = require('./harness.cjs');
   check('PLATE: a creature there is no model of keeps its own painting',
     !plate.asRevenant.on && !plate.asRevenant.drawn && plate.asRevenant.paintOpacity === '1',
     JSON.stringify(plate.asRevenant));
+
+  // …AND "KEEPS ITS PAINTING" IS NOT THE SAME AS "CAN BE SEEN".
+  //
+  // The check above passed for a whole build while every unmodelled enemy was
+  // invisible. It read CSS: opacity 1, visibility visible, the right rectangle
+  // — all true, and all beside the point, because Build 120 made the world
+  // canvas OPAQUE and left it at z-index 1 while a solo foe plate carries
+  // z-index auto. The enemy was painted, correctly, behind a wall.
+  //
+  // The only thing that answers "is it visible" is the composited picture. So
+  // this takes a real screenshot, hides the plate, takes another, and asks
+  // whether the pixels where the enemy stands actually changed. Nothing about
+  // stacking contexts is consulted or trusted.
+  // DECODING THE SHOTS IN THE PAGE TOOK THE PAGE DOWN — even clipped, handing
+  // images back through `evaluate` destroyed the execution context. It is also
+  // more machinery than the question needs. Freeze the animation, photograph
+  // the enemy's rectangle, hide the painting, photograph it again: if the two
+  // PNGs are byte-identical, nothing about that painting was ever on screen.
+  //
+  // The control pair is what makes that argument sound. Two shots taken with
+  // NOTHING changed must come back identical; if they do not, the frame is
+  // still moving and the comparison would prove nothing either way.
+  // "KEEPS ITS PAINTING" IS NOT THE SAME AS "CAN BE SEEN". The check above
+  // passed for a whole build while every unmodelled enemy was invisible: it
+  // read opacity 1, visibility visible, the right rectangle — all true, and all
+  // beside the point, because the world canvas was opaque and in front. The
+  // only thing that answers "is it visible" is the composited picture.
+  //
+  // A SMALL PATCH, AND A NOISE FLOOR. Two earlier attempts at this failed for
+  // reasons worth recording: handing full screenshots back through `evaluate`
+  // destroyed the page's execution context, and comparing whole PNGs
+  // byte-for-byte reported a moving frame as a difference — the camera rig
+  // eases asymptotically and never quite lands, so no two frames are ever bit
+  // identical. So this photographs a thumbnail of the enemy's chest, takes a
+  // CONTROL pair with nothing changed to find out how much the picture moves on
+  // its own, and asks whether hiding the painting moves it a great deal more.
+  const wasFoe = await J(() => {
+    const b = document.getElementById('k-boss-art');
+    const was = b.dataset.foe;
+    // the state under test is a creature there is NO model of — with the Regent
+    // standing there its painting is hidden on purpose, and hiding it twice
+    // proves nothing
+    b.dataset.foe = 'revenant';
+    for (const id of ['ash', 'elin', 'mira', 'mourner']) {
+      const f = window.Cast3D._figure(id);
+      if (f) { f.clear(); f.mixer.timeScale = 0; }
+    }
+    return was;
+  });
+  await sleep(320);
+  // THE WHOLE BOX, NOT A PATCH OF IT. A 72-pixel window at a chosen fraction of
+  // the enemy's rectangle came back with a signal of exactly zero: the art is
+  // a cut-out with a great deal of transparency, and the patch had landed on
+  // some of it. Where a figure's paint happens to fall inside its box is not
+  // something to guess at.
+  const patch = await J(() => {
+    const r = document.querySelector('#k-boss-art').getBoundingClientRect();
+    return { x: Math.max(0, Math.round(r.left)), y: Math.max(0, Math.round(r.top)),
+             width: Math.round(r.width), height: Math.round(r.height) };
+  });
+  // any re-render writes `data-foe` back from the real fight and the layer
+  // reclaims the element on the next frame — hold it across every capture
+  const hold = () => J(() => {
+    const b = document.getElementById('k-boss-art');
+    b.dataset.foe = 'revenant';
+    return b.classList.contains('k-cast3d-on');
+  });
+  const grab = async () => {
+    await hold(); await sleep(90);
+    return page.screenshot({ clip: patch });
+  };
+  const shotA = await grab();
+  const shotB = await grab();
+  // HIDE THE WHOLE PLATE, NOT THE `img`. The foe's painting has been a frame
+  // STRIP since Build 50 — `.k-fanim`, stepped across six real frames of the
+  // Regent — and `#k-boss-art.k-has-anim img` is `display: none` in its favour.
+  // A test that hid the img was hiding something that has not been on screen
+  // for seventy builds, and duly reported that hiding it changed nothing.
+  await J(() => { document.getElementById('k-boss-art').style.visibility = 'hidden'; });
+  const shotC = await grab();
+  const claimed = await hold();
+  await J((was) => {
+    document.getElementById('k-boss-art').style.visibility = '';
+    document.getElementById('k-boss-art').dataset.foe = was;
+    for (const id of ['ash', 'elin', 'mira', 'mourner']) {
+      const f = window.Cast3D._figure(id);
+      if (f) f.mixer.timeScale = 1;
+    }
+  }, wasFoe);
+  // COMPARED IN NODE, WITHOUT DECODING ANYTHING. Handing images back through
+  // `evaluate` destroyed the page's execution context twice, at a full page and
+  // at a 72-pixel thumbnail alike, so the payload was never the problem — this
+  // far into the suite the renderer simply has no room for another canvas.
+  //
+  // A PNG's compressed size is a fair proxy for its content: the same picture
+  // encodes to the same number of bytes, and a picture missing a whole figure
+  // does not. The control pair gives the floor — the camera rig eases
+  // asymptotically and never quite lands, so consecutive frames are never
+  // identical — and the question is whether hiding the painting moves the size
+  // far past that.
+  const seen = { noise: Math.abs(shotA.length - shotB.length),
+                 signal: Math.abs(shotA.length - shotC.length),
+                 bytes: shotA.length, claimed };
+  check('PLATE: and the painting is actually ON SCREEN, not behind the world',
+    !seen.claimed && seen.signal > Math.max(400, seen.noise * 3),
+    JSON.stringify(seen) + ' — PNG bytes for the enemy\u2019s whole box');
   check('PLATE: and the body comes back when its own creature does',
     plate.back.on && plate.back.drawn, JSON.stringify(plate.back));
 

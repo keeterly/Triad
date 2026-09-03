@@ -5175,6 +5175,143 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 121 — the enemy behind the wall, and the pace nobody measured
+
+**The ask.** *"enemies are invisible at the moment"* and *"animation looping and
+pace is not natural thought. fix that."* Both were real, both had a number
+behind them, and neither had a check.
+
+### The enemy was painted, correctly, behind a wall
+
+Every foe there is no model for went invisible in Build 120. The plate reported
+everything a check would ask it:
+
+```
+imgOpacity   "1"          plateZ    auto
+imgVisible   "visible"    canvasZ   1
+plateRect    640, 30, 250×264
+```
+
+All true. All beside the point. The canvas has carried `z-index: 1` since Build
+112, which was fine for as long as it was **transparent** — the scissored
+figures painted where the figures were and the DOM showed through everywhere
+else. Build 120 made it opaque, floor to horizon, and a solo foe plate carries
+`z-index: auto`. The enemy was behind it.
+
+Zero puts the canvas under everything in that stacking context and changes no
+other relationship — the row markers, the nameplates and the foes' own 1/2/3
+depth ordering all keep the order they have always had. (The floor marks were
+behind the same wall, which is why FRONT / MID / BACK came back at the same
+time.)
+
+**And the check that should have caught it read CSS.** `PLATE: a creature there
+is no model of keeps its own painting` asserted `opacity === '1'` and passed for
+a whole build while the thing was unseeable. *Keeping its painting is not the
+same as being on screen.* The new check takes a real screenshot of the enemy's
+rectangle, hides the painting, takes another, and asks whether the pixels
+changed — with a control pair first, because two shots of a still frame must
+come back byte-identical or the comparison proves nothing either way. Nothing
+about stacking contexts is consulted or trusted.
+
+Getting that check honest took four attempts, and each failure is a note worth
+keeping:
+
+- **Decoding the shots inside the page took the page down.** Full frame and
+  72-pixel thumbnail alike destroyed the execution context, so the payload was
+  never the problem — this far into the suite the renderer has no room for
+  another canvas. Comparing PNG *sizes* in Node needs no decoder and answers
+  the same question.
+- **Byte equality reported a working frame as a difference.** The camera rig
+  eases asymptotically and never quite lands, so no two frames are ever
+  identical. Hence the control pair: it measures how much the picture moves on
+  its own, and the test has to beat that by a wide margin. It does — noise 265
+  bytes against a signal of 118,798.
+- **A 72-pixel patch of the enemy's chest returned a signal of exactly zero.**
+  The art is a cut-out with a great deal of transparency and the patch had
+  landed on some of it. Where a figure's paint falls inside its box is not
+  something to guess at; the whole box is.
+- **And it was hiding the wrong element.** The foe's painting has been a frame
+  STRIP since Build 50 — `.k-fanim`, six real frames of the Regent stepped
+  across one sheet — and `#k-boss-art.k-has-anim img` is `display: none` in its
+  favour. The test was hiding something that had not been on screen for seventy
+  builds, and duly found that hiding it changed nothing.
+
+### The pace, in numbers
+
+Build 118 measured where each clip's motion lives and kept the shortest span
+holding 86% of it. That is the right question for *which part of this clip
+matters* and the wrong one for *what does the fight have time for* — and the two
+got composed:
+
+| clip | window | beat | played at |
+|---|---|---|---|
+| sword | 3.05 s | 1.00 s | **3.05×** |
+| ward | 2.85 s | 0.85 s | **3.35×** |
+| parry | 1.48 s | 0.42 s | **3.52×** |
+| idle | 1.14 s | 2.40 s | **0.47×** |
+
+Past about a quarter over, motion stops reading as motion and reads as a fault.
+The idle went the other way and read as underwater.
+
+**So the rule is inverted.** The beat is the fixed thing — it says how long this
+verb has on screen — so the window is simply *the best span of that length*:
+slide a window of the beat's duration along the clip and keep wherever the most
+motion is. Playback lands at 1.0× by construction, and a clip is authored at the
+speed a human animated it at, which is the speed it looks right at. A 20%
+overrun is allowed, because urgency reads as urgency and fast-forward does not.
+
+Everything now plays at **1.20×**, and the death — which holds when it finishes
+— got its own length rather than the fight's.
+
+### The loop was cut where it could not be cut
+
+The other half, and the sharper bug. **You cannot cut an arbitrary window out of
+a loop and expect it to loop:** the pose you cut in at is not the pose you cut
+out at. Measured on the shipped library, as the angle between the first pose and
+the last:
+
+```
+idle, authored whole   1.4°
+idle, windowed         7.2°   ← a snap, once a cycle
+```
+
+Five times worse, on the one clip that is on screen almost all the time. Loops
+keep every frame they were authored with now; the seam measures **0.09°**.
+
+### The beat travels with the clip
+
+It was a table in `cast3d.js` and a table in the mill, and two tables that must
+agree are one bug waiting for somebody to edit the wrong one. `clips.json`
+carries a `beat` and a `loop` flag now, written where the windows are chosen, so
+the runtime divides and gets the rate rather than holding a second opinion.
+
+`tools/rewindow.cjs` does this against the shipped library rather than the source
+GLBs — the track data is all there, so the windows can be re-chosen at any time
+without re-downloading sixty megabytes of animated character.
+
+### Two new guards, for the two things that had none
+
+- **PACE**: no clip plays outside 0.85–1.35× of its authored speed. Three builds
+  shipped a sword swing at 3.05× and nothing could see it, because nothing
+  exposed the number that would have said so.
+- **LOOP**: every looping clip closes on itself, under 3°.
+
+### A note on the repair
+
+Restoring the beat table cost more than it should have. A splice keyed on `const
+HOLDS` and `const RESAMPLE_FPS` deleted everything between them — and
+`watercolour()`, `retarget()` and `sampleQuat()` live in that gap, which the
+line numbers in the file said plainly and the edit did not check. The layer came
+up with `failed: "load: watercolour is not defined"`, which the suite reported
+as a hang rather than as a failure, because a layer that never becomes ready
+leaves every check after it waiting. Restored from git; worth a line here
+because the same shape of edit will look safe again next time.
+
+**Suites:** flow 257, road 94, bond 76, slice 85, line 32, camp 48, music 22,
+beat 10, cast 53 — 677 checks, all green.
+
+---
+
 ## Build 120 — the camera leaves its spot, and the painting comes apart at the horizon
 
 **The ask.** *"aim is off the screen fix that and build 120"* — and, from the
