@@ -4925,3 +4925,95 @@ camp 48/48 · music 22/22 · beat 10/10 · **cast 23/23** — no page errors.
 (slice reports 80–85 depending on the run: which stop each conversation lands
 on moves with the fight outcomes, so the loop that walks them runs a different
 number of times. Same checks, same kinds, no failure — logged, not chased.)
+
+## Build 114 — the party are themselves now
+
+Build 112 put one generated robed figure on the stage three times, told apart by
+palette, and asked whether the watercolour treatment could hold three
+separately-generated models together. It could. So this replaces the stand-in:
+**Ash, Elin and Mira are their own models, generated from the concept art that
+has been on their cards since Build 4**, and they move with real motion instead
+of eight hand-written poses.
+
+Ash keeps his longsword. Elin keeps her cross-topped staff. Both survived into
+the mesh, which matters more than it sounds — the weapon is most of the
+silhouette at 145 pixels tall.
+
+### One rig, one library, three characters
+
+The thing that made the animation affordable is that **Meshy's humanoid
+auto-rig is standardised**. All three characters came back with the same 24
+joints, in the same order, under the same names — so a clip authored against
+one of them drives all three, and the library is generated **once** instead of
+three times. An `AnimationClip` addresses its tracks by node name, so
+retargeting here is not a step at all; it is simply what happens.
+
+Ten clips, chosen against the verbs the fight already speaks:
+
+| verb | clip | who |
+|---|---|---|
+| idle | `Combat_Stance` | everyone |
+| slash | `Sword_Judgment` · `Attack` · `Double_Combo_Attack` | Ash · Elin · Mira |
+| cast | `Charged_Spell_Cast` | everyone |
+| heal | `mage_soell_cast` | everyone |
+| ward | `Block1` | everyone |
+| parry | `Sword_Parry` | everyone |
+| hurt | `Hit_Reaction` | everyone |
+| down | `Knock_Down` | everyone |
+
+`slash` is the one that forks, because a longsword, a staff and a pair of
+daggers are three different fights. Everything else is shared, which is exactly
+what makes one library enough.
+
+### The clip mill
+
+Meshy returns an animation the only way it can: as a whole character. Ten clips
+arrived as ten ~6 MB GLBs, each carrying the same mesh and the same 5 MB texture
+around the curves we actually wanted — 62 MB to ship a few hundred kilobytes of
+motion. `v2.3/tools/clips.cjs` loads each one in the same headless Chromium the
+suites use, takes the `AnimationClip` out, throws the mesh and the texture away,
+drops the scale tracks a rig nothing scales does not need, rounds to four
+decimals, and writes **one 685 KB JSON file**. It also renames each clip to the
+verb the fight speaks, so the game never has to know a parry arrived as
+`Armature|Sword_Parry|baselayer`.
+
+### Two things real clips broke that hand-written poses never could
+
+**The clips travel.** A sword judgment steps into the blow; a knock-down falls
+over backwards. Right in a vacuum, wrong in a box — the camera here is nailed to
+the origin, so a figure that walks forward walks out of frame. The hips are
+pinned in the horizontal plane now and left free in the vertical, which keeps
+the crouch and the fall and throws away the travel.
+
+**Every model comes back a different size.** And the frame for each one had to
+be found by LOOKING, after two attempts at computing it failed in different
+ways. `Box3.setFromObject` on a SkinnedMesh reports the authored geometry box —
+it made Elin 0.75 m tall standing next to a head bone at 1.35, and zoomed the
+camera into everybody's ribs. Measuring bone-to-bone then needs fudge factors
+for the sole below the toe bone and the hood above the crown, and they are
+different per character. So each figure is rendered once at load into a small
+offscreen target, its silhouette read out of the alpha channel, and the camera
+solved from that. One frame at startup, no constant tuned per model, and it will
+keep working for whatever the generator hands over next.
+
+### What it cost
+
+**212 of 267 Higgsfield credits.** Three rigged, textured characters at 44 each
+(132), and ten animation clips at 8 each (80) generated once on one rig. Doing
+the clips per character would have been 192 and would not have fitted.
+
+The gate was deliberate: Ash alone first, at 44 credits, so a bad rig or a lost
+sword cost one character rather than three.
+
+| | |
+|---|---|
+| Characters | 31k → 17.6k tris each, 2048² webp · **2.2 / 2.4 / 1.8 MB** |
+| Clip library | 685 KB of JSON, shared by all three |
+| three.js | vendored, unchanged |
+
+That is ~7 MB of cast on a first load, and it is the one number here worth
+arguing about: 1024² textures would halve it and, measured at 145 px tall in
+Build 113, looked identical. The 2048s are in because they were asked for.
+
+flow 257/257 · road 94/94 · bond 76/76 · line 32/32 · camp 48/48 ·
+music 22/22 · beat 10/10 · slice 85/85 · **cast 25/25** — no page errors.

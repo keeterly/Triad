@@ -22,20 +22,27 @@
 //
 // OFF BY DEFAULT. `?cast=3d` turns it on. The eight suites run the 2D stage
 // exactly as before.
+//
+// BUILD 114: the three of them are their OWN models now, generated from the
+// concept art that has been on the cards since Build 4, and they move with
+// motion-captured clips instead of the eight hand-written poses that stood in
+// for them. Ash keeps his sword, Elin keeps her staff. What made that
+// affordable is that Meshy's humanoid auto-rig is standardised: all three came
+// back with the same 24 joints, in the same order, under the same names, so
+// the clip library is generated ONCE against one of them and retargets onto
+// all three by name.
 
 import * as THREE from './lib/three.module.min.js';
 import { GLTFLoader } from './lib/GLTFLoader.js';
-import { clone as cloneSkinned } from './lib/SkeletonUtils.js';
 
 // ── who is on the board, and what colour they are ──────────────────────────
 //
-// ONE MODEL, THREE PEOPLE, and that is not a placeholder shrug — it is the
-// experiment. Three separately generated models will never share proportion,
-// palette or silhouette language; each generation is a lottery. If the
-// watercolour treatment can make three copies of ONE figure read as three
-// different people, it can carry three different figures into one party. The
-// palette is the variable: paper, shadow and ink per hero, plus a height and a
-// standing angle.
+// THREE MODELS NOW, one per person, generated from the concept art that has
+// been on their cards since Build 4. Build 112 ran one model in three palettes
+// to find out whether the watercolour treatment could hold three separately
+// generated figures together — it could, which is why this step was worth
+// taking. What survives from that experiment is the palette itself.
+//
 // THE HUE LIVES IN THE SHADOW, NOT IN THE PAPER. Tinting the light end is how
 // three figures turn into three lumps of colour — cream, sage and gold — that
 // read as silhouettes rather than as painted people. Real watercolour keeps
@@ -43,15 +50,20 @@ import { clone as cloneSkinned } from './lib/SkeletonUtils.js';
 // each hero gets a near-neutral paper and a shadow that carries the character:
 // warm earth for Ash, cold slate for Elin, sage for Mira.
 const CAST = {
-  ash:  { paper: 0xf7efe2, shadow: 0x9a7f6e, ink: 0x3d2f28, turn:  -14, tall: 1.00 },
-  elin: { paper: 0xf2f4f7, shadow: 0x8d9ab4, ink: 0x343b4a, turn:    9, tall: 0.95 },
-  mira: { paper: 0xeef2ea, shadow: 0x76907c, ink: 0x2b352e, turn:   16, tall: 0.96 },
+  ash:  { model: 'ash.glb',  paper: 0xf7efe2, shadow: 0x9a7f6e, ink: 0x3d2f28,
+          turn: -14, tall: 1.00, strike: 'sword' },
+  elin: { model: 'elin.glb', paper: 0xf2f4f7, shadow: 0x8d9ab4, ink: 0x343b4a,
+          turn:   9, tall: 0.97, strike: 'staff' },
+  mira: { model: 'mira.glb', paper: 0xeef2ea, shadow: 0x76907c, ink: 0x2b352e,
+          turn:  16, tall: 0.98, strike: 'daggers' },
 };
-const MODEL = './art/cast/aspirant.glb';
+const ART = './art/cast/';
+const D = Math.PI / 180;
+const CLIPS_URL = ART + 'clips.json';
 
 // ── the look, in one place ─────────────────────────────────────────────────
-// `?cast=3d` reads these; window.Cast3D.look({...}) overrides them live, which
-// is how they were chosen.
+// `?cast=3d&tune=1` puts these on screen; window.Cast3D.look({...}) overrides
+// them live, which is how they were chosen.
 const LOOK = {
   bands: 5.0,   // how many washes the tone is stepped into
   wash:  0.55,  // …and how much of the real painting survives the stepping
@@ -71,166 +83,61 @@ const LOOK_HELP = {
   air:   ['distance', 0, 1.6, 0.01, 'how hard the back ranks wash out'],
 };
 
+// ── what each verb looks like, per person ──────────────────────────────────
+//
+// THE FIGHT SPEAKS FOUR VERBS and has since Build 36: actionKind() returns
+// heal, cast, slash or ward. Three of them are the same motion whoever throws
+// them. The fourth is not — a longsword, a staff and a pair of daggers are
+// three different fights — so `slash` resolves through the character's own
+// `strike` and everything else is shared.
+//
+// The names on the right are the clips in the library, which are named for the
+// VERB rather than for what Meshy called them: the game never has to know that
+// a parry arrived as "Armature|Sword_Parry|baselayer".
+const VERB = {
+  slash: (id) => CAST[id].strike,     // sword · staff · daggers
+  cast:  () => 'cast',
+  heal:  () => 'heal',
+  ward:  () => 'ward',
+  parry: () => 'parry',
+  hurt:  () => 'hurt',
+  down:  () => 'down',
+  idle:  () => 'idle',
+};
+
+// A CLIP THAT HOLDS DOES NOT HAND THE BODY BACK. Everything else returns to
+// the idle when it finishes; going down stays down until the fight says
+// otherwise, which is the difference between a corpse and a stumble.
+const HOLDS = { down: true };
+
+// …and how fast each one is allowed to be. The library's clips are authored at
+// a cinematic pace — a four-second sword swing is a lovely thing to look at
+// and far too slow for a beat the fight resolves in a few hundred
+// milliseconds. These are multipliers on playback, not edits to the data, so
+// the timing can be retuned without regenerating anything.
+const RATE = {
+  sword: 2.6, daggers: 2.2, staff: 2.4, cast: 2.0, heal: 1.8,
+  ward: 2.6, parry: 3.0, hurt: 2.4, down: 1.5, idle: 1.0,
+};
+
 // ── the animation ──────────────────────────────────────────────────────────
 //
-// THE MODEL ARRIVED WITH NO ANIMATION. Its one clip is 0.3s long and holds a
-// single keyframe per channel — a bind pose wearing an animation's name. What
-// it does have is a 24-bone skeleton with MIXAMO NAMES (Hips, Spine, Spine01,
-// LeftShoulder, LeftForeArm, neck, Head…), which means poses can be written
-// against it by hand and, later, that Mixamo's own library retargets onto it
-// without a rename.
+// BUILD 112 WROTE THESE BY HAND. The sample model arrived with no animation —
+// one 0.3s clip holding a single keyframe per channel — so its eight verbs
+// were authored as bone-rotation data: readable, tiny, and unmistakably
+// hand-keyed. They are gone now, and so is the STANCE correction that existed
+// only because those poses were offsets from a T-pose.
 //
-// So the clips here are DATA, not baked curves: a bone name, and a few keys of
-// euler rotation in degrees. That buys three things a downloaded clip does not.
-// The timing can be tuned to the combat beats it has to hit rather than the
-// other way round. A clip is thirty lines instead of a megabyte. And every
-// verb the fight already speaks — actionKind() returns heal, cast, slash,
-// ward — can have a clip named after it, so wiring is a lookup rather than a
-// mapping table that drifts.
+// What replaced them is a library of ten real clips, milled out of Meshy's
+// animation catalogue by v2.3/tools/clips.cjs and stored as
+// THREE.AnimationClip JSON. `Combat_Stance` for the idle, `Sword_Judgment`
+// for Ash, `Double_Combo_Attack` for Mira, `Attack` for Elin's staff,
+// `Charged_Spell_Cast`, `mage_soell_cast` for mending, `Block1`,
+// `Sword_Parry`, `Hit_Reaction`, `Knock_Down`.
 //
-// Keys are [t, [x, y, z]] with t in SECONDS and rotations in DEGREES, applied
-// as offsets from the bind pose. `hips` may also carry [t, [x,y,z], [dx,dy,dz]]
-// — a translation offset in metres, which is what makes a lunge travel.
-const D = Math.PI / 180;
-
-// THE BIND POSE IS A T-POSE, and every clip here is written as an OFFSET from
-// rest — which means that without this the party stands on the battlefield
-// with their arms straight out for the whole fight, gently breathing. The
-// model arrived in the pose a rigger hands over, not the pose a character
-// stands in.
-//
-// So a STANCE is folded into rest once, at load: arms down and slightly
-// forward, elbows soft, weight settled, head level. Clips then read as
-// "eighteen degrees of shoulder" from a person standing, which is what makes
-// them writable by hand at all.
-const STANCE = {
-  LeftShoulder:  [0, 0, -6],
-  RightShoulder: [0, 0, 6],
-  LeftArm:       [0, 0, -72],
-  RightArm:      [0, 0, 72],
-  LeftForeArm:   [0, -14, -12],
-  RightForeArm:  [0, 14, 12],
-  LeftHand:      [0, 0, -6],
-  RightHand:     [0, 0, 6],
-  Spine:         [2, 0, 0],
-  Spine01:       [-1, 0, 0],
-  neck:          [-2, 0, 0],
-};
-
-const CLIPS = {
-  // IDLE IS THE ONE THAT MATTERS. A turn-based fight spends almost all of its
-  // time with nobody acting; if the party is frozen between plays, the 3D
-  // figures look worse than the sprites did, because a still 3D model reads as
-  // a broken 3D model where a still painting reads as a painting. Breathing,
-  // a slow weight shift, and a little drift in the arms — long, unequal
-  // periods so three figures on one screen never fall into lockstep.
-  idle: { loop: true, dur: 4.4, tracks: {
-    Hips:          [[0, [0, 0, 0], [0, 0, 0]], [1.5, [1.2, 0, 0], [0, -0.012, 0]],
-                    [3.0, [0, 0, 0], [0, 0.004, 0]], [4.4, [0, 0, 0], [0, 0, 0]]],
-    Spine:         [[0, [0, 0, 0]], [1.5, [-1.6, 0.8, 0]], [3.0, [1.0, -0.6, 0]], [4.4, [0, 0, 0]]],
-    Spine01:       [[0, [0, 0, 0]], [2.2, [-1.4, 0, 0]], [4.4, [0, 0, 0]]],
-    neck:          [[0, [0, 0, 0]], [1.9, [1.8, -2.4, 0]], [3.6, [-1.0, 1.6, 0]], [4.4, [0, 0, 0]]],
-    LeftArm:       [[0, [0, 0, 0]], [2.1, [0, 0, 3.2]], [4.4, [0, 0, 0]]],
-    RightArm:      [[0, [0, 0, 0]], [2.6, [0, 0, -3.4]], [4.4, [0, 0, 0]]],
-    LeftForeArm:   [[0, [0, 0, 0]], [2.4, [0, 0, 2.6]], [4.4, [0, 0, 0]]],
-    RightForeArm:  [[0, [0, 0, 0]], [1.8, [0, 0, -2.2]], [4.4, [0, 0, 0]]],
-  } },
-
-  // A SWING NEEDS AN ANTICIPATION OR IT IS A TELEPORT. Wind back away from the
-  // target for a third of the clip, snap through in three frames, then settle.
-  // The hips travel forward on the snap and drift back on the settle — that
-  // forward carry is most of what makes a hit feel like it had weight.
-  slash: { dur: 0.72, tracks: {
-    Hips:          [[0, [0, 0, 0], [0, 0, 0]], [0.24, [0, 14, 0], [0, 0, -0.05]],
-                    [0.34, [0, -22, 0], [0, -0.02, 0.20]], [0.50, [0, -12, 0], [0, 0, 0.12]],
-                    [0.72, [0, 0, 0], [0, 0, 0]]],
-    Spine:         [[0, [0, 0, 0]], [0.24, [-8, 12, 0]], [0.34, [12, -18, 0]], [0.72, [0, 0, 0]]],
-    Spine01:       [[0, [0, 0, 0]], [0.24, [-6, 8, 0]], [0.34, [10, -12, 0]], [0.72, [0, 0, 0]]],
-    RightShoulder: [[0, [0, 0, 0]], [0.24, [0, 0, -18]], [0.34, [0, 0, 26]], [0.72, [0, 0, 0]]],
-    RightArm:      [[0, [0, 0, 0]], [0.24, [-38, 0, -26]], [0.34, [46, 0, 34]], [0.72, [0, 0, 0]]],
-    RightForeArm:  [[0, [0, 0, 0]], [0.24, [-46, 0, 0]], [0.34, [18, 0, 0]], [0.72, [0, 0, 0]]],
-    LeftArm:       [[0, [0, 0, 0]], [0.24, [14, 0, 20]], [0.34, [-20, 0, -14]], [0.72, [0, 0, 0]]],
-    neck:          [[0, [0, 0, 0]], [0.24, [-6, 10, 0]], [0.34, [10, -12, 0]], [0.72, [0, 0, 0]]],
-  } },
-
-  // A SPELL IS ANNOUNCED — the game already believes this; fxCast blooms a ring
-  // under the caster before anything lands. So the clip is a gather and a
-  // release, and it is SLOWER than the slash: you can see it coming.
-  cast: { dur: 0.94, tracks: {
-    Hips:          [[0, [0, 0, 0], [0, 0, 0]], [0.40, [-4, 0, 0], [0, -0.03, 0]],
-                    [0.62, [6, 0, 0], [0, 0.02, 0.04]], [0.94, [0, 0, 0], [0, 0, 0]]],
-    Spine:         [[0, [0, 0, 0]], [0.40, [-12, 0, 0]], [0.62, [10, 0, 0]], [0.94, [0, 0, 0]]],
-    Spine01:       [[0, [0, 0, 0]], [0.40, [-8, 0, 0]], [0.62, [8, 0, 0]], [0.94, [0, 0, 0]]],
-    LeftArm:       [[0, [0, 0, 0]], [0.40, [-52, 0, 24]], [0.62, [-28, 0, 40]], [0.94, [0, 0, 0]]],
-    RightArm:      [[0, [0, 0, 0]], [0.40, [-52, 0, -24]], [0.62, [-28, 0, -40]], [0.94, [0, 0, 0]]],
-    LeftForeArm:   [[0, [0, 0, 0]], [0.40, [-34, 0, 0]], [0.62, [-12, 0, 0]], [0.94, [0, 0, 0]]],
-    RightForeArm:  [[0, [0, 0, 0]], [0.40, [-34, 0, 0]], [0.62, [-12, 0, 0]], [0.94, [0, 0, 0]]],
-    neck:          [[0, [0, 0, 0]], [0.40, [-10, 0, 0]], [0.62, [6, 0, 0]], [0.94, [0, 0, 0]]],
-  } },
-
-  // A GUARD IS A BRACE, not a flourish: turn the shoulder in, drop the weight,
-  // hold it a beat longer than feels necessary, come back up.
-  ward: { dur: 0.80, tracks: {
-    Hips:          [[0, [0, 0, 0], [0, 0, 0]], [0.20, [0, 18, 0], [0, -0.045, 0]],
-                    [0.52, [0, 20, 0], [0, -0.05, 0]], [0.80, [0, 0, 0], [0, 0, 0]]],
-    Spine:         [[0, [0, 0, 0]], [0.20, [10, 14, 0]], [0.52, [12, 16, 0]], [0.80, [0, 0, 0]]],
-    LeftShoulder:  [[0, [0, 0, 0]], [0.20, [0, 0, 22]], [0.52, [0, 0, 24]], [0.80, [0, 0, 0]]],
-    LeftArm:       [[0, [0, 0, 0]], [0.20, [-58, 0, 34]], [0.52, [-60, 0, 36]], [0.80, [0, 0, 0]]],
-    LeftForeArm:   [[0, [0, 0, 0]], [0.20, [-64, 0, 0]], [0.52, [-66, 0, 0]], [0.80, [0, 0, 0]]],
-    RightArm:      [[0, [0, 0, 0]], [0.20, [-24, 0, -18]], [0.52, [-26, 0, -20]], [0.80, [0, 0, 0]]],
-    neck:          [[0, [0, 0, 0]], [0.20, [8, 8, 0]], [0.52, [9, 9, 0]], [0.80, [0, 0, 0]]],
-  } },
-
-  // MENDING OPENS. Everything else here closes the body; this one lifts the
-  // chest and opens the arms, so heal reads as the opposite of guard even at
-  // 145 pixels tall where you cannot see the hands.
-  heal: { dur: 1.00, tracks: {
-    Hips:          [[0, [0, 0, 0], [0, 0, 0]], [0.44, [-6, 0, 0], [0, 0.028, 0]], [1.00, [0, 0, 0], [0, 0, 0]]],
-    Spine:         [[0, [0, 0, 0]], [0.44, [-14, 0, 0]], [1.00, [0, 0, 0]]],
-    Spine01:       [[0, [0, 0, 0]], [0.44, [-10, 0, 0]], [1.00, [0, 0, 0]]],
-    LeftArm:       [[0, [0, 0, 0]], [0.44, [-30, 0, 46]], [1.00, [0, 0, 0]]],
-    RightArm:      [[0, [0, 0, 0]], [0.44, [-30, 0, -46]], [1.00, [0, 0, 0]]],
-    LeftForeArm:   [[0, [0, 0, 0]], [0.44, [-16, 0, 0]], [1.00, [0, 0, 0]]],
-    RightForeArm:  [[0, [0, 0, 0]], [0.44, [-16, 0, 0]], [1.00, [0, 0, 0]]],
-    neck:          [[0, [0, 0, 0]], [0.44, [-16, 0, 0]], [1.00, [0, 0, 0]]],
-  } },
-
-  // TAKING A HIT IS FAST AND UGLY. Two frames out, four frames back.
-  hurt: { dur: 0.46, tracks: {
-    Hips:          [[0, [0, 0, 0], [0, 0, 0]], [0.09, [0, 0, 0], [0, -0.03, -0.10]],
-                    [0.24, [0, 0, 0], [0, 0, -0.03]], [0.46, [0, 0, 0], [0, 0, 0]]],
-    Spine:         [[0, [0, 0, 0]], [0.09, [18, -8, 0]], [0.24, [8, -4, 0]], [0.46, [0, 0, 0]]],
-    Spine01:       [[0, [0, 0, 0]], [0.09, [14, -6, 0]], [0.46, [0, 0, 0]]],
-    neck:          [[0, [0, 0, 0]], [0.09, [22, -10, 0]], [0.24, [10, -4, 0]], [0.46, [0, 0, 0]]],
-    LeftArm:       [[0, [0, 0, 0]], [0.09, [0, 0, 26]], [0.46, [0, 0, 0]]],
-    RightArm:      [[0, [0, 0, 0]], [0.09, [0, 0, -26]], [0.46, [0, 0, 0]]],
-  } },
-
-  // THE PARRY IS THE BEST THING IN THE GAME and it lasts a handful of frames,
-  // so this is the shortest clip here: a turn into the blow, not away from it.
-  parry: { dur: 0.34, tracks: {
-    Hips:          [[0, [0, 0, 0], [0, 0, 0]], [0.08, [0, 26, 0], [0, -0.02, 0.05]], [0.34, [0, 0, 0], [0, 0, 0]]],
-    Spine:         [[0, [0, 0, 0]], [0.08, [-6, 22, 0]], [0.34, [0, 0, 0]]],
-    RightShoulder: [[0, [0, 0, 0]], [0.08, [0, 0, 30]], [0.34, [0, 0, 0]]],
-    RightArm:      [[0, [0, 0, 0]], [0.08, [-64, 0, 22]], [0.34, [0, 0, 0]]],
-    RightForeArm:  [[0, [0, 0, 0]], [0.08, [-70, 0, 0]], [0.34, [0, 0, 0]]],
-    neck:          [[0, [0, 0, 0]], [0.08, [-4, 20, 0]], [0.34, [0, 0, 0]]],
-  } },
-
-  // DOWN HOLDS. Unlike every other clip this one does not return to idle — it
-  // ends where it ends and stays there until the fight says otherwise.
-  down: { dur: 0.90, hold: true, tracks: {
-    Hips:          [[0, [0, 0, 0], [0, 0, 0]], [0.30, [0, 0, 0], [0, -0.22, -0.06]],
-                    [0.90, [10, 0, 0], [0, -0.42, -0.10]]],
-    Spine:         [[0, [0, 0, 0]], [0.30, [22, 6, 0]], [0.90, [40, 10, 0]]],
-    Spine01:       [[0, [0, 0, 0]], [0.90, [26, 6, 0]]],
-    neck:          [[0, [0, 0, 0]], [0.90, [34, 8, 0]]],
-    LeftArm:       [[0, [0, 0, 0]], [0.90, [0, 0, 40]]],
-    RightArm:      [[0, [0, 0, 0]], [0.90, [0, 0, -40]]],
-    LeftUpLeg:     [[0, [0, 0, 0]], [0.90, [-30, 0, 0]]],
-    RightUpLeg:    [[0, [0, 0, 0]], [0.90, [-24, 0, 0]]],
-  } },
-};
+// Ten clips arrived as ten ~6 MB GLBs, each carrying a whole character around
+// the curves we actually wanted. Stripped of mesh and texture, and of the
+// scale tracks a rig nothing scales does not need, the library is 685 KB.
 
 // ── the watercolour material ───────────────────────────────────────────────
 //
@@ -320,99 +227,101 @@ function watercolour(map, tone) {
 }
 
 // ── the figure ─────────────────────────────────────────────────────────────
-// One per hero: the cloned skeleton, the bones we can address by Mixamo name,
-// and whatever clip is playing over the idle underneath it.
+// One per hero: their own model, their own mixer, and whatever clip is
+// playing over the idle underneath it.
+//
+// THE IDLE ALWAYS RUNS. A turn-based fight spends almost all of its time with
+// nobody acting, and a still 3D figure reads as a BROKEN 3D figure where a
+// still painting reads as a painting. So the idle is an action that never
+// stops, and an acting clip is CROSS-FADED over the top of it and faded back
+// out — which is also why nothing ever snaps.
 class Figure {
-  constructor(root, tone) {
+  constructor(root, tone, clips) {
     this.root = root;
     this.tone = tone;
+    this.mixer = new THREE.AnimationMixer(root);
+    this.actions = {};
+    for (const name of Object.keys(clips)) {
+      const a = this.mixer.clipAction(clips[name]);
+      a.setEffectiveWeight(0);
+      a.timeScale = RATE[name] || 1;
+      if (HOLDS[name]) { a.loop = THREE.LoopOnce; a.clampWhenFinished = true; }
+      else if (name !== 'idle') a.loop = THREE.LoopOnce;
+      this.actions[name] = a;
+    }
+    this.idle = this.actions.idle || null;
+    if (this.idle) {
+      this.idle.loop = THREE.LoopRepeat;
+      this.idle.setEffectiveWeight(1).play();
+      // THREE FIGURES BREATHING ON THE SAME FRAME is worse than three still
+      // ones, so each starts somewhere else in the loop.
+      this.idle.time = Math.random() * (this.idle.getClip().duration || 1);
+    }
+    this.clipName = null;
+    this.acting = null;
     this.bones = {};
-    this.rest = {};
-    root.traverse(o => {
-      if (!o.isBone) return;
-      this.bones[o.name] = o;
-      // THE BIND POSE IS THE ZERO. Clips are written as offsets from wherever
-      // the model actually stands, so a clip is readable as "eighteen degrees
-      // of shoulder" rather than as an absolute quaternion nobody can picture.
-      const st = STANCE[o.name];
-      const q = o.quaternion.clone();
-      if (st) q.multiply(new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(st[0] * D, st[1] * D, st[2] * D)));
-      this.rest[o.name] = { q, p: o.position.clone() };
-      // …and the stance is applied NOW, not only once a clip happens to touch
-      // this bone: a bone no clip mentions must still stand naturally.
-      o.quaternion.copy(q);
+    root.traverse(o => { if (o.isBone) this.bones[o.name] = o; });
+
+    // THE CLIPS TRAVEL. A sword judgment steps into the blow and a knock-down
+    // falls over backwards — motion that is right in a vacuum and wrong in a
+    // box, because the camera here is nailed to the origin and a figure that
+    // walks forward simply walks out of frame. So the hips are pinned in the
+    // horizontal plane and left free in the vertical, which keeps the crouch
+    // and the fall while throwing away the travel.
+    this.hips = this.bones.Hips || null;
+    this.hipRest = this.hips ? this.hips.position.clone() : null;
+
+    // …AND EVERY MODEL COMES BACK A DIFFERENT SIZE. Meshy is asked for a height
+    // in metres and obliges approximately, and nothing guarantees the figure
+    // stands at x=0 either.
+    //
+    // THE FRAME IS FOUND BY LOOKING, NOT BY ARITHMETIC. Two attempts at
+    // computing it failed in different ways: Box3.setFromObject reports a
+    // SkinnedMesh's authored geometry box, which made Elin 0.75 m tall next to
+    // a head bone standing at 1.35 and zoomed the camera into everyone's ribs;
+    // and measuring bone-to-bone needs fudge factors for the sole below the toe
+    // and the hood above the crown that are different for every character.
+    // Rendering the figure once and reading its silhouette out of the alpha
+    // channel is ground truth, costs one frame at load, and never needs a
+    // constant tuned per model. `fit` fills these in.
+    this.viewH = 2.0;
+    this.midX = 0;
+    this.midY = 0.9;
+
+    this.mixer.addEventListener('finished', (e) => {
+      if (e.action !== this.acting) return;
+      if (HOLDS[this.clipName]) return;     // down stays down
+      this.clear();
     });
-    this.clip = null;      // the acting clip, or null
-    this.t = 0;            // time inside it
-    this.idleT = Math.random() * CLIPS.idle.dur;   // so three figures never sync
-    this.blend = 0;        // 0 = pure idle, 1 = pure clip
   }
 
   play(name) {
-    const c = CLIPS[name];
-    if (!c) return false;
-    this.clip = c; this.clipName = name; this.t = 0;
+    const a = this.actions[name];
+    if (!a) return false;
+    if (this.acting && this.acting !== a) this.acting.fadeOut(0.12);
+    a.reset();
+    a.setEffectiveWeight(1);
+    a.fadeIn(0.10).play();
+    // the idle keeps running underneath at a whisper, so a held pose still
+    // breathes rather than freezing solid
+    if (this.idle) this.idle.setEffectiveWeight(HOLDS[name] ? 0 : 0.25);
+    this.acting = a;
+    this.clipName = name;
     return true;
   }
 
-  clear() { this.clip = null; this.clipName = null; this.blend = 0; }
-
-  // sample one track at time t → [rot(deg), pos(m)]
-  static sample(keys, t) {
-    if (!keys.length) return null;
-    if (t <= keys[0][0]) return [keys[0][1], keys[0][2] || null];
-    const last = keys[keys.length - 1];
-    if (t >= last[0]) return [last[1], last[2] || null];
-    for (let i = 1; i < keys.length; i++) {
-      if (t > keys[i][0]) continue;
-      const a = keys[i - 1], b = keys[i];
-      let u = (t - a[0]) / (b[0] - a[0]);
-      u = u * u * (3 - 2 * u);                       // smoothstep, not linear
-      const lerp3 = (p, q) => p && q
-        ? [p[0] + (q[0] - p[0]) * u, p[1] + (q[1] - p[1]) * u, p[2] + (q[2] - p[2]) * u]
-        : null;
-      return [lerp3(a[1], b[1]), lerp3(a[2] || [0, 0, 0], b[2] || [0, 0, 0])];
-    }
-    return [last[1], last[2] || null];
+  clear() {
+    if (this.acting) this.acting.fadeOut(0.16);
+    if (this.idle) this.idle.setEffectiveWeight(1);
+    this.acting = null;
+    this.clipName = null;
   }
 
   step(dt) {
-    this.idleT = (this.idleT + dt) % CLIPS.idle.dur;
-    if (this.clip) {
-      this.t += dt;
-      if (this.t >= this.clip.dur && !this.clip.hold) this.clear();
-      else if (this.t >= this.clip.dur) this.t = this.clip.dur;
-    }
-    // EASE IN AND OUT OF AN ACTION. A clip that snaps on at full strength pops,
-    // and popping is the thing that gives away a rig. 90 ms each way.
-    const want = this.clip ? 1 : 0;
-    const rate = dt / 0.09;
-    this.blend += Math.max(-rate, Math.min(rate, want - this.blend));
-
-    const idle = CLIPS.idle.tracks;
-    const act = this.clip ? this.clip.tracks : null;
-    const names = this._names || (this._names = [...new Set(
-      [...Object.keys(idle), ...Object.values(CLIPS).flatMap(c => Object.keys(c.tracks))])]);
-
-    const e = new THREE.Euler(), q = new THREE.Quaternion();
-    for (const n of names) {
-      const b = this.bones[n]; if (!b) continue;
-      const rest = this.rest[n];
-      const i = idle[n] ? Figure.sample(idle[n], this.idleT) : null;
-      const a = act && act[n] ? Figure.sample(act[n], this.t) : null;
-      const mix = (x, y) => (x || 0) * (1 - this.blend) + (y || 0) * this.blend;
-      const ir = i ? i[0] : [0, 0, 0], ar = a ? a[0] : [0, 0, 0];
-      e.set(mix(ir[0], ar[0]) * D, mix(ir[1], ar[1]) * D, mix(ir[2], ar[2]) * D);
-      q.setFromEuler(e);
-      b.quaternion.copy(rest.q).multiply(q);
-      const ip = i ? i[1] : null, ap = a ? a[1] : null;
-      if (ip || ap) {
-        const i0 = ip || [0, 0, 0], a0 = ap || [0, 0, 0];
-        b.position.set(rest.p.x + mix(i0[0], a0[0]),
-                       rest.p.y + mix(i0[1], a0[1]),
-                       rest.p.z + mix(i0[2], a0[2]));
-      }
+    this.mixer.update(dt);
+    if (this.hips && this.hipRest) {
+      this.hips.position.x = this.hipRest.x;
+      this.hips.position.z = this.hipRest.z;
     }
   }
 }
@@ -422,7 +331,7 @@ const Cast3D = (() => {
   let on = false, ready = false, failed = null;
   let renderer = null, scene = null, cam = null, canvas = null;
   const figs = {};
-  let last = 0, raf = 0, pending = null;
+  let last = 0, raf = 0, pending = null, clipNames = [];
 
   // THE CAMERA IS ORTHOGRAPHIC and every figure gets its own slice of it. A
   // perspective camera spanning the whole stage would splay the outer heroes
@@ -430,7 +339,9 @@ const Cast3D = (() => {
   // the party look like it is standing in a fish-eye. Orthographic keeps each
   // figure square to the viewer, exactly like the sprites it replaces, and the
   // 3D is spent on ROTATION and MOTION rather than on perspective.
-  const VIEW_H = 2.0;   // world metres visible top to bottom in a hero's box
+  // how much of a hero's box the figure fills, top to bottom. The rest is the
+  // air a swing needs — a sword raised overhead leaves the frame at 1.0.
+  const FILL = 0.72;
 
   function build() {
     const host = document.getElementById('k-cast');
@@ -459,27 +370,102 @@ const Cast3D = (() => {
     return true;
   }
 
+  // ── find each figure's frame by looking at it ────────────────────────────
+  // Render one figure alone into a small offscreen target, read the alpha
+  // channel, and solve for the camera that puts its silhouette in the middle
+  // of the box at FILL of the height. Four passes converge from any start.
+  // Runs once, at load, on the idle's first frame.
+  function fit(f) {
+    const W = 192, H = 288;
+    const target = new THREE.WebGLRenderTarget(W, H);
+    const buf = new Uint8Array(W * H * 4);
+    const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 40);
+    const wasVisible = {};
+    for (const id of Object.keys(figs)) {
+      wasVisible[id] = figs[id].root.visible;
+      figs[id].root.visible = (figs[id] === f);
+    }
+    const prevTarget = renderer.getRenderTarget();
+    const scissorWas = renderer.getScissorTest();
+    renderer.setScissorTest(false);
+
+    for (let pass = 0; pass < 5; pass++) {
+      const aspect = W / H;
+      cam.top = f.viewH / 2; cam.bottom = -f.viewH / 2;
+      cam.left = -f.viewH * aspect / 2; cam.right = f.viewH * aspect / 2;
+      cam.position.set(f.midX, f.midY, 6);
+      cam.lookAt(f.midX, f.midY, 0);
+      cam.updateProjectionMatrix();
+      renderer.setRenderTarget(target);
+      renderer.setViewport(0, 0, W, H);
+      renderer.clear();
+      renderer.render(scene, cam);
+      renderer.readRenderTargetPixels(target, 0, 0, W, H, buf);
+
+      let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        if (buf[(y * W + x) * 4 + 3] > 20) {
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      }
+      if (x1 < 0) { f.viewH *= 2; continue; }          // nothing drawn: pull back
+      // the render target counts y from the BOTTOM, like GL
+      const perPx = f.viewH / H;
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      f.midX += (cx - W / 2) * perPx;
+      f.midY += (cy - H / 2) * perPx;
+      const h = (y1 - y0) / H;
+      if (Math.abs(h - FILL) < 0.015) break;
+      f.viewH *= h / FILL;
+    }
+
+    renderer.setRenderTarget(prevTarget);
+    renderer.setScissorTest(scissorWas);
+    for (const id of Object.keys(figs)) figs[id].root.visible = wasVisible[id];
+    target.dispose();
+  }
+
+  // THE CLIP LIBRARY IS SHARED, THE MODELS ARE NOT. Meshy's humanoid rig is
+  // standardised — all three characters came back with the same 24 joints, in
+  // the same order, under the same names — so one library of clips authored
+  // against one of them drives all three. An AnimationClip addresses its
+  // tracks by node name, which means retargeting here is not a step at all; it
+  // is simply what happens.
   async function load() {
-    const gltf = await new GLTFLoader().loadAsync(MODEL);
-    let map = null;
-    gltf.scene.traverse(o => {
-      if (o.isMesh || o.isSkinnedMesh) map = map || o.material.map || o.material.emissiveMap;
-    });
-    for (const id of Object.keys(CAST)) {
+    const loader = new GLTFLoader();
+    const [lib, ...models] = await Promise.all([
+      fetch(CLIPS_URL).then(r => {
+        if (!r.ok) throw new Error('clips ' + r.status);
+        return r.json();
+      }),
+      ...Object.keys(CAST).map(id => loader.loadAsync(ART + CAST[id].model)),
+    ]);
+    const clips = {};
+    for (const name of Object.keys(lib)) clips[name] = THREE.AnimationClip.parse(lib[name]);
+    clipNames = Object.keys(clips);
+
+    Object.keys(CAST).forEach((id, i) => {
       const tone = CAST[id];
-      // SkeletonUtils.clone, NOT Object3D.clone. The latter hands every copy
-      // the ORIGINAL's skeleton, so three figures share one pose and only the
-      // first one animates — and the symptom is that they all stand in the
-      // bind pose, which reads as "the rig is broken".
-      const root = cloneSkinned(gltf.scene);
+      const root = models[i].scene;
+      let map = null;
+      root.traverse(o => {
+        if (o.isMesh || o.isSkinnedMesh) map = map || o.material.map || o.material.emissiveMap;
+      });
       const mat = watercolour(map, tone);
-      root.traverse(o => { if (o.isMesh || o.isSkinnedMesh) { o.material = mat; o.frustumCulled = false; } });
-      root.userData.mat = mat;
+      root.traverse(o => {
+        if (o.isMesh || o.isSkinnedMesh) { o.material = mat; o.frustumCulled = false; }
+      });
       root.rotation.y = tone.turn * D;
       root.scale.setScalar(tone.tall);
+      root.userData.mat = mat;
       scene.add(root);
-      figs[id] = new Figure(root, tone);
-    }
+      figs[id] = new Figure(root, tone, clips);
+    });
+    // one frame of the idle, so the measurement sees a standing figure rather
+    // than whatever the bind pose happens to be
+    for (const id of Object.keys(figs)) figs[id].step(0.016);
+    for (const id of Object.keys(figs)) fit(figs[id]);
     ready = true;
   }
 
@@ -551,11 +537,14 @@ const Cast3D = (() => {
       const yUp = box.hostH - box.y - box.h;
       renderer.setViewport(box.x, yUp, box.w, box.h);
       renderer.setScissor(box.x, yUp, box.w, box.h);
+      // framed to THIS figure's measured height, so three models of three
+      // different sizes still stand on one line and fill their boxes alike
       const aspect = box.w / box.h;
-      cam.top = VIEW_H / 2; cam.bottom = -VIEW_H / 2;
-      cam.left = -VIEW_H * aspect / 2; cam.right = VIEW_H * aspect / 2;
-      cam.position.set(0, VIEW_H / 2 - 0.14, 6);
-      cam.lookAt(0, VIEW_H / 2 - 0.14, 0);
+      const viewH = f.viewH;
+      cam.top = viewH / 2; cam.bottom = -viewH / 2;
+      cam.left = -viewH * aspect / 2; cam.right = viewH * aspect / 2;
+      cam.position.set(f.midX, f.midY, 6);
+      cam.lookAt(f.midX, f.midY, 0);
       cam.updateProjectionMatrix();
       f.root.visible = true;
       renderer.render(scene, cam);
@@ -588,19 +577,24 @@ const Cast3D = (() => {
       if (canvas) canvas.style.display = 'none';
     },
     // the fight speaks in verbs; this is the whole interface
-    play(heroId, clip) {
+    // THE FIGHT ASKS FOR A VERB, NOT A CLIP. `slash` is a longsword for Ash, a
+    // staff for Elin and a pair of daggers for Mira; everything else is the
+    // same motion whoever throws it. Resolving that here means game.js keeps
+    // speaking the four words actionKind() has returned since Build 36.
+    play(heroId, verb) {
       const f = figs[heroId];
       if (!on || !f) return false;
       // IDLE IS NOT AN ACTION, it is what is left when no action is playing.
       // Asking for it by name — which is what standing back up does — means
       // "stop acting", not "play the idle once and then stop".
-      if (clip === 'idle') { f.clear(); return true; }
-      return f.play(clip);
+      if (verb === 'idle') { f.clear(); return true; }
+      const pick = VERB[verb];
+      return f.play(pick ? pick(heroId) : verb);
     },
     all(clip) { Object.keys(figs).forEach(id => this.play(id, clip)); },
     // test-only: what the layer thinks is true right now
     _state: () => ({
-      on, ready, failed, clips: Object.keys(CLIPS),
+      on, ready, failed, clips: clipNames,
       figures: Object.keys(figs),
       playing: Object.fromEntries(Object.keys(figs).map(id => [id, figs[id].clipName || null])),
       bones: Object.keys(figs).length ? Object.keys(figs[Object.keys(figs)[0]].bones).length : 0,
@@ -610,6 +604,8 @@ const Cast3D = (() => {
       const e = new THREE.Euler().setFromQuaternion(f.bones[bone].quaternion);
       return [+(e.x / D).toFixed(2), +(e.y / D).toFixed(2), +(e.z / D).toFixed(2)];
     },
+    // test-only: which library clip a verb resolves to for this person
+    _verbClip: (heroId, verb) => (VERB[verb] ? VERB[verb](heroId) : null),
     _figure: (id) => figs[id] || null,
     // Tune the look without a reload: Cast3D.look({ bands: 5, wash: 0.4 }).
     // Called with nothing it reports what is currently set.
@@ -663,7 +659,7 @@ function tunePanel() {
       + '</div>';
   }
   html += '<div style="margin-top:7px;border-top:1px solid #332f2a;padding-top:6px">';
-  for (const c of Object.keys(CLIPS)) {
+  for (const c of Object.keys(VERB)) {
     html += '<button data-clip="' + c + '" style="margin:1px 2px 1px 0;padding:2px 5px;'
       + 'font:9px ui-monospace,monospace;background:#241f28;color:#cfc6b6;'
       + 'border:1px solid #453d34;border-radius:3px;cursor:pointer">' + c + '</button>';

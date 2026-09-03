@@ -28,18 +28,39 @@ const { boot } = require('./harness.cjs');
   check('LAYER: ?cast=3d builds the layer and it comes up without excuses',
     !!st && st.on && st.ready && !st.failed, JSON.stringify(st && { on: st.on, ready: st.ready, failed: st.failed }));
 
-  check('LAYER: three figures, one per hero, and the rig came through the clone',
+  check('LAYER: three figures, one per hero, each with its own 24-bone rig',
     !!st && st.figures.length === 3 && st.bones === 24,
     JSON.stringify({ figures: st && st.figures, bones: st && st.bones }));
 
   // THE VERBS THE FIGHT ALREADY SPEAKS. actionKind() has returned these four
   // since Build 36; if a clip goes missing the wiring fails silently, because
   // castPlay() is a no-op by design.
-  const verbs = ['heal', 'cast', 'slash', 'ward'];
-  check('LAYER: every verb the fight speaks has a clip to play',
-    !!st && verbs.every(v => st.clips.indexOf(v) >= 0)
-    && ['idle', 'hurt', 'parry', 'down'].every(v => st.clips.indexOf(v) >= 0),
+  const verbs = ['heal', 'cast', 'slash', 'ward', 'idle', 'hurt', 'parry', 'down'];
+  const resolved = await J((vs) => {
+    const out = {};
+    for (const id of ['ash', 'elin', 'mira'])
+      for (const v of vs) out[id + '.' + v] = window.Cast3D._verbClip(id, v);
+    return out;
+  }, verbs);
+  check('LAYER: every verb the fight speaks resolves to a clip in the library',
+    Object.values(resolved).every(c => c && st.clips.indexOf(c) >= 0),
     JSON.stringify(st && st.clips));
+
+  // A LONGSWORD, A STAFF AND A PAIR OF DAGGERS ARE THREE DIFFERENT FIGHTS. If
+  // `slash` collapsed to one clip the party would swing identically and the
+  // whole point of giving them their own models would be lost below the neck.
+  check('LAYER: slash is a different motion for each of them',
+    resolved['ash.slash'] === 'sword' && resolved['elin.slash'] === 'staff'
+    && resolved['mira.slash'] === 'daggers',
+    JSON.stringify({ ash: resolved['ash.slash'], elin: resolved['elin.slash'],
+                     mira: resolved['mira.slash'] }));
+
+  // …and everything else IS shared, which is what makes one library enough.
+  check('LAYER: the other verbs are one motion the whole party shares',
+    ['cast', 'heal', 'ward', 'parry', 'hurt', 'down'].every(v =>
+      resolved['ash.' + v] === resolved['elin.' + v]
+      && resolved['elin.' + v] === resolved['mira.' + v]),
+    JSON.stringify(['cast', 'heal', 'ward'].map(v => resolved['ash.' + v])));
 
   const canvas = await J(() => {
     const c = document.getElementById('k-cast3d');
@@ -160,9 +181,10 @@ const { boot } = require('./harness.cjs');
   for (const v of ['slash', 'cast', 'ward', 'heal', 'hurt', 'parry']) {
     const got = await J((clip) => {
       window.Cast3D.play('ash', clip);
-      return window.Cast3D._state().playing.ash;
+      return { playing: window.Cast3D._state().playing.ash,
+               want: window.Cast3D._verbClip('ash', clip) };
     }, v);
-    check('VERB: ' + v + ' plays', got === v, JSON.stringify({ asked: v, playing: got }));
+    check('VERB: ' + v + ' plays', got.playing === got.want, JSON.stringify({ asked: v, ...got }));
   }
 
   // A CLIP RETURNS TO IDLE ON ITS OWN. If it did not, the first strike of a
@@ -204,7 +226,6 @@ const { boot } = require('./harness.cjs');
   // both look like an art problem from anywhere except a pixel diff.
   console.log('\n── the pose reaches the pixels ──');
   const silhouette = await J(async () => {
-    const f = window.Cast3D._figure('ash');
     const shot = async () => {
       await window.Cast3D._snapshot();
       const c = window.__castShot;
@@ -218,23 +239,30 @@ const { boot } = require('./harness.cjs');
       for (let i = 3; i < d.length; i += 4) { const on = d[i] > 24 ? 1 : 0; mask.push(on); lit += on; }
       return { mask, lit };
     };
-    // THE LAYER'S CLOCK IS HELD STILL. Sleeping for a chosen number of
+    // THE MIXER'S CLOCK IS DRIVEN DIRECTLY. Sleeping for a chosen number of
     // milliseconds measures the harness's frame rate, not the clip — headless
-    // advances a clip at about a third of real time, which is how four
-    // screenshots of four different actions came out looking identical.
-    const hold = async (clip, t) => {
-      f.play(clip); f.t = t; f.blend = 1;
-      await new Promise(r => requestAnimationFrame(r));
-      f.t = t; f.blend = 1;
+    // advances animation at about a third of real time, which is how four
+    // screenshots of four different actions once came out looking identical.
+    const f = window.Cast3D._figure('ash');
+    const hold = async (verb, frac) => {
+      window.Cast3D.play('ash', verb);
+      const a = f.acting;
+      if (a) { a.time = a.getClip().duration * frac; a.setEffectiveWeight(1); }
+      await new Promise(r => requestAnimationFrame(() => {
+        if (a) { a.time = a.getClip().duration * frac; a.setEffectiveWeight(1); }
+        requestAnimationFrame(r);
+      }));
       return shot();
     };
-    const base = await hold('idle', 0);
+    f.clear();
+    await new Promise(r => requestAnimationFrame(r));
+    const base = await shot();
     const out = {};
-    for (const [clip, t] of [['slash', 0.34], ['cast', 0.62], ['ward', 0.52], ['down', 0.90]]) {
-      const s = await hold(clip, t);
+    for (const [verb, t] of [['slash', 0.55], ['cast', 0.55], ['ward', 0.45], ['down', 0.95]]) {
+      const s = await hold(verb, t);
       let diff = 0;
       for (let i = 0; i < base.mask.length; i++) if (base.mask[i] !== s.mask[i]) diff++;
-      out[clip] = +(diff / base.lit * 100).toFixed(1);
+      out[verb] = +(diff / base.lit * 100).toFixed(1);
     }
     f.clear();
     return out;
