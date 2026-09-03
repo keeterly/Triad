@@ -119,7 +119,11 @@ const LOOK = {
   // painted — so it has exactly two settings: how dark a real contact shadow
   // lands on that painting, and how much painted ground shows under the party.
   shade: 0.46,
-  floor: 0.20,
+  floor: 0.34,
+  // …and a third, Build 122: THE PLAZA IS FLOODED. Half the painting below the
+  // horizon is a reflection, so this is not a polish setting — it is most of
+  // what makes the ground read as that ground.
+  wet: 0.70,
 };
 // what each dial does, for the panel — and so the next person to open this
 // file does not have to read the shader to find out
@@ -133,6 +137,7 @@ const LOOK_HELP = {
   air:   ['distance', 0, 1.6, 0.01, 'how hard the back ranks wash out'],
   shade: ['shadow', 0, 0.9, 0.01, 'how dark the contact shadows land'],
   floor: ['ground', 0, 1, 0.01, 'how much painted floor shows under the party'],
+  wet:   ['water', 0, 1, 0.01, 'how much of the city the flooded floor gives back'],
 };
 
 // ── what each verb looks like, per person ──────────────────────────────────
@@ -563,7 +568,7 @@ class Figure {
 const Cast3D = (() => {
   let on = false, ready = false, failed = null;
   let renderer = null, scene = null, cam = null, canvas = null;
-  let ground = null;
+  let ground = null, reflect = null, mirror = null;
   const sized = { w: 0, h: 0, dpr: 0 };
   const figs = {};
   let last = 0, raf = 0, pending = null, clipNames = [], missing = [];
@@ -669,6 +674,21 @@ const Cast3D = (() => {
     parry:     { az: -13, dist: 5.10, height: 1.42, aimY: 1.58, at: 'party' },
     // after the kill, stand back up and take the room in
     reckoning: { az:  19, dist: 8.70, height: 2.60, aimY: 1.30, at: 'board' },
+
+    // ── AND THE SHOTS A SINGLE ACTION ASKS FOR (Build 122) ───────────────────
+    // Shorter, closer, and always transient: each of these is a beat, not a
+    // stance, and each is asked for with `{ for: ms }`.
+    // a blow landing: step in off the axis so the swing crosses the frame
+    strike:    { az: -11, dist: 5.35, height: 1.38, aimY: 1.56, at: 'foe' },
+    // …and mercy is the opposite shot in every respect — further back, higher,
+    // on the party rather than on what it is hitting, because a heal is not an
+    // impact and a camera that treats it like one flattens both
+    grace:     { az:  17, dist: 6.30, height: 2.20, aimY: 1.48, at: 'party' },
+    // the killing blow: low, close, swung well off the line, so the last thing
+    // a creature does happens to somebody rather than in a diagram
+    fell:      { az: -48, dist: 4.45, height: 1.02, aimY: 1.32, at: 'foe' },
+    // a deflection is a fraction of a second, so its shot is nearly a cut
+    snap:      { az: -19, dist: 4.20, height: 1.46, aimY: 1.54, at: 'party' },
   };
   // where a shot may be aimed. `party` and `foe` are read off the world rather
   // than written down, so a shot follows whoever is actually standing there.
@@ -720,6 +740,30 @@ const Cast3D = (() => {
   // painting's own mist, darkening toward the ground so the fog cylinder does
   // not glow along the floor line — three stops and a little grain, which is
   // all that is left of a city once it is far enough away.
+  // one soft blot, drawn once, drifting three times — a cloud is not a shape,
+  // it is an absence of edge, so this is a radial falloff with its own tooth
+  function mistPuff() {
+    const S = 256;
+    const c = document.createElement('canvas');
+    c.width = S; c.height = S / 2;
+    const x = c.getContext('2d');
+    for (let i = 0; i < 26; i++) {
+      const cx = Math.random() * S, cy = (S / 4) + (Math.random() - 0.5) * (S / 3);
+      const r = 20 + Math.random() * 58;
+      const g = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0, 'rgba(214,218,222,0.30)');
+      g.addColorStop(1, 'rgba(214,218,222,0)');
+      x.fillStyle = g; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill();
+    }
+    // gone at the edges, or a sheet of mist has a rectangle in it
+    const g2 = x.createLinearGradient(0, 0, S, 0);
+    g2.addColorStop(0, 'rgba(0,0,0,1)'); g2.addColorStop(0.18, 'rgba(0,0,0,0)');
+    g2.addColorStop(0.82, 'rgba(0,0,0,0)'); g2.addColorStop(1, 'rgba(0,0,0,1)');
+    x.globalCompositeOperation = 'destination-out';
+    x.fillStyle = g2; x.fillRect(0, 0, S, S / 2);
+    return c;
+  }
+
   function fogBand() {
     const c = document.createElement('canvas');
     c.width = 8; c.height = 256;
@@ -827,13 +871,77 @@ const Cast3D = (() => {
     tex.repeat.set(FLOOR_SPAN / L.floorM, FLOOR_SPAN / L.floorM);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(FLOOR_SPAN, FLOOR_SPAN),
-      new THREE.MeshStandardMaterial({ map: tex, roughness: 0.62, metalness: 0.08,
-                                       color: new THREE.Color().setScalar(0.5 + LOOK.floor * 1.6) }));
+    // ── THE PLAZA IS FLOODED, AND THAT IS THE WHOLE LOOK (Build 122) ─────────
+    //
+    // Look at the painting for two seconds and what you are looking at is
+    // WATER. Half the pixels below the horizon are a reflection of the half
+    // above it — the arcade, the lit doorway, the sky — which is exactly why
+    // un-projecting that floor into a texture failed in Build 120: a reflection
+    // is a property of the view, not of the ground.
+    //
+    // So the reflection is not a texture here. It is a second render of the
+    // world from a camera mirrored through the floor plane, sampled by the
+    // floor in the reflected fragment's own screen position. That is the only
+    // version of it that answers the question the painting is asking — and it
+    // is the thing the world was missing: a dry floor under a drowned city
+    // reads as a stage, and a wet one reads as a place.
+    const floorMat = new THREE.MeshStandardMaterial({
+      map: tex, roughness: 0.62, metalness: 0.08,
+      color: new THREE.Color().setScalar(0.5 + LOOK.floor * 1.6) });
+    floorMat.onBeforeCompile = (sh) => {
+      sh.uniforms.uRefl = { value: null };
+      sh.uniforms.uWet = { value: LOOK.wet };
+      floorMat.userData.u = sh.uniforms;
+      sh.vertexShader = 'uniform mat4 uReflMat;\nvarying vec4 vRefl;\n' + sh.vertexShader
+        .replace('#include <project_vertex>',
+          '#include <project_vertex>\n  vRefl = uReflMat * modelMatrix * vec4( transformed, 1.0 );');
+      sh.uniforms.uReflMat = { value: new THREE.Matrix4() };
+      floorMat.userData.mat = sh.uniforms.uReflMat;
+      sh.fragmentShader = 'uniform sampler2D uRefl;\nuniform float uWet;\nvarying vec4 vRefl;\n'
+        + sh.fragmentShader.replace('#include <dithering_fragment>', `
+        // THE WATER IS NOT EVERYWHERE, AND NOT EVENLY. A mirror-flat plaza is
+        // an ice rink; what a soaked stone floor does is hold water in the low
+        // places. The floor's own texture says where those are — the darker it
+        // painted, the more it pools — so the same art drives the colour and
+        // the wetness, and no second map has to be kept in step with it.
+        vec2 rv = vRefl.xy / max(0.0001, vRefl.w);
+        // A PERFECT MIRROR IS AN ICE RINK. Standing water on broken stone is
+        // never flat: it is held in the low places and stirred by whatever is
+        // falling. Offsetting the lookup by the floor's own texture — read at a
+        // different scale so it does not correlate with what is under it —
+        // breaks the mirror into something the eye reads as water, and costs
+        // one extra sample of a texture that is already bound.
+        vec3 stir = texture2D( map, vMapUv * 2.7 + vec2( 0.31, 0.17 ) ).rgb;
+        rv += ( stir.rg - 0.5 ) * 0.030;
+        vec3 mirrored = texture2D( uRefl, rv ).rgb;
+        float pool = smoothstep( 0.44, 0.10, dot( texture2D( map, vMapUv ).rgb, vec3(0.333) ) );
+        // …and at a grazing angle everything is a mirror, which is why a wet
+        // street goes bright toward the horizon and stays dark at your feet
+        float graze = pow( 1.0 - abs( normalize( vViewPosition ).z ), 2.6 );
+        float k = uWet * clamp( 0.06 + pool * 0.42 + graze * 0.62, 0.0, 0.88 );
+        // the water is DARKER than what it reflects — it is a puddle on a black
+        // street, not a looking glass, and this is most of the difference
+        // between a drowned plaza and a hotel lobby
+        gl_FragColor.rgb = mix( gl_FragColor.rgb, mirrored * 0.72, k );
+        #include <dithering_fragment>`);
+    };
+    ground = new THREE.Mesh(new THREE.PlaneGeometry(FLOOR_SPAN, FLOOR_SPAN), floorMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
+
+    // HALF RESOLUTION, AND A TENTH OF THAT IN THE HARNESS. A reflection in
+    // broken water has no fine detail to lose — but the pass is a whole extra
+    // render of the world, and it is the most expensive thing in the frame:
+    // 2.4 fps to 1.6 in the software rasteriser the suites run on, which took
+    // the cast suite past twenty minutes. `?test=1` has capped sleeps since
+    // Build 22 and the drawing buffer since Build 119 for the same reason, and
+    // nothing the suite asks about the water is a function of its resolution:
+    // the check switches the reflection off and compares the floor.
+    reflect = new THREE.WebGLRenderTarget(TEST ? 160 : 512, TEST ? 80 : 256);
+    reflect.texture.colorSpace = THREE.SRGBColorSpace;
+    mirror = new THREE.PerspectiveCamera(FOV, VIEW.w / FULL_H, 0.1, 90);
+    mirror.setViewOffset(VIEW.w, FULL_H, 0, OFF_Y, VIEW.w, VIEW.h);
 
     // THE PANEL. Its band is stated in units of the radius by the mill, so the
     // radius alone decides how tall the skyline stands — pick it and the
@@ -870,6 +978,104 @@ const Cast3D = (() => {
     scene.add(haze);
     ground.userData.panel = panel;
     ground.userData.haze = haze;
+
+    // ── THE MIDDLE DISTANCE, WHICH WAS MISSING (Build 122) ───────────────────
+    //
+    // The world had a floor and a horizon and nothing at all between them, and
+    // that is why it read as a stage rather than as a street: every parallax
+    // cue was either underfoot or forty-five metres away. A camera that swings
+    // needs something at ten metres to swing PAST.
+    //
+    // What goes there is what the painting has — the arcade running off to the
+    // right, and the rubble a collapsed city leaves in its own square. None of
+    // it is modelled in detail on purpose: at ten to twenty metres through this
+    // much fog a broken column is a silhouette, and a silhouette is a box. The
+    // budget goes on there being enough of them, in the right places.
+    //
+    // SEEDED, so the plaza is the same plaza every time it loads. A battlefield
+    // that rearranges itself between reloads is a different kind of wrong.
+    let seed = 20250903;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    const rubbleTex = await loadTex(ART + 'floor.webp');
+    rubbleTex.wrapS = rubbleTex.wrapT = THREE.RepeatWrapping;
+    rubbleTex.repeat.set(0.5, 0.5);
+    rubbleTex.colorSpace = THREE.SRGBColorSpace;
+    const stone = new THREE.MeshStandardMaterial({
+      map: rubbleTex, roughness: 0.86, metalness: 0.0,
+      color: new THREE.Color().setScalar(0.34) });
+    const props = new THREE.Group();
+    const put = (geo, x, y, z, ry) => {
+      const m = new THREE.Mesh(geo, stone);
+      m.position.set(x, y, z);
+      m.rotation.y = ry;
+      m.castShadow = true; m.receiveShadow = true;
+      props.add(m);
+      return m;
+    };
+    // NOTHING STANDS BEHIND THE FIGHT. The first pass kept props out of the
+    // party's own footprint and put a two-metre slab four metres behind it,
+    // where the lens turns it into a shipping container parked between Mira and
+    // the Regent. The exclusion is a CORRIDOR, not a footprint: it runs the
+    // whole depth the camera looks down, and it widens with distance the way
+    // the frame does.
+    const clear = (x, z) => (z > -16 && z < 6 && Math.abs(x - 0.4) < 7.5 - z * 0.42);
+    // THE ARCADE, which is the painting's own colonnade given depth. Set far
+    // enough out to stay behind the fight and angled so a swing of the camera
+    // slides the near columns across the far ones instead of across nothing.
+    const colGeo = new THREE.CylinderGeometry(0.30, 0.38, 5.4, 7);
+    const beamGeo = new THREE.BoxGeometry(3.4, 0.5, 0.7);
+    for (let i = 0; i < 8; i++) {
+      const x = 11.5 + i * 2.4, z = -1.5 - i * 3.0;
+      put(colGeo, x, 2.7, z, rnd() * 6);
+      if (i) put(beamGeo, x - 1.2, 5.4, z + 1.5, Math.atan2(2.4, 3.0) - Math.PI / 2);
+    }
+    // …and its ruined twin on the other side, further off and mostly stumps
+    for (let i = 0; i < 6; i++) {
+      const x = -12 - i * 2.8, z = -1 - i * 2.6;
+      const h = 1.1 + rnd() * 3.6;
+      put(new THREE.CylinderGeometry(0.32, 0.40, h, 7), x, h / 2, z, rnd() * 6);
+    }
+    // RUBBLE. Kept LOW and turned hard: a box seen square-on is a crate, and a
+    // box tipped and rotated is a lump of masonry. Nothing here is taller than
+    // a knee except where it has fallen against something.
+    for (let i = 0; i < 74; i++) {
+      const x = (rnd() - 0.5) * 48, z = 5 - rnd() * 36;
+      if (clear(x, z)) continue;
+      const w = 0.35 + rnd() * 1.5, h = 0.12 + rnd() * 0.42, d = 0.35 + rnd() * 1.2;
+      const m = put(new THREE.BoxGeometry(w, h, d), x, h / 2 - 0.05, z, rnd() * 6);
+      m.rotation.z = (rnd() - 0.5) * 0.8;
+      m.rotation.x = (rnd() - 0.5) * 0.6;
+    }
+    // a few broken slabs, tipped where they fell — well out, and lying down
+    for (let i = 0; i < 9; i++) {
+      const x = (rnd() - 0.5) * 40, z = 2 - rnd() * 28;
+      if (clear(x, z) || Math.abs(x) < 9) continue;
+      const m = put(new THREE.BoxGeometry(1.8 + rnd() * 2.2, 0.26, 1.4 + rnd() * 1.6),
+                    x, 0.34 + rnd() * 0.5, z, rnd() * 6);
+      m.rotation.z = (rnd() - 0.5) * 1.3;
+      m.rotation.x = (rnd() - 0.5) * 0.5;
+    }
+    scene.add(props);
+    ground.userData.props = props;
+
+    // ── AND THE WEATHER IN FRONT OF IT ───────────────────────────────────────
+    // Three soft sheets of mist drifting across the middle distance. They face
+    // the camera and they are almost nothing — but they are what puts AIR
+    // between the party and the arcade, which is the difference between a
+    // painting with fog in it and a place with fog in it.
+    const mistTex = new THREE.CanvasTexture(mistPuff());
+    const mist = new THREE.Group();
+    for (let i = 0; i < 3; i++) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(26, 9),
+        new THREE.MeshBasicMaterial({ map: mistTex, transparent: true, depthWrite: false,
+                                      opacity: 0.20 - i * 0.045, fog: false }));
+      m.position.set((rnd() - 0.5) * 8, 1.6 + i * 0.9, -6 - i * 5);
+      m.renderOrder = -2;
+      m.userData.drift = 0.05 + i * 0.03;
+      mist.add(m);
+    }
+    scene.add(mist);
+    ground.userData.mist = mist;
 
     // …AND THE AIR BETWEEN. Real distance fog is what makes forty metres of
     // floor read as forty metres rather than as a big flat sheet, and it is
@@ -953,7 +1159,15 @@ const Cast3D = (() => {
     // horizon fill every pixel of the frame — leave them in and every figure
     // measures as exactly one screen tall.
     const worldWas = ground && ground.visible;
-    const world = ground ? [ground, ground.userData.panel, ground.userData.haze] : [];
+    // EVERYTHING THE WORLD IS, not a list of the pieces it had when this was
+    // written. Build 122 added an arcade, sixty pieces of rubble and three
+    // sheets of mist, and every one of them landed inside the silhouette this
+    // measures — which moved the Regent a quarter of a metre and lifted her
+    // twenty pixels, from nothing but new scenery being in shot.
+    const world = ground
+      ? [ground, ground.userData.panel, ground.userData.haze,
+         ground.userData.props, ground.userData.mist]
+      : [];
     for (const o of world) if (o) o.visible = false;
     const fogWas = scene.fog; scene.fog = null;
 
@@ -1245,8 +1459,19 @@ const Cast3D = (() => {
   // the tripod: where it is standing now, and where it has been asked to stand
   const TRIPOD = Object.assign({}, SHOTS.home, { atP: BOARD.slice() });
   const SHOT = Object.assign({}, SHOTS.home);
+  // ── A MOMENT MAY TAKE THE CAMERA, BUT IT MAY NOT KEEP IT ───────────────────
+  //
+  // A phase lasts until the phase changes; an ACTION lasts about a second. If
+  // both set the shot the same way, the first sword swing of the fight parks
+  // the camera on the Regent's shoulder for the rest of the turn. So a shot
+  // asked for with `{ for: ms }` is transient: it plays, and when its time is
+  // up the camera returns to whatever the phase had it doing — remembered here
+  // rather than re-sent, so an action never has to know what it interrupted.
+  const BASE = Object.assign({}, SHOTS.home);
+  let holdUntil = 0;
   let shotSpeed = 1.6;
   const _eye = new THREE.Vector3(), _look = new THREE.Vector3();
+  const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // AZIMUTH TAKES THE SHORT WAY ROUND. Easing 350 degrees to 10 by subtracting
   // sends the camera the long way through everything behind it; a shot is a
@@ -1259,6 +1484,12 @@ const Cast3D = (() => {
   }
 
   function rig(host, dt) {
+    // has the moment passed? then give the camera back
+    if (holdUntil && now() >= holdUntil) {
+      holdUntil = 0;
+      Object.assign(SHOT, BASE);
+      shotSpeed = 1.25;               // ease back rather than cut back
+    }
     const cs = getComputedStyle(host);
     const n = (k) => { const v = parseFloat(cs.getPropertyValue(k)); return isNaN(v) ? 0 : v; };
     WANT.x = n('--cam-x'); WANT.y = n('--cam-y'); WANT.dz = n('--cam-dz');
@@ -1274,6 +1505,7 @@ const Cast3D = (() => {
     for (let i = 0; i < 3; i++) TRIPOD.atP[i] += (target[i] - TRIPOD.atP[i]) * ks;
 
     const a = TRIPOD.az * D;
+    // kept on the module, not local, because the reflection pass mirrors them
     _eye.set(TRIPOD.atP[0] + Math.sin(a) * TRIPOD.dist,
              TRIPOD.height,
              TRIPOD.atP[2] + Math.cos(a) * TRIPOD.dist);
@@ -1406,6 +1638,60 @@ const Cast3D = (() => {
     // box standing where a creature ought to be.
     for (const n of document.querySelectorAll('#k-cast .k-cast3d-on'))
       if (claimed.indexOf(n) < 0) n.classList.remove('k-cast3d-on');
+
+    // ── THE WATER, WHICH IS A SECOND VIEW OF THE SAME WORLD ──────────────────
+    //
+    // Mirror the camera through the floor plane, render everything except the
+    // floor itself, and hand the result to the floor to sample. The mirroring
+    // is exact rather than approximate because the plane is y=0 and the rig
+    // already knows where the camera is looking: negate both heights and the
+    // reflected view falls out.
+    //
+    // The floor samples it by the REFLECTED FRAGMENT'S OWN SCREEN POSITION, not
+    // by its texture coordinates — which is what makes a reflection follow the
+    // eye the way a reflection does. `uReflMat` carries the mirror camera's
+    // view-projection, biased into [0,1], so the shader's divide by w lands on
+    // the right pixel from any angle the camera cares to take.
+    // THE DIAL HAS TO REACH THE SHADER EVEN WHEN IT TURNS THE PASS OFF. Writing
+    // `uWet` inside the block that `wet` gates means turning the water down to
+    // zero skips the write, the uniform keeps whatever it last held, and the
+    // floor goes on reflecting a texture nobody is updating any more. The
+    // setting is pushed first; only the expensive half is gated.
+    if (ground.material.userData.u) ground.material.userData.u.uWet.value = LOOK.wet;
+    if (reflect && LOOK.wet > 0.01) {
+      mirror.position.set(_eye.x, -_eye.y, _eye.z);
+      mirror.up.set(0, 1, 0);
+      mirror.lookAt(_look.x, -_look.y, _look.z);
+      mirror.rotateZ(RIG.r * D);
+      mirror.updateMatrixWorld();
+      mirror.updateProjectionMatrix();
+      const u = ground.material.userData;
+      if (u.mat) {
+        u.mat.value
+          .set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1)
+          .multiply(mirror.projectionMatrix).multiply(mirror.matrixWorldInverse);
+      }
+      // the floor cannot reflect itself, and a shadow catcher in a mirror is a
+      // dark smear where the water should be brightest
+      ground.visible = false;
+      const fogWas = scene.fog;
+      renderer.setRenderTarget(reflect);
+      renderer.clear();
+      renderer.render(scene, mirror);
+      renderer.setRenderTarget(null);
+      scene.fog = fogWas;
+      ground.visible = true;
+      if (u.u) u.u.uRefl.value = reflect.texture;
+    }
+
+    // the mist drifts, and turns to face wherever the camera went
+    if (ground && ground.userData.mist) {
+      for (const m of ground.userData.mist.children) {
+        m.position.x += m.userData.drift * dt;
+        if (m.position.x > 16) m.position.x = -16;
+        m.quaternion.copy(cam.quaternion);
+      }
+    }
 
     // ONE SCENE, ONE CAMERA, ONE PASS. Four scissored renders and four
     // orthographic frames are what it took to fake a shared space; a shared
@@ -1604,10 +1890,19 @@ const Cast3D = (() => {
     // camera moved. Called with nothing it reports where the camera is
     // actually standing, which is not always where it was last sent.
     shot(name, opts) {
-      if (name == null) return { asked: { ...SHOT }, at: { ...TRIPOD, atP: TRIPOD.atP.slice() } };
+      if (name == null) return { asked: { ...SHOT }, base: { ...BASE },
+                                 holding: holdUntil ? Math.max(0, Math.round(holdUntil - now())) : 0,
+                                 at: { ...TRIPOD, atP: TRIPOD.atP.slice() } };
       const base = typeof name === 'string' ? SHOTS[name] : name;
       if (!base) return false;
-      Object.assign(SHOT, SHOTS.home, base, opts || {});
+      const next = Object.assign({}, SHOTS.home, base, opts || {});
+      if (opts && opts.for) {
+        holdUntil = now() + opts.for;      // a moment: hand the camera back after
+      } else {
+        Object.assign(BASE, next);          // a stance: this is where it lives
+        holdUntil = 0;
+      }
+      Object.assign(SHOT, next);
       shotSpeed = (opts && opts.speed) || 1.6;
       return true;
     },

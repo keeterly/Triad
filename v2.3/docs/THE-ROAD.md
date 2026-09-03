@@ -5175,6 +5175,138 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 122 — the plaza is flooded, and the camera answers the action
+
+**The ask.** *"Refine the battle ground to feel more like my actual world but in
+3d"* and *"have cinematic camera respond to specific actions."*
+
+### It read as a stage because two things were missing
+
+Build 120 put the painting where it belonged — the half above the horizon on a
+curved panel, the half below it on the ground. What it left was a floor, a
+horizon, and **nothing at all between them**, on a plaza that in the painting is
+under water.
+
+**The plaza is flooded, and that is the whole look.** Look at
+`bg23-plaza-pano` for two seconds and what you are looking at is water: half
+the pixels below the horizon are a reflection of the half above it — the arcade,
+the lit doorway, the sky. That is exactly why un-projecting that floor into a
+texture failed in Build 120, and the same fact says what to do instead. A
+reflection is not a texture, so it is not made of one: it is **a second render
+of the world from a camera mirrored through the floor plane**, sampled by the
+floor at the reflected fragment's own screen position — which is what makes a
+reflection follow the eye the way a reflection does.
+
+Three details separate a drowned plaza from a hotel lobby, and all three are one
+line each:
+
+- **The water is darker than what it reflects.** It is a puddle on a black
+  street, not a looking glass.
+- **A perfect mirror is an ice rink.** The lookup is stirred by the floor's own
+  texture, read at a different scale so it does not correlate with what is
+  under it.
+- **Water pools in the low places, and the low places are already painted.** The
+  darker the floor's own texture, the more it reflects — so one piece of art
+  drives the colour and the wetness, and there is no second map to keep in step.
+  At a grazing angle everything is a mirror, which is why a wet street goes
+  bright toward the horizon and stays dark at your feet.
+
+**The middle distance.** Every parallax cue in the world was either underfoot or
+forty-five metres away; a camera that swings needs something at ten metres to
+swing *past*. So the painting's own colonnade is there with depth, its ruined
+twin is stumps on the far side, and there is the rubble a collapsed city leaves
+in its own square — 83 pieces, seeded so the plaza is the same plaza every time
+it loads. None of it is modelled: at ten metres through this much fog a broken
+column is a silhouette, and a silhouette is a box. The budget went on there
+being enough of them, in the right places.
+
+Two corrections along the way, both worth keeping:
+
+- **The exclusion zone is a corridor, not a footprint.** The first pass kept
+  props out of the party's own square and put a two-metre slab four metres
+  behind it, where the lens turns it into a shipping container parked between
+  Mira and the Regent. It runs the whole depth the camera looks down now, and
+  widens with distance the way the frame does.
+- **`fit()` was measuring the scenery.** It finds each figure's silhouette by
+  rendering it alone and reading the alpha, and it hides the world to do that —
+  by a *list of the pieces the world had when it was written*. An arcade, sixty
+  pieces of rubble and three sheets of mist all landed inside the silhouette,
+  which moved the Regent a quarter of a metre and lifted her twenty pixels from
+  nothing but new scenery being in shot.
+
+### A moment may take the camera, but it may not keep it
+
+A phase lasts until the phase changes; an action lasts about a second. Build 120
+wired shots to phases, which is the right grain for a stance and much too coarse
+for a moment — every card played got the same frame, whether it was a sword
+going in or a wound closing.
+
+So a shot asked for with `{ for: ms }` is **transient**: it plays, and when its
+time is up the camera returns to whatever the phase had it doing. The stance is
+*remembered* rather than re-sent, so an action never has to know what it
+interrupted — measured: home → strike is 1.8 m of travel, and the return lands
+0.00 m from where it started with the phase's own shot untouched.
+
+| moment | shot | what it does |
+|---|---|---|
+| a blow lands | `strike` | steps in off the axis so the swing crosses the frame |
+| a heal, a ward | `grace` | further back, higher, on the party — a heal is not an impact |
+| the killing blow | `fell` | low, close, swung 48° off the line, held while the body falls |
+| a clean deflection | `snap` | nearly a cut: in hard, gone before the next note |
+
+A combo takes longer and swings further, because a combo is the thing the deck
+is named for. And `snap` fires only on a string read *clean* — a camera that
+lunges at every partial parry is a camera that lunges constantly, and the moment
+stops meaning anything.
+
+### One silent no-op, two failures
+
+Worth writing down because it is a shape that will recur: a text replacement
+without an assertion **silently does nothing** when it does not match. `wet` was
+added to the dial list and never to `LOOK`, because the pattern for the second
+edit carried values from a build earlier. The consequences did not look related:
+the panel reported ten dials against nine settings, and the reflection
+contributed nothing at all — because the shader's uniform was `undefined`. Every
+splice in this file asserts its match count now.
+
+### What is measured
+
+- **WATER** switches the reflection off and compares the floor. A reflection
+  target can exist, be bound, and contribute nothing; the only honest question
+  is causal.
+- **MIDDLE** counts masonry between six and thirty metres out, and asserts that
+  none of it stands in the fight's corridor.
+- **MOMENT** is three checks, because there are three ways for a borrowed camera
+  to be wrong: it never moves, it never comes back, or it quietly overwrites the
+  stance it borrowed from.
+
+**Suites:** flow 257, road 94, bond 76, slice 75, line 32, camp 48, music 22,
+beat 10, cast 60 — 674 checks, all green.
+
+**Cost, measured rather than assumed.** Three guesses were wrong before the
+numbers were taken. The reflection pass is 24% (1.70 fps to 1.40); the eighty-
+three props are free; the mist is 2%. What actually halved the frame rate was
+none of them — it was the floor's fragment shader gaining three texture reads
+across half the frame, which runs whether the water is on or off. On a phone
+GPU that is nothing; the software rasteriser the suites run on feels all of it.
+
+The fix belonged in the harness's appetite, not in the game. The idle sampler
+watched eighty frames of a 1.7-second loop — and because the mixer advances by
+REAL elapsed time and the harness runs at under two frames a second, each frame
+carries up to the dt clamp: a quarter-second of animation. Eighty frames was
+fifty seconds of wall clock to watch six cycles' worth of a loop that needs one.
+Twenty-four does the same job, and the suite came back from over twenty minutes
+to eight.
+
+One more real bug fell out of writing the check: `uWet` was written INSIDE the
+block that `wet` gates, so turning the water down to zero skipped the write and
+the floor went on reflecting a texture nobody was updating. The setting is
+pushed first now; only the expensive half is gated. The check that found it is
+the one that switches the water off and compares the floor — 8.32 mean tone
+change across 120,000 samples, against 0.03 when the dial did nothing.
+
+---
+
 ## Build 121 — the enemy behind the wall, and the pace nobody measured
 
 **The ask.** *"enemies are invisible at the moment"* and *"animation looping and

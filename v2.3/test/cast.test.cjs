@@ -263,7 +263,12 @@ const { boot } = require('./harness.cjs');
     const ids = Object.keys(window.Cast3D._state().playing);
     const first = {}, widest = {};
     for (const id of ids) { window.Cast3D._figure(id).clear(); widest[id] = { deg: 0, bone: null }; }
-    for (let i = 0; i < 80; i++) {
+    // TWENTY-FOUR FRAMES IS SIX CYCLES HERE, NOT A QUARTER OF ONE. The mixer
+    // advances by REAL elapsed time, and the harness runs at under two frames a
+    // second, so each frame carries up to the dt clamp — a quarter of a second
+    // of animation. Eighty of them was fifty seconds of wall clock to watch a
+    // 1.7-second loop, and it was the most expensive thing in the file.
+    for (let i = 0; i < 24; i++) {
       await new Promise(r => requestAnimationFrame(r));
       for (const id of ids) {
         const pose = window.Cast3D._bonePose(id);
@@ -511,15 +516,15 @@ const { boot } = require('./harness.cjs');
       })(),
     });
     const settle = async (n) => { for (let i = 0; i < n; i++) await new Promise(r => requestAnimationFrame(r)); };
-    await settle(20);
+    await settle(8);
     const before = at();
     // THE ROW IS WHAT THE GAME CHANGES — renderHeroes swaps this class when a
     // hero walks — so the row is what the check changes.
     h.classList.remove('k-row-mid'); h.classList.add('k-row-front');
-    await settle(50);
+    await settle(12);
     const after = at();
     h.classList.remove('k-row-front'); h.classList.add('k-row-mid');
-    await settle(50);
+    await settle(12);
     return { before, after,
              walkedM: +(after.world.x - before.world.x).toFixed(2),
              // does the ELEMENT sit where the FIGURE is? to the pixel.
@@ -660,7 +665,7 @@ const { boot } = require('./harness.cjs');
   // else.
   await J(async () => {
     for (const id of Object.keys(window.Cast3D._state().playing)) window.Cast3D._figure(id).clear();
-    for (let i = 0; i < 30; i++) await new Promise(r => requestAnimationFrame(r));
+    for (let i = 0; i < 12; i++) await new Promise(r => requestAnimationFrame(r));
   });
   const facing = await J(() => window.Cast3D._facing());
   // EVERYONE LOOKS AT THEIR OWN OPPONENT. The party stands on the left of this
@@ -696,7 +701,7 @@ const { boot } = require('./harness.cjs');
     for (const k of ['x', 'y', 'dz']) c.style.setProperty('--cam-' + k, '0px');
     for (const k of ['r', 'yaw', 'pitch']) c.style.setProperty('--cam-' + k, '0deg');
     for (const id of Object.keys(window.Cast3D._state().playing)) window.Cast3D._figure(id).clear();
-    for (let i = 0; i < 60; i++) await new Promise(r => requestAnimationFrame(r));
+    for (let i = 0; i < 14; i++) await new Promise(r => requestAnimationFrame(r));
   });
   const world = await J(() => window.Cast3D._world());
 
@@ -763,7 +768,7 @@ const { boot } = require('./harness.cjs');
   console.log('\n── the camera moves ──');
   const dolly = await J(async () => {
     const c = document.getElementById('k-cast');
-    const settle = async () => { for (let i = 0; i < 60; i++) await new Promise(r => requestAnimationFrame(r)); };
+    const settle = async () => { for (let i = 0; i < 14; i++) await new Promise(r => requestAnimationFrame(r)); };
     const before = window.Cast3D._world();
     c.style.setProperty('--cam-dz', '120px');   // a push-in, in the fight's own units
     await settle();
@@ -801,7 +806,7 @@ const { boot } = require('./harness.cjs');
   console.log('\n── the same board in a bigger window ──');
   await page.setViewportSize({ width: 1864, height: 900 });
   const zoomed = await J(async () => {
-    for (let i = 0; i < 30; i++) await new Promise(r => requestAnimationFrame(r));
+    for (let i = 0; i < 12; i++) await new Promise(r => requestAnimationFrame(r));
     const st = document.getElementById('k-stage');
     const sr = st.getBoundingClientRect();
     const k = sr.width / st.offsetWidth;
@@ -1004,7 +1009,7 @@ const { boot } = require('./harness.cjs');
     const out = {};
     for (const name of ['home', 'duel', 'parry', 'allout', 'reckoning']) {
       window.Cast3D.shot(name, { speed: 40 });
-      await settle(50);
+      await settle(12);
       const w = window.Cast3D._world();
       const on = (k) => w.actors[k].screen.x > -60 && w.actors[k].screen.x < 992;
       // what the shot was named for: the foe for a duel, the defender for a
@@ -1018,7 +1023,7 @@ const { boot } = require('./harness.cjs');
                     onStage: Object.keys(w.actors).filter(on).length };
     }
     window.Cast3D.shot('home', { speed: 40 });
-    await settle(50);
+    await settle(12);
     return out;
   });
   check('SHOT: the fight can name a shot and the camera walks there',
@@ -1064,14 +1069,14 @@ const { boot } = require('./harness.cjs');
       }
       return o;
     };
-    window.Cast3D.shot('home', { speed: 40 }); await settle(50);
+    window.Cast3D.shot('home', { speed: 40 }); await settle(12);
     const atHome = read();
-    window.Cast3D.shot('allout', { speed: 40 }); await settle(50);
+    window.Cast3D.shot('allout', { speed: 40 }); await settle(12);
     const atAllout = read();
     // …and does each mark still sit under the hero standing in that lane?
     const w = window.Cast3D._world();
     const under = Math.abs(atAllout.front - w.actors.ash.screen.x);
-    window.Cast3D.shot('home', { speed: 40 }); await settle(50);
+    window.Cast3D.shot('home', { speed: 40 }); await settle(12);
     return { atHome, atAllout, under: +under.toFixed(1) };
   });
   // ACROSS ALL THREE, not the one that happens to move least. A swing around
@@ -1104,6 +1109,122 @@ const { boot } = require('./harness.cjs');
     JSON.stringify(round));
   check('ROUND: and the flat painted plate has stood down',
     round.plateHidden === '0', JSON.stringify({ backdropOpacity: round.plateHidden }));
+
+  // ═══ N · THE PLAZA IS FLOODED, AND THERE IS SOMETHING IN THE MIDDLE ═══
+  //
+  // Two things separated a world from a stage, and neither had a check.
+  console.log('\n── the flooded plaza ──');
+
+  // THE WATER IS MEASURED BY TURNING IT OFF. A reflection is not something a
+  // property can confirm — the target can exist, be bound, and contribute
+  // nothing — so the question is causal: does the floor look different with the
+  // water on than with it off? Sampled in the lower half of the frame, which is
+  // where the floor is from every shot this game takes.
+  const water = await J(async () => {
+    const settle = async (n) => { for (let i = 0; i < n; i++) await new Promise(r => requestAnimationFrame(r)); };
+    const floorBand = async () => {
+      await window.Cast3D._snapshot();
+      const c = window.__castShot;
+      const d = c.getContext('2d').getImageData(0, Math.round(c.height * 0.58),
+                                                c.width, Math.round(c.height * 0.30)).data;
+      const out = [];
+      for (let i = 0; i < d.length; i += 4) out.push(d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
+      return out;
+    };
+    window.Cast3D.shot('home', { speed: 40 }); await settle(10);
+    const wet = window.Cast3D.look().wet;
+    const on = await floorBand();
+    window.Cast3D.look({ wet: 0 }); await settle(6);
+    const off = await floorBand();
+    window.Cast3D.look({ wet }); await settle(6);
+    let diff = 0;
+    for (let i = 0; i < on.length; i++) diff += Math.abs(on[i] - off[i]);
+    return { wet, meanChange: +(diff / on.length).toFixed(2), sampled: on.length };
+  });
+  check('WATER: the floor gives the city back — the plaza is flooded, not polished',
+    water.wet > 0.05 && water.meanChange > 3,
+    JSON.stringify(water) + ' — mean tone change across the floor when the water is switched off');
+
+  // SOMETHING STANDS BETWEEN THE PARTY AND THE HORIZON. The world had a floor
+  // and a cyclorama and nothing at all in between, which is why it read as a
+  // stage: every parallax cue was either underfoot or forty-five metres away.
+  const mid = await J(() => {
+    const P = window.Cast3D._parts();
+    const g = P.ground.userData.props;
+    if (!g) return { pieces: 0 };
+    let near = 0, inCorridor = 0;
+    for (const m of g.children) {
+      const p = m.position;
+      const d = Math.hypot(p.x, p.z - 7.5);
+      if (d > 6 && d < 30) near++;
+      // …and none of it standing where the fight happens
+      if (p.z > -16 && p.z < 6 && Math.abs(p.x - 0.4) < 7.5 - p.z * 0.42) inCorridor++;
+    }
+    return { pieces: g.children.length, inTheMiddle: near, inCorridor,
+             mist: P.ground.userData.mist ? P.ground.userData.mist.children.length : 0 };
+  });
+  check('MIDDLE: there is a middle distance — masonry between the party and the horizon',
+    mid.inTheMiddle > 20 && mid.mist >= 2, JSON.stringify(mid));
+  check('MIDDLE: and none of it is standing where the fight is',
+    mid.inCorridor === 0, JSON.stringify({ inCorridor: mid.inCorridor }));
+
+  // ═══ O · A MOMENT MAY TAKE THE CAMERA, BUT NOT KEEP IT ═══
+  //
+  // A phase lasts until the phase changes; an action lasts about a second. If
+  // both set the shot the same way, the first sword swing of the fight parks
+  // the camera on the Regent's shoulder for the rest of the turn.
+  console.log('\n── the camera answers the action ──');
+  const moment = await J(async () => {
+    const f = async (n) => { for (let i = 0; i < n; i++) await new Promise(x => requestAnimationFrame(x)); };
+    const at = () => { const w = window.Cast3D._world().cam; return [+w.x.toFixed(2), +w.y.toFixed(2), +w.z.toFixed(2)]; };
+    const apart = (a, b) => +Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]).toFixed(2);
+    window.Cast3D.shot('home', { speed: 40 }); await f(10);
+    const home = at();
+    // THE HARNESS RUNS AT TWO FRAMES A SECOND, so counting frames counts
+    // seconds by accident — a 700ms borrow is long over before forty frames
+    // have passed. The borrow under test is given wall-clock room.
+    window.Cast3D.shot('strike', { for: 40000, speed: 40 }); await f(10);
+    const during = at();
+    const stance = window.Cast3D.shot().base.az;
+    window.Cast3D.shot('strike', { for: 100, speed: 40 });
+    await new Promise(x => setTimeout(x, 400)); await f(10);
+    const after = at();
+    return { home, during, after, stance,
+             moved: apart(home, during), returned: apart(home, after) };
+  });
+  check('MOMENT: an action takes the camera somewhere the phase was not',
+    moment.moved > 1.2, JSON.stringify({ home: moment.home, during: moment.during,
+                                         moved: moment.moved + ' m' }));
+  check('MOMENT: …and hands it straight back when the beat is over',
+    moment.returned < 0.15, JSON.stringify({ back: moment.after, off: moment.returned + ' m' }));
+  // …AND IT NEVER OVERWROTE THE STANCE. This is what stops a borrowed camera
+  // from becoming a kept one: the phase's shot is remembered rather than
+  // re-sent, so an action never has to know what it interrupted.
+  check('MOMENT: and the phase\u2019s own shot was never overwritten',
+    moment.stance === 0, JSON.stringify({ stanceAz: moment.stance }));
+
+  // every shot an action can ask for is a real, distinct place
+  const acts = await J(async () => {
+    const f = async (n) => { for (let i = 0; i < n; i++) await new Promise(x => requestAnimationFrame(x)); };
+    const out = {};
+    for (const n of ['strike', 'grace', 'fell', 'snap']) {
+      window.Cast3D.shot(n, { speed: 40 }); await f(10);
+      const w = window.Cast3D._world();
+      out[n] = { at: [+w.cam.x.toFixed(2), +w.cam.y.toFixed(2), +w.cam.z.toFixed(2)],
+                 behind: Object.keys(w.actors).filter(k => w.actors[k].screen.behind).length };
+    }
+    window.Cast3D.shot('home', { speed: 40 }); await f(10);
+    return out;
+  });
+  const actSpots = Object.values(acts).map(v => v.at);
+  let closest = Infinity;
+  for (let i = 0; i < actSpots.length; i++) for (let j = i + 1; j < actSpots.length; j++)
+    closest = Math.min(closest, Math.hypot(actSpots[i][0] - actSpots[j][0],
+                                           actSpots[i][1] - actSpots[j][1], actSpots[i][2] - actSpots[j][2]));
+  check('MOMENT: a strike, a mercy, a kill and a deflection are four different frames',
+    closest > 0.8 && Object.values(acts).every(v => v.behind === 0),
+    JSON.stringify(Object.fromEntries(Object.entries(acts).map(([k, v]) => [k, v.at.join(',')])))
+      + ' — closest pair ' + closest.toFixed(2) + ' m');
 
   await shot('cast3d');
   const out = report();

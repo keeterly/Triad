@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 121;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 122;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -2093,6 +2093,9 @@ async function allOut() {
 function fxFoeDown(F) {
   const box = foeBox(F ? F.ix : (C ? C.aim : 0));
   if (!box) return;
+  // the last thing a creature does gets the longest borrow in the game: low,
+  // close, and well off the line, held while the body falls
+  castShot('fell', { for: 1900, speed: 1.15 });
   // THE POSE IT DIES IN IS THE POSE IT KEEPS. Not `foeAnimState('broken')` —
   // that starts the stagger loop at frame 0 and leaves it running, which is
   // what had the body pulsing on the ground. The frames are walked to the LAST
@@ -4746,7 +4749,25 @@ function fxPlayCard(cardId, ev) {
   const heroId = primaryHero(ev.card);
   const h = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
   if (h) { h.classList.remove('k-acts'); void h.offsetWidth; h.classList.add('k-acts'); }
-  castPlay(heroId, actionKind(ev.card, ev.resolvedEffects));
+  const kind = actionKind(ev.card, ev.resolvedEffects);
+  castPlay(heroId, kind);
+  // ── THE CAMERA ANSWERS THE ACTION, NOT JUST THE PHASE (Build 122) ─────────
+  //
+  // Until now a shot was chosen by which half of the turn it was: the player's
+  // or the Regent's. That is the right grain for a stance and much too coarse
+  // for a moment — every card played got the same frame, whether it was a
+  // sword going in or a wound closing.
+  //
+  // These are transient by construction (`for`), so a beat borrows the camera
+  // and the phase gets it back. A combo takes longer and swings further,
+  // because a combo is the thing the deck is named for.
+  const SHOT_FOR = { slash: 'strike', cast: 'strike', heal: 'grace', ward: 'grace' };
+  const combo = !!(ev.condActive && ev.card.cond);
+  if (SHOT_FOR[kind]) {
+    castShot(SHOT_FOR[kind],
+      combo ? { for: 1250, speed: 2.2, dist: kind === 'heal' || kind === 'ward' ? 5.8 : 4.9 }
+            : { for: 760, speed: 2.9 });
+  }
   if (ev.condActive && ev.card.cond) fxComboCall(ev.card.cond.type, h);
 }
 // A combo that only shows up as a bigger number is a combo nobody notices they
@@ -4846,6 +4867,11 @@ function fxParryReceipt(heroId, read) {
   // their one full negate this action — the deck's response limit.
   const at = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
   if (!at || !read.notes) return;
+  // A DEFLECTION IS A FRACTION OF A SECOND, so its shot is nearly a cut: in
+  // hard on whoever turned the blow, and gone again before the next note. Only
+  // for a string read CLEAN — a camera that lunges at every partial parry is a
+  // camera that lunges constantly, and the moment stops meaning anything.
+  if (read.flawless || read.turned) castShot('snap', { for: 620, speed: 4.2 });
   const stage = document.getElementById('k-stage'); if (!stage) return;
   const sr = stage.getBoundingClientRect(), r = at.getBoundingClientRect();
   const scale = sr.width / stage.offsetWidth || 1;
