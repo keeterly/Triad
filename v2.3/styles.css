@@ -4261,10 +4261,14 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 body.k-cast3d .k-hero .k-fig img { opacity: 0; }
 /* the canvas is under the DOM heroes, above the painted floor */
 body.k-cast3d #k-cast3d { position: absolute; inset: 0; pointer-events: none; }
-/* THE SHADOW STAYS 2D and stays welcome. A rigged figure with no contact
-   shadow floats, and a real projected shadow costs a second render pass per
-   hero for something the painted ellipse already sells. */
-body.k-cast3d .k-hero .k-shadow { opacity: 0.9; }
+/* THE PAINTED SHADOW RETIRES (Build 119). It was welcome for as long as there
+   was no floor for a real one to fall on: a rigged figure with no contact
+   shadow floats, and an ellipse under each hero sold the contact cheaply. Now
+   the ground is real geometry and the key light throws onto it, so the ellipse
+   is a second, wrong shadow lying next to the right one — it does not move with
+   the light, does not stretch as a figure lunges, and does not fall across
+   anybody else. */
+body.k-cast3d .k-hero .k-shadow { opacity: 0; }
 
 /* THE FOE JOINS THE CAST (Build 118). Same rule as the heroes: the painted
    plate steps aside for the figure, and everything else about the element —
@@ -4275,3 +4279,51 @@ body.k-cast3d #k-boss-art .k-fanim { opacity: 0; }
 body.k-cast3d .k-cast3d-off img,
 body.k-cast3d .k-cast3d-off .k-fanim,
 body.k-cast3d .k-cast3d-off .k-fig img { opacity: 1; }
+
+/* ═══ THE WORLD PLACES, THE DOM FOLLOWS (Build 119) ════════════════════════
+   Until now this file's lane ladder was the truth and the 3D layer read it:
+   `--lane-x` and `--lane-z` put a hero somewhere inside `#k-field`'s CSS
+   perspective, and cast3d.js asked the DOM where that had landed.
+
+   The arrow runs the other way now. There is one scene with one real camera,
+   the world decides where everybody is standing, and every frame it projects
+   each actor and hands this element the rectangle. So the lane variables, the
+   CSS lens and the CSS camera all have to get out of the way — two lenses over
+   one picture is a fish-eye — and what is left is an element parked at the
+   projected soles, scaled to the projected height.
+
+   NOTHING ELSE ABOUT .k-hero CHANGES, which is the whole reason a change this
+   deep was affordable: the nameplate, the HP bar, the row label, the drop
+   zone, the aim target and every damage popup are anchored to this element and
+   have never cared how it got where it is. */
+body.k-cast3d #k-field { perspective: none; }
+body.k-cast3d #k-cast { transform: none; transition: none; }
+/* THE TRANSITIONS COME OFF, AND THE WALK GETS BETTER FOR IT. A row change used
+   to be a 380ms ease on a transform — the picture slid because its rectangle
+   slid. The world eases the actual position now, so the model crosses the
+   floor and drags its shadow across with it; a CSS transition on top of that
+   would only make the DOM lag a frame behind the figure it is labelling. */
+body.k-cast3d .k-hero,
+body.k-cast3d #k-cast #k-boss-art,
+body.k-cast3d #k-cast .k-foe-art {
+  left: 0 !important; top: 0 !important; right: auto; bottom: auto !important;
+  transform-origin: 50% 100%;
+  transform: translate(calc(var(--w-x, 466) * 1px - 50%),
+                       calc(var(--w-y, 266) * 1px - 100%))
+             scale(var(--w-s, 1)) !important;
+  transition: filter 0.3s var(--ease-out), opacity 0.3s var(--ease-out);
+  opacity: 1;
+}
+/* AN ACTOR CAN END UP BEHIND THE CAMERA once it is allowed to cross the line,
+   and a point behind a camera projects MIRRORED THROUGH THE ORIGIN rather than
+   off-screen — a hero would appear to leap to the far side of the frame rather
+   than leave it. The world flags it; this hides it. */
+body.k-cast3d .k-hero[style*="--w-off: 1"],
+body.k-cast3d #k-cast [style*="--w-off: 1"] { visibility: hidden; }
+/* the rank ladder in air and warmth is the WORLD's job now — it is computed
+   from real distance rather than from which class the element is wearing —
+   and doing it twice reads as a hero dimming when he steps back and then
+   dimming again */
+body.k-cast3d .k-hero.k-row-back img,
+body.k-cast3d .k-hero.k-row-mid img,
+body.k-cast3d .k-hero.k-row-front img { filter: none; }

@@ -89,6 +89,9 @@ const D = Math.PI / 180;
 // looks at the right-hand side of the stage, which is where every foe in this
 // game has stood since Build 4.
 const FOE_HEADING = 90;
+// the suites' own flag, already on the URL — see the drawing-buffer note in
+// `frame`. It never changes what is drawn, only how many pixels it is drawn in.
+const TEST = /(^|[?&])test=1(&|$)/.test(location.search);
 const CLIPS_URL = ART + 'clips.json';
 
 // ── the look, in one place ─────────────────────────────────────────────────
@@ -112,6 +115,11 @@ const LOOK = {
   edge:  0.78,  // pigment pooling at the silhouette — the signature move
   grain: 0.16,  // the paper's tooth, in screen space
   air:   0.78,  // how hard the row ladder washes out the back ranks
+  // THE GROUND (Build 119). The floor is not scenery — the plaza is already
+  // painted — so it has exactly two settings: how dark a real contact shadow
+  // lands on that painting, and how much painted ground shows under the party.
+  shade: 0.46,
+  floor: 0.20,
 };
 // what each dial does, for the panel — and so the next person to open this
 // file does not have to read the shader to find out
@@ -123,6 +131,8 @@ const LOOK_HELP = {
   edge:  ['pooling', 0, 1.4, 0.01, 'pigment gathering at the silhouette'],
   grain: ['tooth', 0, 0.5, 0.01, 'the paper grain, in screen space'],
   air:   ['distance', 0, 1.6, 0.01, 'how hard the back ranks wash out'],
+  shade: ['shadow', 0, 0.9, 0.01, 'how dark the contact shadows land'],
+  floor: ['ground', 0, 1, 0.01, 'how much painted floor shows under the party'],
 };
 
 // ── what each verb looks like, per person ──────────────────────────────────
@@ -545,25 +555,183 @@ class Figure {
 const Cast3D = (() => {
   let on = false, ready = false, failed = null;
   let renderer = null, scene = null, cam = null, canvas = null;
+  let ground = null;
+  const sized = { w: 0, h: 0, dpr: 0 };
   const figs = {};
   let last = 0, raf = 0, pending = null, clipNames = [], missing = [];
 
-  // THE CAMERA IS ORTHOGRAPHIC and every figure gets its own slice of it. A
-  // perspective camera spanning the whole stage would splay the outer heroes
-  // outward, which fights the painted backdrop's own vanishing point and makes
-  // the party look like it is standing in a fish-eye. Orthographic keeps each
-  // figure square to the viewer, exactly like the sprites it replaces, and the
-  // 3D is spent on ROTATION and MOTION rather than on perspective.
+  // ═══ THE WORLD (Build 119) ═════════════════════════════════════════════════
+  //
+  // Everything up to Build 118 drew each figure ALONE. One scissored viewport
+  // per hero, an orthographic camera, the model standing at the world origin,
+  // painted into the rectangle the DOM said its old 2D portrait would have
+  // occupied. Four renders, four boxes, no shared space between them.
+  //
+  // Two things follow from that, and both were the ceiling:
+  //
+  //   THERE WAS NO CAMERA TO MOVE. `cam()` moved a <div>. The figures came
+  //   along as rectangles — they did not reproject, did not change their
+  //   relationship to one another, could not occlude. A push-in magnified a
+  //   photograph of a diorama rather than travelling into one.
+  //
+  //   THERE WAS NOWHERE TO PUT A FLOOR. A ground plane spans all four boxes
+  //   and belongs to none of them, so no arrangement of scissor rectangles can
+  //   hold one. Wanting a floor is what forces the whole thing.
+  //
+  // So the arrow is inverted here. The WORLD decides where everybody is; the
+  // DOM reads the projection and follows. That is the entire change, and it is
+  // what makes a cinematic camera possible at all — there is now something for
+  // a camera to be inside of. It is also LESS code than the scissor dance it
+  // replaces, because the scissor dance existed only to fake a shared space.
+  //
+  // WHAT SURVIVES UNTOUCHED: twenty-nine places in game.js read a hero's
+  // bounding rect — drop targets, damage numbers, aim beams, nameplates, parry
+  // rings, the reckoning, the all-out. Not one of them cares which direction
+  // the arrow points. They ask the DOM where the hero is; the DOM still knows;
+  // it simply learned it from the world instead of from a CSS lane variable.
+  // That is why a change this deep touched none of them.
+
+  // ── THE LENS IS CONVERTED, NOT CHOSEN ──────────────────────────────────────
+  //
+  // The stage has been a real perspective volume since Build 21: `#k-field`
+  // carries `perspective: 700px` with `perspective-origin: 50% 22%`. That is a
+  // pinhole camera written in CSS — focal length 700 px, principal point at
+  // (466, 94.6) on a 932x430 frame — so the 3D camera that reproduces today's
+  // framing is not a matter of taste. It is that same camera, transcribed.
+  //
+  // The principal point sits ABOVE centre, and that is the part a symmetric
+  // frustum cannot express: the horizon is at 22% of the height rather than
+  // 50%, which is what looking slightly DOWN at a floor looks like. An
+  // off-axis frustum is the honest translation, and `setViewOffset` is how
+  // three.js spells one — render the 430-tall window out of a taller virtual
+  // frame whose centre lands exactly on the vanishing point.
+  const VIEW = { w: 932, h: 430, focal: 700, px: 466, py: 94.6 };
+  const FULL_H = 2 * (VIEW.h - VIEW.py);              // 670.8
+  const OFF_Y = FULL_H / 2 - VIEW.py;                 // 240.8
+  const FOV = 2 * Math.atan((FULL_H / 2) / VIEW.focal) / D;   // 51.2 degrees
+
+  // ── WHERE EVERYBODY STANDS, IN METRES ──────────────────────────────────────
+  //
+  // Solved from the ladder the 2D stage already draws, not invented, so the
+  // board reads the same on the frame the world takes over — the read players
+  // know survives, and eight suites that never heard of three.js stay green.
+  //
+  // The heroes' projected centres and ground lines have been 240/234, 352/253,
+  // 474/276 since Build 101. Running those back through the lens above — with
+  // a hero 1.75 m tall filling 176 px at the front rank — puts the eye 7.5 m
+  // back at 1.70 m, head height, and lands the party on this diagonal. The
+  // ranks recede AWAY from the enemy and INTO the scene at once, which is what
+  // the 2D ladder was always drawing; it is a place now rather than a drawing
+  // of one.
+  const EYE = { x: 0, y: 1.70, z: 7.50 };
+  const STAGE = {
+    hero: { front: [0.00, 0.54], mid: [-1.23, -0.03], back: [-2.76, -1.06] },
+    foe:  { front: [2.10, 0.60], mid: [3.30, -0.10], back: [4.45, -0.95] },
+    solo: [2.55, 1.15],
+  };
+  // metres, crown to sole. A generated model comes back whatever height the
+  // generator felt like — see `fit` — so each figure is scaled to stand at the
+  // height the fight needs rather than the height it happened to arrive at.
+  const TALL_M = { hero: 1.78, foe: 2.16 };
   // how much of a hero's box the figure fills, top to bottom. The rest is the
   // air a swing needs — a sword raised overhead leaves the frame at 1.0.
   const FILL = 0.72;
+  // px per metre at the plane the party stands on: the conversion between the
+  // camera language game.js already speaks (pixels) and the world (metres).
+  const PX_M = VIEW.focal / EYE.z;
+
+  // ── THE FLOOR IS PAINTED, NOT PHOTOGRAPHED ─────────────────────────────────
+  //
+  // A photographic stone tile under watercolour figures reads as a photograph
+  // with cartoons standing on it — the exact failure the whole look exists to
+  // avoid. So the ground is painted the way the cast is painted: a warm paper
+  // wash, pigment pooling where a real wash pools, joints drawn as wobbling
+  // brush strokes rather than ruled lines, and the paper grain over all of it.
+  //
+  // It is generated, not downloaded. 512 square in a canvas costs nothing to
+  // ship and nothing to load, and the thing that actually sells the floor is
+  // not its texture anyway — it is the four figures casting real shadows onto
+  // it, which no painted plate has ever been able to fake.
+  function groundTexture() {
+    const S = 512;
+    const c = document.createElement('canvas');
+    c.width = c.height = S;
+    const x = c.getContext('2d');
+    x.fillStyle = '#c6b8a2';
+    x.fillRect(0, 0, S, S);
+    // PIGMENT POOLS. Drawn four times, wrapped, or every blotch would stop
+    // dead at the tile edge and the repeat would read as a grid of stamps.
+    for (let i = 0; i < 110; i++) {
+      const cx = Math.random() * S, cy = Math.random() * S;
+      const r = 16 + Math.random() * 78;
+      const dark = Math.random() < 0.55;
+      for (const [ox, oy] of [[0, 0], [S, 0], [0, S], [-S, 0], [0, -S]]) {
+        const g = x.createRadialGradient(cx + ox, cy + oy, 0, cx + ox, cy + oy, r);
+        g.addColorStop(0, dark ? 'rgba(112,95,78,0.15)' : 'rgba(242,235,219,0.17)');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        x.fillStyle = g;
+        x.beginPath(); x.arc(cx + ox, cy + oy, r, 0, 7); x.fill();
+      }
+    }
+    // THE JOINTS WOBBLE. A flagstone edge drawn with a ruler is the single
+    // fastest way to lose the painted look. They also stop short of the tile
+    // border: a wobbling line cannot meet its own other end across a seam, so
+    // the seam simply carries no line and the wash hides where it falls.
+    x.lineCap = 'round';
+    const stroke = (x0, y0, x1, y1, w, a) => {
+      x.strokeStyle = 'rgba(78,64,52,' + a + ')';
+      x.lineWidth = w;
+      x.beginPath(); x.moveTo(x0, y0);
+      for (let s = 1; s <= 8; s++) {
+        const t = s / 8;
+        x.lineTo(x0 + (x1 - x0) * t + (Math.random() - 0.5) * 4.2,
+                 y0 + (y1 - y0) * t + (Math.random() - 0.5) * 4.2);
+      }
+      x.stroke();
+    };
+    const N = 4, cell = S / N, pad = 10;
+    for (let i = 1; i < N; i++) {
+      stroke(i * cell, pad, i * cell, S - pad, 1.3 + Math.random(), 0.26 + Math.random() * 0.16);
+      stroke(pad, i * cell, S - pad, i * cell, 1.3 + Math.random(), 0.26 + Math.random() * 0.16);
+    }
+    // the same paper grain the figures wear, so floor and cast share a surface
+    const img = x.getImageData(0, 0, S, S), d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const n = (Math.random() - 0.5) * 24;
+      d[i] += n; d[i + 1] += n; d[i + 2] += n;
+    }
+    x.putImageData(img, 0, 0);
+    return c;
+  }
+
+  // The floor must not END. A plane that stops has an edge, and an edge in the
+  // middle of a painted plaza is worse than no floor at all, so it dissolves
+  // into the backdrop instead of meeting it.
+  function groundFade() {
+    const S = 256;
+    const c = document.createElement('canvas');
+    c.width = c.height = S;
+    const x = c.getContext('2d');
+    // TIGHT, AND GONE LONG BEFORE THE EDGE. The wash is here to seat four
+    // figures on the plate, not to lay a veil over a painting that is already
+    // finished — measured across the frame, the first pass was obscuring a
+    // fifth of the plaza, which is a filter rather than a floor.
+    const g = x.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.30, '#ffffff');
+    g.addColorStop(0.78, '#2a2a2a');
+    g.addColorStop(1, '#000000');
+    x.fillStyle = g;
+    x.fillRect(0, 0, S, S);
+    return c;
+  }
 
   function build() {
     const host = document.getElementById('k-cast');
     if (!host) return false;
     canvas = document.createElement('canvas');
     canvas.id = 'k-cast3d';
-    // it sits UNDER the DOM heroes, which keep the shadows, rows and popups
+    // it sits UNDER the DOM heroes, which keep the rows, drags and popups
     canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;'
       + 'pointer-events:none;z-index:1;';
     host.insertBefore(canvas, host.firstChild);
@@ -572,20 +740,89 @@ const Cast3D = (() => {
     } catch (err) { failed = 'no webgl: ' + err.message; return false; }
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.setScissorTest(true);
+    // REAL CONTACT SHADOWS ARE THE POINT OF THE FLOOR. Four figures throwing
+    // onto the ground and across each other is most of what says "these people
+    // are standing in a room" — it is the one cue a painted plate can never
+    // carry, because a plate does not know where anybody is.
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     scene = new THREE.Scene();
-    // FLAT LIGHT. Paper dolls are lit like paper, not like film: a big ambient
-    // so the washes read as washes, and two weak directionals only so the
-    // silhouette has any form at all when a figure turns.
     // LIT, NOT FLATTENED. Build 112 washed the light out because a paper doll
     // is lit like paper; with the wash off, that same flat ambient turns a
     // painted cloak into a sticker. A key from the front-right and a cool rim
     // from behind put the folds back.
-    scene.add(new THREE.AmbientLight(0xffffff, 0.95));
-    const k = new THREE.DirectionalLight(0xffffff, 1.55); k.position.set(2.5, 4, 3);
-    const r = new THREE.DirectionalLight(0x9fb6d8, 0.75); r.position.set(-3, 2, -2.5);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.88));
+    const k = new THREE.DirectionalLight(0xffffff, 1.45);
+    k.position.set(4.5, 7.5, 5.0);
+    k.castShadow = true;
+    k.shadow.mapSize.set(1024, 1024);
+    const sc = k.shadow.camera;
+    sc.left = -8; sc.right = 8; sc.top = 8; sc.bottom = -8;
+    sc.near = 0.5; sc.far = 26;
+    // ACNE OR PETER-PANNING, pick one. A negative bias this small keeps the
+    // contact — the shadow still touches the sole, which is the whole job —
+    // without striping the cloaks.
+    k.shadow.bias = -0.0012;
+    k.shadow.normalBias = 0.02;
+    const r = new THREE.DirectionalLight(0x9fb6d8, 0.72);
+    r.position.set(-5, 3.5, -4);
     scene.add(k, r);
-    cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 40);
+
+    // ── THE FLOOR THAT IS ALREADY THERE ──────────────────────────────────────
+    //
+    // The first version of this laid a big lit plane across the whole lower
+    // half of the frame, and it was a plain mistake: `bg23-plaza.webp` is a
+    // PAINTING OF A PLAZA, floor included, in the right perspective, and
+    // covering it with procedural stone traded good art for a pale slab and
+    // took the painted look down with it.
+    //
+    // What a painting cannot do is know where anybody is standing. So the
+    // ground here is not scenery — it is THE SURFACE THE FIGURES TOUCH — and it
+    // is two planes doing one job each:
+    //
+    //   THE CATCHER carries nothing but shadow. `ShadowMaterial` is fully
+    //   transparent everywhere light reaches and darkens only where a figure
+    //   blocks it, so what lands on the painted plaza is four real contact
+    //   shadows and not one pixel besides. This is the whole return on the
+    //   floor being real: the shadows move when the figures move, stretch when
+    //   somebody lunges, and fall across each other.
+    //
+    //   THE WASH is a whisper of painted ground under the party — the pooled
+    //   pigment and paper tooth the cast itself is painted with — pulling the
+    //   figures down onto the plate rather than letting them hover in front of
+    //   it. It fades out well inside its own edges, because a floor with a
+    //   visible edge in the middle of a plaza is worse than no floor at all.
+    //
+    // Build 120 replaces the plate with geometry, because a billboard cannot be
+    // orbited. Until then the painting beats anything that would replace it,
+    // and this stays out of its way.
+    const fade = new THREE.CanvasTexture(groundFade());
+    const tex = new THREE.CanvasTexture(groundTexture());
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(4, 4);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    const wash = new THREE.Mesh(
+      new THREE.PlaneGeometry(17, 17),
+      new THREE.MeshBasicMaterial({ map: tex, alphaMap: fade, transparent: true,
+                                    opacity: LOOK.floor, depthWrite: false }));
+    wash.rotation.x = -Math.PI / 2;
+    wash.position.set(0.8, 0.002, 0.4);
+    wash.renderOrder = -1;
+    scene.add(wash);
+
+    ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(30, 30),
+      new THREE.ShadowMaterial({ opacity: LOOK.shade, transparent: true }));
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.set(0.8, 0.004, 0.4);
+    ground.receiveShadow = true;
+    ground.userData.wash = wash;
+    scene.add(ground);
+
+    cam = new THREE.PerspectiveCamera(FOV, VIEW.w / FULL_H, 0.1, 90);
+    cam.setViewOffset(VIEW.w, FULL_H, 0, OFF_Y, VIEW.w, VIEW.h);
+    cam.rotation.order = 'YXZ';
     return true;
   }
 
@@ -644,6 +881,12 @@ const Cast3D = (() => {
     const prevTarget = renderer.getRenderTarget();
     const scissorWas = renderer.getScissorTest();
     renderer.setScissorTest(false);
+    // THE FLOOR IS NOT PART OF ANYBODY'S SILHOUETTE. This reads the alpha
+    // channel to find where a figure begins and ends, and a ground plane
+    // spanning the frame fills every pixel of it — leave it in and every
+    // figure measures as exactly one screen tall.
+    const groundWas = ground && ground.visible;
+    if (ground) { ground.visible = false; ground.userData.wash.visible = false; }
 
     for (let pass = 0; pass < 5; pass++) {
       const aspect = W / H;
@@ -678,6 +921,7 @@ const Cast3D = (() => {
 
     renderer.setRenderTarget(prevTarget);
     renderer.setScissorTest(scissorWas);
+    if (ground) { ground.visible = groundWas; ground.userData.wash.visible = groundWas; }
     for (const id of Object.keys(figs)) figs[id].root.visible = wasVisible[id];
     target.dispose();
   }
@@ -721,7 +965,7 @@ const Cast3D = (() => {
       });
       const mat = watercolour(map, tone);
       root.traverse(o => {
-        if (o.isMesh || o.isSkinnedMesh) { o.material = mat; o.frustumCulled = false; }
+        if (o.isMesh || o.isSkinnedMesh) { o.material = mat; o.frustumCulled = false; o.castShadow = true; }
       });
       // aimed once the idle has posed them — see `aim` below
       root.scale.setScalar(tone.tall);
@@ -739,26 +983,130 @@ const Cast3D = (() => {
       aim(figs[id], side * FOE_HEADING - side * CAST[id].turn);
     }
     for (const id of Object.keys(figs)) fit(figs[id]);
+    // ── AND NOW PUT THEM ON THE GROUND ───────────────────────────────────────
+    //
+    // `fit` measured each silhouette by looking at it, which is the only thing
+    // that has ever worked here — Box3 reports a SkinnedMesh's authored box and
+    // bone-to-bone needs a fudge for the sole under the toe and the hood over
+    // the crown, different for every character. Its output was a camera frame
+    // when there was a camera per figure; it is the same measurement either
+    // way, so it is simply read differently now: a figure that fills FILL of a
+    // frame `viewH` tall is `viewH * FILL` metres tall, and its soles are half
+    // that below the silhouette's centre.
+    //
+    // WHICH MAKES HEIGHT A DECISION RATHER THAN AN ACCIDENT. Meshy is asked for
+    // a height in metres and obliges approximately; three heroes generated on
+    // three different days do not agree to the centimetre, and the Regent has
+    // no reason to be the same size as the people fighting it. So each figure
+    // is scaled to the height the FIGHT wants — the party level with each
+    // other, the Regent looming over them — and then dropped until its feet
+    // touch y=0. Nobody floats and nobody sinks, because neither is a number
+    // anyone chose.
+    for (const id of Object.keys(figs)) {
+      const f = figs[id];
+      const h0 = f.viewH * FILL;                       // metres, as generated
+      const s = TALL_M[CAST[id].foe ? 'foe' : 'hero'] / h0;
+      f.root.scale.multiplyScalar(s);
+      f.worldH = h0 * s;
+      f.ctrOff = f.midX * s;                           // it is not centred either
+      f.root.position.y = -(f.midY - h0 / 2) * s;      // soles to the floor
+      const slot = slotOf(id) || STAGE.hero.front;
+      f.root.position.x = slot[0] - f.ctrOff;
+      f.root.position.z = slot[1];
+      f.root.updateWorldMatrix(true, true);
+    }
     ready = true;
   }
 
-  // Where the DOM has put this hero, in canvas pixels, THIS frame.
-  function boxOf(id) {
-    const h = document.querySelector(CAST[id].sel);
-    if (!h) return null;
-    const host = document.getElementById('k-cast');
-    if (!host) return null;
-    const a = h.getBoundingClientRect(), b = host.getBoundingClientRect();
-    if (!a.width || !b.width) return null;
-    // the canvas is laid out over #k-cast, so subtracting its origin gives
-    // canvas-local CSS pixels; the scissor wants them from the BOTTOM
-    // …and which rank it is standing in, because that is a picture decision.
-    // A foe is not in the party's rank ladder at all, so it carries its own.
-    const depth = CAST[id].depth != null ? CAST[id].depth
-                : h.classList.contains('k-row-front') ? 1
-                : h.classList.contains('k-row-mid') ? 0.55 : 0;
-    return { x: a.left - b.left, y: a.top - b.top, w: a.width, h: a.height,
-             hostH: b.height, depth, vis: h.offsetParent !== null };
+  // ── WHICH SLOT IS THIS BODY STANDING IN? ───────────────────────────────────
+  // game.js stays the authority on WHO IS WHERE IN GAME TERMS — it has set the
+  // row class and `data-row` since Build 101 and nothing here second-guesses
+  // it. What the world owns is what that means in metres. The two never
+  // disagree because only one of them has an opinion.
+  function slotOf(id) {
+    const node = document.querySelector(CAST[id].sel);
+    if (!node) return null;
+    const row = node.dataset.row
+      || (node.classList.contains('k-row-front') ? 'front'
+        : node.classList.contains('k-row-mid') ? 'mid'
+        : node.classList.contains('k-row-back') ? 'back' : null);
+    if (CAST[id].foe) {
+      const host = document.getElementById('k-cast');
+      const line = host && host.classList.contains('k-line-many');
+      // one opponent stands where one opponent has always stood; a LINE of
+      // them mirrors the party's ladder across the floor
+      if (!line || !row) return STAGE.solo;
+      return STAGE.foe[row] || STAGE.solo;
+    }
+    return STAGE.hero[row] || STAGE.hero.front;
+  }
+
+  // ── THE DOM FOLLOWS ────────────────────────────────────────────────────────
+  //
+  // Project the soles and the crown, and hand the DOM the rectangle they make.
+  // Everything anchored to `.k-hero` — the nameplate, the HP bar, the drop
+  // zone, the aim target, the damage popups — comes along for free, because
+  // they were always anchored to the element rather than to the lane variable
+  // that used to move it.
+  //
+  // `behind` is carried even though nothing uses it yet: once the camera is
+  // allowed to cross the line, an actor can end up BEHIND it, and a projected
+  // point behind the camera comes back mirrored through the origin rather than
+  // off-screen — a hero would appear to leap to the opposite side of the frame
+  // rather than leave it.
+  const _w = new THREE.Vector3(), _foot = new THREE.Vector3(), _crown = new THREE.Vector3();
+  function toScreen(world, b) {
+    _w.copy(world).applyMatrix4(cam.matrixWorldInverse);
+    const behind = _w.z > -0.05;
+    _w.applyMatrix4(cam.projectionMatrix);
+    return { x: (_w.x * 0.5 + 0.5) * b.width, y: (-_w.y * 0.5 + 0.5) * b.height, behind };
+  }
+
+  function follow(id, f, b) {
+    const node = document.querySelector(CAST[id].sel);
+    if (!node) return;
+    const foot = toScreen(_foot.copy(f.root.position), b);
+    const crown = toScreen(_crown.set(f.root.position.x,
+                                      f.root.position.y + f.worldH,
+                                      f.root.position.z), b);
+    const box = node.offsetHeight || 1;
+    const s = Math.max(0.02, (foot.y - crown.y) / box);
+    node.style.setProperty('--w-x', foot.x.toFixed(1));
+    node.style.setProperty('--w-y', foot.y.toFixed(1));
+    node.style.setProperty('--w-s', s.toFixed(4));
+    node.style.setProperty('--w-off', (foot.behind || crown.behind) ? '1' : '0');
+  }
+
+  // ── THE CAMERA LANGUAGE ALREADY EXISTED ────────────────────────────────────
+  //
+  // `cam()` in game.js has spoken in dolly, pan, roll, yaw and pitch since
+  // Build 22, writing them onto `#k-cast` as custom properties for a CSS
+  // transform to consume. Those are camera words. They were only ever a CSS
+  // transform because there was no camera to give them to. So this reads the
+  // same six properties and moves the real one — which means every camPush,
+  // camParryOpen, camOffsetTo and camHold written since Build 22 became a
+  // three-dimensional camera move without one line changing in game.js.
+  //
+  // THE TARGET IS READ; THE TRAVEL IS OURS. A custom property does not
+  // interpolate during a CSS transition — the transition is on `transform`,
+  // not on the variables behind it — so getComputedStyle returns where the
+  // camera is GOING, never where it is. That turns out to be the useful half:
+  // the easing belongs here, at frame rate and in three dimensions, rather
+  // than being reverse-engineered out of a matrix every frame.
+  const RIG = { x: 0, y: 0, dz: 0, r: 0, yaw: 0, pitch: 0 };
+  const WANT = { x: 0, y: 0, dz: 0, r: 0, yaw: 0, pitch: 0 };
+  function rig(host, dt) {
+    const cs = getComputedStyle(host);
+    const n = (k) => { const v = parseFloat(cs.getPropertyValue(k)); return isNaN(v) ? 0 : v; };
+    WANT.x = n('--cam-x'); WANT.y = n('--cam-y'); WANT.dz = n('--cam-dz');
+    WANT.r = n('--cam-r'); WANT.yaw = n('--cam-yaw'); WANT.pitch = n('--cam-pitch');
+    const k = Math.min(1, dt * 7.5);
+    for (const key of Object.keys(RIG)) RIG[key] += (WANT[key] - RIG[key]) * k;
+    // pixels are what game.js speaks; metres are what the world is in
+    const m = 1 / PX_M;
+    cam.position.set(EYE.x - RIG.x * m, EYE.y + RIG.y * m, EYE.z - RIG.dz * m);
+    cam.rotation.set(-RIG.pitch * D, -RIG.yaw * D, RIG.r * D);
+    cam.updateMatrixWorld();
   }
 
   function frame(now) {
@@ -775,56 +1123,80 @@ const Cast3D = (() => {
     last = now;
 
     const b = host.getBoundingClientRect();
-    const dpr = Math.min(2.5, window.devicePixelRatio || 1);
-    renderer.setPixelRatio(dpr);
-    renderer.setSize(b.width, b.height, false);
-    // ONE CLEAR FOR THE WHOLE CANVAS, with the scissor off. Clearing with it on
-    // only wipes the current box, and letting each render() clear its own only
-    // works while no two hero boxes overlap — which they do the moment one
-    // walks a row or is dragged.
-    renderer.autoClear = false;
-    renderer.setScissorTest(false);
-    renderer.clear();
-    renderer.setScissorTest(true);
+    if (!b.width) return;
+    // ── RESIZE ONLY WHEN THE SIZE CHANGED ────────────────────────────────────
+    //
+    // This was costing 570 ms A FRAME, and it had been since Build 112.
+    // `setSize` assigns `canvas.width`, and assigning canvas.width REALLOCATES
+    // AND CLEARS THE DRAWING BUFFER whether or not the number changed — it is
+    // the documented way to wipe a canvas. Called unconditionally every frame
+    // on a 2330x1075 buffer, that is a fresh multi-megabyte allocation sixty
+    // times a second to draw the same size picture.
+    //
+    // It hid because it looks like bookkeeping. The layer ran at 1.7 fps in the
+    // harness and the suite blamed the scene: turning off the shadows, the
+    // floor and every figure moved it to 2.1, which reads as "the renderer is
+    // just slow here" rather than "nothing I switched off was ever the cost".
+    // What found it was measuring the layer against ITSELF DISABLED — 1.74
+    // against 60 — which is the only comparison that could not be explained by
+    // the contents of the scene.
+    //
+    // 2.5 was also a strange ceiling to have chosen: at 932 CSS px wide the
+    // figures are ~150 px tall, and there is nothing in a watercolour wash that
+    // repays six times the fragments. Two is past the point anybody can see.
+    // …AND THE HARNESS GETS ONE PIXEL PER PIXEL. Headless Chromium rasterises
+    // in software, where cost is very nearly linear in fragments: the same
+    // scene runs 1.76 / 3.35 / 5.24 fps at buffers of 1864x860, 932x430 and
+    // 466x215. Build 118 drew into four scissor boxes covering about a
+    // twelfth of the frame and got 3.9; one shared world has to fill all of
+    // it, which is 2.2x the fragments and exactly the price of having a floor.
+    //
+    // A phone fills 1864x860 without noticing. A software rasteriser turns it
+    // into a two-minute suite, so `?test=1` — which has capped sleeps since
+    // Build 22 for the same reason — caps the buffer too. Nothing the suite
+    // measures is a function of pixel density: geometry, facing, motion and
+    // projection are all scale-free, and the two checks that count pixels
+    // count them as a FRACTION of the box they are in.
+    const dpr = Math.min(TEST ? 1 : 2, window.devicePixelRatio || 1);
+    if (b.width !== sized.w || b.height !== sized.h || dpr !== sized.dpr) {
+      sized.w = b.width; sized.h = b.height; sized.dpr = dpr;
+      renderer.setPixelRatio(dpr);
+      renderer.setSize(b.width, b.height, false);
+    }
 
-    // EVERY FIGURE STANDS AT THE WORLD ORIGIN — they are placed by VIEWPORT,
-    // not by position — so exactly one may be visible per render or all three
-    // draw on top of each other inside one hero's box.
-    for (const o of Object.keys(figs)) figs[o].root.visible = false;
+    rig(host, dt);
 
     for (const id of Object.keys(figs)) {
       const f = figs[id];
       f.step(dt);
-      const box = boxOf(id);
-      if (!box || !box.vis) continue;
+      const node = document.querySelector(CAST[id].sel);
+      const vis = !!node && node.offsetParent !== null;
+      f.root.visible = vis;
+      if (!vis) continue;
+      // THE WALK IS A WALK NOW. A row change used to be a 380ms CSS transition
+      // on a transform: the figure slid because the rectangle it was painted
+      // into slid. Easing the WORLD position instead means the model actually
+      // crosses the floor — and its shadow crosses with it, which is the tell
+      // that it is really over there rather than drawn smaller.
+      const slot = slotOf(id);
+      if (slot) {
+        const k = Math.min(1, dt * 5.5);
+        f.root.position.x += (slot[0] - f.ctrOff - f.root.position.x) * k;
+        f.root.position.z += (slot[1] - f.root.position.z) * k;
+      }
       const mat = f.root.userData.mat;
-      if (mat && mat.userData.depth) mat.userData.depth.value = box.depth;
-      // one scissored viewport per hero — the figure is drawn INTO the box the
-      // DOM element occupies, so every CSS move the stage makes is followed.
-      //
-      // THESE ARE CSS PIXELS, NOT BUFFER PIXELS. three.js multiplies by the
-      // pixel ratio inside setViewport/setScissor, so pre-multiplying here
-      // scales every offset by the ratio twice and the whole party renders off
-      // the top-right corner of the canvas — which looks exactly like "the
-      // layer draws nothing" from anywhere except a pixel dump.
-      //
-      // …and GL counts y from the BOTTOM, while the DOM counts from the top.
-      const yUp = box.hostH - box.y - box.h;
-      renderer.setViewport(box.x, yUp, box.w, box.h);
-      renderer.setScissor(box.x, yUp, box.w, box.h);
-      // framed to THIS figure's measured height, so three models of three
-      // different sizes still stand on one line and fill their boxes alike
-      const aspect = box.w / box.h;
-      const viewH = f.viewH;
-      cam.top = viewH / 2; cam.bottom = -viewH / 2;
-      cam.left = -viewH * aspect / 2; cam.right = viewH * aspect / 2;
-      cam.position.set(f.midX, f.midY, 6);
-      cam.lookAt(f.midX, f.midY, 0);
-      cam.updateProjectionMatrix();
-      f.root.visible = true;
-      renderer.render(scene, cam);
-      f.root.visible = false;
+      if (mat && mat.userData.depth) {
+        // the air-and-warmth ladder, from real distance rather than a class
+        mat.userData.depth.value = Math.max(0, Math.min(1, 1 - (EYE.z - f.root.position.z - 6.4) / 3.2));
+      }
     }
+
+    // ONE SCENE, ONE CAMERA, ONE PASS. Four scissored renders and four
+    // orthographic frames are what it took to fake a shared space; a shared
+    // space needs none of them.
+    renderer.render(scene, cam);
+
+    for (const id of Object.keys(figs)) follow(id, figs[id], b);
 
     if (pending) {
       const cv = document.createElement('canvas');
@@ -881,6 +1253,65 @@ const Cast3D = (() => {
       playing: Object.fromEntries(Object.keys(figs).map(id => [id, figs[id].clipName || null])),
       bones: Object.keys(figs).length ? Object.keys(figs[Object.keys(figs)[0]].bones).length : 0,
     }),
+    // test-only: THE WORLD, MEASURED OFF THE WORLD. Not the table it was
+    // configured from — the live scene graph, the live camera, and where the
+    // projection actually lands. Three checks in Build 118 passed while the
+    // game was wrong because they read a dial instead of the thing the dial
+    // was supposed to cause; this exists so the world's checks cannot.
+    _world: () => {
+      const host = document.getElementById('k-cast');
+      const b = host ? host.getBoundingClientRect() : { width: VIEW.w, height: VIEW.h };
+      const out = { scenes: 1, ground: !!(ground && ground.parent),
+                    shadows: !!(renderer && renderer.shadowMap.enabled),
+                    cam: { kind: cam ? cam.type : null,
+                           fov: cam ? +cam.fov.toFixed(2) : null,
+                           x: cam ? +cam.position.x.toFixed(3) : null,
+                           y: cam ? +cam.position.y.toFixed(3) : null,
+                           z: cam ? +cam.position.z.toFixed(3) : null },
+                    actors: {} };
+      for (const id of Object.keys(figs)) {
+        const f = figs[id];
+        const p = f.root.position;
+        const foot = toScreen(_foot.copy(p), b);
+        const crown = toScreen(_crown.set(p.x, p.y + f.worldH, p.z), b);
+        // the soles, read off the SKELETON rather than off the placement that
+        // was supposed to put them there
+        let low = Infinity;
+        for (const n of Object.keys(f.bones)) {
+          const y = f.bones[n].getWorldPosition(new THREE.Vector3()).y;
+          if (y < low) low = y;
+        }
+        out.actors[id] = {
+          x: +p.x.toFixed(3), y: +p.y.toFixed(3), z: +p.z.toFixed(3),
+          tall: +f.worldH.toFixed(3), lowestBone: +low.toFixed(3),
+          inScene: f.root.parent === scene,
+          screen: { x: +foot.x.toFixed(1), ground: +foot.y.toFixed(1),
+                    h: +(foot.y - crown.y).toFixed(1), behind: foot.behind },
+        };
+      }
+      return out;
+    },
+    // test-only: the pieces a performance probe needs to turn things off one
+    // at a time. Which of the floor, its transparency and the shadow pass
+    // costs what is a measurement, not a guess.
+    _parts: () => ({ ground, renderer, scene, cam, figs }),
+    // test-only: the whole pose at once, as quaternions.
+    //
+    // EULER ANGLES WRAP AND QUATERNIONS DO NOT. `_boneAngle` decomposes to
+    // XYZ, and a joint that crosses +-180 degrees between two samples reports
+    // a 359-degree swing — which is how the Regent's idle came out as the most
+    // energetic motion in the cast while being perfectly calm. A rotation's
+    // real size is the angle between two quaternions, and it is never larger
+    // than 180 by construction.
+    //
+    // It also returns everything in one call: twenty-four round trips per
+    // sampled frame, four times over, was most of what made the suite slow.
+    _bonePose: (heroId) => {
+      const f = figs[heroId]; if (!f) return null;
+      const out = {};
+      for (const n of Object.keys(f.bones)) out[n] = f.bones[n].quaternion.toArray();
+      return out;
+    },
     _boneAngle: (heroId, bone) => {
       const f = figs[heroId]; if (!f || !f.bones[bone]) return null;
       const e = new THREE.Euler().setFromQuaternion(f.bones[bone].quaternion);
@@ -921,6 +1352,14 @@ const Cast3D = (() => {
     // Called with nothing it reports what is currently set.
     look(next) {
       if (!next) return { ...LOOK };
+      // THE GROUND'S TWO DIALS ARE NOT UNIFORMS ON ANYBODY. They are the
+      // opacity of the shadow catcher and of the painted wash under it, so
+      // they are set where they live rather than looked for on four figures
+      // that do not have them.
+      if (ground) {
+        if (next.shade != null) ground.material.opacity = next.shade;
+        if (next.floor != null) ground.userData.wash.material.opacity = next.floor;
+      }
       for (const id of Object.keys(figs)) {
         const u = figs[id].root.userData.mat.userData.u;
         for (const k of Object.keys(next)) {

@@ -5175,6 +5175,188 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 119 — one world, and the arrow turns around
+
+**The ask.** *"Now I'm wondering if my battlefield should also be 3d with the
+same painterly feel it is right now. That way we have more control over a
+cinematic camera."*
+
+The instinct was right and the reason underneath it is bigger than the floor.
+
+### There was no world
+
+Everything up to Build 118 drew each figure **alone**:
+
+```js
+for (const id of Object.keys(figs)) {
+  const box = boxOf(id);                    // ask the DOM where this hero is
+  renderer.setViewport(box.x, yUp, box.w, box.h);
+  f.root.visible = true;
+  renderer.render(scene, cam);              // draw it alone, orthographic
+  f.root.visible = false;
+}
+```
+
+Four figures, four renders, an **orthographic** camera, each one painted into
+the rectangle the DOM said its old 2D portrait would have occupied. Every
+figure standing at the world origin. They were never in a scene together.
+
+Two things follow, and both were the ceiling:
+
+- **There was no camera to move.** `cam()` moved a `<div>`. The figures came
+  along as rectangles — they did not reproject, did not change their
+  relationship to one another, could not occlude. A push-in magnified a
+  photograph of a diorama rather than travelling into one.
+- **There was nowhere to put a floor.** A ground plane spans all four boxes and
+  belongs to none of them. Wanting a floor is what forces the whole thing.
+
+### The change is one arrow
+
+| | Build 118 | Build 119 |
+|---|---|---|
+| who decides position | DOM lanes (`--lane-x`, `--lane-z`) | the world, in metres |
+| who follows | WebGL reads `getBoundingClientRect()` | the DOM reads `camera.project()` |
+| camera | a CSS transform on a div | a real `PerspectiveCamera` |
+| renders per frame | four scissored, orthographic | one |
+
+**Twenty-nine places in `game.js` read a hero's bounding rect** — drop targets,
+damage numbers, aim beams, nameplates, parry rings, the reckoning, the all-out.
+Not one of them cares which direction the arrow points. They ask the DOM where
+the hero is; the DOM still knows; it simply learned it from the world instead of
+from a lane variable. That is why a change this deep touched none of them, and
+why the whole rendering half came out **shorter** than the scissor dance it
+replaced — that dance existed only to fake a shared space.
+
+### The lens was converted, not chosen
+
+The stage has been a real perspective volume since Build 21: `#k-field` carries
+`perspective: 700px` with `perspective-origin: 50% 22%`. That is a pinhole
+camera written in CSS — focal length 700 px, principal point at (466, 94.6) on a
+932×430 frame — so the 3D camera that reproduces today's framing is not a matter
+of taste. It is that same camera, transcribed.
+
+The principal point sits **above** centre, which a symmetric frustum cannot
+express: the horizon is at 22% of the height, not 50%, which is what looking
+slightly down at a floor looks like. `setViewOffset` is the honest translation —
+render the 430-tall window out of a 670.8-tall virtual frame centred on the
+vanishing point, which works out at a 51.2° field of view.
+
+Running the ladder the stage has drawn since Build 101 back through that lens —
+projected centres and ground lines at 240/234, 352/253, 474/276, with a hero
+1.75 m tall filling 176 px at the front rank — puts the eye **7.5 m back at
+1.70 m**, head height. The party landed within 16 px of where it has always
+stood. The read players know survived the rewrite, which is the only reason
+eight suites that have never heard of three.js stayed green.
+
+### The floor is not scenery
+
+The first version of the ground was a plain mistake: a big lit plane across the
+lower half of the frame. `bg23-plaza.webp` is a **painting of a plaza**, floor
+included, in the right perspective, and covering it with procedural stone traded
+good art for a pale slab and took the painted look down with it.
+
+What a painting cannot do is know where anybody is standing. So the ground is
+not scenery — it is **the surface the figures touch** — and it is two planes
+doing one job each:
+
+- **The catcher** carries nothing but shadow. `ShadowMaterial` is transparent
+  everywhere light reaches and darkens only where a figure blocks it, so what
+  lands on the painted plaza is four real contact shadows and not one pixel
+  besides. The shadows move when the figures move, stretch when somebody lunges,
+  and fall across each other. This is the entire return on the floor being real.
+- **The wash** is a whisper of painted ground under the party — the pooled
+  pigment and paper tooth the cast itself is painted with — pulling the figures
+  down onto the plate rather than letting them hover in front of it.
+
+The 2D shadow ellipse each hero has worn since Build 4 retires with this. It was
+welcome for as long as there was no floor for a real shadow to fall on; now it is
+a second, wrong shadow lying next to the right one.
+
+### The camera language already existed
+
+`cam()` has spoken in **dolly, pan, roll, yaw and pitch** since Build 22, writing
+them onto `#k-cast` as custom properties for a CSS transform to consume. Those
+are camera words. They were only ever a CSS transform because there was no
+camera to give them to. Build 119 hands them to a real one, so every `camPush`,
+`camParryOpen`, `camOffsetTo` and `camHold` written since Build 22 became a
+three-dimensional camera move **without one line changing in game.js**.
+
+One subtlety worth writing down: a custom property does not interpolate during a
+CSS transition — the transition is on `transform`, not on the variables behind
+it — so `getComputedStyle` returns where the camera is *going*, never where it
+is. That turns out to be the useful half. The easing belongs here, at frame rate
+and in three dimensions, rather than being reverse-engineered out of a matrix.
+
+The suite proves it the only way that means anything: a push-in grows the near
+rank **1.227×** and the far rank **1.177×**. That difference is parallax, and it
+is precisely what a CSS scale cannot do.
+
+### Three checks were measuring the wrong thing. Again.
+
+This keeps happening and it is worth naming the pattern: a check that asserts
+something *adjacent* to the truth passes or fails for reasons unrelated to the
+game.
+
+| check | what it actually watched | what it does now |
+|---|---|---|
+| `INK` | **lit pixels.** A pixel at 8% alpha and one at 100% both count as "lit", so a faint wash and a slab painted over the plaza score identically — and the slab was the bug it existed to catch | **mean alpha**: how much the layer *obscures*. The painted plaza has to read through |
+| `POSE` | **`down > 20%`**, a number read off one renderer. Moving to a shared perspective world changes what fraction of a box a pose occupies for reasons that have nothing to do with skinning, and it duly failed at 18.9% on correct animation | the **ordering**: every action redraws the body, and a knock-down dwarfs the rest. That survives a camera change, a model swap and a new clip |
+| `IDLE` | **differences of Euler angles.** A joint crossing ±180° reports a 359° swing | the **angle between quaternions**, which cannot exceed 180° by construction |
+
+The `IDLE` one is the sharpest. The Regent's calmest bone was reporting the
+liveliest motion in the cast — 359.03° — purely from a wraparound. Measured
+properly it reads **6.19°**, in line with the party's 4.91–6.69. The old check
+would have passed a completely frozen Regent.
+
+`FOLLOW` had to reverse with the arrow: it used to set `--lane-x` and confirm the
+figure was redrawn into the element's new box, which is now testing a mechanism
+the game does not use. It changes the **row** instead — what the game changes —
+and asserts both halves of the new promise: the figure walks 1.23 m across the
+floor, and the DOM element lands on the projected figure to **0.0 px**.
+
+### A 570 ms frame that had been there since Build 112
+
+Chasing why the suite had got slow turned up something worth keeping:
+
+```js
+renderer.setSize(b.width, b.height, false);   // every frame
+```
+
+`setSize` assigns `canvas.width`, and **assigning `canvas.width` reallocates and
+clears the drawing buffer whether or not the number changed** — it is the
+documented way to wipe a canvas. Called unconditionally at 60 Hz on a 2330×1075
+buffer, that is a fresh multi-megabyte allocation every frame to draw the same
+size picture. It now resizes only when the size changes.
+
+It hid because it looks like bookkeeping, and because switching things off
+pointed the wrong way: turning off the shadows, the floor and every figure moved
+1.74 fps to 2.1, which reads as "the renderer is just slow here". What found it
+was measuring the layer against **itself disabled** — 1.74 against 60 — the one
+comparison that could not be explained by the contents of the scene.
+
+The honest remaining number: the world fills the whole viewport where Build 118
+filled four small boxes, which is **2.2× the fragments** (3.9 fps → 1.74 in the
+harness) and exactly the price of having a floor. A phone with a real GPU does
+not notice. A software rasteriser turns it into a two-minute suite, so `?test=1`
+— which has capped sleeps since Build 22 for the same reason — caps the drawing
+buffer too. Nothing the suite measures is a function of pixel density.
+
+### What is still a billboard
+
+The backdrop. It is a painted plate and it cannot be orbited, which is the whole
+of Build 120: the world in the round, so the camera can cross behind the party,
+circle the Regent and drop low for a finisher. The projection already carries a
+`behind` flag for every actor, because a point behind a camera projects
+*mirrored through the origin* rather than off-screen — a hero would appear to
+leap to the far side of the frame rather than leave it — and drag-to-lane will
+have to be raycast against the floor in world space rather than picked by screen
+x, so it survives a reversed board.
+
+**Suites:** flow 257, road 94, bond 76, slice 75, line 32, camp 48, music 22,
+beat 10, cast 37 — 651 checks, all green.
+
+---
+
 ## Build 118 — the Regent joins the cast, and the party stands up straight
 
 ### The foe is not a special case

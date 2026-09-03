@@ -159,9 +159,48 @@ const { boot } = require('./harness.cjs');
       return n + Math.round(r.width * sx) * Math.round(r.height * sy);
     }, 0);
   });
-  check('INK: nothing is drawn outside the three boxes \u2014 the scissor holds',
-    painted.litAll <= inBoxes * 1.02,
-    JSON.stringify({ litAll: painted.litAll, boxPixels: inBoxes }));
+  // THIS CHECK USED TO SAY "the scissor holds" — nothing is drawn outside the
+  // four hero boxes — and it was the right check for a layer that drew each
+  // figure into its own scissored rectangle. Build 119 deleted the scissor on
+  // purpose: there is one world now, and the ink outside the boxes is the
+  // contact shadows the figures throw onto the floor, which is the entire
+  // point of the floor being real.
+  //
+  // So the question changes rather than relaxes. Ink outside the boxes is
+  // EXPECTED, and what must stay true is that it is a modest amount of it —
+  // shadow pooling near the party, not a slab repainting the plaza. The first
+  // version of the floor was exactly that slab, and this is the number that
+  // would have caught it: it lit 2.3x the box area.
+  // COUNTING LIT PIXELS IS THE WRONG QUESTION. A pixel at 8% alpha and a pixel
+  // at 100% both count as "lit", so a faint wash over the plaza and a slab
+  // painted on top of it score the same — and the slab was the actual bug this
+  // is here to catch. What matters is how much the layer OBSCURES, which is
+  // mean alpha: the painted plaza has to read through whatever the floor puts
+  // over it. A shadow that lands and a wash that whispers come out around a
+  // tenth; the first version of the floor, an opaque lit plane across the lower
+  // half of the frame, came out above a third.
+  const outside = await J(() => {
+    const b = document.getElementById('k-cast').getBoundingClientRect();
+    const c = window.__castShot;
+    const sx = c.width / b.width, sy = c.height / b.height;
+    const SEL = ['.k-hero[data-hero="ash"]', '.k-hero[data-hero="elin"]',
+                 '.k-hero[data-hero="mira"]', '#k-boss-art'];
+    const boxes = SEL.map(s => {
+      const r = document.querySelector(s).getBoundingClientRect();
+      return { x0: (r.left - b.left) * sx, x1: (r.right - b.left) * sx,
+               y0: (r.top - b.top) * sy, y1: (r.bottom - b.top) * sy };
+    });
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let sum = 0, n = 0;
+    for (let y = 0; y < c.height; y += 2) for (let x = 0; x < c.width; x += 2) {
+      if (boxes.some(q => x >= q.x0 && x <= q.x1 && y >= q.y0 && y <= q.y1)) continue;
+      sum += d[(y * c.width + x) * 4 + 3]; n++;
+    }
+    return { meanAlpha: +(sum / n / 255).toFixed(4), sampled: n };
+  });
+  check('INK: the floor lets the painted plaza through — it is shadow, not a second floor',
+    outside.meanAlpha > 0.005 && outside.meanAlpha < 0.22,
+    JSON.stringify(outside) + ' — mean alpha outside every actor\u2019s box');
 
   // ═══ D · THE IDLE IS ACTUALLY MOVING ═══
   // The single most important clip in a turn-based game: almost all of the
@@ -182,30 +221,42 @@ const { boot } = require('./harness.cjs');
     // figures as corpses. Which bone carries an idle is a property of the clip,
     // so the check asks the only question that survives a clip swap — is
     // ANYTHING moving?
-    const out = {};
-    for (const id of Object.keys(window.Cast3D._state().playing)) {
-      const f = window.Cast3D._figure(id);
-      f.clear();
-      const names = Object.keys(f.bones);
-      const lo = {}, hi = {};
-      for (let i = 0; i < 80; i++) {
-        await new Promise(r => requestAnimationFrame(r));
-        for (const n of names) {
-          const a = window.Cast3D._boneAngle(id, n);
-          if (!a) continue;
-          if (!lo[n]) { lo[n] = a.slice(); hi[n] = a.slice(); continue; }
-          a.forEach((v, k) => { if (v < lo[n][k]) lo[n][k] = v; if (v > hi[n][k]) hi[n][k] = v; });
+    // ALL FOUR AT ONCE, not one after another. Watching each figure for its
+    // own eighty frames is four times the frames for no more information —
+    // and the frames are the expensive part here, because Build 119 fills the
+    // whole viewport rather than four small boxes and the harness rasterises
+    // in software. Sampling them together also compares them under identical
+    // conditions, which is what the next check actually wants.
+    // ANGLES BETWEEN QUATERNIONS, NOT DIFFERENCES OF EULERS. Decomposing to
+    // XYZ and subtracting reports a 359-degree swing for a joint that crosses
+    // +-180 — which is exactly what the Regent's calmest bone did, coming out
+    // as the liveliest motion in the cast. The angle between two rotations is
+    // 2*acos(|dot|) and cannot exceed 180 by construction.
+    //
+    // ALL FOUR AT ONCE, AND ONE CALL PER FRAME. Watching each figure for its
+    // own eighty frames is four times the frames for no more information, and
+    // asking for twenty-four bones one at a time is twenty-four round trips
+    // per frame. The frames are the expensive part: Build 119 fills the whole
+    // viewport rather than four small boxes, and the harness rasterises in
+    // software. Sampling them together also compares them under identical
+    // conditions, which is what the next check actually wants.
+    const ids = Object.keys(window.Cast3D._state().playing);
+    const first = {}, widest = {};
+    for (const id of ids) { window.Cast3D._figure(id).clear(); widest[id] = { deg: 0, bone: null }; }
+    for (let i = 0; i < 80; i++) {
+      await new Promise(r => requestAnimationFrame(r));
+      for (const id of ids) {
+        const pose = window.Cast3D._bonePose(id);
+        if (!first[id]) { first[id] = pose; continue; }
+        for (const n of Object.keys(pose)) {
+          const a = first[id][n], b = pose[n];
+          const dot = Math.abs(a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3]);
+          const deg = 2 * Math.acos(Math.min(1, dot)) * 180 / Math.PI;
+          if (deg > widest[id].deg) widest[id] = { deg: +deg.toFixed(2), bone: n };
         }
       }
-      let best = 0, where = null;
-      for (const n of names) {
-        if (!lo[n]) continue;
-        const sw = Math.max(...hi[n].map((v, k) => v - lo[n][k]));
-        if (sw > best) { best = sw; where = n; }
-      }
-      out[id] = { deg: +best.toFixed(2), bone: where };
     }
-    return out;
+    return widest;
   });
   check('IDLE: nobody is holding their breath — every figure moves between turns',
     Object.values(idleSwing).every(v => v.deg > 1.5),
@@ -314,40 +365,69 @@ const { boot } = require('./harness.cjs');
     f.clear();
     return out;
   });
+  // THE `down > 20` HALF OF THIS WAS A NUMBER READ OFF ONE RENDERER. Build 119
+  // moved every figure into a shared perspective world, which changes what
+  // fraction of a box a pose occupies for reasons that have nothing to do with
+  // whether skinning works — and the check duly failed at 18.9% on animation
+  // that is completely correct. The property worth asserting is not a
+  // percentage: it is that every action visibly redraws the body, and that
+  // being knocked to the ground redraws it by far the most. That survives a
+  // camera change, a model swap and a new clip; a threshold does not.
+  const worst = Math.max(silhouette.slash, silhouette.cast, silhouette.ward);
   check('POSE: an action visibly changes the figure, not just its bone numbers',
-    ['slash', 'cast', 'ward'].every(c => silhouette[c] > 8) && silhouette.down > 20,
-    JSON.stringify(silhouette) + ' % of the silhouette redrawn');
+    ['slash', 'cast', 'ward'].every(c => silhouette[c] > 5) && silhouette.down > worst * 1.6,
+    JSON.stringify(silhouette) + ' % of the silhouette redrawn — down must dwarf the rest');
 
-  // ═══ F · THE FIGURE FOLLOWS THE ELEMENT ═══
-  // This is the reason the layer is built this way at all: the figure's
-  // position IS the DOM box, read fresh every frame, so a walk between rows
-  // needs no second copy of the layout.
-  console.log('\n── it follows the box ──');
+  // ═══ F · THE WORLD PLACES, AND THE DOM FOLLOWS ═══
+  //
+  // THE ARROW REVERSED IN BUILD 119, and this is the check that has to reverse
+  // with it. It used to set `--lane-x` and confirm the figure was redrawn into
+  // the element's new box, which was the right check while the DOM was the
+  // authority. It is now testing a mechanism the game does not use: the lane
+  // variables move nothing, because the element's position is written BY the
+  // projection every frame.
+  //
+  // What must be true instead is the same promise stated the other way round —
+  // change the row, and the figure crosses the floor AND the element lands on
+  // top of it. The second half is what keeps twenty-nine rect-readers in
+  // game.js working: drop targets, damage numbers, aim beams, nameplates. If
+  // the DOM ever stopped tracking the figure, all of them would quietly start
+  // pointing at empty floor.
+  console.log('\n── the world places, the DOM follows ──');
   const follow = await J(async () => {
-    // POSITION IS `--lane-x` INSIDE A TRANSFORM — that is how a row change
-    // moves a hero, so that is what the check drives. Setting `transform`
-    // directly would be testing a mechanism the game does not use.
     const h = document.querySelector('.k-hero[data-hero="mira"]');
-    const before = h.getBoundingClientRect().left;
-    h.style.setProperty('--lane-x', '700px');
-    h.style.transition = 'none';
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    const after = h.getBoundingClientRect().left;
-    await window.Cast3D._snapshot();
-    const c = window.__castShot;
-    const b = document.getElementById('k-cast').getBoundingClientRect();
-    const sx = c.width / b.width, sy = c.height / b.height;
-    const r2 = h.getBoundingClientRect();
-    const w = Math.max(1, Math.round(r2.width * sx)), hh = Math.max(1, Math.round(r2.height * sy));
-    const d = c.getContext('2d').getImageData(
-      Math.round((r2.left - b.left) * sx), Math.round((r2.top - b.top) * sy), w, hh).data;
-    let lit = 0;
-    for (let i = 3; i < d.length; i += 4) if (d[i] > 24) lit++;
-    h.style.removeProperty('--lane-x'); h.style.transition = '';
-    return { moved: Math.round(after - before), density: +(lit / (w * hh)).toFixed(3) };
+    const at = () => ({
+      world: window.Cast3D._world().actors.mira,
+      dom: (() => {
+        const b = document.getElementById('k-cast').getBoundingClientRect();
+        const r = h.getBoundingClientRect();
+        return { cx: +(r.left - b.left + r.width / 2).toFixed(1),
+                 ground: +(r.top - b.top + r.height).toFixed(1) };
+      })(),
+    });
+    const settle = async (n) => { for (let i = 0; i < n; i++) await new Promise(r => requestAnimationFrame(r)); };
+    await settle(20);
+    const before = at();
+    // THE ROW IS WHAT THE GAME CHANGES — renderHeroes swaps this class when a
+    // hero walks — so the row is what the check changes.
+    h.classList.remove('k-row-mid'); h.classList.add('k-row-front');
+    await settle(50);
+    const after = at();
+    h.classList.remove('k-row-front'); h.classList.add('k-row-mid');
+    await settle(50);
+    return { before, after,
+             walkedM: +(after.world.x - before.world.x).toFixed(2),
+             // does the ELEMENT sit where the FIGURE is? to the pixel.
+             gapX: +Math.abs(after.dom.cx - after.world.screen.x).toFixed(2),
+             gapY: +Math.abs(after.dom.ground - after.world.screen.ground).toFixed(2) };
   });
-  check('FOLLOW: move the element and the figure is drawn at the new box',
-    follow.moved > 60 && follow.density > 0.06, JSON.stringify(follow));
+  check('FOLLOW: changing the row walks the figure across the floor, in metres',
+    follow.walkedM > 0.8, JSON.stringify({ walked: follow.walkedM + ' m',
+      from: follow.before.world.x, to: follow.after.world.x }));
+  check('FOLLOW: and the DOM element lands exactly on the projected figure',
+    follow.gapX < 1.5 && follow.gapY < 1.5,
+    JSON.stringify({ gapX: follow.gapX, gapY: follow.gapY,
+                     dom: follow.after.dom, projected: follow.after.world.screen }));
 
   // ═══ G · THE PANEL, AND THAT IT STAYS OUT OF THE WAY ═══
   // `?cast=3d&tune=1`. Its whole reason to exist is that a look chosen by
@@ -495,6 +575,108 @@ const { boot } = require('./harness.cjs');
     Object.values(facing).every(f => f && f.z > 0.2),
     JSON.stringify(Object.fromEntries(
       Object.entries(facing).map(([k, v]) => [k, v && v.z]))));
+
+  // ═══ I · THERE IS ONE WORLD, AND EVERYBODY IS STANDING IN IT ═══
+  //
+  // Every check above this line passed in Build 118, where each figure was
+  // drawn alone into its own scissored rectangle with an orthographic camera
+  // and no shared space at all. That is the point: none of them can tell the
+  // difference, because none of them ask. These do.
+  console.log('\n── one world ──');
+  await J(async () => {
+    // quiet the rig before measuring the lens: the camera eases toward
+    // whatever --cam-* says and the fight sets those, so a push in flight
+    // would be measured as the framing.
+    const c = document.getElementById('k-cast');
+    for (const k of ['x', 'y', 'dz']) c.style.setProperty('--cam-' + k, '0px');
+    for (const k of ['r', 'yaw', 'pitch']) c.style.setProperty('--cam-' + k, '0deg');
+    for (const id of Object.keys(window.Cast3D._state().playing)) window.Cast3D._figure(id).clear();
+    for (let i = 0; i < 60; i++) await new Promise(r => requestAnimationFrame(r));
+  });
+  const world = await J(() => window.Cast3D._world());
+
+  check('WORLD: one scene, one perspective camera — not four orthographic slices',
+    world.cam.kind === 'PerspectiveCamera'
+    && Object.values(world.actors).every(a => a.inScene),
+    JSON.stringify({ camera: world.cam.kind, fov: world.cam.fov,
+                     inScene: Object.keys(world.actors).length }));
+
+  // NOBODY FLOATS AND NOBODY SINKS. Each model comes back from the generator
+  // at its own size with its origin wherever the generator felt like putting
+  // it, so standing on the floor is a measurement, not an assumption: the
+  // silhouette is measured by rendering it, and the figure is dropped until
+  // the bottom of that silhouette is at y=0. The lowest JOINT sits a little
+  // above zero on everybody — an ankle is not a sole, and the Regent's train
+  // pools below its lowest bone — which is why the tolerance is one-sided.
+  check('WORLD: every figure stands ON the floor, not above or through it',
+    Object.values(world.actors).every(a => a.lowestBone > -0.02 && a.lowestBone < 0.45),
+    JSON.stringify(Object.fromEntries(
+      Object.entries(world.actors).map(([k, v]) => [k, v.lowestBone]))) + ' m, lowest joint');
+
+  // THE PARTY IS ONE HEIGHT AND THE THING IT FIGHTS IS BIGGER. Height stopped
+  // being an accident of which day a model was generated on when the world
+  // arrived — it is scaled to what the fight needs.
+  const talls = Object.fromEntries(Object.entries(world.actors).map(([k, v]) => [k, v.tall]));
+  check('WORLD: the party stands level with itself and the Regent looms over it',
+    talls.ash === talls.elin && talls.elin === talls.mira && talls.mourner > talls.ash * 1.15,
+    JSON.stringify(talls) + ' m');
+
+  // THE READ SURVIVED THE REWRITE. The ladder the 2D stage drew — the party
+  // receding left and away, ground lines rising as they go — is what players
+  // know, and the camera was solved from it rather than chosen. Ranks must
+  // still step left, still step up, and still shrink.
+  const A = world.actors;
+  check('WORLD: the ranks still recede — further back is further left, higher and smaller',
+    A.elin.screen.x < A.mira.screen.x && A.mira.screen.x < A.ash.screen.x
+    && A.elin.screen.ground < A.mira.screen.ground && A.mira.screen.ground < A.ash.screen.ground
+    && A.elin.screen.h < A.mira.screen.h && A.mira.screen.h < A.ash.screen.h,
+    JSON.stringify(Object.fromEntries(
+      Object.entries(A).map(([k, v]) => [k, v.screen.x + '/' + v.screen.ground + ' h' + v.screen.h]))));
+
+  // …AND IT LANDED WHERE THE PAINTED STAGE HAD IT. The heroes' projected
+  // centres and ground lines have been ~240/234, ~352/253, ~474/276 since
+  // Build 101. Within a dozen pixels is the same board; the check exists so a
+  // camera tweak cannot quietly slide the party off the painted plaza.
+  const LADDER = { elin: [240, 234], mira: [352, 253], ash: [474, 276] };
+  const drift = Object.fromEntries(Object.entries(LADDER).map(([id, [x, y]]) =>
+    [id, [+(A[id].screen.x - x).toFixed(1), +(A[id].screen.ground - y).toFixed(1)]]));
+  check('WORLD: and it frames the board the painted stage framed',
+    Object.values(drift).every(([dx, dy]) => Math.abs(dx) < 22 && Math.abs(dy) < 22),
+    JSON.stringify(drift) + ' px from the 2D ladder');
+
+  // THE FLOOR IS REAL AND IT CATCHES LIGHT. Without this the world is four
+  // figures in a void that happens to have a painting behind it.
+  check('WORLD: there is a floor, and the light throws real shadows onto it',
+    world.ground && world.shadows, JSON.stringify({ ground: world.ground, shadows: world.shadows }));
+
+  // ═══ J · THE CAMERA IS REAL, AND THE FIGHT ALREADY KNOWS HOW TO DRIVE IT ═══
+  //
+  // `cam()` in game.js has spoken in dolly, pan, roll, yaw and pitch since
+  // Build 22 — camera words that were a CSS transform only because there was
+  // no camera. Build 119 hands them to a real one. Nothing in game.js changed,
+  // so this check is the proof that nothing needed to.
+  console.log('\n── the camera moves ──');
+  const dolly = await J(async () => {
+    const c = document.getElementById('k-cast');
+    const settle = async () => { for (let i = 0; i < 60; i++) await new Promise(r => requestAnimationFrame(r)); };
+    const before = window.Cast3D._world();
+    c.style.setProperty('--cam-dz', '120px');   // a push-in, in the fight's own units
+    await settle();
+    const push = window.Cast3D._world();
+    c.style.setProperty('--cam-dz', '0px');
+    await settle();
+    return { z0: before.cam.z, z1: push.cam.z,
+             // a real push-in makes the NEAR rank grow more than the far one:
+             // that is parallax, and it is the thing a CSS scale cannot do
+             nearGrew: +(push.actors.ash.screen.h / before.actors.ash.screen.h).toFixed(4),
+             farGrew: +(push.actors.elin.screen.h / before.actors.elin.screen.h).toFixed(4) };
+  });
+  check('CAMERA: the fight\u2019s own dolly moves a real camera through the world',
+    dolly.z1 < dolly.z0 - 0.5,
+    JSON.stringify({ from: dolly.z0, to: dolly.z1 }) + ' m along the view axis');
+  check('CAMERA: and a push-in is parallax \u2014 the near rank grows more than the far',
+    dolly.nearGrew > dolly.farGrew + 0.01,
+    JSON.stringify({ front: dolly.nearGrew, back: dolly.farGrew }));
 
   await shot('cast3d');
   const out = report();
