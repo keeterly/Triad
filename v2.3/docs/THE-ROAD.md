@@ -4754,3 +4754,125 @@ like — if a learner had won 21 or won 8, the price would be wrong.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · soak 5/5 — no page errors. Ten runs,
 eight to the Regent, 28 recalls, 19 nodes kindled.
+
+## Build 112 — the cast in three dimensions
+
+A painted sprite can only face one way. Every hero on this stage has been a
+single `.webp` since Build 4, which is why they turn to face the camera when
+they cross the board, why a strike is a CSS nudge rather than a swing, and why
+the all-out is four flat plates sliding at a fifth. The figures were the one
+part of the fight that could not act.
+
+`?cast=3d` puts a rigged, animated figure in each hero's place. It is **opt-in,
+and the proof that it is opt-in is that 624 checks in nine other suites never
+see it.**
+
+### The layer does not replace the stage
+
+This is the whole design. The DOM keeps every job it already does — `.k-hero`
+holds the box, the row, the drag, the aim target, the popups, the shadow, the
+drop zones. The layer draws **one canvas** across `#k-cast`, reads where the DOM
+has put each hero *this frame*, and paints a figure into that box through a
+scissored viewport. The `img` inside `.k-fig` is simply hidden.
+
+It follows that a walk between rows, a drag, or the forward lean on a play moves
+the 3D figure too — for free, and in perfect sync — because the figure's
+position **is** the element's box, read fresh every frame. There is no second
+copy of the layout to keep true. The suite checks exactly that: move the
+element, and the ink lands at the new box.
+
+Two things the swap would have quietly deleted, both put back:
+
+- **The row ladder.** FRONT/MID/BACK was sold by a CSS filter on the hero's
+  `img` — saturate and brighten at the front, wash out at the back. Hiding that
+  img would have removed the strongest depth cue on the board, so the ladder is
+  a shader uniform now, read off the same row class.
+- **The contact shadow**, which stays 2D and stays welcome: a real projected
+  shadow costs a second render pass per hero for something the painted ellipse
+  already sells.
+
+### The model arrived with no animation
+
+Its one clip is 0.3 s long and holds a *single keyframe per channel* — a bind
+pose wearing an animation's name. What it does have is a 24-bone skeleton with
+**Mixamo names**, which means poses can be written against it by hand and, later,
+that Mixamo's library retargets onto it without a rename.
+
+So the clips are **data, not baked curves**: a bone name and a few keys of euler
+rotation in degrees. Thirty lines instead of a megabyte, timing tuned to the
+combat beats rather than the other way round, and — because `actionKind()` has
+returned `heal / cast / slash / ward` since Build 36 — wiring that is a lookup
+by a name the fight already uses rather than a second table that drifts.
+
+Eight clips: `idle`, `slash`, `cast`, `ward`, `heal`, `hurt`, `parry`, `down`.
+
+**Idle is the one that matters.** A turn-based fight spends almost all of its
+time with nobody acting, and a still 3D figure reads as a *broken* 3D figure
+where a still painting reads as a painting. So: breathing, a slow weight shift,
+arm drift — on long unequal periods, with a randomised starting phase, so three
+figures never fall into lockstep. That is a check too.
+
+### The bind pose is a T-pose
+
+Every clip is written as an offset from rest, so without a correction the party
+stood on the battlefield with their arms straight out for the entire fight,
+gently breathing. A **stance** is folded into rest once at load — arms down,
+elbows soft, weight settled — and it is applied to every bone immediately, not
+only to the ones some clip happens to mention.
+
+### Four bugs that all looked like art problems
+
+Worth naming together, because they share a shape: the figure was wrong on
+screen and nothing in the code was obviously wrong.
+
+1. **A raw `ShaderMaterial` silently dropped skinning.** The model rendered its
+   bind pose. Patching the *stock* material instead keeps the skinning chunks.
+2. **`Object3D.clone()` hands every copy the original's skeleton**, so three
+   figures shared one pose. `SkeletonUtils.clone` is the one that rebinds.
+3. **A view-space normal dotted against a world-space eye vector** turned the
+   whole figure black. Both vectors come from three in view space; use those.
+4. **`setViewport` applies the pixel ratio itself.** Pre-multiplying scaled every
+   offset twice and rendered the party off the top-right corner of the canvas —
+   indistinguishable from "the layer draws nothing" without a pixel dump.
+
+And a fifth that was mine and in the instrument: **a WebGL canvas is empty by
+the time anyone else looks at it.** Reading it cold reported that a layer which
+was painting fine painted nothing. `preserveDrawingBuffer` costs real
+performance on a phone and is not worth paying for a test, so the layer hands
+out a snapshot taken *inside* the frame that drew it.
+
+### One measurement that changed the shipping code
+
+The suite's first attempt slept a fixed 900 ms and asked whether a 0.46 s clip
+had finished. It had not — and the reason was not the clip. Headless advances
+animation at about **a third of real time**, and the frame delta was clamped at
+0.05 s, which *drops* the excess rather than deferring it. That clamp exists to
+stop a restored background tab teleporting the party; at 0.05 it also ate time
+on any device running below 20 fps, so clips would play in slow motion and, far
+worse, drift out of step with the combat beats they exist to match. It is 0.25 s
+now. The check waits for the clip to end instead of guessing how long that takes.
+
+### What it costs
+
+| | |
+|---|---|
+| Model | 7.0 MB → **678 KB** — 58,848 → 12,946 tris, 2048² PNG → 1024² webp |
+| Library | three.js r160 minified + GLTFLoader, vendored |
+| Runtime decoder | **none** — quantisation only, so nothing to load and run |
+
+The decimated model is indistinguishable from the original at the size a hero
+actually gets. No GPU timing is claimed here: this container renders in
+software, and an fps number measured on SwiftShader would be fiction.
+
+### What it does not do yet
+
+The foes are still painted plates — only the party is dimensional, so a fight
+is currently half one thing and half the other. Faces are voids and hands are
+hidden in sleeves, which is what AI-generated 3D is good and bad at; portraits
+and cutscenes should stay 2D. And all three heroes wear one model, told apart by
+palette, height and standing angle — which is the experiment, not a shrug: if
+the watercolour treatment can make three copies of one figure read as three
+people, it can carry three different figures into one party.
+
+flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
+camp 48/48 · music 22/22 · beat 10/10 · **cast 20/20** · soak 5/5 across ten runs — no page errors.

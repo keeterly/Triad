@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 111;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 112;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -4218,6 +4218,7 @@ async function runVolleyRhythm(hits, answerers, sub) {
         if (track && ni === 0) track.wake();
         document.querySelectorAll('.k-hero').forEach(h =>
           h.classList.toggle('k-parrying', h.dataset.hero === who));
+    castPlay(who, 'parry');
         const dur = Math.max(180, Math.round(land - performance.now()));
         // THE BLOW IS THROWN HERE, so this is where the thing throwing it moves
         // — and in a line, WHICH thing. `hits[hi].src` is stamped on every hit
@@ -4296,6 +4297,9 @@ function hitFlash(tier, tone) {
 function struck(node, dir, tier) {
   if (!node) return;
   const cls = 'k-struck-' + (dir === 'r' ? 'r' : 'l') + (tier >= 3 ? ' k-struck-hard' : '');
+  // every blow in the game passes through here, so this is the one place the
+  // recoil has to be hooked — foes included, which simply find no figure
+  if (node.classList.contains('k-hero')) castPlay(node.dataset.hero, 'hurt');
   node.classList.remove('k-struck', 'k-struck-l', 'k-struck-r', 'k-struck-hard');
   void node.offsetWidth;
   node.className += ' k-struck ' + cls;
@@ -4610,6 +4614,16 @@ function fxSlash(node, i, heavy) {
   setTimeout(() => el2.remove(), heavy ? 460 : 340);
 }
 
+// ── the fight speaks to the 3D cast in verbs ────────────────────────────────
+// One call, and it is a no-op unless ?cast=3d built the layer. The vocabulary
+// is the one the game ALREADY has — actionKind() has returned heal, cast,
+// slash and ward since Build 36 — so a clip is a lookup by the name the fight
+// already uses rather than a second table that drifts away from the first.
+function castPlay(heroId, clip) {
+  const C3 = window.Cast3D;
+  if (C3 && heroId && clip) C3.play(heroId, clip);
+}
+
 // ── the cast ─────────────────────────────────────────────────────────────────
 // A spell is ANNOUNCED. The ring blooms under the caster before anything lands,
 // which is the whole difference between a spell and a punch — you can see it
@@ -4694,6 +4708,7 @@ function fxPlayCard(cardId, ev) {
   const heroId = primaryHero(ev.card);
   const h = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
   if (h) { h.classList.remove('k-acts'); void h.offsetWidth; h.classList.add('k-acts'); }
+  castPlay(heroId, actionKind(ev.card, ev.resolvedEffects));
   if (ev.condActive && ev.card.cond) fxComboCall(ev.card.cond.type, h);
 }
 // A combo that only shows up as a bigger number is a combo nobody notices they
@@ -6207,7 +6222,12 @@ function renderHeroes() {
     // A DEAD HERO WAS STILL STANDING. `k-downed` only ever reached the 24px
     // HUD row, so a third of the party could be dead while the board showed
     // three figures breathing.
-    h.classList.toggle('k-downed', !!C.heroes[id].downed);
+    const wasDown = h.classList.contains('k-downed'), isDown = !!C.heroes[id].downed;
+    h.classList.toggle('k-downed', isDown);
+    // DOWN IS A STATE, NOT A BEAT. Its clip holds where it ends instead of
+    // returning to idle, so it is played on the EDGE — driving it every render
+    // would restart the fall sixty times a second.
+    if (isDown !== wasDown) castPlay(id, isDown ? 'down' : 'idle');
     for (const r of ROWS) h.classList.toggle('k-row-' + r, C.heroes[id].row === r);
     // the word only — the row plate also carries a permanent step cue saying
     // this figure can be picked up and put somewhere, and writing textContent

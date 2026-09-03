@@ -4251,3 +4251,17 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   align-items: center; justify-content: center; gap: 34px; pointer-events: none;
   background: radial-gradient(ellipse at 50% 50%, rgba(8,7,10,0.86), rgba(8,7,10,0.95)); }
 #k-deck-focus.k-hidden { display: none; }
+
+/* ── THE CAST IN THREE DIMENSIONS (Build 112, behind ?cast=3d) ─────────────
+   The 3D layer does not replace the stage — it replaces the PICTURE inside
+   each hero. Everything else .k-hero does (the box, the row label, the
+   shadow, the drag, the aim target, the popups) is exactly as it was, which
+   is why the figure follows a walk between rows for free: its position IS
+   this element's box, read fresh every frame. */
+body.k-cast3d .k-hero .k-fig img { opacity: 0; }
+/* the canvas is under the DOM heroes, above the painted floor */
+body.k-cast3d #k-cast3d { position: absolute; inset: 0; pointer-events: none; }
+/* THE SHADOW STAYS 2D and stays welcome. A rigged figure with no contact
+   shadow floats, and a real projected shadow costs a second render pass per
+   hero for something the painted ellipse already sells. */
+body.k-cast3d .k-hero .k-shadow { opacity: 0.9; }
