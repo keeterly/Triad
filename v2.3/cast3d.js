@@ -43,13 +43,14 @@ import { GLTFLoader } from './lib/GLTFLoader.js';
 // generated figures together — it could, which is why this step was worth
 // taking. What survives from that experiment is the palette itself.
 //
-// THEY FACE THE ENEMY. `turn` is degrees about Y, and which way is "toward the
-// enemy" depends entirely on which way the generator happened to point the
-// model — so it was found by rotating one of them through a full circle and
-// looking, not by reasoning about sign conventions. About -68° puts the sword
-// out toward the Regent and still leaves enough of the face turned to camera to
-// read as a person rather than a shoulder. The three differ slightly so the
-// line does not look stamped.
+// THEY FACE THE ENEMY, AND IT IS COMPUTED, NOT CHOSEN. Two builds got this
+// wrong by eye — a generated model faces wherever the generator pointed it, a
+// clip can carry its own turn, and a figure at three-quarters is genuinely
+// hard to call from a 145-pixel render. So the layer MEASURES which way each
+// body faces, from the line between its shoulders, and turns it to face the
+// foe. `turn` is a fine adjustment ON TOP of that: three-quarters toward the
+// camera, so they read as people rather than shoulders, and a few degrees
+// apart so the line does not look stamped.
 //
 // THE HUE LIVES IN THE SHADOW, NOT IN THE PAPER. Tinting the light end is how
 // three figures turn into three lumps of colour — cream, sage and gold — that
@@ -59,14 +60,18 @@ import { GLTFLoader } from './lib/GLTFLoader.js';
 // warm earth for Ash, cold slate for Elin, sage for Mira.
 const CAST = {
   ash:  { model: 'ash.glb',  paper: 0xf7efe2, shadow: 0x9a7f6e, ink: 0x3d2f28,
-          turn: -68, tall: 1.00, strike: 'sword' },
+          turn: 26, tall: 1.00, strike: 'sword' },
   elin: { model: 'elin.glb', paper: 0xf2f4f7, shadow: 0x8d9ab4, ink: 0x343b4a,
-          turn: -60, tall: 0.97, strike: 'staff' },
+          turn: 34, tall: 0.97, strike: 'staff' },
   mira: { model: 'mira.glb', paper: 0xeef2ea, shadow: 0x76907c, ink: 0x2b352e,
-          turn: -72, tall: 0.98, strike: 'daggers' },
+          turn: 22, tall: 0.98, strike: 'daggers' },
 };
 const ART = './art/cast/';
 const D = Math.PI / 180;
+// Where the enemy stands, as a heading in degrees: 0 looks at the camera, 90
+// looks at the right-hand side of the stage, which is where every foe in this
+// game has stood since Build 4.
+const FOE_HEADING = 90;
 const CLIPS_URL = ART + 'clips.json';
 
 // ── the look, in one place ─────────────────────────────────────────────────
@@ -401,6 +406,43 @@ const Cast3D = (() => {
     return true;
   }
 
+  // ── point them at the enemy ──────────────────────────────────────────────
+  //
+  // WHICH WAY IS THIS BODY FACING? The line from the left shoulder to the
+  // right one is the lateral axis; crossing it with up gives the direction the
+  // chest points. Measure that, and turning to face the foe is arithmetic.
+  //
+  // AND IT HAS TO BE MEASURED WITH THE IDLE RUNNING. This is the part two
+  // builds got wrong by eye. A generated model faces wherever the generator
+  // pointed it — but on top of that the idle clip carries its own rotation,
+  // and `Combat_Stance` turns the body about fifty degrees all by itself. A
+  // static angle set against the bind pose therefore cannot control facing at
+  // all: the clip moves it afterwards. So the aim is taken after the mixer has
+  // posed the figure, which is the only moment the number means anything.
+  //
+  // Acting clips turn the body too, and that is wanted — a swing should wind
+  // up and follow through. Only the resting heading is pinned.
+  function headingOf(f) {
+    const g = (n) => (f.bones[n] ? f.bones[n].getWorldPosition(new THREE.Vector3()) : null);
+    const L = g('LeftShoulder') || g('LeftUpLeg');
+    const R = g('RightShoulder') || g('RightUpLeg');
+    if (!L || !R) return null;
+    const lateral = new THREE.Vector3().subVectors(R, L);
+    const fwd = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), lateral).normalize();
+    return Math.atan2(fwd.x, fwd.z) / D;   // 0 looks at the camera, 90 looks right
+  }
+  function aim(f, want) {
+    f.root.updateWorldMatrix(true, true);
+    const now = headingOf(f);
+    if (now == null) return;
+    let d = want - now;
+    while (d > 180) d -= 360;
+    while (d < -180) d += 360;
+    f.root.rotation.y += d * D;
+    f.root.userData.heading = want;
+    f.root.updateWorldMatrix(true, true);
+  }
+
   // ── find each figure's frame by looking at it ────────────────────────────
   // Render one figure alone into a small offscreen target, read the alpha
   // channel, and solve for the camera that puts its silhouette in the middle
@@ -487,7 +529,7 @@ const Cast3D = (() => {
       root.traverse(o => {
         if (o.isMesh || o.isSkinnedMesh) { o.material = mat; o.frustumCulled = false; }
       });
-      root.rotation.y = tone.turn * D;
+      // aimed once the idle has posed them — see `aim` below
       root.scale.setScalar(tone.tall);
       root.userData.mat = mat;
       scene.add(root);
@@ -496,6 +538,9 @@ const Cast3D = (() => {
     // one frame of the idle, so the measurement sees a standing figure rather
     // than whatever the bind pose happens to be
     for (const id of Object.keys(figs)) figs[id].step(0.016);
+    // aim BEFORE framing: turning a figure changes its silhouette, and the
+    // frame is measured from the silhouette
+    for (const id of Object.keys(figs)) aim(figs[id], FOE_HEADING - CAST[id].turn);
     for (const id of Object.keys(figs)) fit(figs[id]);
     ready = true;
   }
@@ -637,6 +682,20 @@ const Cast3D = (() => {
     },
     // test-only: which library clip a verb resolves to for this person
     _verbClip: (heroId, verb) => (VERB[verb] ? VERB[verb](heroId) : null),
+    // test-only: which way each chest ACTUALLY points, measured off the live
+    // skeleton — not the number in the table that was supposed to cause it.
+    // Two builds shipped a party fighting backwards because the dial was read
+    // instead of the body.
+    _facing: () => Object.fromEntries(Object.keys(figs).map(id => {
+      const f = figs[id];
+      const g = (n) => (f.bones[n] ? f.bones[n].getWorldPosition(new THREE.Vector3()) : null);
+      const L = g('LeftShoulder') || g('LeftUpLeg'), R = g('RightShoulder') || g('RightUpLeg');
+      if (!L || !R) return [id, null];
+      const lateral = new THREE.Vector3().subVectors(R, L);
+      const fwd = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), lateral).normalize();
+      return [id, { x: +fwd.x.toFixed(3), z: +fwd.z.toFixed(3),
+                    deg: +(Math.atan2(fwd.x, fwd.z) / D).toFixed(1) }];
+    })),
     // Which way each of them stands. WHICH WAY IS "TOWARD THE ENEMY" DEPENDS
     // ON WHICH WAY THE GENERATOR HAPPENED TO FACE THE MODEL, so the angle is
     // picked by looking at it rather than by reasoning about sign conventions
@@ -646,7 +705,7 @@ const Cast3D = (() => {
       for (const id of Object.keys(next)) {
         if (!figs[id]) continue;
         CAST[id].turn = next[id];
-        figs[id].root.rotation.y = next[id] * D;
+        aim(figs[id], FOE_HEADING - next[id]);
       }
       return this.turn();
     },

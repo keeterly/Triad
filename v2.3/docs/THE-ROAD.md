@@ -5062,3 +5062,53 @@ behind put the folds back.
 
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 26/26** — no page errors.
+
+## Build 116 — the facing is computed, not chosen
+
+Build 115 claimed to have turned the party toward the enemy. It had not. They
+were still fighting with their backs to the Revenant, and the check I wrote to
+prevent exactly that **passed**, because it asserted the number in the table
+rather than the direction of the body.
+
+Both mistakes have the same root, and it is worth naming.
+
+### An angle set against the bind pose cannot control facing
+
+A generated model faces wherever the generator pointed it, which is already
+unknowable in advance. But on top of that, **the idle clip carries its own
+rotation** — `Combat_Stance` turns the body about fifty degrees all by itself.
+So a static `turn` applied at load is overwritten by the animation a frame
+later. Every value I picked by eye was measuring a body the clip had already
+moved.
+
+So the layer **measures** now. The line from the left shoulder to the right one
+is the lateral axis; crossing it with up gives the direction the chest points.
+Take that reading *after the mixer has posed the figure* — the only moment it
+means anything — and turning to face the foe is arithmetic:
+
+```
+d = wanted − measured;  root.rotation.y += d
+```
+
+`turn` survives as a fine adjustment on top: how far back toward the camera each
+of them is pulled from square-on, so they read as people rather than shoulders.
+Acting clips still turn the body, and that is wanted — a swing should wind up
+and follow through. Only the resting heading is pinned.
+
+### The check read the dial, so the dial is what it protected
+
+`FACING: every one of them is turned toward the foe's side of the board` asserted
+`turn` was between −35 and −110. The value was −68. The check passed. The party
+fought backwards for a build.
+
+It reads `_facing()` now — the live forward vector off the posed skeleton — and
+asserts two things a number in a table cannot fake: the chest points at the +X
+side of the stage where every foe in this game has stood since Build 4, and it
+is not square-on, so the party still reads at three-quarters rather than as
+three cut-outs in profile.
+
+Measured: Ash 64°, Elin 56°, Mira 68°, where 0 looks at the camera and 90 looks
+straight at the foe.
+
+flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
+camp 48/48 · music 22/22 · beat 10/10 · **cast 27/27** — no page errors.

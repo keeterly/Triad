@@ -356,10 +356,23 @@ const { boot } = require('./harness.cjs');
   // it with their backs turned — which no check would have caught, because
   // every other thing about them was correct.
   console.log('\n── which way they face ──');
-  const facing = await J(() => window.Cast3D.turn());
-  check('FACING: every one of them is turned toward the foe’s side of the board',
-    Object.values(facing).every(t => t < -35 && t > -110),
+  // MEASURED OFF THE BODY, NOT READ OFF THE DIAL. The first attempt at this
+  // check asserted the number in the table — which was exactly the number that
+  // had been set wrong, so it passed while the party fought backwards. What
+  // matters is where the chest actually points once the idle has posed it: the
+  // foe is on the +X side of the stage, so a facing hero's forward vector has
+  // a clearly positive x and is not still pointing at the camera.
+  const facing = await J(() => window.Cast3D._facing());
+  check('FACING: every chest actually points at the foe’s side of the board',
+    Object.values(facing).every(f => f && f.x > 0.55 && f.deg > 35 && f.deg < 115),
     JSON.stringify(facing));
+
+  // …and they are not all square-on to it either, or the party reads as three
+  // cardboard cut-outs in profile rather than three people at a three-quarter.
+  check('FACING: turned toward the foe, but still angled to the camera',
+    Object.values(facing).every(f => f && f.z > 0.2),
+    JSON.stringify(Object.fromEntries(
+      Object.entries(facing).map(([k, v]) => [k, v && v.z]))));
 
   await shot('cast3d');
   const out = report();
