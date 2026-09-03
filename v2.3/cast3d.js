@@ -43,6 +43,14 @@ import { GLTFLoader } from './lib/GLTFLoader.js';
 // generated figures together — it could, which is why this step was worth
 // taking. What survives from that experiment is the palette itself.
 //
+// THEY FACE THE ENEMY. `turn` is degrees about Y, and which way is "toward the
+// enemy" depends entirely on which way the generator happened to point the
+// model — so it was found by rotating one of them through a full circle and
+// looking, not by reasoning about sign conventions. About -68° puts the sword
+// out toward the Regent and still leaves enough of the face turned to camera to
+// read as a person rather than a shoulder. The three differ slightly so the
+// line does not look stamped.
+//
 // THE HUE LIVES IN THE SHADOW, NOT IN THE PAPER. Tinting the light end is how
 // three figures turn into three lumps of colour — cream, sage and gold — that
 // read as silhouettes rather than as painted people. Real watercolour keeps
@@ -51,11 +59,11 @@ import { GLTFLoader } from './lib/GLTFLoader.js';
 // warm earth for Ash, cold slate for Elin, sage for Mira.
 const CAST = {
   ash:  { model: 'ash.glb',  paper: 0xf7efe2, shadow: 0x9a7f6e, ink: 0x3d2f28,
-          turn: -14, tall: 1.00, strike: 'sword' },
+          turn: -68, tall: 1.00, strike: 'sword' },
   elin: { model: 'elin.glb', paper: 0xf2f4f7, shadow: 0x8d9ab4, ink: 0x343b4a,
-          turn:   9, tall: 0.97, strike: 'staff' },
+          turn: -60, tall: 0.97, strike: 'staff' },
   mira: { model: 'mira.glb', paper: 0xeef2ea, shadow: 0x76907c, ink: 0x2b352e,
-          turn:  16, tall: 0.98, strike: 'daggers' },
+          turn: -72, tall: 0.98, strike: 'daggers' },
 };
 const ART = './art/cast/';
 const D = Math.PI / 180;
@@ -65,6 +73,17 @@ const CLIPS_URL = ART + 'clips.json';
 // `?cast=3d&tune=1` puts these on screen; window.Cast3D.look({...}) overrides
 // them live, which is how they were chosen.
 const LOOK = {
+  // HOW MUCH WATERCOLOUR AT ALL, and the answer is none by default. The
+  // treatment was built for a stand-in model whose texture was a grey
+  // photogrammetry mush that needed the help. These three are painted from the
+  // concept art and their own colour is the thing worth showing: Ash's
+  // blue-grey cloak over the red sash, Elin's bone-white, Mira's violet under
+  // black. A wash over that is a filter on top of art that already works.
+  //
+  // It stays in, dialable from 0 to 1, because it is thirty lines and someone
+  // may want it for a memory or a reckoning where the stage should look
+  // remembered rather than lived in.
+  paint: 0.0,
   bands: 5.0,   // how many washes the tone is stepped into
   wash:  0.55,  // …and how much of the real painting survives the stepping
   lift:  0.36,  // watercolour has no true black; the paper shows through
@@ -75,6 +94,7 @@ const LOOK = {
 // what each dial does, for the panel — and so the next person to open this
 // file does not have to read the shader to find out
 const LOOK_HELP = {
+  paint: ['watercolour', 0, 1, 0.01, 'how much of the wash is applied at all'],
   bands: ['washes', 2, 8, 1, 'how many flat tones the brush lays down'],
   wash:  ['flatten', 0, 1, 0.01, 'how much of the real painting the wash eats'],
   lift:  ['paper', 0, 0.8, 0.01, 'how far the blacks lift toward paper'],
@@ -170,6 +190,7 @@ function watercolour(map, tone) {
   // arguing about it; holding them all on the material means a sweep is one
   // page load and the comparison is side by side.
   m.userData.u = {
+    uPaint: { value: LOOK.paint },
     uBands: { value: LOOK.bands }, uGrain: { value: LOOK.grain },
     uEdge:  { value: LOOK.edge },  uLift:  { value: LOOK.lift },
     uWash:  { value: LOOK.wash },  uAir:   { value: LOOK.air },
@@ -182,7 +203,7 @@ function watercolour(map, tone) {
     Object.assign(sh.uniforms, m.userData.u);
     sh.fragmentShader = sh.fragmentShader
       .replace('void main() {', `
-        uniform float uBands, uGrain, uEdge, uLift, uDepth, uWash, uAir;
+        uniform float uBands, uGrain, uEdge, uLift, uDepth, uWash, uAir, uPaint;
         uniform vec3 uPaper, uShadow, uInk;
         float wcHash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         float wcTooth(vec2 p){
@@ -198,7 +219,9 @@ function watercolour(map, tone) {
       .replace('#include <dithering_fragment>', `
         #include <dithering_fragment>
         {
-          vec3 c = gl_FragColor.rgb;
+          // the model's own colour, lit — this is what ships
+          vec3 base = gl_FragColor.rgb;
+          vec3 c = base;
           c = mix(vec3(uLift), vec3(1.0), c);
           float lum = dot(c, vec3(0.299, 0.587, 0.114));
           // 2 · wash — quantise tone, and MIX BACK toward the true value.
@@ -213,8 +236,12 @@ function watercolour(map, tone) {
           float fres = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), 3.6);
           c = mix(c, uInk, clamp(fres * uEdge, 0.0, 0.55));
           c *= 1.0 - uGrain * (1.0 - wcTooth(gl_FragCoord.xy * 0.85));
-          // the ladder: back ranks lose saturation and sit down in value, and
-          // drift toward the paper as if there were air in between
+          // …and only as much of all that as was asked for. At uPaint 0 every
+          // line above is dead code the compiler keeps and the eye never sees.
+          c = mix(base, c, uPaint);
+          // THE LADDER IS NOT PART OF THE TREATMENT. Back ranks lose saturation
+          // and sit down in value whatever the paint is doing, because
+          // FRONT/MID/BACK is a thing the player has to read, not a mood.
           float g = dot(c, vec3(0.299, 0.587, 0.114));
           float air = (1.0 - uDepth) * uAir;
           c = mix(c, vec3(g), air * 0.42);
@@ -362,9 +389,13 @@ const Cast3D = (() => {
     // FLAT LIGHT. Paper dolls are lit like paper, not like film: a big ambient
     // so the washes read as washes, and two weak directionals only so the
     // silhouette has any form at all when a figure turns.
-    scene.add(new THREE.AmbientLight(0xffffff, 2.1));
-    const k = new THREE.DirectionalLight(0xffffff, 0.9); k.position.set(2.5, 4, 3);
-    const r = new THREE.DirectionalLight(0x9fb6d8, 0.5); r.position.set(-3, 2, -2.5);
+    // LIT, NOT FLATTENED. Build 112 washed the light out because a paper doll
+    // is lit like paper; with the wash off, that same flat ambient turns a
+    // painted cloak into a sticker. A key from the front-right and a cool rim
+    // from behind put the folds back.
+    scene.add(new THREE.AmbientLight(0xffffff, 0.95));
+    const k = new THREE.DirectionalLight(0xffffff, 1.55); k.position.set(2.5, 4, 3);
+    const r = new THREE.DirectionalLight(0x9fb6d8, 0.75); r.position.set(-3, 2, -2.5);
     scene.add(k, r);
     cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 40);
     return true;
@@ -606,6 +637,19 @@ const Cast3D = (() => {
     },
     // test-only: which library clip a verb resolves to for this person
     _verbClip: (heroId, verb) => (VERB[verb] ? VERB[verb](heroId) : null),
+    // Which way each of them stands. WHICH WAY IS "TOWARD THE ENEMY" DEPENDS
+    // ON WHICH WAY THE GENERATOR HAPPENED TO FACE THE MODEL, so the angle is
+    // picked by looking at it rather than by reasoning about sign conventions
+    // and getting it backwards.
+    turn(next) {
+      if (!next) return Object.fromEntries(Object.keys(CAST).map(id => [id, CAST[id].turn]));
+      for (const id of Object.keys(next)) {
+        if (!figs[id]) continue;
+        CAST[id].turn = next[id];
+        figs[id].root.rotation.y = next[id] * D;
+      }
+      return this.turn();
+    },
     _figure: (id) => figs[id] || null,
     // Tune the look without a reload: Cast3D.look({ bands: 5, wash: 0.4 }).
     // Called with nothing it reports what is currently set.

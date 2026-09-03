@@ -323,13 +323,18 @@ const { boot } = require('./harness.cjs');
   const panel = await J(() => {
     const b = document.getElementById('k-cast-tune');
     const tab = document.getElementById('k-cast-tab');
+    // ONE DIAL PER SETTING, counted off the layer rather than asserted as a
+    // number — the panel gained a seventh the moment the watercolour became
+    // optional, and a literal here would have failed for the one reason that
+    // is not a defect.
     return b ? { dials: b.querySelectorAll('input[type=range]').length,
+                 settings: Object.keys(window.Cast3D.look()).length,
                  clips: b.querySelectorAll('button[data-clip]').length,
                  startsClosed: b.style.display === 'none' && !!tab && tab.style.display !== 'none',
                  json: b.querySelector('#k-ct-json').textContent } : null;
   });
-  check('PANEL: six dials, every clip, and it starts as a tab over nothing',
-    !!panel && panel.dials === 6 && panel.clips === 8 && panel.startsClosed,
+  check('PANEL: a dial for every setting, every clip, and it starts as a tab over nothing',
+    !!panel && panel.dials === panel.settings && panel.clips === 8 && panel.startsClosed,
     JSON.stringify(panel));
 
   // …and a dial has to reach the shader, not just move a number in a readout
@@ -344,6 +349,17 @@ const { boot } = require('./harness.cjs');
   });
   check('PANEL: dragging a dial reaches the shader uniform, not just the readout',
     dial.look === 0.2 && dial.uniform === 0.2 && dial.before !== 0.2, JSON.stringify(dial));
+
+  // ═══ H · THEY ARE FACING THE ENEMY ═══
+  // The foe stands on the right of this stage and always has. The party
+  // arrived from the generator facing the camera, so for one build they fought
+  // it with their backs turned — which no check would have caught, because
+  // every other thing about them was correct.
+  console.log('\n── which way they face ──');
+  const facing = await J(() => window.Cast3D.turn());
+  check('FACING: every one of them is turned toward the foe’s side of the board',
+    Object.values(facing).every(t => t < -35 && t > -110),
+    JSON.stringify(facing));
 
   await shot('cast3d');
   const out = report();

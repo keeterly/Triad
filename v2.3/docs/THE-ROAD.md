@@ -5017,3 +5017,48 @@ Build 113, looked identical. The 2048s are in because they were asked for.
 
 flow 257/257 · road 94/94 · bond 76/76 · line 32/32 · camp 48/48 ·
 music 22/22 · beat 10/10 · slice 85/85 · **cast 25/25** — no page errors.
+
+## Build 115 — facing the right way, in their own colours
+
+Two notes from the first play of Build 114, and both were right.
+
+### They were fighting with their backs turned
+
+The foe stands on the right of this stage and always has. The party arrived from
+the generator facing the camera, and the `turn` values were carried over from a
+stand-in model with a different base orientation — so three characters stood on
+a battlefield showing the Revenant their shoulder blades.
+
+Which way is "toward the enemy" depends entirely on which way the generator
+happened to point the model, so the angle was found by rotating one of them
+through a full circle and looking at the frames, not by reasoning about sign
+conventions. **About −68°** puts the sword out toward the foe and still leaves
+enough of the face turned to camera to read as a person rather than a shoulder.
+The three differ a little so the line does not look stamped.
+
+There is a check for it now. Nothing would have caught this: every other thing
+about those figures was correct.
+
+### The watercolour is off
+
+The treatment was built in Build 112 for a stand-in whose texture was a grey
+photogrammetry mush that needed the help. These three are painted from the
+concept art, and **their own colour is the thing worth showing** — Ash's
+blue-grey cloak over the red sash, Elin's bone-white, Mira's violet under black.
+A wash over that is a filter on top of art that already works.
+
+So `paint` is a dial, and it is **0**. Every line of the shader is still there
+and still reachable from the panel, because it is thirty lines and it may earn
+its place in a memory or a reckoning, where the stage should look remembered
+rather than lived in.
+
+Two things did not move with it. **The row ladder is not part of the
+treatment** — back ranks lose saturation and sit down in value whatever the
+paint is doing, because FRONT/MID/BACK is something the player has to read, not
+a mood. And **the light came back up**: Build 112 flattened it because a paper
+doll is lit like paper, and that same flat ambient turns a painted cloak into a
+sticker once the wash is gone. A key from the front-right and a cool rim from
+behind put the folds back.
+
+flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
+camp 48/48 · music 22/22 · beat 10/10 · **cast 26/26** — no page errors.
