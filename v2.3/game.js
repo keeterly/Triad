@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 117;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 118;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -2092,6 +2092,7 @@ function fxFoeDown(F) {
   // one of the broken run and then frozen, so the CSS fall lands a still shape
   // rather than a twitching one.
   try { foeAnimKill('broken', F ? F.ix : undefined); } catch (e) {}
+  foeCast(F ? F.ix : undefined, 'down');
   box.classList.remove('k-foe-down');
   void box.offsetWidth;
   box.classList.add('k-foe-down');
@@ -2798,7 +2799,8 @@ function foeSet(slot, cls, ms, ix) {
 // pose can never leave the frames pointing somewhere else, and there is no
 // second table to keep in step with the first.
 const sheetStateOf = (cls) => (cls || '').replace('k-foe-', '') || 'idle';
-function fxFoeWind(ix) { foeSet(FOE_POSES, 'k-foe-wind', null, ix); foeAnimState('wind', ix); }
+function fxFoeWind(ix) { foeSet(FOE_POSES, 'k-foe-wind', null, ix); foeAnimState('wind', ix);
+  foeCast(ix, 'ward'); }
 // THE OPENING POSTURE IS THE FIRST BLOW'S. A second table mapped intent -> pose
 // and could disagree with what the bar then actually threw — Grief in Threes
 // opened in the SWEEP pose and its first blow was a tap. The bar opens in the
@@ -2819,6 +2821,7 @@ function fxFoeAct(intentId, ix) {
 // different shapes on screen.
 function fxFoeSwing(actSpec, ix) {
   const a = parseAct(actSpec);
+  foeCast(ix, 'slash');
   foeSet(FOE_POSES, a.def.pose, null, ix);
   foeAnimState(sheetStateOf(a.def.pose), ix);
   foeSet(FOE_SWINGS, a.def.swing || 'k-fs-jab', 420, ix);
@@ -2829,7 +2832,7 @@ function fxFoeSwing(actSpec, ix) {
 function fxFoeSettle() {
   const line = (C && C.foes) ? C.foes.filter(f => !f.dead).map(f => f.ix) : [0];
   line.forEach(ix => { foeSet(FOE_POSES, null, null, ix); foeSet(FOE_SWINGS, null, null, ix);
-                       foeAnimState('idle', ix); });
+                       foeAnimState('idle', ix); foeCast(ix, 'idle'); });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -4522,6 +4525,7 @@ function fxStrikeBoss(n, why, F) {
   const b = foeBox(ix) || document.getElementById('k-boss-art');
   if (b) { b.classList.remove('k-recoil'); void b.offsetWidth; b.classList.add('k-recoil'); }
   foeAnimReact('hit', 340, ix);      // the window k-recoil runs for
+  foeCast(ix, 'hurt');
   // THE SOUND SAYS WHAT THREW IT, the same way the visual effect does: steel
   // scrapes and rings, a spell blooms, and a bleed tick is the plain impact.
   if (_act && why === 'hit')
@@ -4622,6 +4626,17 @@ function fxSlash(node, i, heavy) {
 function castPlay(heroId, clip) {
   const C3 = window.Cast3D;
   if (C3 && heroId && clip) C3.play(heroId, clip);
+}
+// …AND SO DOES THE FOE. It is the same rig on the other side of the board, so
+// it speaks the same verbs — `foeCast` only exists to translate an index into
+// the actor's name and to keep the whole thing a no-op when the layer is off
+// or when this particular creature has no model yet.
+function foeCast(ix, clip) {
+  const C3 = window.Cast3D;
+  if (!C3 || !clip) return;
+  const F = C && C.foes && C.foes[ix == null ? (C.aim || 0) : ix];
+  const id = F ? F.id : 'mourner';
+  C3.play(id, clip);
 }
 
 // ── the cast ─────────────────────────────────────────────────────────────────

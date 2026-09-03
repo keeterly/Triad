@@ -58,13 +58,30 @@ import { GLTFLoader } from './lib/GLTFLoader.js';
 // the paper nearly white and does its colouring where the pigment pools, so
 // each hero gets a near-neutral paper and a shadow that carries the character:
 // warm earth for Ash, cold slate for Elin, sage for Mira.
+//
+// AND THE FOE IS JUST ANOTHER ONE OF THEM (Build 118). It stands in a
+// different box, faces the other way and holds a different pose, but it is the
+// same rig, the same retarget and the same clip library — which is the whole
+// return on having done the retargeting properly. A new foe costs a model and
+// no animation at all.
 const CAST = {
-  ash:  { model: 'ash.glb',  paper: 0xf7efe2, shadow: 0x9a7f6e, ink: 0x3d2f28,
+  ash:  { model: 'ash.glb',  sel: '.k-hero[data-hero="ash"]',
+          paper: 0xf7efe2, shadow: 0x9a7f6e, ink: 0x3d2f28,
           turn: 26, tall: 1.00, strike: 'sword' },
-  elin: { model: 'elin.glb', paper: 0xf2f4f7, shadow: 0x8d9ab4, ink: 0x343b4a,
+  elin: { model: 'elin.glb', sel: '.k-hero[data-hero="elin"]',
+          paper: 0xf2f4f7, shadow: 0x8d9ab4, ink: 0x343b4a,
           turn: 34, tall: 0.97, strike: 'staff' },
-  mira: { model: 'mira.glb', paper: 0xeef2ea, shadow: 0x76907c, ink: 0x2b352e,
+  mira: { model: 'mira.glb', sel: '.k-hero[data-hero="mira"]',
+          paper: 0xeef2ea, shadow: 0x76907c, ink: 0x2b352e,
           turn: 22, tall: 0.98, strike: 'daggers' },
+  // THE REGENT FACES THE OTHER WAY, which is the only thing about it that is
+  // special: `side` flips which end of the stage it looks at, and everything
+  // downstream — the aim, the frame, the clips — is unchanged.
+  mourner: { model: 'mourner.glb', sel: '#k-boss-art', foe: true, side: -1,
+             paper: 0xf6f3ee, shadow: 0x8d8a97, ink: 0x39353f,
+             // FULL PRESENCE. `depth` is the row ladder's air, and the thing
+             // the fight is about does not stand behind any of it.
+             turn: 30, tall: 1.00, strike: 'sword', depth: 1 },
 };
 const ART = './art/cast/';
 const D = Math.PI / 180;
@@ -135,14 +152,22 @@ const VERB = {
 // otherwise, which is the difference between a corpse and a stumble.
 const HOLDS = { down: true };
 
-// …and how fast each one is allowed to be. The library's clips are authored at
-// a cinematic pace — a four-second sword swing is a lovely thing to look at
-// and far too slow for a beat the fight resolves in a few hundred
-// milliseconds. These are multipliers on playback, not edits to the data, so
-// the timing can be retuned without regenerating anything.
-const RATE = {
-  sword: 2.6, daggers: 2.2, staff: 2.4, cast: 2.0, heal: 1.8,
-  ward: 2.6, parry: 3.0, hurt: 2.4, down: 1.5, idle: 1.0,
+// ── HOW LONG EACH ACTION TAKES ─────────────────────────────────────────────
+//
+// SECONDS, NOT SPEEDS. The first pass set a playback multiplier per clip and
+// they were pure guesses — a number like 2.6 says nothing about whether the
+// swing lands with the damage number. These are the durations the fight wants,
+// and the layer works the speed out from the clip's own measured motion window,
+// so swapping a clip for a longer or shorter one changes nothing here.
+//
+// A parry is the shortest thing in the game and has to be: it is a reaction
+// inside a rhythm window. A knock-down is the longest, because it is the last
+// thing that hero does.
+const BEAT = {
+  idle: 2.4,        // a loop, calm — the party is waiting, not jogging on the spot
+  sword: 1.00, daggers: 0.95, staff: 0.90,
+  cast: 1.10, heal: 1.05, ward: 0.85,
+  parry: 0.42, hurt: 0.50, down: 1.40,
 };
 
 // ── the animation ──────────────────────────────────────────────────────────
@@ -292,8 +317,10 @@ function watercolour(map, tone) {
 // A humanoid clip translates the hips; every other joint keeps the length the
 // model was built with. And scale tracks, which the mill dropped already.
 const RESAMPLE_FPS = 30;
+// how much of the fighting stance the resting party actually wears
+const IDLE_WEIGHT = 0.62;
 
-function retarget(clip, restSrc, parentOf, bones) {
+function retarget(clip, restSrc, parentOf, bones, window) {
   const names = Object.keys(restSrc).filter(n => bones[n]);
   if (!names.length) return clip;
 
@@ -333,7 +360,14 @@ function retarget(clip, restSrc, parentOf, bones) {
     if (what === 'position' && bone === 'Hips') keptTracks.push(t.clone());
   }
 
-  const dur = clip.duration || 1;
+  // ONLY THE PART WHERE SOMETHING HAPPENS. The mill measured where each clip's
+  // motion actually lives — a four-second sword swing is under one second of
+  // swing wrapped in three of standing still — and the window comes through
+  // with the clip. Resampling inside it drops the dead air rather than racing
+  // through it, which is what the speed multipliers used to do.
+  const w0 = window ? window[0] : 0;
+  const w1 = window ? window[1] : (clip.duration || 1);
+  const dur = Math.max(0.05, w1 - w0);
   const n = Math.max(2, Math.round(dur * RESAMPLE_FPS));
   const times = new Float32Array(n);
   for (let i = 0; i < n; i++) times[i] = (i / (n - 1)) * dur;
@@ -348,7 +382,7 @@ function retarget(clip, restSrc, parentOf, bones) {
     for (const b of order) {
       // source local at t — the track if there is one, otherwise its rest
       const track = rot[b];
-      if (track) sampleQuat(track, t, q); else q.copy(restS[b]);
+      if (track) sampleQuat(track, t + w0, q); else q.copy(restS[b]);
       q.normalize();
       const p = parentOf[b];
       As[b] = (p && As[p] ? As[p].clone() : Q()).multiply(q).normalize();
@@ -360,7 +394,21 @@ function retarget(clip, restSrc, parentOf, bones) {
     }
   }
 
-  const tracks = keptTracks;
+  // the hips track has to be re-based into the window too, or the root jumps
+  const tracks = keptTracks.map(t => {
+    const keep = [];
+    for (let i = 0; i < t.times.length; i++) {
+      if (t.times[i] >= w0 - 1e-4 && t.times[i] <= w1 + 1e-4) keep.push(i);
+    }
+    if (!keep.length) return t;
+    const times2 = new Float32Array(keep.length);
+    const vals2 = new Float32Array(keep.length * 3);
+    keep.forEach((k, j) => {
+      times2[j] = Math.max(0, t.times[k] - w0);
+      for (let c = 0; c < 3; c++) vals2[j * 3 + c] = t.values[k * 3 + c];
+    });
+    return new THREE.VectorKeyframeTrack(t.name, times2, vals2);
+  });
   for (const b of order) {
     tracks.push(new THREE.QuaternionKeyframeTrack(b + '.quaternion', times, out[b]));
   }
@@ -393,7 +441,7 @@ function sampleQuat(track, t, into) {
 // stops, and an acting clip is CROSS-FADED over the top of it and faded back
 // out — which is also why nothing ever snaps.
 class Figure {
-  constructor(root, tone, clips, restSrc, parentOf) {
+  constructor(root, tone, clips, restSrc, parentOf, windows) {
     this.root = root;
     this.tone = tone;
     // THE BONES AND THEIR REST POSE FIRST — the retarget needs them, and after
@@ -403,9 +451,12 @@ class Figure {
     this.mixer = new THREE.AnimationMixer(root);
     this.actions = {};
     for (const name of Object.keys(clips)) {
-      const a = this.mixer.clipAction(retarget(clips[name], restSrc, parentOf, this.bones));
+      const rt = retarget(clips[name], restSrc, parentOf, this.bones, windows[name]);
+      const a = this.mixer.clipAction(rt);
       a.setEffectiveWeight(0);
-      a.timeScale = RATE[name] || 1;
+      // SPEED IS DERIVED, not chosen: the clip is as long as its motion window
+      // and has to finish inside the beat the fight gives it.
+      a.timeScale = BEAT[name] ? (rt.duration / BEAT[name]) : 1;
       if (HOLDS[name]) { a.loop = THREE.LoopOnce; a.clampWhenFinished = true; }
       else if (name !== 'idle') a.loop = THREE.LoopOnce;
       this.actions[name] = a;
@@ -413,7 +464,12 @@ class Figure {
     this.idle = this.actions.idle || null;
     if (this.idle) {
       this.idle.loop = THREE.LoopRepeat;
-      this.idle.setEffectiveWeight(1).play();
+      // NOT AT FULL STRENGTH. `Combat_Stance` is a deep crouch — right for one
+      // fighter filling a screen, and at 145 pixels in a party of three it just
+      // reads as three people hunching. Blended against the model's own
+      // standing rest it keeps the weight-shift and the breath and loses most
+      // of the squat.
+      this.idle.setEffectiveWeight(IDLE_WEIGHT).play();
       // THREE FIGURES BREATHING ON THE SAME FRAME is worse than three still
       // ones, so each starts somewhere else in the loop.
       this.idle.time = Math.random() * (this.idle.getClip().duration || 1);
@@ -457,10 +513,10 @@ class Figure {
   play(name) {
     const a = this.actions[name];
     if (!a) return false;
-    if (this.acting && this.acting !== a) this.acting.fadeOut(0.12);
+    if (this.acting && this.acting !== a) this.acting.fadeOut(0.14);
     a.reset();
     a.setEffectiveWeight(1);
-    a.fadeIn(0.10).play();
+    a.fadeIn(0.12).play();
     // the idle keeps running underneath at a whisper, so a held pose still
     // breathes rather than freezing solid
     if (this.idle) this.idle.setEffectiveWeight(HOLDS[name] ? 0 : 0.25);
@@ -470,8 +526,8 @@ class Figure {
   }
 
   clear() {
-    if (this.acting) this.acting.fadeOut(0.16);
-    if (this.idle) this.idle.setEffectiveWeight(1);
+    if (this.acting) this.acting.fadeOut(0.22);
+    if (this.idle) this.idle.setEffectiveWeight(IDLE_WEIGHT);
     this.acting = null;
     this.clipName = null;
   }
@@ -490,7 +546,7 @@ const Cast3D = (() => {
   let on = false, ready = false, failed = null;
   let renderer = null, scene = null, cam = null, canvas = null;
   const figs = {};
-  let last = 0, raf = 0, pending = null, clipNames = [];
+  let last = 0, raf = 0, pending = null, clipNames = [], missing = [];
 
   // THE CAMERA IS ORTHOGRAPHIC and every figure gets its own slice of it. A
   // perspective camera spanning the whole stage would splay the outer heroes
@@ -634,24 +690,30 @@ const Cast3D = (() => {
   // is simply what happens.
   async function load() {
     const loader = new GLTFLoader();
+    // ONE MISSING MODEL IS NOT A DEAD LAYER. A foe that has not been generated
+    // yet should leave its painted plate alone and let the rest of the cast
+    // stand up, rather than taking the whole stage down with it.
+    const ids = Object.keys(CAST);
     const [lib, ...models] = await Promise.all([
       fetch(CLIPS_URL).then(r => {
         if (!r.ok) throw new Error('clips ' + r.status);
         return r.json();
       }),
-      ...Object.keys(CAST).map(id => loader.loadAsync(ART + CAST[id].model)),
+      ...ids.map(id => loader.loadAsync(ART + CAST[id].model).catch(() => null)),
     ]);
     const restSrc = lib.__rest || {};
     const parentOf = lib.__parent || {};
-    const clips = {};
+    const clips = {}, windows = {};
     for (const name of Object.keys(lib)) {
       if (name === '__rest' || name === '__parent') continue;
       clips[name] = THREE.AnimationClip.parse(lib[name]);
+      if (lib[name].window) windows[name] = lib[name].window;
     }
     clipNames = Object.keys(clips);
 
-    Object.keys(CAST).forEach((id, i) => {
+    ids.forEach((id, i) => {
       const tone = CAST[id];
+      if (!models[i]) { missing.push(id); return; }
       const root = models[i].scene;
       let map = null;
       root.traverse(o => {
@@ -665,21 +727,24 @@ const Cast3D = (() => {
       root.scale.setScalar(tone.tall);
       root.userData.mat = mat;
       scene.add(root);
-      figs[id] = new Figure(root, tone, clips, restSrc, parentOf);
+      figs[id] = new Figure(root, tone, clips, restSrc, parentOf, windows);
     });
     // one frame of the idle, so the measurement sees a standing figure rather
     // than whatever the bind pose happens to be
     for (const id of Object.keys(figs)) figs[id].step(0.016);
     // aim BEFORE framing: turning a figure changes its silhouette, and the
     // frame is measured from the silhouette
-    for (const id of Object.keys(figs)) aim(figs[id], FOE_HEADING - CAST[id].turn);
+    for (const id of Object.keys(figs)) {
+      const side = CAST[id].side || 1;
+      aim(figs[id], side * FOE_HEADING - side * CAST[id].turn);
+    }
     for (const id of Object.keys(figs)) fit(figs[id]);
     ready = true;
   }
 
   // Where the DOM has put this hero, in canvas pixels, THIS frame.
   function boxOf(id) {
-    const h = document.querySelector('.k-hero[data-hero="' + id + '"]');
+    const h = document.querySelector(CAST[id].sel);
     if (!h) return null;
     const host = document.getElementById('k-cast');
     if (!host) return null;
@@ -687,8 +752,10 @@ const Cast3D = (() => {
     if (!a.width || !b.width) return null;
     // the canvas is laid out over #k-cast, so subtracting its origin gives
     // canvas-local CSS pixels; the scissor wants them from the BOTTOM
-    // …and which rank it is standing in, because that is a picture decision
-    const depth = h.classList.contains('k-row-front') ? 1
+    // …and which rank it is standing in, because that is a picture decision.
+    // A foe is not in the party's rank ladder at all, so it carries its own.
+    const depth = CAST[id].depth != null ? CAST[id].depth
+                : h.classList.contains('k-row-front') ? 1
                 : h.classList.contains('k-row-mid') ? 0.55 : 0;
     return { x: a.left - b.left, y: a.top - b.top, w: a.width, h: a.height,
              hostH: b.height, depth, vis: h.offsetParent !== null };
@@ -775,6 +842,12 @@ const Cast3D = (() => {
       if (!build()) return false;
       try { await load(); } catch (err) { failed = 'load: ' + err.message; return false; }
       document.body.classList.add('k-cast3d');
+    // the CSS hides every 2D plate under `.k-cast3d`; anything that failed to
+    // load gets its painting back rather than standing there invisible
+    for (const id of missing) {
+      const el = document.querySelector(CAST[id].sel);
+      if (el) el.classList.add('k-cast3d-off');
+    }
       on = true; last = 0;
       if (!raf) raf = requestAnimationFrame(frame);
       return true;
@@ -802,7 +875,8 @@ const Cast3D = (() => {
     all(clip) { Object.keys(figs).forEach(id => this.play(id, clip)); },
     // test-only: what the layer thinks is true right now
     _state: () => ({
-      on, ready, failed, clips: clipNames,
+      on, ready, failed, clips: clipNames, missing,
+      foes: Object.keys(CAST).filter(id => CAST[id].foe && figs[id]),
       figures: Object.keys(figs),
       playing: Object.fromEntries(Object.keys(figs).map(id => [id, figs[id].clipName || null])),
       bones: Object.keys(figs).length ? Object.keys(figs[Object.keys(figs)[0]].bones).length : 0,
@@ -837,7 +911,8 @@ const Cast3D = (() => {
       for (const id of Object.keys(next)) {
         if (!figs[id]) continue;
         CAST[id].turn = next[id];
-        aim(figs[id], FOE_HEADING - next[id]);
+        const side = CAST[id].side || 1;
+        aim(figs[id], side * FOE_HEADING - side * next[id]);
       }
       return this.turn();
     },

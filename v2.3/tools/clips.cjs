@@ -59,6 +59,62 @@ function trim(clip) {
   return clip;
 }
 
+// ── WHERE THE MOTION ACTUALLY IS ───────────────────────────────────────────
+//
+// A library clip is authored to be looked at on its own: it settles into the
+// pose, does the thing, and settles back, and the settling is most of its
+// length. `Sword_Judgment` is 4.4 seconds; the swing inside it is well under
+// one. Played whole against a combat beat that resolves in a few hundred
+// milliseconds, the clip is mostly a character standing still either side of
+// the moment that mattered — which is why the first pass had to run everything
+// at two and a half times speed and still felt late.
+//
+// So the window is MEASURED. Sum how much every joint rotates between one
+// sample and the next, and that curve is the clip's motion energy over time.
+// Keep the shortest span holding the bulk of it, pad a little either side for
+// the anticipation and the follow-through, and drop the rest. Nothing is
+// guessed and nothing needs retuning when a clip is swapped.
+const KEEP = 0.86;    // fraction of the total motion the window must contain
+const PAD = 0.10;     // …plus a tenth of the clip either side, for the wind-up
+function windowOf(clipJson) {
+  const rots = clipJson.tracks.filter(t => /\.quaternion$/.test(t.name));
+  if (!rots.length) return null;
+  // one common timeline: the longest track's times will do
+  const base = rots.reduce((a, b) => (b.times.length > a.times.length ? b : a));
+  const times = base.times;
+  const n = times.length;
+  if (n < 4) return null;
+  const energy = new Array(n).fill(0);
+  for (const t of rots) {
+    const v = t.values, m = t.times.length;
+    for (let i = 1; i < m; i++) {
+      // 1 - |dot| is a cheap stand-in for the angle between two quaternions
+      let d = 0;
+      for (let k = 0; k < 4; k++) d += v[(i - 1) * 4 + k] * v[i * 4 + k];
+      const e = 1 - Math.abs(d);
+      const at = Math.min(n - 1, Math.round((t.times[i] / times[n - 1]) * (n - 1)));
+      energy[at] += e;
+    }
+  }
+  const total = energy.reduce((a, b) => a + b, 0);
+  if (total <= 0) return null;
+  // the shortest window holding KEEP of the energy
+  let best = [0, n - 1], bestLen = Infinity;
+  for (let lo = 0; lo < n; lo++) {
+    let sum = 0;
+    for (let hi = lo; hi < n; hi++) {
+      sum += energy[hi];
+      if (sum >= total * KEEP) {
+        if (hi - lo < bestLen) { bestLen = hi - lo; best = [lo, hi]; }
+        break;
+      }
+    }
+  }
+  const dur = times[n - 1] || 1;
+  const pad = dur * PAD;
+  return [Math.max(0, times[best[0]] - pad), Math.min(dur, times[best[1]] + pad)];
+}
+
 (async () => {
   const root = path.dirname(path.resolve(MANIFEST));
   // ONE ORIGIN FOR EVERYTHING. The page imports the vendored three.js as a
@@ -123,12 +179,17 @@ function trim(clip) {
     }, ['/' + encodeURIComponent(file), '/lib']);
     if (got.error) { console.log('FAILED — ' + got.error); continue; }
     out[verb] = trim(got.json);
+    const win = windowOf(out[verb]);
+    if (win) out[verb].window = [+win[0].toFixed(3), +win[1].toFixed(3)];
     // the clip is renamed to the VERB the fight speaks, not the marketing name
     // Meshy gave it, so the game never has to know a clip was called
     // "Armature|Sword_Judgment|baselayer"
     out[verb].name = verb;
     if (!out.__rest) { out.__rest = got.rest; out.__parent = got.parent; }
-    console.log(`${got.dur.toFixed(2)}s · ${out[verb].tracks.length} tracks (was ${got.tracks}) · from "${got.name}"`);
+    const w = out[verb].window;
+    console.log(`${got.dur.toFixed(2)}s · ${out[verb].tracks.length} tracks`
+      + (w ? ` · motion in ${w[0].toFixed(2)}–${w[1].toFixed(2)}s (${((w[1]-w[0])/got.dur*100).toFixed(0)}%)` : '')
+      + ` · from "${got.name}"`);
   }
 
   await browser.close();

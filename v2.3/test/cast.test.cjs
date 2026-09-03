@@ -28,9 +28,15 @@ const { boot } = require('./harness.cjs');
   check('LAYER: ?cast=3d builds the layer and it comes up without excuses',
     !!st && st.on && st.ready && !st.failed, JSON.stringify(st && { on: st.on, ready: st.ready, failed: st.failed }));
 
-  check('LAYER: three figures, one per hero, each with its own 24-bone rig',
-    !!st && st.figures.length === 3 && st.bones === 24,
-    JSON.stringify({ figures: st && st.figures, bones: st && st.bones }));
+  // FOUR NOW: the party and the thing they are fighting. The foe is not a
+  // special case anywhere in the layer — same rig, same retarget, same clip
+  // library — which is the return on having done the retargeting properly. A
+  // new foe costs a model and no animation at all.
+  check('LAYER: the party AND the foe are on the same rig, 24 bones each',
+    !!st && st.figures.length === 4 && st.bones === 24 && st.foes.length === 1
+    && !st.missing.length,
+    JSON.stringify({ figures: st && st.figures, foes: st && st.foes,
+                     bones: st && st.bones, missing: st && st.missing }));
 
   // THE VERBS THE FIGHT ALREADY SPEAKS. actionKind() has returned these four
   // since Build 36; if a clip goes missing the wiring fails silently, because
@@ -38,7 +44,7 @@ const { boot } = require('./harness.cjs');
   const verbs = ['heal', 'cast', 'slash', 'ward', 'idle', 'hurt', 'parry', 'down'];
   const resolved = await J((vs) => {
     const out = {};
-    for (const id of ['ash', 'elin', 'mira'])
+    for (const id of ['ash', 'elin', 'mira', 'mourner'])
       for (const v of vs) out[id + '.' + v] = window.Cast3D._verbClip(id, v);
     return out;
   }, verbs);
@@ -56,10 +62,11 @@ const { boot } = require('./harness.cjs');
                      mira: resolved['mira.slash'] }));
 
   // …and everything else IS shared, which is what makes one library enough.
-  check('LAYER: the other verbs are one motion the whole party shares',
+  check('LAYER: the other verbs are one motion the whole cast shares',
     ['cast', 'heal', 'ward', 'parry', 'hurt', 'down'].every(v =>
       resolved['ash.' + v] === resolved['elin.' + v]
-      && resolved['elin.' + v] === resolved['mira.' + v]),
+      && resolved['elin.' + v] === resolved['mira.' + v]
+      && resolved['mira.' + v] === resolved['mourner.' + v]),
     JSON.stringify(['cast', 'heal', 'ward'].map(v => resolved['ash.' + v])));
 
   const canvas = await J(() => {
@@ -117,8 +124,10 @@ const { boot } = require('./harness.cjs');
     const sx = c.width / b.width, sy = c.height / b.height;
     const cx = c.getContext('2d');
     const out = {};
-    for (const id of ['ash', 'elin', 'mira']) {
-      const r = document.querySelector('.k-hero[data-hero="' + id + '"]').getBoundingClientRect();
+    const SEL = { ash: '.k-hero[data-hero="ash"]', elin: '.k-hero[data-hero="elin"]',
+                  mira: '.k-hero[data-hero="mira"]', mourner: '#k-boss-art' };
+    for (const id of ['ash', 'elin', 'mira', 'mourner']) {
+      const r = document.querySelector(SEL[id]).getBoundingClientRect();
       const x = Math.round((r.left - b.left) * sx), y = Math.round((r.top - b.top) * sy);
       const w = Math.max(1, Math.round(r.width * sx)), hh = Math.max(1, Math.round(r.height * sy));
       const d = cx.getImageData(x, y, w, hh).data;
@@ -135,16 +144,18 @@ const { boot } = require('./harness.cjs');
     return { boxes: out, litAll };
   });
   const boxes = painted.boxes;
-  check('INK: a figure is painted inside every hero\u2019s own box',
-    ['ash', 'elin', 'mira'].every(id => boxes[id] > 0.06),
+  check('INK: a figure is painted inside every actor\u2019s own box, foe included',
+    ['ash', 'elin', 'mira', 'mourner'].every(id => boxes[id] > 0.06),
     JSON.stringify(boxes));
 
   const inBoxes = await J(() => {
     const b = document.getElementById('k-cast').getBoundingClientRect();
     const c = window.__castShot;
     const sx = c.width / b.width, sy = c.height / b.height;
-    return ['ash', 'elin', 'mira'].reduce((n, id) => {
-      const r = document.querySelector('.k-hero[data-hero="' + id + '"]').getBoundingClientRect();
+    const SEL = { ash: '.k-hero[data-hero="ash"]', elin: '.k-hero[data-hero="elin"]',
+                  mira: '.k-hero[data-hero="mira"]', mourner: '#k-boss-art' };
+    return ['ash', 'elin', 'mira', 'mourner'].reduce((n, id) => {
+      const r = document.querySelector(SEL[id]).getBoundingClientRect();
       return n + Math.round(r.width * sx) * Math.round(r.height * sy);
     }, 0);
   });
@@ -157,23 +168,59 @@ const { boot } = require('./harness.cjs');
   // fight is spent with nobody acting, and a frozen 3D figure reads as a
   // BROKEN 3D figure where a frozen painting reads as a painting.
   console.log('\n── the idle ──');
-  const a1 = await J(() => window.Cast3D._boneAngle('ash', 'Spine'));
-  await sleep(700);
-  const a2 = await J(() => window.Cast3D._boneAngle('ash', 'Spine'));
-  const moved = a1 && a2 && a1.some((v, i) => Math.abs(v - a2[i]) > 0.05);
-  check('IDLE: nobody is holding their breath — the spine moves between turns',
-    moved, JSON.stringify({ before: a1, after: a2 }));
+  // SAMPLED ACROSS THE WHOLE CYCLE, not two instants apart. The idle is
+  // deliberately calm now — a slower loop at less than full weight, because
+  // `Combat_Stance` at full strength reads as three people hunching — and two
+  // samples 700ms apart can land either side of a pause and report a corpse.
+  // What matters is that the loop HAS amplitude, so the range over a full
+  // cycle is the thing to measure.
+  const idleSwing = await J(async () => {
+    // ACROSS THE WHOLE SKELETON, not one bone chosen in advance. The first two
+    // versions of this check watched the Spine, and `Combat_Stance` is a
+    // weight-shift idle: its motion lives in the legs and the head, and the
+    // spine barely turns a seventh of a degree. It reported three living
+    // figures as corpses. Which bone carries an idle is a property of the clip,
+    // so the check asks the only question that survives a clip swap — is
+    // ANYTHING moving?
+    const out = {};
+    for (const id of Object.keys(window.Cast3D._state().playing)) {
+      const f = window.Cast3D._figure(id);
+      f.clear();
+      const names = Object.keys(f.bones);
+      const lo = {}, hi = {};
+      for (let i = 0; i < 80; i++) {
+        await new Promise(r => requestAnimationFrame(r));
+        for (const n of names) {
+          const a = window.Cast3D._boneAngle(id, n);
+          if (!a) continue;
+          if (!lo[n]) { lo[n] = a.slice(); hi[n] = a.slice(); continue; }
+          a.forEach((v, k) => { if (v < lo[n][k]) lo[n][k] = v; if (v > hi[n][k]) hi[n][k] = v; });
+        }
+      }
+      let best = 0, where = null;
+      for (const n of names) {
+        if (!lo[n]) continue;
+        const sw = Math.max(...hi[n].map((v, k) => v - lo[n][k]));
+        if (sw > best) { best = sw; where = n; }
+      }
+      out[id] = { deg: +best.toFixed(2), bone: where };
+    }
+    return out;
+  });
+  check('IDLE: nobody is holding their breath — every figure moves between turns',
+    Object.values(idleSwing).every(v => v.deg > 1.5),
+    JSON.stringify(idleSwing) + ' — widest swing over a cycle');
 
   // …and the three of them are NOT in lockstep. Three copies of one model
   // breathing on the same frame is worse than three still ones.
-  const phases = await J(() => ({
-    ash: window.Cast3D._boneAngle('ash', 'Spine'),
-    elin: window.Cast3D._boneAngle('elin', 'Spine'),
-    mira: window.Cast3D._boneAngle('mira', 'Spine'),
-  }));
+  // …read off a bone this idle actually drives, for the same reason
+  const phases = await J(() => Object.fromEntries(
+    Object.keys(window.Cast3D._state().playing)
+      .map(id => [id, window.Cast3D._boneAngle(id, 'LeftLeg')])));
   const apart = (a, b) => a && b && a.some((v, i) => Math.abs(v - b[i]) > 0.02);
   check('IDLE: the three of them breathe out of step with each other',
-    apart(phases.ash, phases.elin) && apart(phases.elin, phases.mira),
+    apart(phases.ash, phases.elin) && apart(phases.elin, phases.mira)
+    && apart(phases.mira, phases.mourner),
     JSON.stringify(phases));
 
   // ═══ E · EVERY VERB REACHES A CLIP ═══
@@ -380,7 +427,7 @@ const { boot } = require('./harness.cjs');
     };
     const V = (b) => b.getWorldPosition(new (b.position.constructor)());
     const out = {};
-    for (const id of ['ash', 'elin', 'mira']) {
+    for (const id of ['ash', 'elin', 'mira', 'mourner']) {
       const f = window.Cast3D._figure(id);
       const pairs = pairsOf(f);
       const len = () => pairs.map(([a, b]) => +V(f.bones[a]).distanceTo(V(f.bones[b])).toFixed(5));
@@ -427,17 +474,24 @@ const { boot } = require('./harness.cjs');
   // once reported Mira at 124°, which was true of that instant and of nothing
   // else.
   await J(async () => {
-    for (const id of ['ash', 'elin', 'mira']) window.Cast3D._figure(id).clear();
+    for (const id of Object.keys(window.Cast3D._state().playing)) window.Cast3D._figure(id).clear();
     for (let i = 0; i < 30; i++) await new Promise(r => requestAnimationFrame(r));
   });
   const facing = await J(() => window.Cast3D._facing());
-  check('FACING: every chest actually points at the foe’s side of the board',
-    Object.values(facing).every(f => f && f.x > 0.55 && f.deg > 35 && f.deg < 115),
+  // EVERYONE LOOKS AT THEIR OWN OPPONENT. The party stands on the left of this
+  // board and the foe on the right, so a facing hero's forward vector has a
+  // clearly positive x and the foe's a clearly negative one. Asserting one sign
+  // for the whole cast would have passed a Regent staring off the edge of the
+  // world the moment it joined.
+  const foeIds = st.foes || [];
+  check('FACING: every chest points at whoever it is fighting',
+    Object.entries(facing).every(([id, f]) =>
+      f && (foeIds.indexOf(id) >= 0 ? f.x < -0.55 : f.x > 0.55)),
     JSON.stringify(facing));
 
-  // …and they are not all square-on to it either, or the party reads as three
-  // cardboard cut-outs in profile rather than three people at a three-quarter.
-  check('FACING: turned toward the foe, but still angled to the camera',
+  // …and nobody is square-on to it either, or the cast reads as cardboard
+  // cut-outs in profile rather than as people at a three-quarter.
+  check('FACING: turned toward the fight, but still angled to the camera',
     Object.values(facing).every(f => f && f.z > 0.2),
     JSON.stringify(Object.fromEntries(
       Object.entries(facing).map(([k, v]) => [k, v && v.z]))));

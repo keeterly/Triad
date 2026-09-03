@@ -5174,3 +5174,70 @@ stance — acting clips turn the body on purpose — so it settles first now.
 
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
+
+## Build 118 — the Regent joins the cast, and the party stands up straight
+
+### The foe is not a special case
+
+The Mourning Regent is a fourth actor in the same list as the party. Same rig,
+same retarget, same clip library, same watercolour material, same measured
+framing. The only two things it carries of its own are the DOM box it lives in
+(`#k-boss-art` instead of a `.k-hero`) and a `side` of −1, which flips which end
+of the stage it looks at.
+
+**That is the whole return on having done the retargeting properly in Build 117.
+A new foe now costs a model and no animation at all.** Its idle, its wind-up,
+its blows, its flinch and its death all come out of a library that was recorded
+on somebody else's skeleton.
+
+It is wired to the beats the fight already had: `fxFoeWind` braces, `fxFoeSwing`
+strikes on every blow of a bar, `fxStrikeBoss` flinches, `fxFoeDown` falls, and
+`fxFoeSettle` hands everyone back to the idle.
+
+A missing model no longer takes the layer down with it — an actor that fails to
+load keeps its painted plate and the rest of the cast stands up regardless,
+which is what makes adding the other four foes a one-file change.
+
+### Timing is stated in seconds now
+
+The first pass gave each clip a playback multiplier, and every one of them was a
+guess: a number like `2.6` says nothing about whether the swing lands with the
+damage number. What is written down now is **how long the action should take**,
+and the layer works the speed out from the clip's own motion.
+
+Which it can, because the mill **measures where the motion is**. A library clip
+is authored to be looked at alone: it settles in, does the thing, and settles
+back, and the settling is most of its length. `Sword_Judgment` is 4.4 seconds and
+the swing inside it is under one. Summing how far every joint turns between
+samples gives the clip's energy over time; the shortest span holding 86% of it,
+padded a tenth either side for the wind-up, is the part worth playing. Between
+54% and 82% of each clip survives, and the dead air is dropped rather than raced
+through.
+
+### And they were hunching
+
+`Combat_Stance` is a deep crouch — right for one fighter filling a screen, and at
+145 pixels in a party of three it just read as three people stooping. Blended at
+0.62 against each model's own standing rest, it keeps the weight-shift and the
+breath and loses most of the squat.
+
+### Three checks that were measuring the wrong thing
+
+Every one of them passed or failed for a reason that had nothing to do with the
+game.
+
+- **Bone lengths** guessed its parent-child pairs — `Hips→Spine`, `neck→Head` —
+  and several are two or three joints apart in this rig, where the distance
+  legitimately changes when anything between them bends. It reported 7% stretch
+  on correct animation. It reads adjacency off the real hierarchy now: **23
+  bones per actor, 0.00% drift.**
+- **Facing** asserted one sign for the whole cast, which would have passed a
+  Regent staring off the edge of the world the moment it joined. Each actor is
+  checked against its own opponent's side now.
+- **The idle** watched the Spine, and `Combat_Stance` is a weight-shift idle
+  whose motion lives in the legs and the head — the spine turns a seventh of a
+  degree. It reported four living figures as corpses. It asks the only question
+  that survives a clip swap now: is *anything* moving?
+
+flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
+camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.

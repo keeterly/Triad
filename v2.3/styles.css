@@ -4265,3 +4265,13 @@ body.k-cast3d #k-cast3d { position: absolute; inset: 0; pointer-events: none; }
    shadow floats, and a real projected shadow costs a second render pass per
    hero for something the painted ellipse already sells. */
 body.k-cast3d .k-hero .k-shadow { opacity: 0.9; }
+
+/* THE FOE JOINS THE CAST (Build 118). Same rule as the heroes: the painted
+   plate steps aside for the figure, and everything else about the element —
+   its box, its shadow, its nameplate, the intent rail above it — is untouched. */
+body.k-cast3d #k-boss-art img,
+body.k-cast3d #k-boss-art .k-fanim { opacity: 0; }
+/* …unless that actor never loaded, in which case it keeps its painting */
+body.k-cast3d .k-cast3d-off img,
+body.k-cast3d .k-cast3d-off .k-fanim,
+body.k-cast3d .k-cast3d-off .k-fig img { opacity: 1; }
