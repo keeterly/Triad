@@ -74,14 +74,40 @@ const CAST = {
   mira: { model: 'mira.glb', sel: '.k-hero[data-hero="mira"]',
           paper: 0xeef2ea, shadow: 0x76907c, ink: 0x2b352e,
           turn: 22, tall: 0.98, strike: 'daggers' },
-  // THE REGENT FACES THE OTHER WAY, which is the only thing about it that is
-  // special: `side` flips which end of the stage it looks at, and everything
-  // downstream — the aim, the frame, the clips — is unchanged.
-  mourner: { model: 'mourner.glb', sel: '#k-boss-art', foe: true, side: -1,
-             paper: 0xf6f3ee, shadow: 0x8d8a97, ink: 0x39353f,
-             // FULL PRESENCE. `depth` is the row ladder's air, and the thing
-             // the fight is about does not stand behind any of it.
-             turn: 30, tall: 1.00, strike: 'sword', depth: 1 },
+  // ── AND EVERYTHING THE PARTY FIGHTS (Build 123) ────────────────────────────
+  //
+  // A FOE IS NOT A SPECIAL CASE, and that is the return on having done the
+  // retargeting properly in Build 114. `side` flips which end of the stage it
+  // looks at; everything downstream — the aim, the framing, the whole clip
+  // library — is unchanged. Five creatures cost five models and no animation.
+  //
+  // They carry no `sel`, unlike the party: a foe is found by WHO IT IS, off the
+  // `data-foe` the fight stamps on it, because any of them can stand in any
+  // slot. See `nodeOf`. The Regent had one until now and it was already dead.
+  //
+  // `metres` is how tall the thing actually is, and it is the one number that
+  // should differ per creature rather than per side. A generated model comes
+  // back at whatever height the generator felt like; the fight decides that a
+  // husk is a broken man and the Regent towers over all of them.
+  //
+  // `depth` is the row ladder's air. The thing a fight is ABOUT does not stand
+  // behind any of it, so the boss and the elite carry full presence and the
+  // three lesser creatures take their distance from the world like anyone else.
+  husk:     { model: 'husk.glb', foe: true, side: -1,
+              paper: 0xefe9df, shadow: 0x8a7f72, ink: 0x38312a,
+              turn: 28, tall: 1.00, strike: 'sword', metres: 1.86 },
+  cultist:  { model: 'cultist.glb', foe: true, side: -1,
+              paper: 0xf1eee8, shadow: 0x87839a, ink: 0x35323f,
+              turn: 33, tall: 1.00, strike: 'staff', metres: 1.92 },
+  wraith:   { model: 'wraith.glb', foe: true, side: -1,
+              paper: 0xeceff2, shadow: 0x7f8f9e, ink: 0x2f363d,
+              turn: 26, tall: 1.00, strike: 'daggers', metres: 2.04 },
+  revenant: { model: 'revenant.glb', foe: true, side: -1,
+              paper: 0xf4efe6, shadow: 0x94836b, ink: 0x3b3226,
+              turn: 31, tall: 1.00, strike: 'sword', metres: 2.14, depth: 1 },
+  mourner:  { model: 'mourner.glb', foe: true, side: -1,
+              paper: 0xf6f3ee, shadow: 0x8d8a97, ink: 0x39353f,
+              turn: 30, tall: 1.00, strike: 'sword', metres: 2.30, depth: 1 },
 };
 const ART = './art/cast/';
 const D = Math.PI / 180;
@@ -572,6 +598,11 @@ const Cast3D = (() => {
   const sized = { w: 0, h: 0, dpr: 0 };
   const figs = {};
   let last = 0, raf = 0, pending = null, clipNames = [], missing = [];
+  // the clip library outlives `load` now: a creature mounted an hour into a
+  // run is built from the same parsed clips the party was built from
+  let clips = {}, windows = {}, meta = {}, restSrc = {}, parentOf = {};
+  const fetching = {};
+  let warming = null, unloaded = [];
 
   // ═══ THE WORLD (Build 119) ═════════════════════════════════════════════════
   //
@@ -713,7 +744,8 @@ const Cast3D = (() => {
   // metres, crown to sole. A generated model comes back whatever height the
   // generator felt like — see `fit` — so each figure is scaled to stand at the
   // height the fight needs rather than the height it happened to arrive at.
-  const TALL_M = { hero: 1.78, foe: 2.16 };
+  // The party is level with itself by design; each creature states its own.
+  const TALL_M = { hero: 1.78, foe: 2.00 };
   // how much of a hero's box the figure fills, top to bottom. The rest is the
   // air a swing needs — a sword raised overhead leaves the frame at 1.0.
   const FILL = 0.72;
@@ -1149,6 +1181,15 @@ const Cast3D = (() => {
     }
     const prevTarget = renderer.getRenderTarget();
     const scissorWas = renderer.getScissorTest();
+    // AND THE VIEWPORT, WHICH ONLY MATTERS NOW THAT THIS RUNS MID-RUN. This
+    // sets a 192x288 viewport and used to be called once, at load, before the
+    // first frame — and `setSize` sets the viewport, so the next frame put it
+    // back by accident. A creature that arrives at frame 4000 arrives between
+    // two frames that both think the size is unchanged, and the whole world
+    // would draw into a thumbnail in the bottom-left corner until the window
+    // was resized.
+    const vpWas = new THREE.Vector4();
+    renderer.getViewport(vpWas);
     renderer.setScissorTest(false);
     // THE FLOOR IS NOT PART OF ANYBODY'S SILHOUETTE. This reads the alpha
     // channel to find where a figure begins and ends, and a ground plane
@@ -1203,6 +1244,7 @@ const Cast3D = (() => {
     }
 
     renderer.setRenderTarget(prevTarget);
+    renderer.setViewport(vpWas);
     renderer.setScissorTest(scissorWas);
     for (const o of world) if (o) o.visible = worldWas;
     scene.fog = fogWas;
@@ -1216,22 +1258,124 @@ const Cast3D = (() => {
   // against one of them drives all three. An AnimationClip addresses its
   // tracks by node name, which means retargeting here is not a step at all; it
   // is simply what happens.
+  // ── ONE CREATURE, STOOD UP ──────────────────────────────────────────────
+  //
+  // Everything that turns a downloaded GLB into a figure on the floor, in one
+  // place, because it now happens at two different times: three heroes before
+  // the layer says it is ready, and each creature whenever it turns up.
+  function mount(id, gltf) {
+    const tone = CAST[id];
+    const root = gltf.scene;
+    let map = null;
+    root.traverse(o => {
+      if (o.isMesh || o.isSkinnedMesh) map = map || o.material.map || o.material.emissiveMap;
+    });
+    const mat = watercolour(map, tone);
+    root.traverse(o => {
+      if (o.isMesh || o.isSkinnedMesh) { o.material = mat; o.frustumCulled = false; o.castShadow = true; }
+    });
+    root.scale.setScalar(tone.tall);
+    root.userData.mat = mat;
+    // `frame` decides who is visible, from who is on screen; a creature that
+    // arrives while nothing is wearing it must not flash up in the middle of
+    // the floor for the one frame before that runs.
+    root.visible = false;
+    scene.add(root);
+    const f = figs[id] = new Figure(root, tone, clips, restSrc, parentOf, windows, meta);
+    // one frame of the idle, so the measurement sees a standing figure rather
+    // than whatever the bind pose happens to be
+    f.step(0.016);
+    // aim BEFORE framing: turning a figure changes its silhouette, and the
+    // frame is measured from the silhouette
+    const side = tone.side || 1;
+    aim(f, side * FOE_HEADING - side * tone.turn);
+    fit(f);
+    stand(id);
+    return f;
+  }
+
+  // ── AND NOW PUT IT ON THE GROUND ────────────────────────────────────────
+  //
+  // `fit` measured the silhouette by looking at it, which is the only thing
+  // that has ever worked here — Box3 reports a SkinnedMesh's authored box and
+  // bone-to-bone needs a fudge for the sole under the toe and the hood over
+  // the crown, different for every character. Its output was a camera frame
+  // when there was a camera per figure; it is the same measurement either
+  // way, so it is simply read differently now: a figure that fills FILL of a
+  // frame `viewH` tall is `viewH * FILL` metres tall, and its soles are half
+  // that below the silhouette's centre.
+  //
+  // WHICH MAKES HEIGHT A DECISION RATHER THAN AN ACCIDENT. Meshy is asked for
+  // a height in metres and obliges approximately; eight characters generated
+  // on five different days do not agree to the centimetre, and a Kneeling
+  // Revenant has no reason to be the size of the people fighting it. So each
+  // figure is scaled to the height the FIGHT wants — the party level with each
+  // other, the big things looming over them — and then dropped until its feet
+  // touch y=0. Nobody floats and nobody sinks, because neither is a number
+  // anyone chose.
+  function stand(id) {
+    const f = figs[id];
+    const h0 = f.viewH * FILL;                       // metres, as generated
+    const s = (CAST[id].metres || TALL_M[CAST[id].foe ? 'foe' : 'hero']) / h0;
+    f.root.scale.multiplyScalar(s);
+    f.worldH = h0 * s;
+    f.ctrOff = f.midX * s;                           // it is not centred either
+    f.root.position.y = -(f.midY - h0 / 2) * s;      // soles to the floor
+    const slot = slotOf(id) || STAGE.hero.front;
+    f.root.position.x = slot[0] - f.ctrOff;
+    f.root.position.z = slot[1];
+    f.root.updateWorldMatrix(true, true);
+  }
+
+  // ── ASK FOR SOMEBODY ────────────────────────────────────────────────────
+  //
+  // Idempotent and safe to call every frame: a figure already standing, a
+  // fetch already in flight and a model already known to be absent all return
+  // the same settled promise, so `frame` can simply say what it wants sixty
+  // times a second.
+  //
+  // ONE MISSING MODEL IS NOT A DEAD LAYER. A creature that has not been
+  // generated yet leaves its painted plate alone and lets the rest of the cast
+  // stand up, rather than taking the whole stage down with it.
+  function want(id) {
+    if (!CAST[id] || figs[id] || missing.indexOf(id) >= 0) return Promise.resolve();
+    if (fetching[id]) return fetching[id];
+    return (fetching[id] = new GLTFLoader().loadAsync(ART + CAST[id].model)
+      .then(g => { mount(id, g); }, () => { missing.push(id); }));
+  }
+
+  // THE CLIP LIBRARY IS SHARED, THE MODELS ARE NOT. Meshy's humanoid rig is
+  // standardised — all eight characters came back with the same 24 joints, in
+  // the same order, under the same names — so one library of clips authored
+  // against one of them drives all of them. An AnimationClip addresses its
+  // tracks by node name, which means retargeting here is not a step at all; it
+  // is simply what happens.
+  //
+  // ── THE PARTY LOADS. THE BESTIARY ARRIVES. ──────────────────────────────
+  //
+  // Build 122 waited on every model before the layer would admit to being
+  // ready, and Build 123 took that from two creatures to five: 16.6 MB before
+  // the first frame, which is a blank battlefield on a phone and an eight-
+  // second timeout in the harness.
+  //
+  // But the party is on screen from the first frame of every run, and a
+  // creature is on screen when the fight puts it there — which is never at
+  // load, and for most of the bestiary never at all, since a run meets two or
+  // three of the five. So: the party is waited for, and each creature is
+  // fetched when something asks for it. `frame` asks the moment an element
+  // claims a foe id, and a warm queue asks quietly for the rest, one at a
+  // time, once the party is standing — so the common case is that the model
+  // arrived minutes before the creature did.
+  //
+  // It is the same `mount` either way. A creature that arrives on frame 4000
+  // is indistinguishable from one that arrived on frame 1.
   async function load() {
-    const loader = new GLTFLoader();
-    // ONE MISSING MODEL IS NOT A DEAD LAYER. A foe that has not been generated
-    // yet should leave its painted plate alone and let the rest of the cast
-    // stand up, rather than taking the whole stage down with it.
-    const ids = Object.keys(CAST);
-    const [lib, ...models] = await Promise.all([
-      fetch(CLIPS_URL).then(r => {
-        if (!r.ok) throw new Error('clips ' + r.status);
-        return r.json();
-      }),
-      ...ids.map(id => loader.loadAsync(ART + CAST[id].model).catch(() => null)),
-    ]);
-    const restSrc = lib.__rest || {};
-    const parentOf = lib.__parent || {};
-    const clips = {}, windows = {}, meta = {};
+    const lib = await fetch(CLIPS_URL).then(r => {
+      if (!r.ok) throw new Error('clips ' + r.status);
+      return r.json();
+    });
+    restSrc = lib.__rest || {};
+    parentOf = lib.__parent || {};
     for (const name of Object.keys(lib)) {
       if (name === '__rest' || name === '__parent') continue;
       clips[name] = THREE.AnimationClip.parse(lib[name]);
@@ -1240,67 +1384,13 @@ const Cast3D = (() => {
     }
     clipNames = Object.keys(clips);
 
-    ids.forEach((id, i) => {
-      const tone = CAST[id];
-      if (!models[i]) { missing.push(id); return; }
-      const root = models[i].scene;
-      let map = null;
-      root.traverse(o => {
-        if (o.isMesh || o.isSkinnedMesh) map = map || o.material.map || o.material.emissiveMap;
-      });
-      const mat = watercolour(map, tone);
-      root.traverse(o => {
-        if (o.isMesh || o.isSkinnedMesh) { o.material = mat; o.frustumCulled = false; o.castShadow = true; }
-      });
-      // aimed once the idle has posed them — see `aim` below
-      root.scale.setScalar(tone.tall);
-      root.userData.mat = mat;
-      scene.add(root);
-      figs[id] = new Figure(root, tone, clips, restSrc, parentOf, windows, meta);
-    });
-    // one frame of the idle, so the measurement sees a standing figure rather
-    // than whatever the bind pose happens to be
-    for (const id of Object.keys(figs)) figs[id].step(0.016);
-    // aim BEFORE framing: turning a figure changes its silhouette, and the
-    // frame is measured from the silhouette
-    for (const id of Object.keys(figs)) {
-      const side = CAST[id].side || 1;
-      aim(figs[id], side * FOE_HEADING - side * CAST[id].turn);
-    }
-    for (const id of Object.keys(figs)) fit(figs[id]);
-    // ── AND NOW PUT THEM ON THE GROUND ───────────────────────────────────────
-    //
-    // `fit` measured each silhouette by looking at it, which is the only thing
-    // that has ever worked here — Box3 reports a SkinnedMesh's authored box and
-    // bone-to-bone needs a fudge for the sole under the toe and the hood over
-    // the crown, different for every character. Its output was a camera frame
-    // when there was a camera per figure; it is the same measurement either
-    // way, so it is simply read differently now: a figure that fills FILL of a
-    // frame `viewH` tall is `viewH * FILL` metres tall, and its soles are half
-    // that below the silhouette's centre.
-    //
-    // WHICH MAKES HEIGHT A DECISION RATHER THAN AN ACCIDENT. Meshy is asked for
-    // a height in metres and obliges approximately; three heroes generated on
-    // three different days do not agree to the centimetre, and the Regent has
-    // no reason to be the same size as the people fighting it. So each figure
-    // is scaled to the height the FIGHT wants — the party level with each
-    // other, the Regent looming over them — and then dropped until its feet
-    // touch y=0. Nobody floats and nobody sinks, because neither is a number
-    // anyone chose.
-    for (const id of Object.keys(figs)) {
-      const f = figs[id];
-      const h0 = f.viewH * FILL;                       // metres, as generated
-      const s = TALL_M[CAST[id].foe ? 'foe' : 'hero'] / h0;
-      f.root.scale.multiplyScalar(s);
-      f.worldH = h0 * s;
-      f.ctrOff = f.midX * s;                           // it is not centred either
-      f.root.position.y = -(f.midY - h0 / 2) * s;      // soles to the floor
-      const slot = slotOf(id) || STAGE.hero.front;
-      f.root.position.x = slot[0] - f.ctrOff;
-      f.root.position.z = slot[1];
-      f.root.updateWorldMatrix(true, true);
-    }
+    const ids = Object.keys(CAST);
+    await Promise.all(ids.filter(id => !CAST[id].foe).map(want));
     ready = true;
+
+    unloaded = ids.filter(id => CAST[id].foe);
+    warming = unloaded.slice()
+      .reduce((p, id) => p.then(() => want(id)), Promise.resolve());
   }
 
   // ── WHOSE ELEMENT IS THIS? ─────────────────────────────────────────────────
@@ -1603,6 +1693,17 @@ const Cast3D = (() => {
     // WHICH ELEMENTS ARE WEARING A FIGURE THIS FRAME. An element only gives up
     // its painting to a model that is actually standing on it — see `nodeOf` —
     // so the claim is made here, per frame, rather than assumed once at load.
+    // ANYONE WHO HAS TURNED UP GETS ASKED FOR. This is the one moment lazy
+    // loading has to notice: an element is wearing a foe id and there is no
+    // model on it yet. In practice the warm queue has almost always got there
+    // first — a fight is minutes into a run — and this list empties as the
+    // models land, so the common case costs an empty loop.
+    for (let i = 0; i < unloaded.length; i++) {
+      const id = unloaded[i];
+      if (figs[id] || missing.indexOf(id) >= 0) { unloaded.splice(i--, 1); continue; }
+      if (nodeOf(id)) want(id);
+    }
+
     const claimed = [];
     for (const id of Object.keys(figs)) {
       const f = figs[id];
@@ -1787,6 +1888,15 @@ const Cast3D = (() => {
           x: +p.x.toFixed(3), y: +p.y.toFixed(3), z: +p.z.toFixed(3),
           tall: +f.worldH.toFixed(3), lowestBone: +low.toFixed(3),
           inScene: f.root.parent === scene,
+          // LOADED IS NOT THE SAME AS IN THIS FIGHT (Build 123). Five creatures
+          // have models and one of them is on the board; the other four are
+          // standing at the origin with nothing to be, waiting for a fight that
+          // calls for them. A check that asks "is anybody behind the camera"
+          // has to mean the ones that are actually here.
+          visible: f.root.visible,
+          // so a check can find the element the way `nodeOf` finds it, rather
+          // than keeping its own list of who is a monster
+          foe: !!CAST[id].foe,
           screen: { x: +foot.x.toFixed(1), ground: +foot.y.toFixed(1),
                     h: +(foot.y - crown.y).toFixed(1), behind: foot.behind },
         };
@@ -1907,6 +2017,12 @@ const Cast3D = (() => {
       return true;
     },
     shots: () => Object.keys(SHOTS),
+    // EVERYBODY, EVENTUALLY. The layer is ready with the party standing; the
+    // bestiary arrives behind it. Anything that wants to talk about the whole
+    // cast — the suite, a debug census — waits on this rather than on `ready`.
+    warm: () => (warming || Promise.resolve())
+      .then(() => Promise.all(Object.keys(fetching).map(k => fetching[k])))
+      .then(() => Object.keys(figs)),
     _figure: (id) => figs[id] || null,
     // Tune the look without a reload: Cast3D.look({ bands: 5, wash: 0.4 }).
     // Called with nothing it reports what is currently set.

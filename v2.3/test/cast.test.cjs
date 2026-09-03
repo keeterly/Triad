@@ -23,6 +23,24 @@ const { boot } = require('./harness.cjs');
   await page.waitForFunction(
     () => window.Cast3D && window.Cast3D._state().ready, null, { timeout: 30000 }
   ).catch(() => {});
+  // THE LAYER IS READY WITH THE PARTY; THE BESTIARY ARRIVES BEHIND IT. Build
+  // 123's five creatures are 16.6 MB, which is a blank battlefield on a phone
+  // and an eight-second timeout here, so `ready` now means the party is
+  // standing and each creature is fetched when it is wanted. A census of the
+  // whole cast has to say so — and this waits on the real loads rather than on
+  // a sleep, so it also fails honestly if one of them never arrives.
+  // READY MEANS THE PARTY IS STANDING. That is the whole claim the split makes,
+  // and it is the one worth asserting, because the alternative — asserting that
+  // NO creature has arrived yet — is a race the warm queue would win half the
+  // time. Three heroes, no failures, whatever the bestiary is doing.
+  const atReady = await J(() => (window.Cast3D ? window.Cast3D._state() : null));
+  check('LOAD: the layer is ready when the PARTY is standing, not the bestiary',
+    !!atReady && atReady.ready && !atReady.failed && !atReady.missing.length
+    && ['ash', 'elin', 'mira'].every(id => atReady.figures.indexOf(id) >= 0),
+    JSON.stringify({ ready: atReady && atReady.ready, figures: atReady && atReady.figures,
+                     missing: atReady && atReady.missing }));
+
+  await J(() => (window.Cast3D && window.Cast3D.warm ? window.Cast3D.warm() : null));
   const st = await J(() => (window.Cast3D ? window.Cast3D._state() : null));
 
   check('LAYER: ?cast=3d builds the layer and it comes up without excuses',
@@ -32,8 +50,12 @@ const { boot } = require('./harness.cjs');
   // special case anywhere in the layer — same rig, same retarget, same clip
   // library — which is the return on having done the retargeting properly. A
   // new foe costs a model and no animation at all.
-  check('LAYER: the party AND the foe are on the same rig, 24 bones each',
-    !!st && st.figures.length === 4 && st.bones === 24 && st.foes.length === 1
+  // EIGHT NOW: three heroes and every creature they can meet. A foe is not a
+  // special case anywhere in this layer — same rig, same retarget, same clip
+  // library — which is the whole return on having done the retargeting
+  // properly. Five creatures cost five models and no animation at all.
+  check('LAYER: the party AND EVERY creature are on one rig, 24 bones each',
+    !!st && st.figures.length === 8 && st.bones === 24 && st.foes.length === 5
     && !st.missing.length,
     JSON.stringify({ figures: st && st.figures, foes: st && st.foes,
                      bones: st && st.bones, missing: st && st.missing }));
@@ -673,7 +695,12 @@ const { boot } = require('./harness.cjs');
   // clearly positive x and the foe's a clearly negative one. Asserting one sign
   // for the whole cast would have passed a Regent staring off the edge of the
   // world the moment it joined.
-  const foeIds = st.foes || [];
+  // ASK NOW, NOT FIFTY CHECKS AGO. `st` is a snapshot taken at boot, and the
+  // cast is no longer fixed at boot — a creature arrives when the warm queue
+  // reaches it. Reading the roster from that stale snapshot classified the two
+  // creatures that landed mid-run as heroes, and then failed them for facing
+  // the way a creature faces. Nothing was wrong with the game.
+  const foeIds = await J(() => window.Cast3D._state().foes);
   check('FACING: every chest points at whoever it is fighting',
     Object.entries(facing).every(([id, f]) =>
       f && (foeIds.indexOf(id) >= 0 ? f.x < -0.55 : f.x > 0.55)),
@@ -709,7 +736,8 @@ const { boot } = require('./harness.cjs');
     world.cam.kind === 'PerspectiveCamera'
     && Object.values(world.actors).every(a => a.inScene),
     JSON.stringify({ camera: world.cam.kind, fov: world.cam.fov,
-                     inScene: Object.keys(world.actors).length }));
+                     inScene: Object.keys(world.actors).length,
+                     onTheBoard: Object.values(world.actors).filter(a => a.visible).length }));
 
   // NOBODY FLOATS AND NOBODY SINKS. Each model comes back from the generator
   // at its own size with its origin wherever the generator felt like putting
@@ -812,8 +840,18 @@ const { boot } = require('./harness.cjs');
     const k = sr.width / st.offsetWidth;
     const w = window.Cast3D._world();
     const out = { zoom: +k.toFixed(3), actors: {} };
+    // ASK THE WAY THE LAYER ASKS. This used to name `#k-boss-art` for the
+    // Regent and a `.k-hero` for everyone else — a rule that was true of a cast
+    // of four and returns null for the four creatures Build 123 added. The
+    // layer has had one uniform rule since Build 118 (`nodeOf`: a hero by its
+    // selector, a foe by WHO IT IS), and a check that keeps a second opinion
+    // about where a figure lives is a check that will disagree with the game
+    // eventually. Only actors actually on screen have a rect to compare.
     for (const id of Object.keys(w.actors)) {
-      const n = document.querySelector(id === 'mourner' ? '#k-boss-art' : '.k-hero[data-hero="' + id + '"]');
+      if (!w.actors[id].visible) continue;
+      const n = document.querySelector(w.actors[id].foe
+        ? '#k-cast [data-foe="' + id + '"]' : '.k-hero[data-hero="' + id + '"]');
+      if (!n) continue;
       const r = n.getBoundingClientRect();
       out.actors[id] = {
         // the element's centre and ground line, converted back to stage units
@@ -865,6 +903,15 @@ const { boot } = require('./harness.cjs');
   // there is no model for. So the Kneeling Revenant, the Hollow Husk and the
   // rest all fought the party wearing the boss's body. It reads as "the boss
   // turned up early" rather than as a bug, which is how it shipped.
+  //
+  // THE STAND-IN HAD TO CHANGE, THE PROPERTY DID NOT (Build 123). This used
+  // `revenant` as its example of a creature with no model, and every creature
+  // has one now — so the check was asserting that a body which exists is not
+  // drawn, and failing for the best possible reason. The property under test
+  // was never "some creatures are unmodelled"; it is that an element gives up
+  // its painting ONLY to the model that belongs on it. A name no model answers
+  // to tests exactly that, and goes on testing it however much of the bestiary
+  // gets built.
   console.log('\n── the right body on the right creature ──');
   const plate = await J(async () => {
     const boss = document.getElementById('k-boss-art');
@@ -873,22 +920,22 @@ const { boot } = require('./harness.cjs');
     await settle();
     const asRegent = { on: boss.classList.contains('k-cast3d-on'),
                        drawn: window.Cast3D._figure('mourner').root.visible };
-    boss.dataset.foe = 'revenant';               // a creature with no model
+    boss.dataset.foe = 'nobody';                 // a name no model answers to
     await settle();
-    const asRevenant = { on: boss.classList.contains('k-cast3d-on'),
+    const asStranger = { on: boss.classList.contains('k-cast3d-on'),
                          drawn: window.Cast3D._figure('mourner').root.visible,
                          paintOpacity: getComputedStyle(boss.querySelector('img')).opacity };
     boss.dataset.foe = was;
     await settle();
     const back = { on: boss.classList.contains('k-cast3d-on'),
                    drawn: window.Cast3D._figure('mourner').root.visible };
-    return { was, asRegent, asRevenant, back };
+    return { was, asStranger, asRegent, back };
   });
   check('PLATE: the Regent\u2019s body is drawn for the Regent',
     plate.asRegent.on && plate.asRegent.drawn, JSON.stringify(plate.asRegent));
   check('PLATE: a creature there is no model of keeps its own painting',
-    !plate.asRevenant.on && !plate.asRevenant.drawn && plate.asRevenant.paintOpacity === '1',
-    JSON.stringify(plate.asRevenant));
+    !plate.asStranger.on && !plate.asStranger.drawn && plate.asStranger.paintOpacity === '1',
+    JSON.stringify(plate.asStranger));
 
   // …AND "KEEPS ITS PAINTING" IS NOT THE SAME AS "CAN BE SEEN".
   //
@@ -931,7 +978,7 @@ const { boot } = require('./harness.cjs');
     // the state under test is a creature there is NO model of — with the Regent
     // standing there its painting is hidden on purpose, and hiding it twice
     // proves nothing
-    b.dataset.foe = 'revenant';
+    b.dataset.foe = 'nobody';
     for (const id of ['ash', 'elin', 'mira', 'mourner']) {
       const f = window.Cast3D._figure(id);
       if (f) { f.clear(); f.mixer.timeScale = 0; }
@@ -953,7 +1000,7 @@ const { boot } = require('./harness.cjs');
   // reclaims the element on the next frame — hold it across every capture
   const hold = () => J(() => {
     const b = document.getElementById('k-boss-art');
-    b.dataset.foe = 'revenant';
+    b.dataset.foe = 'nobody';
     return b.classList.contains('k-cast3d-on');
   });
   const grab = async () => {
@@ -1018,9 +1065,10 @@ const { boot } = require('./harness.cjs');
                  : name === 'parry' ? ['ash', 'elin', 'mira']
                  : ['ash', 'mourner'];
       out[name] = { x: w.cam.x, y: w.cam.y, z: w.cam.z,
-                    behind: Object.keys(w.actors).filter(k => w.actors[k].screen.behind),
+                    behind: Object.keys(w.actors)
+                      .filter(k => w.actors[k].visible && w.actors[k].screen.behind),
                     subject: subj.some(on),
-                    onStage: Object.keys(w.actors).filter(on).length };
+                    onStage: Object.keys(w.actors).filter(k => w.actors[k].visible).filter(on).length };
     }
     window.Cast3D.shot('home', { speed: 40 });
     await settle(12);
@@ -1211,7 +1259,8 @@ const { boot } = require('./harness.cjs');
       window.Cast3D.shot(n, { speed: 40 }); await f(10);
       const w = window.Cast3D._world();
       out[n] = { at: [+w.cam.x.toFixed(2), +w.cam.y.toFixed(2), +w.cam.z.toFixed(2)],
-                 behind: Object.keys(w.actors).filter(k => w.actors[k].screen.behind).length };
+                 behind: Object.keys(w.actors)
+                   .filter(k => w.actors[k].visible && w.actors[k].screen.behind).length };
     }
     window.Cast3D.shot('home', { speed: 40 }); await f(10);
     return out;

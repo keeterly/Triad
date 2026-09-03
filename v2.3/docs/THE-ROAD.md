@@ -5175,6 +5175,146 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 123 — every creature is a body now, and the party stops waiting for them
+
+Build 118 gave the Mourning Regent a model. Everything since has been about the
+world around her. This one finishes the cast: the Hollow Husk, the Ashen
+Cultist, the Silent Wraith and the Kneeling Revenant all stand up, on the same
+24-joint rig, driven by the same clip library the party has been using since
+Build 112. **A creature costs a model and no animation at all** — which was the
+whole point of doing the retargeting properly, and this is the build that
+collects on it.
+
+### The auto-rigger is not random, it is looking for legs
+
+Four creatures went in with identical parameters and one came back rigged.
+The other three had `skins: 0`, `joints: 0`, `nodes: 1` — a single mesh with no
+skeleton in it at all, which is a mesh you cannot animate.
+
+The obvious reading is that the auto-rigger is flaky, and the obvious response
+is to run it again. Setting `pose_mode: 'a-pose'` and re-rolling recovered the
+Kneeling Revenant — a *kneeling* figure, whose legs are in the painting but
+folded under it. It did nothing at all for the other two, twice.
+
+So it is worth looking at what was actually being sent:
+
+| | what the painting shows | rigged |
+|---|---|---|
+| Hollow Husk | upright, two legs, arms clear of the body | ✅ first try |
+| Kneeling Revenant | kneeling — legs present, folded | ✅ with `a-pose` |
+| Mourning Regent | upright, standing | ✅ (Build 118) |
+| **Ashen Cultist** | a hooded robe to the floor with **no legs at all**, arms swallowed by drapery, a staff crossing the entire silhouette | ❌ ×2 |
+| **Silent Wraith** | a hunched near-quadruped lunge, trailing a banner of cloth **wider than the body** | ❌ ×2 |
+
+That is not a coin flip. An auto-rigger fits a humanoid skeleton to a
+silhouette, and neither of those two silhouettes contains a humanoid: one has no
+lower limbs to find, the other is a horizontal shape whose largest feature is a
+flag. `a-pose` asks the rigger to *retarget* the skeleton it found. It cannot
+invent one.
+
+Which makes the fix an art fix rather than a parameter fix. The tool's own
+documentation says so plainly — *"the mesh reproduces only what is in the source
+image"* — so each of the two was redrawn as a **rigging reference**: same
+character, same palette, same ink-wash rendering, same ornaments, but standing
+square to camera with the ankles apart and a gap of background between each arm
+and the torso. The Cultist's robe comes up to mid-shin and its staff stands
+vertical at its side instead of crossing the frame; the Wraith stands erect and
+its banner becomes a cape that hangs straight down. Both rigged first try, 24
+joints, same order, same names.
+
+**The painted plates in the game are untouched.** These references exist to be
+looked at by a rigger, not by a player.
+
+### The whole cast before the first frame
+
+Five creatures and three heroes was 16.6 MB at the sizes they arrived in,
+and Build 122's loader waited on every model in one `Promise.all` before the
+layer would admit to being ready. The result was a blank battlefield on a phone
+and, in the harness, an eight-second timeout on `__ready` — which is the sort of
+failure that reads as a broken layer rather than as arithmetic.
+
+The party is on screen from the first frame of every run. **A creature is on
+screen when the fight puts it there** — which is never at load, and for most of
+the bestiary never at all, since a run meets two or three of the five. So the
+dependency is split:
+
+- `load()` fetches the clip library and the three heroes, and says ready.
+- Each creature is fetched by `want(id)` — idempotent, safe to call every frame,
+  with in-flight de-duplication.
+- `frame()` calls it the moment a DOM element claims a foe id and there is no
+  model standing on it. That list empties as models land, so the steady state
+  costs an empty loop.
+- A warm queue asks for the rest quietly, one at a time, behind the party — so
+  in practice the model arrived minutes before the creature did.
+
+It is the same `mount()` either way. **A creature that arrives on frame 4000 is
+indistinguishable from one that arrived on frame 1.** That is the property worth
+having, and it is what makes the split safe rather than merely faster.
+
+### The bug that only exists once loading is lazy
+
+`fit()` — the pass that measures a figure by rendering it alone and reading the
+alpha channel — sets a 192×288 viewport and never put it back. That was
+harmless for eleven builds because it ran once, at load, before the first frame,
+and `setSize` sets the viewport, so the next frame restored it by accident.
+
+A creature arriving at frame 4000 arrives *between* two frames that both think
+the canvas size is unchanged. Nothing calls `setSize`. The entire world would
+have drawn into a thumbnail in the bottom-left corner of the screen until the
+player resized the window.
+
+It was found by reading the function rather than by watching it happen, which is
+the only reason it is not in the shipped build: the warm queue makes the failure
+rare and non-deterministic — it needs a model to land on a frame where nothing
+else resizes — and a bug that appears in one run in fifty is a bug that ships.
+
+### Textures at four times the size anyone can see
+
+The creatures came back with 2048×2048 albedo maps. A figure is about 150 pixels
+tall on a 932-pixel stage, and even at the closest cinematic push-in there is
+nothing in a watercolour wash that repays four megatexels. `tools/shrink.cjs`
+re-encodes to 1024 WebP:
+
+| creature | raw | shipped |
+|---|---|---|
+| Hollow Husk | 8.0 MB | 2.90 MB |
+| Ashen Cultist | 7.80 MB | 2.52 MB |
+| Silent Wraith | 7.35 MB | 2.51 MB |
+| Kneeling Revenant | 7.98 MB | 2.60 MB |
+| Mourning Regent | — | 2.63 MB |
+
+The cast is 19.2 MB on disk and **6.1 MB before the first frame** — the three
+heroes and nothing else. The remaining bulk is geometry, 30,000 triangles
+apiece, which is the honest next cut and not one to make by eye.
+
+### What the suite had to stop assuming
+
+Four checks failed on this build, and none of them for anything wrong with the
+game.
+
+- **The census** counted the whole cast at `ready`, which is no longer a moment
+  when the whole cast exists. It waits on `Cast3D.warm()` now — a promise over
+  the real loads, not a sleep — so it still fails honestly if a model never
+  arrives, and it fails for that reason rather than for being early. A new
+  check states the claim the split actually makes: *ready means the party is
+  standing*. That is assertable; "no creature has arrived yet" is a race the
+  warm queue would win half the time.
+- **Facing** read the foe roster from a snapshot taken fifty checks earlier,
+  which classified the two creatures that landed mid-run as heroes and then
+  failed them for facing the way a creature faces. It asks who is a foe at the
+  moment it measures now.
+- **Two plate checks** used `revenant` as their example of *a creature there is
+  no model of*, and every creature has one now — so they were asserting that a
+  body which exists is not drawn. But the property was never "some creatures
+  are unmodelled"; it is that an element gives up its painting **only** to the
+  model that belongs on it. They use a name no model answers to, which tests
+  exactly that and goes on testing it however much of the bestiary gets built.
+
+flow 257/257 · road 94/94 · slice 80/80 · bond 76/76 · **cast 61/61** ·
+camp 48/48 · line 32/32 · music 22/22 · beat 10/10 — no page errors.
+
+---
+
 ## Build 122 — the plaza is flooded, and the camera answers the action
 
 **The ask.** *"Refine the battle ground to feel more like my actual world but in
