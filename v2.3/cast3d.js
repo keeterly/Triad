@@ -258,6 +258,131 @@ function watercolour(map, tone) {
   return m;
 }
 
+// ── retargeting ────────────────────────────────────────────────────────────
+//
+// EVERY MODEL COMES BACK ON ITS OWN SKELETON. Not "the same skeleton in a
+// different pose" — a genuinely different bind pose per generation. Ash, Elin
+// and Mira differ from each other by more than a radian at the wrist, and all
+// three differ from the rig the clips were authored on. Same 24 names, same
+// hierarchy, different rest orientations.
+//
+// Played raw that shears the mesh, because every joint is handed an absolute
+// local rotation that meant one thing on the rig it was recorded from and
+// something else on the rig it lands on.
+//
+// THIS IS A MODEL-SPACE OPERATION, and doing it in local space is the trap. A
+// first attempt used `rest_t · rest_s⁻¹ · q` per bone, which is only exact
+// when the two rigs' PARENTS already agree — it fixed Ash and Mira most of the
+// way and left Elin, whose rest pose is furthest from the source, a collapsed
+// bag of cloth. What is actually invariant between two skeletons is where a
+// bone points IN THE WORLD relative to where it rested:
+//
+//     D(b)  = A_s(b) · G_s(b)⁻¹          the source bone's global departure
+//     A_t(b) = D(b) · G_t(b)             the same departure, on the target
+//     q_t(b) = A_t(parent)⁻¹ · A_t(b)    back to a local rotation
+//
+// where G is a rest pose accumulated down the hierarchy and A is an animated
+// one. That needs the whole pose at once rather than one track at a time, so
+// the clip is resampled onto a common timeline first.
+//
+// TWO THINGS ARE THROWN AWAY on the way through. Non-root position tracks: a
+// clip carries one per joint, and each writes the SOURCE rig's bone offsets
+// onto the target — overwriting the character's own bone LENGTHS sixty times a
+// second with somebody else's, which is most of what "disfigured" looked like.
+// A humanoid clip translates the hips; every other joint keeps the length the
+// model was built with. And scale tracks, which the mill dropped already.
+const RESAMPLE_FPS = 30;
+
+function retarget(clip, restSrc, parentOf, bones) {
+  const names = Object.keys(restSrc).filter(n => bones[n]);
+  if (!names.length) return clip;
+
+  // …ordered parents-first, so an accumulation can be done in one pass
+  const order = [], seen = {};
+  const visit = (n) => {
+    if (seen[n] || !restSrc[n]) return;
+    seen[n] = 1;
+    const p = parentOf[n];
+    if (p) visit(p);
+    order.push(n);
+  };
+  names.forEach(visit);
+
+  const Q = () => new THREE.Quaternion();
+  // NORMALISE AFTER EVERY COMPOSITION. A quaternion that drifts off the unit
+  // sphere is not a rotation any more — it is a rotation with a scale baked
+  // into it — and this walks a chain of them twelve deep, twice, for every
+  // frame of every clip. Left alone the error showed up as bones stretching by
+  // seven percent mid-swing, which reads on screen as exactly the same
+  // "disfigured" as a bad retarget and has nothing to do with retargeting.
+  const restS = {}, Gs = {}, Gt = {};
+  for (const n of order) {
+    restS[n] = Q().fromArray(restSrc[n]).normalize();
+    const p = parentOf[n];
+    Gs[n] = (p && Gs[p] ? Gs[p].clone() : Q()).multiply(restS[n]).normalize();
+    Gt[n] = (p && Gt[p] ? Gt[p].clone() : Q()).multiply(bones[n].quaternion).normalize();
+  }
+
+  // the source clip's rotation tracks, by bone
+  const rot = {};
+  const keptTracks = [];
+  for (const t of clip.tracks) {
+    const dot = t.name.indexOf('.');
+    const bone = t.name.slice(0, dot), what = t.name.slice(dot + 1);
+    if (what === 'quaternion') { rot[bone] = t; continue; }
+    if (what === 'position' && bone === 'Hips') keptTracks.push(t.clone());
+  }
+
+  const dur = clip.duration || 1;
+  const n = Math.max(2, Math.round(dur * RESAMPLE_FPS));
+  const times = new Float32Array(n);
+  for (let i = 0; i < n; i++) times[i] = (i / (n - 1)) * dur;
+
+  const out = {};
+  for (const b of order) out[b] = new Float32Array(n * 4);
+  const As = {}, At = {};
+  const q = Q(), d = Q(), tmp = Q();
+
+  for (let i = 0; i < n; i++) {
+    const t = times[i];
+    for (const b of order) {
+      // source local at t — the track if there is one, otherwise its rest
+      const track = rot[b];
+      if (track) sampleQuat(track, t, q); else q.copy(restS[b]);
+      q.normalize();
+      const p = parentOf[b];
+      As[b] = (p && As[p] ? As[p].clone() : Q()).multiply(q).normalize();
+      d.copy(As[b]).multiply(tmp.copy(Gs[b]).invert()).normalize();   // D = A_s · G_s⁻¹
+      At[b] = d.clone().multiply(Gt[b]).normalize();                   // A_t = D · G_t
+      const local = (p && At[p] ? tmp.copy(At[p]).invert().multiply(At[b])
+                                : At[b].clone()).normalize();
+      local.toArray(out[b], i * 4);
+    }
+  }
+
+  const tracks = keptTracks;
+  for (const b of order) {
+    tracks.push(new THREE.QuaternionKeyframeTrack(b + '.quaternion', times, out[b]));
+  }
+  return new THREE.AnimationClip(clip.name, dur, tracks);
+}
+
+// three's interpolants allocate; this is called a few thousand times at load,
+// so the sampling is done by hand with a slerp between the bracketing keys
+function sampleQuat(track, t, into) {
+  const times = track.times, v = track.values;
+  const last = times.length - 1;
+  if (t <= times[0]) return into.fromArray(v, 0);
+  if (t >= times[last]) return into.fromArray(v, last * 4);
+  let lo = 0, hi = last;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (times[mid] <= t) lo = mid; else hi = mid; }
+  const span = times[hi] - times[lo];
+  const u = span > 0 ? (t - times[lo]) / span : 0;
+  into.fromArray(v, lo * 4).normalize();
+  const b = new THREE.Quaternion().fromArray(v, hi * 4).normalize();
+  return into.slerp(b, u).normalize();
+}
+
 // ── the figure ─────────────────────────────────────────────────────────────
 // One per hero: their own model, their own mixer, and whatever clip is
 // playing over the idle underneath it.
@@ -268,13 +393,17 @@ function watercolour(map, tone) {
 // stops, and an acting clip is CROSS-FADED over the top of it and faded back
 // out — which is also why nothing ever snaps.
 class Figure {
-  constructor(root, tone, clips) {
+  constructor(root, tone, clips, restSrc, parentOf) {
     this.root = root;
     this.tone = tone;
+    // THE BONES AND THEIR REST POSE FIRST — the retarget needs them, and after
+    // the mixer runs once `quaternion` is a pose, not a rest.
+    this.bones = {};
+    root.traverse(o => { if (o.isBone) this.bones[o.name] = o; });
     this.mixer = new THREE.AnimationMixer(root);
     this.actions = {};
     for (const name of Object.keys(clips)) {
-      const a = this.mixer.clipAction(clips[name]);
+      const a = this.mixer.clipAction(retarget(clips[name], restSrc, parentOf, this.bones));
       a.setEffectiveWeight(0);
       a.timeScale = RATE[name] || 1;
       if (HOLDS[name]) { a.loop = THREE.LoopOnce; a.clampWhenFinished = true; }
@@ -291,8 +420,6 @@ class Figure {
     }
     this.clipName = null;
     this.acting = null;
-    this.bones = {};
-    root.traverse(o => { if (o.isBone) this.bones[o.name] = o; });
 
     // THE CLIPS TRAVEL. A sword judgment steps into the blow and a knock-down
     // falls over backwards — motion that is right in a vacuum and wrong in a
@@ -514,8 +641,13 @@ const Cast3D = (() => {
       }),
       ...Object.keys(CAST).map(id => loader.loadAsync(ART + CAST[id].model)),
     ]);
+    const restSrc = lib.__rest || {};
+    const parentOf = lib.__parent || {};
     const clips = {};
-    for (const name of Object.keys(lib)) clips[name] = THREE.AnimationClip.parse(lib[name]);
+    for (const name of Object.keys(lib)) {
+      if (name === '__rest' || name === '__parent') continue;
+      clips[name] = THREE.AnimationClip.parse(lib[name]);
+    }
     clipNames = Object.keys(clips);
 
     Object.keys(CAST).forEach((id, i) => {
@@ -533,7 +665,7 @@ const Cast3D = (() => {
       root.scale.setScalar(tone.tall);
       root.userData.mat = mat;
       scene.add(root);
-      figs[id] = new Figure(root, tone, clips);
+      figs[id] = new Figure(root, tone, clips, restSrc, parentOf);
     });
     // one frame of the idle, so the measurement sees a standing figure rather
     // than whatever the bind pose happens to be

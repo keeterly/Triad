@@ -101,7 +101,25 @@ function trim(clip) {
       const gltf = await new GLTFLoader().loadAsync(url);
       if (!gltf.animations.length) return { error: 'no animation in the file' };
       const a = gltf.animations[0];
-      return { name: a.name, dur: a.duration, tracks: a.tracks.length, json: THREE.AnimationClip.toJSON(a) };
+      // THE REST POSE TRAVELS WITH THE CLIPS. Every model Meshy returns has its
+      // own bind pose — the three characters differ from each other and from
+      // the rig these clips were authored on — so a clip cannot be played as-is
+      // on anybody. Shipping the source rest pose alongside lets the runtime
+      // retarget: the delta a joint takes FROM ITS OWN REST is the part that
+      // transfers, and the constant offset between two rigs is the part that
+      // must be divided out.
+      // …AND SO DOES THE HIERARCHY. Retargeting rotations correctly is a
+      // model-space operation — a local rotation only means the same thing on
+      // two rigs when their parents agree — so the runtime needs to know which
+      // bone hangs off which to accumulate the source pose.
+      const rest = {}, parent = {};
+      gltf.scene.traverse(o => {
+        if (!o.isBone) return;
+        rest[o.name] = o.quaternion.toArray().map(v => +v.toFixed(5));
+        parent[o.name] = (o.parent && o.parent.isBone) ? o.parent.name : null;
+      });
+      return { name: a.name, dur: a.duration, tracks: a.tracks.length, rest, parent,
+               json: THREE.AnimationClip.toJSON(a) };
     }, ['/' + encodeURIComponent(file), '/lib']);
     if (got.error) { console.log('FAILED — ' + got.error); continue; }
     out[verb] = trim(got.json);
@@ -109,6 +127,7 @@ function trim(clip) {
     // Meshy gave it, so the game never has to know a clip was called
     // "Armature|Sword_Judgment|baselayer"
     out[verb].name = verb;
+    if (!out.__rest) { out.__rest = got.rest; out.__parent = got.parent; }
     console.log(`${got.dur.toFixed(2)}s · ${out[verb].tracks.length} tracks (was ${got.tracks}) · from "${got.name}"`);
   }
 
@@ -116,5 +135,5 @@ function trim(clip) {
   srv.close();
   fs.writeFileSync(OUT, JSON.stringify(out));
   const kb = (fs.statSync(OUT).size / 1024).toFixed(0);
-  console.log(`\n  ${Object.keys(out).length} clips → ${OUT} (${kb} KB)`);
+  console.log(`\n  ${Object.keys(out).length - 2} clips + the source rig → ${OUT} (${kb} KB)`);
 })();

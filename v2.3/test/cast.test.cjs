@@ -350,6 +350,65 @@ const { boot } = require('./harness.cjs');
   check('PANEL: dragging a dial reaches the shader uniform, not just the readout',
     dial.look === 0.2 && dial.uniform === 0.2 && dial.before !== 0.2, JSON.stringify(dial));
 
+  // ═══ G2 · THE ANIMATION DOES NOT RESHAPE THE BODY ═══
+  // The clips come off a different skeleton than the characters wear — every
+  // Meshy generation lands on its own bind pose — and a clip carries a position
+  // track for every joint. Played raw, those tracks overwrite each character's
+  // BONE LENGTHS with the source rig's, sixty times a second, which is what
+  // "disfigured" actually was: heads folded into shoulders, arms stretched to
+  // somebody else's proportions.
+  //
+  // A skeleton's bone lengths are a constant. If they move while a clip plays,
+  // the retarget is broken, and no amount of looking at a 145-pixel figure
+  // will tell you that reliably.
+  console.log('\n── the body keeps its proportions ──');
+  const bones = await J(async () => {
+    // DIRECT PARENT TO CHILD ONLY, and taken off the real hierarchy rather
+    // than a list of names that look adjacent. The first version of this check
+    // guessed the pairs — Hips→Spine, neck→Head — and several of them are two
+    // or three joints apart in this rig, where the distance changes the moment
+    // anything in between bends. It reported 7% "stretch" on correct animation.
+    // A bone's length is the distance to its own parent, and that is the only
+    // distance a rotation cannot alter.
+    const pairsOf = (f) => {
+      const out = [];
+      for (const n of Object.keys(f.bones)) {
+        const b = f.bones[n];
+        if (b.parent && b.parent.isBone && f.bones[b.parent.name]) out.push([b.parent.name, n]);
+      }
+      return out;
+    };
+    const V = (b) => b.getWorldPosition(new (b.position.constructor)());
+    const out = {};
+    for (const id of ['ash', 'elin', 'mira']) {
+      const f = window.Cast3D._figure(id);
+      const pairs = pairsOf(f);
+      const len = () => pairs.map(([a, b]) => +V(f.bones[a]).distanceTo(V(f.bones[b])).toFixed(5));
+      f.clear();
+      await new Promise(r => requestAnimationFrame(r));
+      const rest = len();
+      let worst = 0;
+      for (const verb of ['slash', 'cast', 'ward', 'hurt', 'down']) {
+        window.Cast3D.play(id, verb);
+        const a = f.acting;
+        for (const frac of [0.25, 0.5, 0.85]) {
+          if (a) { a.time = a.getClip().duration * frac; a.setEffectiveWeight(1); }
+          await new Promise(r => requestAnimationFrame(r));
+          len().forEach((v, i) => {
+            if (!rest[i]) return;
+            worst = Math.max(worst, Math.abs(v - rest[i]) / rest[i]);
+          });
+        }
+      }
+      f.clear();
+      out[id] = { bones: pairs.length, drift: +(worst * 100).toFixed(2) };
+    }
+    return out;
+  });
+  check('BONES: no clip stretches anybody — every bone holds its length through every verb',
+    Object.values(bones).every(v => v.drift < 1),
+    JSON.stringify(bones) + ' — worst % drift from rest');
+
   // ═══ H · THEY ARE FACING THE ENEMY ═══
   // The foe stands on the right of this stage and always has. The party
   // arrived from the generator facing the camera, so for one build they fought
@@ -362,6 +421,15 @@ const { boot } = require('./harness.cjs');
   // matters is where the chest actually points once the idle has posed it: the
   // foe is on the +X side of the stage, so a facing hero's forward vector has
   // a clearly positive x and is not still pointing at the camera.
+  // MEASURED AT REST. Acting clips turn the body on purpose — a swing winds up
+  // — so facing is only a defined property of the standing stance. The check
+  // above leaves everyone mid-fade out of a knock-down, and reading it there
+  // once reported Mira at 124°, which was true of that instant and of nothing
+  // else.
+  await J(async () => {
+    for (const id of ['ash', 'elin', 'mira']) window.Cast3D._figure(id).clear();
+    for (let i = 0; i < 30; i++) await new Promise(r => requestAnimationFrame(r));
+  });
   const facing = await J(() => window.Cast3D._facing());
   check('FACING: every chest actually points at the foe’s side of the board',
     Object.values(facing).every(f => f && f.x > 0.55 && f.deg > 35 && f.deg < 115),

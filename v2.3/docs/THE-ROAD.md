@@ -5112,3 +5112,65 @@ straight at the foe.
 
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 27/27** — no page errors.
+
+## Build 117 — the clips were wearing somebody else's skeleton
+
+The party looked disfigured: heads folded into shoulders, Elin a shapeless bag
+of cloth, arms stretched to proportions nobody drew. The first guess — bad
+auto-rigging — was wrong, and the test that settled it was cheap: **stop every
+mixer and look at the bind pose.** All three are perfect there. Elin's hood and
+staff, Mira's cloak, Ash's sword. The models are good. The animation was
+breaking them.
+
+### Nothing is canonical
+
+Every Meshy generation lands on **its own bind pose**. Not the same skeleton in
+a different pose — genuinely different rest orientations, same 24 names, same
+hierarchy. Ash, Elin and Mira differ from each other by more than a radian at
+the wrist, and all three differ from the rig the clips were recorded on, because
+`meshy_rigging` re-rigs whatever you hand it.
+
+Three things had to be fixed, and each looked identical on screen.
+
+**1 · The retarget has to happen in model space.** A first attempt did it per
+bone in local space — `rest_t · rest_s⁻¹ · q` — which is only exact when the two
+rigs' *parents* already agree. It fixed Ash and Mira most of the way and left
+Elin collapsed. What is actually invariant between two skeletons is where a bone
+points **in the world** relative to where it rested:
+
+```
+D(b)   = A_s(b) · G_s(b)⁻¹        the source bone's global departure from rest
+A_t(b) = D(b) · G_t(b)            the same departure, on the target
+q_t(b) = A_t(parent)⁻¹ · A_t(b)   back to a local rotation
+```
+
+That needs the whole pose at once rather than one track at a time, so each clip
+is resampled onto a common timeline first, and the library ships the source rig's
+rest pose *and* its parent map.
+
+**2 · Only the root may translate.** A clip carries a position track for every
+joint, and each one writes the source rig's bone offsets onto the target —
+overwriting each character's own **bone lengths**, sixty times a second, with
+somebody else's. That was most of what "disfigured" looked like. A humanoid clip
+translates the hips; every other joint keeps the length the model was built with.
+
+**3 · Normalise after every composition.** A quaternion that drifts off the unit
+sphere is a rotation with a scale baked into it, and this walks a chain of them
+twelve deep, twice, per frame per clip.
+
+### And the check that found it was wrong twice
+
+The new check asserts bone lengths hold through every verb — the one invariant a
+bad retarget cannot satisfy. Its first version **guessed the pairs**
+(`Hips→Spine`, `neck→Head`) and several of those are two or three joints apart in
+this rig, where the distance legitimately changes the moment anything between
+them bends. It reported 7% "stretch" on correct animation. A bone's length is the
+distance to *its own parent*, read off the real hierarchy, and that is the only
+distance a rotation cannot alter. **Now: 23 bones per character, 0.00% drift.**
+
+The facing check had the same disease in miniature: it read the body mid-fade out
+of a knock-down and reported Mira at 124°. Facing is a property of the resting
+stance — acting clips turn the body on purpose — so it settles first now.
+
+flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
+camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
