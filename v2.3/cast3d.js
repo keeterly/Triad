@@ -1798,10 +1798,15 @@ const Cast3D = (() => {
     //
     // Warm key, cool fill. It is the oldest rule in the book and this scene had
     // neither half of it.
-    const hemi = new THREE.HemisphereLight(0xc3d4ea, 0x4b3f34, 0.34);
+    // …AND IT HAS TO BE BRIGHT ENOUGH TO SEE (Build 134). Build 133 traded a
+    // flat white 0.88 ambient for a coloured hemisphere at 0.34 — the right
+    // shape and too little of it, so the modelling arrived and the figures went
+    // muddy against a bright painted backdrop. The plate behind them is lit
+    // daylight; the bodies in front of it have to live in the same exposure.
+    const hemi = new THREE.HemisphereLight(0xc3d4ea, 0x4b3f34, 0.62);
     scene.add(hemi);
     scene.userData.hemi = hemi;
-    const k = new THREE.DirectionalLight(0xffe3b8, 2.15);
+    const k = new THREE.DirectionalLight(0xffe3b8, 2.75);
     // LOW AND ALONG THE STREET, not overhead. At (4.5, 7.5, 5.0) the sun was
     // almost straight above the party, which throws a puddle of shadow under
     // each figure and models nothing. Dropped to a raking angle, the same light
@@ -1820,11 +1825,11 @@ const Cast3D = (() => {
     k.shadow.normalBias = 0.02;
     // the cool counter, from behind and low, so a body has an edge against the
     // mist rather than dissolving into it
-    const r = new THREE.DirectionalLight(0x8ba6cf, 1.05);
+    const r = new THREE.DirectionalLight(0x8ba6cf, 1.25);
     r.position.set(-6, 2.4, -5);
     // …and a dim warm bounce up off the water, which is the one light this
     // scene has a physical reason to expect and did not have
-    const b = new THREE.DirectionalLight(0xd8a06a, 0.30);
+    const b = new THREE.DirectionalLight(0xd8a06a, 0.48);
     b.position.set(1.5, -3, 4);
     scene.add(k, r, b);
     scene.userData.key = k;
@@ -2843,8 +2848,8 @@ const Cast3D = (() => {
     if (Math.abs(focusWant - focusLevel) > 0.002) {
       focusLevel += (focusWant - focusLevel) * Math.min(1, dt / 0.18);
       const sd = scene.userData;
-      if (sd.hemi) sd.hemi.intensity = LIGHT_FULL.hemi * (0.16 + 0.84 * focusLevel);
-      if (sd.key) sd.key.intensity = LIGHT_FULL.key * (0.14 + 0.86 * focusLevel);
+      if (sd.hemi) sd.hemi.intensity = LIGHT_FULL.hemi * (0.26 + 0.74 * focusLevel);
+      if (sd.key) sd.key.intensity = LIGHT_FULL.key * (0.24 + 0.76 * focusLevel);
       if (sd.rim) sd.rim.intensity = LIGHT_FULL.rim * (0.30 + 0.70 * focusLevel);
       if (sd.bounce) sd.bounce.intensity = LIGHT_FULL.bounce * (0.20 + 0.80 * focusLevel);
     }

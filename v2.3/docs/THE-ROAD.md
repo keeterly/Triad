@@ -5175,6 +5175,59 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 134 — the beam was lying, and the light came up
+
+### "I cannot drag for it to snap onto the second enemy"
+
+`aimAnchor` sent **every** enemy drop to `#k-boss-art` — the first opponent —
+whatever `drop.foe` said:
+
+    if (drop.zone === 'enemy') node = el('k-boss-art');
+
+Build 131 taught `dropTargetAt` to pick the right body out of three overlapping
+ones. This then drew the arc to the first one anyway and hung `.k-aim-snap` on
+it.
+
+The correction worth recording is what the before-run actually showed. Dragging
+onto the second creature **always dealt its damage to the second creature** —
+`aim 0 → 1`, and the second one's health fell. The mechanic was never broken.
+What was broken is that every visible thing about it disagreed: the arc bent to
+the wrong body, the reticle lit the wrong body, and once the first opponent had
+died the highlight sat on a corpse while the card resolved on somebody else.
+
+    before   drop resolves ix=1, beam snaps ix=0
+    after    drop resolves ix=1, beam snaps ix=1
+
+That is not a small distinction. A player cannot act on a rule they are being
+shown the opposite of, and "it doesn't work" is the right thing to call a game
+that lands the blow somewhere other than where it told you it would.
+
+### A latent trap, closed on the way past
+
+`aimAt` calls `renderHand()`, which replaces every card element — and
+`dropCommit` calls `aimAt` *before* `playCard`, so committing a drop rebuilt the
+hand around the card being dropped. The drag code already carries a warning
+about exactly this hazard at the other end of the gesture ("the dragged card was
+detached mid-gesture, so no beam was ever drawn").
+
+It is not what caused the bug above — the card still played — and it only fires
+when the aim actually CHANGES, so the first opponent never triggers it. A commit
+passes `quiet` now; `playCard` redraws the hand a moment later anyway.
+
+### The light was the right shape and not enough of it
+
+Build 133 traded a flat white 0.88 ambient for a coloured hemisphere at 0.34.
+The modelling arrived and the figures went muddy — the painted plate behind them
+is lit daylight, and the bodies in front of it have to live in the same
+exposure. Hemisphere 0.34 → 0.62, key 2.15 → 2.75, rim 1.05 → 1.25, bounce 0.30
+→ 0.48, and the parry's floor comes up from 0.14 to 0.24 of full so the world
+recedes without going out.
+
+flow 258/258 · road 94/94 · slice 80/80 · bond 76/76 · **cast 84/84** ·
+camp 48/48 · line 32/32 · music 22/22 · beat 10/10.
+
+---
+
 ## Build 133 — light that belongs to this world, and a parry you can see
 
 A screenshot of a parry: a black rectangle, one yellow ring, and nowhere in it

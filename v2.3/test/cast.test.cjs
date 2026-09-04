@@ -1631,6 +1631,28 @@ const { boot } = require('./harness.cjs');
     aimed.length === 3 && aimed.every(a => a.at === a.got),
     JSON.stringify(aimed));
 
+  // …AND THE BEAM HAS TO AGREE WITH IT (Build 134). `aimAnchor` sent every
+  // enemy drop to `#k-boss-art` whatever `drop.foe` said, so Build 131's fix
+  // resolved the right body and this drew the arc to the first one anyway and
+  // hung `.k-aim-snap` on it. The drop was correct and every visible thing
+  // about it was a lie — including, once the first opponent had died, a reticle
+  // sitting on a corpse while the card resolved on somebody else.
+  const anchored = await J(() => {
+    const card = (C.hand || []).find(id => cardDef(id).target === 'enemy') || (C.hand || [])[0];
+    return [...document.querySelectorAll('#k-cast [data-foe]')]
+      .filter(n => n.offsetParent !== null)
+      .map(n => {
+        const r = n.getBoundingClientRect();
+        const d = dropTargetAt(r.left + r.width / 2, r.top + r.height / 2, card);
+        const a = aimAnchor(d);
+        return { at: n.dataset.ix || '0',
+                 beam: a && a.node ? (a.node.dataset.ix || '0') : 'none' };
+      });
+  });
+  check('AIM: …and the beam ends on the body the drop resolved to',
+    anchored.length === 3 && anchored.every(a => a.at === a.beam),
+    JSON.stringify(anchored));
+
   // ═══ M7 · A SPARK IS A SIZE, AND A CORPSE STAYS GONE ═══
   //
   // `gl_PointSize` is pixels. Build 127 fed it `aScale * (bufferHeight * dpr *

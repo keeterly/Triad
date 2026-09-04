@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 133;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 134;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -905,11 +905,23 @@ function aimedFoe() {
   if (want && !want.dead) return want;
   return livingFoes()[0] || C.foes[0];
 }
-function aimAt(ix) {
+function aimAt(ix, quiet) {
   if (!C || !C.foes[ix] || C.foes[ix].dead) return false;
   if (C.aim === ix) return false;
   C.aim = ix;
-  renderBossHud(); renderHand();
+  renderBossHud();
+  // ── NOT DURING A COMMIT ─────────────────────────────────────────────────
+  //
+  // `renderHand` replaces every card element. Called from inside `dropCommit`
+  // it destroys the very card being dropped, halfway through dropping it — the
+  // same hazard the drag code already warns about at the START of a gesture
+  // ("the dragged card was detached mid-gesture, so no beam was ever drawn").
+  //
+  // It hid because it only fires when the aim CHANGES: dropping on the enemy
+  // already aimed at takes the early return above and nothing rebuilds. So the
+  // first opponent always worked and any other one went through the one path
+  // that pulls the card out of your hand as you play it.
+  if (!quiet) renderHand();
   return true;
 }
 
@@ -6581,7 +6593,7 @@ function dropCommit(id, drop) {
   const want = cardDef(id).target === 'enemy' ? 'enemy' : 'party';
   if (drop.zone !== want) return false;
   // …and the body it was dropped on is the body it hits
-  if (drop.foe != null) aimAt(drop.foe);
+  if (drop.foe != null) aimAt(drop.foe, true);   // quiet: playCard redraws
   return playCard(id, drop.hero && drop.hero !== cardDef(id).owner ? drop.hero : undefined);
 }
 // ═════════════════════════════════════════════════════════════════════════════
@@ -6670,7 +6682,18 @@ function aimAnchor(drop) {
   const scale = sr.width / stage.offsetWidth || 1;
   let node = null;
   if (!drop) return null;
-  if (drop.zone === 'enemy') node = el('k-boss-art');
+  // ── THE BEAM ENDS ON THE BODY IT IS OVER (Build 134) ────────────────────
+  //
+  // This anchored EVERY enemy drop to `#k-boss-art` — the first opponent —
+  // whatever `drop.foe` said. Build 131 taught `dropTargetAt` to pick the right
+  // body out of three overlapping ones, and then this drew the beam to the
+  // first one anyway and hung `.k-aim-snap` on it. So the drop was correct and
+  // every visible thing about it was a lie: the arc bent to the wrong creature,
+  // the reticle lit the wrong creature, and a reticle could sit on a corpse
+  // while the card resolved on somebody else.
+  //
+  // "I cannot drag for it to snap onto the second enemy" is precisely this.
+  if (drop.zone === 'enemy') node = (drop.foe != null && foeBox(drop.foe)) || el('k-boss-art');
   else if (drop.zone === 'piles') node = el('k-deck-btn');
   else if (drop.hero) node = document.querySelector('.k-hero[data-hero="' + drop.hero + '"]');
   else node = el('k-party-hud');
