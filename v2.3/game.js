@@ -4727,6 +4727,35 @@ function actionKind(card, effects) {
   if (has('guardSelf') || has('guardAll') || has('guardAlly') || has('guardLowest')) return 'ward';
   return 'slash';
 }
+// ── AND WHICH SWING, WHEN THE WORD IS `slash` ──────────────────────────────
+//
+// The verb says a blow was thrown; this says what KIND. It is read off the
+// same effects the card already carries rather than off a new field on every
+// card, so a card that changes what it does changes how it looks with it, and
+// nothing has to be kept in step by hand.
+//
+// TWO DAMAGE ENTRIES IS A COMBO, and that is not a heuristic — Twin Fang is
+// `[{dmg:4},{dmg:4}]` because it genuinely hits twice, so a two-hit animation
+// is showing the card rather than decorating it. `brk` is a blow that breaks
+// something and reads as heavy: Cross Sever is 9 and a break for 2 AP.
+//
+// Everything else swings ordinarily, which is most of the deck and should be.
+// The suffix is a REQUEST, not a promise — a body without that swing plays its
+// plain one (see `clipFor` in cast3d.js).
+function attackFlavour(effects) {
+  if (!effects || !effects.length) return '';
+  if (effects.filter(fx => fx && fx.dmg).length > 1) return 'combo';
+  if (effects.some(fx => fx && fx.brk)) return 'heavy';
+  return '';
+}
+// What a card will swing before it is thrown, for the wind-up.
+function cardFlavour(id) {
+  try {
+    const def = cardDef(id);
+    if (!def) return '';
+    return attackFlavour(def.effects || def.base || []);
+  } catch (e) { return ''; }
+}
 // What a cast is made of decides its colour: frost is cold, mending is green,
 // a ward is steel, and light is gold.
 function castTone(effects) {
@@ -4822,7 +4851,8 @@ function castReady(id) {
   const who = cardActor(id), verb = cardVerb(id);
   if (!who || !verb) return;
   if (_readyWho && _readyWho !== who) castUnready();
-  if (C3.ready(who, verb)) _readyWho = who;
+  const flavour = verb === 'slash' ? cardFlavour(id) : '';
+  if (C3.ready(who, verb, flavour)) _readyWho = who;
 }
 function castUnready() {
   const C3 = window.Cast3D;
@@ -4939,7 +4969,9 @@ function fxPlayCard(cardId, ev) {
   const h = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
   if (h) { h.classList.remove('k-acts'); void h.offsetWidth; h.classList.add('k-acts'); }
   const kind = actionKind(ev.card, ev.resolvedEffects);
-  castPlay(heroId, kind);
+  // the third word is the parry's arrow elsewhere; for a slash it is the swing
+  const flavour = kind === 'slash' ? attackFlavour(ev.resolvedEffects) : '';
+  castPlay(heroId, kind, flavour);
   // ── A DUO IS TWO BODIES (Build 138) ──────────────────────────────────────
   //
   // Twelve cards in this deck are owned by a PAIR — `ash|mira`, `elin|mira` —
@@ -4958,7 +4990,7 @@ function fxPlayCard(cardId, ev) {
     const h2 = document.querySelector('.k-hero[data-hero="' + second + '"]');
     setTimeout(() => {
       if (h2) { h2.classList.remove('k-acts'); void h2.offsetWidth; h2.classList.add('k-acts'); }
-      castPlay(second, kind);
+      castPlay(second, kind, flavour);
     }, DUO_RELAY);
   }
   // ── THE CAMERA ANSWERS THE ACTION, NOT JUST THE PHASE (Build 122) ─────────
@@ -7593,7 +7625,7 @@ window.K = {
   // the ladder is drivable from a sim and the change can be A/B'd.
   _parryWeights: () => ({ ...PARRY_WEIGHT }),
   _setParryWeights: (o) => { Object.assign(PARRY_WEIGHT, o || {}); },
-  actionKind, castTone, cardArt, overHand, FOE_SHEETS, fxFoeDown,
+  actionKind, attackFlavour, castTone, cardArt, overHand, FOE_SHEETS, fxFoeDown,
   // test-only: drive the foe's performance directly, through the same hooks the
   // fight drives, so a check can ask what each intent actually pulls
   _fxFoeWind: () => fxFoeWind(), _fxFoeAct: (i) => fxFoeAct(i),

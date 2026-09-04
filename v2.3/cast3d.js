@@ -238,10 +238,27 @@ const LOOK_HELP = {
 // The names on the right are the clips in the library, which are named for the
 // VERB rather than for what Meshy called them: the game never has to know that
 // a parry arrived as "Armature|Sword_Parry|baselayer".
+// WHICH SWING, WITHIN A WEAPON.
+//
+// A slash is not one motion either. The fight already writes down what a card
+// DOES — Twin Fang deals damage twice, Cross Sever breaks — so the swing can be
+// read off that rather than being told separately, and `slash` stays one verb.
+//
+// IT IS A SUFFIX ON THE PERSON'S OWN STRIKE, not a clip name: `sword` becomes
+// `swordHeavy`, `daggers` becomes `daggersCombo`. That keeps the weapon split
+// and the card split independent, so a new weapon costs no card work and a new
+// card costs no weapon work.
+//
+// AND IT STAYS THE VERB `slash`. Adding `slashHeavy` as a word of its own was
+// the obvious shape and the wrong one: FX_VERB and READY_AT are both keyed by
+// the verb, so a heavy blow would have swung in silence with no ribbon behind
+// it. Only the CLIP changes; everything downstream still hears `slash`.
+const SLASH_FLAVOUR = { heavy: 'Heavy', combo: 'Combo' };
+
 const VERB = {
   // …and it is handed the FIGURE's own tone rather than a name to look up,
   // because a foe slot is called `foe1` and there is no such creature.
-  slash: (tone) => tone.strike,       // sword · staff · daggers
+  slash: (tone, flavour) => tone.strike + (SLASH_FLAVOUR[flavour] || ''),
   cast:  () => 'cast',
   heal:  () => 'heal',
   ward:  () => 'ward',
@@ -256,6 +273,20 @@ const VERB = {
   down:  () => 'down',
   idle:  () => 'idle',
 };
+
+// …AND A FLAVOUR IS OPTIONAL, which is the whole reason this is a function and
+// not a table lookup at the call site. Elin carries a staff and every foe
+// carries one swing each; none of them have a `Heavy` or a `Combo`. A clip name
+// that resolves to nothing does not fall back on its own — `f.play` refuses it
+// and the figure stands there — so a body without the flavoured swing is given
+// its ordinary one rather than nothing at all.
+function clipFor(f, verb, dir) {
+  const pick = VERB[verb];
+  if (!pick) return verb;
+  const name = pick(f.tone, dir);
+  if (verb === 'slash' && f.actions && !f.actions[name]) return f.tone.strike;
+  return name;
+}
 
 // WHICH GUARD ANSWERS WHICH ARROW.
 //
@@ -3634,7 +3665,7 @@ const Cast3D = (() => {
       // ready/release pairing in two places that must agree, which is the kind
       // of thing that is correct on the day and wrong three builds later.
       if (f.holdFrac && f.fxVerb === verb) { f.release(); return true; }
-      const okp = f.play(pick ? pick(f.tone, dir) : verb);
+      const okp = f.play(pick ? clipFor(f, verb, dir) : verb);
       // THE VERB, KEPT. The clip is `sword` or `daggers` or `staff`; the air
       // needs to know it was a `slash`. Set after the play so a refused clip
       // cannot leave a trail with nothing swinging it.
@@ -3710,12 +3741,17 @@ const Cast3D = (() => {
     // Called while a card is being aimed. Idempotent: dragging across four
     // targets must not restart the wind-up four times, so a hero already
     // holding this verb is left exactly where it is.
-    ready(heroId, verb) {
+    // `dir` carries the flavour for a slash, the arrow for a parry — the same
+    // third word `play` takes. THE WIND-UP HAS TO AGREE WITH THE BLOW: aiming
+    // reads the card's effects too, so a Cross Sever winds up the heavy swing
+    // it is going to release rather than winding up an ordinary one and
+    // switching clip halfway through the throw.
+    ready(heroId, verb, dir) {
       const f = figs[heroId];
       if (!on || !f || f.dead) return false;
       if (f.holdFrac && f.fxVerb === verb) return true;
       const pick = VERB[verb];
-      const name = pick ? pick(f.tone) : verb;
+      const name = pick ? clipFor(f, verb, dir) : verb;
       if (!f.actions[name]) return false;
       if (!f.ready(name, READY_AT[verb] === undefined ? 0.34 : READY_AT[verb])) return false;
       f.fxVerb = verb;
