@@ -750,6 +750,35 @@ const Cast3D = (() => {
   // `home` is not a taste: it is Build 119's camera written in the new terms,
   // and the suite holds it to the frame the painted stage framed.
   const BOARD = [0, 0, 0.15];          // the middle of the fight, on the floor
+  // ── A SHOT MAY BE A MOVE, NOT A MARK (Build 126) ─────────────────────────
+  //
+  // Every shot here used to be a single pose. The tripod eased toward it, got
+  // there, and STOPPED — which is why a parry looked like a lineup: three
+  // figures the same size, level with the lens, holding still, in a frame that
+  // had finished moving before the player had to do anything. game.js said so
+  // in its own comment at the call site: "one composition, held for the whole
+  // bar".
+  //
+  // So a shot may now carry `to` — a second pose — and `over`, the milliseconds
+  // it takes to travel there. The tripod's target is no longer a fixed mark but
+  // a point sliding between the two, which means the camera is still moving
+  // when the beat lands rather than parked and waiting for it. `over` is
+  // smoothstepped, so the move starts and ends calm and does its travelling in
+  // the middle; a camera that begins at full speed reads as a glitch.
+  //
+  // Two more fields, both of which a camera operator would call basic and this
+  // rig simply did not have:
+  //
+  // `roll` — the cant. It existed only as a CSS handheld offset, which meant a
+  // SHOT could not be composed with one. A level horizon is a calm horizon, and
+  // every shot in the game had one.
+  //
+  // `fov` — the lens. `toScreen` reads the live projection matrix, so the DOM
+  // followers track a lens change for free and nothing needs to be told. A
+  // wide lens up close is the whole difference between three people standing at
+  // different distances and three people at different SIZES, which is what
+  // depth reads as. Everything defaults to FOV, the lens the CSS pinhole was
+  // measured at, so `home` is untouched.
   const SHOTS = {
     // the board, as it has been framed since Build 4
     home:      { az:   0, dist: 7.35, height: 1.70, aimY: 1.70, at: 'board' },
@@ -761,27 +790,80 @@ const Cast3D = (() => {
     // 54 degrees put all four bodies in one clump behind the Regent — a shot
     // where the thing the player is about to do cannot be read. 33 keeps the
     // line legible and still swings hard enough to feel like a camera move.
-    allout:    { az:  33, dist: 7.10, height: 2.35, aimY: 1.40, at: 'board' },
-    // the parry is one hero's moment: in close, slightly under, so the incoming
-    // blow reads as coming down at you
-    parry:     { az: -13, dist: 5.10, height: 1.42, aimY: 1.58, at: 'party' },
-    // after the kill, stand back up and take the room in
-    reckoning: { az:  19, dist: 8.70, height: 2.60, aimY: 1.30, at: 'board' },
+    // …and it keeps swinging while the three of them commit, rather than
+    // arriving and watching.
+    allout:    { az:  40, dist: 7.60, height: 2.60, aimY: 1.38, roll: 3, fov: 52,
+                 at: 'board',
+                 to: { az: 26, dist: 6.70, height: 2.15, aimY: 1.44, roll: -1.5, fov: 55 },
+                 over: 2200 },
+    // ── THE PARRY, WHICH IS THE ONE MOMENT THE PLAYER HAS TO ACT ──────────
+    //
+    // It was az -13, dist 5.10, height 1.42: thirteen degrees off dead centre
+    // and twenty-eight centimetres below eye line, which is the home shot with
+    // a nudge. Held still, on a dimmed board, it framed the party as a row of
+    // equal-sized figures in profile.
+    //
+    // Now it starts wide of the line and well under — low enough that the
+    // party's shoulders are above the lens and whatever is swinging at them
+    // comes DOWN into frame — and then arcs back toward the axis while rising
+    // and pushing in over the length of the bar. The cant unwinds through the
+    // move, from six degrees down on the left to nearly level, so the frame
+    // settles exactly as the player has to read it.
+    //
+    // A 58° lens at 4.4 m is a much wider angle than the board's own 51.2° at
+    // 7.35, and that is the point: this close, the near hero is half again the
+    // size of the far one and the rank finally has depth in it.
+    //
+    // WHAT IT DELIBERATELY DOES NOT DO is whip. This is a rhythm defence — the
+    // one screen where the player must read a moving bar and press on time — so
+    // the move is long, continuous and slow enough to be furniture rather than
+    // an event. Dynamism here means the frame is alive, not that it is hard to
+    // read.
+    parry:     { az: -36, dist: 4.40, height: 0.98, aimY: 1.62, roll: -6, fov: 58,
+                 at: 'party',
+                 to: { az: -14, dist: 3.85, height: 1.36, aimY: 1.56, roll: 1.5, fov: 61 },
+                 over: 3200 },
+    // AFTER THE KILL, stand back up and take the room in — as a slow crane
+    // rather than a cut to a wide. The whole point of the reckoning is that the
+    // fight has stopped; a camera that eases upward for four seconds says that
+    // better than any frame it could hold.
+    reckoning: { az:  12, dist: 7.90, height: 2.05, aimY: 1.36, roll: 0, fov: 53,
+                 at: 'board',
+                 to: { az: 23, dist: 9.10, height: 2.95, aimY: 1.24, roll: 0, fov: 50 },
+                 over: 4000 },
 
     // ── AND THE SHOTS A SINGLE ACTION ASKS FOR (Build 122) ───────────────────
     // Shorter, closer, and always transient: each of these is a beat, not a
     // stance, and each is asked for with `{ for: ms }`.
-    // a blow landing: step in off the axis so the swing crosses the frame
-    strike:    { az: -11, dist: 5.35, height: 1.38, aimY: 1.56, at: 'foe' },
+    // A BLOW LANDING, and the camera goes in with it. The pose was fine and
+    // completely inert: the tripod arrived during the wind-up and was standing
+    // still by the time the blade did anything. Now it drifts across the line
+    // and closes half a metre over the length of the swing, so the frame is
+    // travelling when the hit lands. Short, because the beat is short.
+    strike:    { az: -18, dist: 5.60, height: 1.44, aimY: 1.56, roll: -2.5, fov: 54,
+                 at: 'foe',
+                 to: { az: -7, dist: 4.95, height: 1.30, roll: 1, fov: 57 },
+                 over: 900 },
     // …and mercy is the opposite shot in every respect — further back, higher,
     // on the party rather than on what it is hitting, because a heal is not an
     // impact and a camera that treats it like one flattens both
     grace:     { az:  17, dist: 6.30, height: 2.20, aimY: 1.48, at: 'party' },
-    // the killing blow: low, close, swung well off the line, so the last thing
-    // a creature does happens to somebody rather than in a diagram
-    fell:      { az: -48, dist: 4.45, height: 1.02, aimY: 1.32, at: 'foe' },
-    // a deflection is a fraction of a second, so its shot is nearly a cut
-    snap:      { az: -19, dist: 4.20, height: 1.46, aimY: 1.54, at: 'party' },
+    // THE KILLING BLOW: low, close, swung well off the line, so the last thing
+    // a creature does happens to somebody rather than in a diagram — and then
+    // the camera keeps arcing round it as it goes down, rising a little, the
+    // cant unwinding. Nearly two seconds of continuous move, which is the one
+    // place in the fight that can afford it.
+    fell:      { az: -58, dist: 4.30, height: 0.92, aimY: 1.30, roll: -7, fov: 60,
+                 at: 'foe',
+                 to: { az: -34, dist: 5.20, height: 1.66, aimY: 1.14, roll: 0, fov: 55 },
+                 over: 1850 },
+    // A DEFLECTION IS A FRACTION OF A SECOND, so its shot is nearly a cut — and
+    // the little it has time to do is snap back toward level, which reads as
+    // the frame recoiling off the block.
+    snap:      { az: -24, dist: 4.05, height: 1.44, aimY: 1.54, roll: -9, fov: 62,
+                 at: 'party',
+                 to: { az: -16, dist: 4.35, height: 1.50, roll: -1, fov: 58 },
+                 over: 560 },
   };
   // where a shot may be aimed. `party` and `foe` are read off the world rather
   // than written down, so a shot follows whoever is actually standing there.
@@ -1609,8 +1691,17 @@ const Cast3D = (() => {
   const RIG = { x: 0, y: 0, dz: 0, r: 0, yaw: 0, pitch: 0 };
   const WANT = { x: 0, y: 0, dz: 0, r: 0, yaw: 0, pitch: 0 };
   // the tripod: where it is standing now, and where it has been asked to stand
-  const TRIPOD = Object.assign({}, SHOTS.home, { atP: BOARD.slice() });
-  const SHOT = Object.assign({}, SHOTS.home);
+  // every pose is filled out to the same shape, so nothing downstream has to
+  // ask whether a shot happened to mention its lens
+  const POSE = ['az', 'dist', 'height', 'aimY', 'roll', 'fov'];
+  function full(shot) {
+    const o = { roll: 0, fov: FOV };
+    for (const k of POSE) if (shot[k] !== undefined) o[k] = shot[k];
+    o.at = shot.at; o.to = shot.to; o.over = shot.over;
+    return o;
+  }
+  const TRIPOD = Object.assign(full(SHOTS.home), { atP: BOARD.slice() });
+  const SHOT = full(SHOTS.home);
   // ── A MOMENT MAY TAKE THE CAMERA, BUT IT MAY NOT KEEP IT ───────────────────
   //
   // A phase lasts until the phase changes; an ACTION lasts about a second. If
@@ -1619,15 +1710,24 @@ const Cast3D = (() => {
   // asked for with `{ for: ms }` is transient: it plays, and when its time is
   // up the camera returns to whatever the phase had it doing — remembered here
   // rather than re-sent, so an action never has to know what it interrupted.
-  const BASE = Object.assign({}, SHOTS.home);
+  const BASE = full(SHOTS.home);
   let holdUntil = 0;
   let shotSpeed = 1.6;
+  // when the current shot began, so a move knows how far through it is
+  let shotAt = 0;
   const _eye = new THREE.Vector3(), _look = new THREE.Vector3();
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // AZIMUTH TAKES THE SHORT WAY ROUND. Easing 350 degrees to 10 by subtracting
   // sends the camera the long way through everything behind it; a shot is a
   // move a camera operator could make, so it takes the shorter arc every time.
+  // scratch for the moving mark, so a move costs no allocation per frame
+  const MARK = { az: 0, dist: 0, height: 0, aimY: 0, roll: 0, fov: 0, at: 'board' };
+  function shortWay(d) {
+    while (d > 180) d -= 360;
+    while (d < -180) d += 360;
+    return d;
+  }
   function easeAngle(now, want, k) {
     let d = want - now;
     while (d > 180) d -= 360;
@@ -1640,6 +1740,7 @@ const Cast3D = (() => {
     if (holdUntil && now() >= holdUntil) {
       holdUntil = 0;
       Object.assign(SHOT, BASE);
+      shotAt = now();                 // and if the stance is a move, from its top
       shotSpeed = 1.25;               // ease back rather than cut back
     }
     const cs = getComputedStyle(host);
@@ -1649,11 +1750,37 @@ const Cast3D = (() => {
     const k = Math.min(1, dt * 7.5);
     for (const key of Object.keys(RIG)) RIG[key] += (WANT[key] - RIG[key]) * k;
 
+    // ── WHERE THE SHOT IS RIGHT NOW ──
+    //
+    // A plain shot is a mark and this reads it straight through. A shot with a
+    // `to` is a MOVE: the mark itself slides from one pose to the other across
+    // `over` milliseconds, and the tripod chases a target that is still going
+    // somewhere. Smoothstepped, so it accelerates out of the first pose and
+    // decelerates into the second instead of starting at full speed.
+    let mark = SHOT;
+    if (SHOT.to && SHOT.over) {
+      const p = Math.min(1, Math.max(0, (now() - shotAt) / SHOT.over));
+      const e = p * p * (3 - 2 * p);
+      mark = MARK;
+      for (const key of POSE) {
+        const a0 = SHOT[key], a1 = SHOT.to[key] !== undefined ? SHOT.to[key] : a0;
+        mark[key] = key === 'az' ? a0 + shortWay(a1 - a0) * e : a0 + (a1 - a0) * e;
+      }
+      mark.at = SHOT.at;
+    }
+
     // ── the tripod walks to its mark ──
     const ks = Math.min(1, dt * shotSpeed * 2.6);
     const target = aimPoint(SHOT.at);
-    TRIPOD.az = easeAngle(TRIPOD.az, SHOT.az, ks);
-    for (const key of ['dist', 'height', 'aimY']) TRIPOD[key] += (SHOT[key] - TRIPOD[key]) * ks;
+    TRIPOD.az = easeAngle(TRIPOD.az, mark.az, ks);
+    for (const key of ['dist', 'height', 'aimY', 'roll', 'fov'])
+      TRIPOD[key] += (mark[key] - TRIPOD[key]) * ks;
+    // the lens is part of the composition, and the DOM followers read the live
+    // projection matrix, so nothing else has to be told it changed
+    if (Math.abs(cam.fov - TRIPOD.fov) > 0.01) {
+      cam.fov = TRIPOD.fov;
+      cam.updateProjectionMatrix();
+    }
     for (let i = 0; i < 3; i++) TRIPOD.atP[i] += (target[i] - TRIPOD.atP[i]) * ks;
 
     const a = TRIPOD.az * D;
@@ -1681,7 +1808,8 @@ const Cast3D = (() => {
     cam.translateZ(-RIG.dz * m);
     cam.rotateX(-RIG.pitch * D);
     cam.rotateY(-RIG.yaw * D);
-    cam.rotateZ(RIG.r * D);
+    // the shot's own cant, plus whatever the handheld is doing
+    cam.rotateZ((RIG.r + TRIPOD.roll) * D);
     cam.updateMatrixWorld();
   }
 
@@ -1825,7 +1953,8 @@ const Cast3D = (() => {
       mirror.position.set(_eye.x, -_eye.y, _eye.z);
       mirror.up.set(0, 1, 0);
       mirror.lookAt(_look.x, -_look.y, _look.z);
-      mirror.rotateZ(RIG.r * D);
+      mirror.rotateZ((RIG.r + TRIPOD.roll) * D);
+      if (Math.abs(mirror.fov - cam.fov) > 0.01) mirror.fov = cam.fov;
       mirror.updateMatrixWorld();
       mirror.updateProjectionMatrix();
       const u = ground.material.userData;
@@ -2097,7 +2226,12 @@ const Cast3D = (() => {
                                  at: { ...TRIPOD, atP: TRIPOD.atP.slice() } };
       const base = typeof name === 'string' ? SHOTS[name] : name;
       if (!base) return false;
-      const next = Object.assign({}, SHOTS.home, base, opts || {});
+      // `full` is what stops a move leaking. Every pose is filled out to the
+      // same six fields plus `to`/`over`, so a shot that says nothing about its
+      // lens gets the board's, and — the part that bit — a shot that is not a
+      // move overwrites the previous shot's `to` with undefined rather than
+      // inheriting a travel it never asked for.
+      const next = full(Object.assign({}, SHOTS.home, base, opts || {}));
       if (opts && opts.for) {
         holdUntil = now() + opts.for;      // a moment: hand the camera back after
       } else {
@@ -2105,6 +2239,7 @@ const Cast3D = (() => {
         holdUntil = 0;
       }
       Object.assign(SHOT, next);
+      shotAt = now();                       // a move starts travelling from here
       shotSpeed = (opts && opts.speed) || 1.6;
       return true;
     },

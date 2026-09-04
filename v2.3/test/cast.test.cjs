@@ -1328,6 +1328,61 @@ const { boot } = require('./harness.cjs');
     Object.values(smooth).length === 6 && Object.values(smooth).every(v => v < 90),
     JSON.stringify(smooth) + ' rad/s\u00b2 peak — Build 124 ran 145 to 592');
 
+  // ═══ M2 · A SHOT THAT IS A MOVE ═══
+  //
+  // Every shot used to be a destination: the tripod eased toward it, arrived,
+  // and stopped. On the parry — the one screen where the player has to act —
+  // that meant the frame had finished moving before the bar even started, and
+  // the board read as three figures of the same size standing in a row.
+  //
+  // The property is not "the camera is somewhere different". It is that the
+  // camera is STILL TRAVELLING while the beat is happening. So this samples the
+  // eye against a real clock and asks for metres per second inside the window
+  // and after it — a shot that is a stance must go quiet, and a shot that is a
+  // move must not.
+  //
+  // Timestamps matter more than they look. A round trip through `evaluate` in a
+  // software-rendered page takes far longer than a sleep asks for, and counting
+  // samples as though they were milliseconds puts "after the move" inside the
+  // window and reports a live camera as parked.
+  console.log('\n── a shot that is a move ──');
+  // BOTH SHOTS GET TO ARRIVE FIRST. The first version of this compared the
+  // parry against `home` over the same wall-clock window and failed a working
+  // camera: `home` was issued straight after the parry, so its "window" was
+  // mostly the journey BACK from the parry's mark — 0.26 m/s of travel that
+  // says nothing about whether a stance moves once it is standing. The control
+  // has to be the same state, not the same stopwatch. So each shot is given
+  // 1500 ms to walk to its mark, and only then is it timed.
+  const paths = {};
+  for (const name of ['parry', 'home']) {
+    await J((n) => window.Cast3D.shot(n, { speed: 1.5 }), name);
+    await sleep(1500);                       // let the tripod get there
+    const t0 = Date.now(), pts = [];
+    for (let i = 0; i < 10; i++) {
+      await sleep(110);
+      const c = await J(() => {
+        const w = window.Cast3D._world().cam, t = window.Cast3D.shot().at;
+        return [w.x, w.y, w.z, +t.fov.toFixed(1), +t.roll.toFixed(1)];
+      });
+      pts.push({ t: Date.now() - t0, p: c });
+    }
+    const legs = pts.slice(1).map((s, i) =>
+      Math.hypot(s.p[0] - pts[i].p[0], s.p[1] - pts[i].p[1], s.p[2] - pts[i].p[2])
+      / ((s.t - pts[i].t) / 1000));
+    paths[name] = {
+      moving: +(legs.reduce((a, b) => a + b, 0) / legs.length).toFixed(3),
+      span: pts[pts.length - 1].t,
+      lens: pts[pts.length - 1].p[3], roll: pts[pts.length - 1].p[4],
+    };
+  }
+  check('MOVE: the parry camera is still travelling after it has arrived',
+    paths.parry.moving > 0.08 && paths.parry.moving > paths.home.moving * 4,
+    JSON.stringify(paths) + ' — m/s once standing on the mark');
+  check('MOVE: …and a stance goes quiet, so the board can be read',
+    paths.home.moving < 0.02 && paths.home.lens === 51.2 && paths.home.roll === 0,
+    JSON.stringify(paths.home));
+  await J(() => window.Cast3D.shot('home'));
+
   // ═══ N · THE PATH EVERY PLAYER TAKES ═══
   //
   // Every check above this line ran on a page that ASKED for the 3D stage.

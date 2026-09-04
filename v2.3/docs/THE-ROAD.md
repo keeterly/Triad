@@ -5175,6 +5175,98 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 126 — a shot becomes a move
+
+A screenshot of a parry in progress: three figures the same size, in profile,
+evenly spaced, level with the lens, all standing still on a dimmed board. It
+reads as a lineup rather than a clash — and the source said so itself, in a
+comment at the call site that had been sitting there since Build 22:
+
+    camParryOpen();      // one composition, held for the whole bar
+
+### Every shot was a destination
+
+`SHOTS` gave the camera five numbers — azimuth, distance, height, aim height,
+and what to point at — and the tripod eased toward them and **stopped**. On a
+phase that is correct: the board is a thing to be read, and a camera drifting
+under a hand of cards is a camera in the way.
+
+On the parry it is exactly wrong. The parry is the one screen where the player
+has to *act*, and the frame had finished moving before the bar even started.
+
+So a shot may now carry `to` — a second pose — and `over`, the milliseconds it
+takes to travel there. The tripod no longer chases a fixed mark but a point
+sliding between two of them, which means the camera is still moving when the
+beat lands rather than parked and waiting for it. The travel is smoothstepped:
+a camera that starts at full speed reads as a glitch.
+
+Two fields came with it, both of which an operator would call basic and this rig
+simply did not have:
+
+- **`roll`** — the cant. It existed only as a CSS handheld offset, so a *shot*
+  could not be composed with one. Every shot in the game had a level horizon,
+  and a level horizon is a calm one.
+- **`fov`** — the lens. `toScreen` reads the live projection matrix, so the DOM
+  followers track a lens change for free and nothing has to be told. This is the
+  one that fixes the screenshot: a wide lens up close is the whole difference
+  between three people standing at different distances and three people at
+  different **sizes**, which is what depth actually reads as.
+
+### The parry, specifically
+
+It was `az -13, dist 5.10, height 1.42` — thirteen degrees off dead centre and
+twenty-eight centimetres below eye line. The home shot with a nudge.
+
+It now opens at **az -36, dist 4.40, height 0.98, roll -6°, 58° lens**: wide of
+the line and low enough that the party's shoulders are above the lens, so
+whatever is swinging at them comes *down* into frame. Over the next 3.2 seconds
+it arcs back toward the axis, rises, pushes in to 3.85 m, and unwinds the cant to
+nearly level — so the frame settles exactly as the player has to read it.
+
+What it deliberately does **not** do is whip. This is a rhythm defence. Dynamism
+here means the frame is alive, not that it is hard to read.
+
+`strike`, `fell`, `snap`, `allout` and `reckoning` got the same treatment —
+`fell` arcs round the creature for nearly two seconds as it goes down, and
+`reckoning` is a four-second crane rather than a cut to a wide. `home` stays
+dead still, on purpose.
+
+### Measuring "dynamic"
+
+The property is not *the camera is somewhere different*. It is that the camera
+is **still travelling while the beat is happening** — so the suite samples the
+eye against a real clock and asks for metres per second.
+
+The first version of the check failed a working camera, and the reason is worth
+keeping. It compared the parry against `home` over the same wall-clock window,
+but `home` was issued straight after the parry, so its "window" was mostly the
+journey *back* from the parry's mark: 0.26 m/s of travel that says nothing about
+whether a stance moves once it is standing. **The control has to be the same
+state, not the same stopwatch.** Each shot now gets 1500 ms to walk to its mark
+and is only then timed.
+
+| | m/s once standing on the mark |
+|---|---|
+| parry | **0.665** |
+| home | 0.005 |
+
+Timestamps matter more than they look here too: a round trip through `evaluate`
+in a software-rendered page takes far longer than a sleep asks for, and counting
+samples as though they were milliseconds put "after the move" inside the window
+and reported a live camera as parked.
+
+flow 257/257 · road 94/94 · **cast 66/66** · bond 76/76 · slice 75/75 ·
+camp 48/48 · line 32/32 · music 22/22 · beat 10/10.
+
+Two honest notes on that line. `bond` reported one page error on the back-to-back
+run and none on its own — the image-decode-under-load flake this suite has thrown
+since Build 58, not a regression. And `slice` has now reported 75, 80 and 85
+checks on three runs of a fixed seed, which is open item #78 and still nobody's
+finest hour: a suite whose check COUNT moves is a suite that could drop a failing
+check without saying so.
+
+---
+
 ## Build 125 — the jitter was three snaps, and none of them were in the animation
 
 "Animations need to be smoother and actually read well. They are sloppy and
