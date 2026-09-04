@@ -262,11 +262,54 @@ const round = (v) => +v.toFixed(DP);
       // is the wrong number of ours. Hip height is the honest ratio: it is what
       // sets how far a leg can reach, and normalising by it means a stride
       // arrives as the same FRACTION of a stride rather than the same distance.
-      const srcHipY = mine.Hips ? mine.Hips.getWorldPosition(new THREE.Vector3()).y : 1;
+      // ── AND WHICH WAY IS UP IN THE SOURCE ──
+      //
+      // Mixamo exports Y-up with no root bone: its pelvis rests at about
+      // (0, 95, 0) and a stride arrives on z. Unreal is Z-UP and keeps travel
+      // on a `root` bone: the same pelvis reads about (-2.6, 1.7, 77) and the
+      // lunge arrives on y. Reading `.y` on that gives a hip height of 1.7
+      // where the truth is 77, so `scale` came out ~50x too large — and the
+      // lunge was then multiplied by it, writing a hips track that fell to
+      // -12689 and drove the figure through the floor and off the stage.
+      //
+      // Decided from the REST POSE rather than from bone names, because a rig
+      // can be renamed and its axes cannot: whichever of y and z carries the
+      // hip's height off the floor is the up we are looking at.
+      // TWO DIFFERENT HEIGHTS ARE NEEDED AND THEY ARE NOT THE SAME NUMBER.
+      // The bind pose is read first, before the mixer has posed anything.
+      const bindV = mine.Hips ? mine.Hips.getWorldPosition(new THREE.Vector3())
+                              : new THREE.Vector3(0, 1, 0);
+      action.time = 0;
+      mixer.update(0);
+      root.updateMatrixWorld(true);
+      const pose0V = mine.Hips ? mine.Hips.getWorldPosition(new THREE.Vector3()) : bindV;
+
+      const zUp = Math.abs(bindV.z) > Math.abs(bindV.y);
+      // into the library's frame, where y is up and z is the way a stride goes
+      const upright = (v) => (zUp ? { x: v.x, y: v.z, z: -v.y }
+                                  : { x: v.x, y: v.y, z: v.z });
+      const bindHipY = upright(bindV).y || 1;
+      const pose0HipY = upright(pose0V).y;
+
+      // SCALE IS PROPORTIONS, so it comes off the BIND pose — how long the legs
+      // are, which is true of the rig and not of any one clip. Taking it off
+      // frame 0 instead made `get_up` — which begins flat on the floor — divide
+      // by a hip height of almost nothing: scale came out 6.5x where every
+      // other clip got 1.17, and the figure rose five units into the air.
       const tgtHip = arg.lib.__hipRest || null;
       const hipRest = tgtHip || [0, 0, 0];
       let scale = 1;
-      if (srcHipY > 1e-6 && hipRest[1]) scale = hipRest[1] / srcHipY;
+      if (bindHipY > 1e-6 && hipRest[1]) scale = hipRest[1] / bindHipY;
+
+      // ANCHORING IS PLACEMENT, and that is a different question. `hipRest` is
+      // frame 0 of a clip in the library — a figure standing on its feet — so a
+      // clip that also starts on its feet should start there too. Anchored to
+      // the bind pose instead, a combat stance (about four fifths of T-pose hip
+      // height) was planted a fifth of a leg into the ground and the feet came
+      // out below the floor. A clip that starts on the GROUND must not be
+      // anchored that way: lift `get_up` to standing and it begins by floating.
+      const standing = pose0HipY > 0.6 * bindHipY;
+      const srcHipY = standing ? pose0HipY : bindHipY;
 
       const d = Q(), tmp = Q();
       // ── DID THE SOURCE ACTUALLY MOVE? ────────────────────────────────────
@@ -348,7 +391,7 @@ const round = (v) => +v.toFixed(DP);
         // and gives it to the figure's root — so folding one into the other is
         // both the only place it can go and the place the layer expects it.
         if (mine.Hips) {
-          const w = mine.Hips.getWorldPosition(new THREE.Vector3());
+          const w = upright(mine.Hips.getWorldPosition(new THREE.Vector3()));
           hip.push(round(hipRest[0] + w.x * scale),
                    round(hipRest[1] + (w.y - srcHipY) * scale),
                    round(hipRest[2] + w.z * scale));
