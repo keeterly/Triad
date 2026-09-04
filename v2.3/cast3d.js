@@ -1811,12 +1811,42 @@ const Cast3D = (() => {
   }
 
   return {
-    // `?cast=3d` and nothing else. Off, this file costs one function call.
-    wanted: () => /(^|[?&])cast=3d(&|$)/.test(location.search),
+    // ── THIS IS THE GAME NOW (Build 124) ──────────────────────────────────
+    //
+    // Twelve builds behind `?cast=3d` was the right way to grow a renderer —
+    // the painted stage kept working the whole time and every step could be
+    // measured against it. But a flag nobody sets is a feature nobody has, and
+    // there is no longer a reason to prefer the plates: every creature in the
+    // bestiary has a body, the world has a floor and a horizon, the camera
+    // answers the fight, and the party costs 6.1 MB rather than 16.6.
+    //
+    // `?cast=2d` is the way back, and it is a real route rather than a
+    // courtesy: it is what the eight suites that measure the RULES boot with,
+    // and it is the honest answer for a machine that cannot draw this.
+    wanted: () => !/(^|[?&])cast=2d(&|$)/.test(location.search),
     async enable() {
       if (on) return true;
       if (!(await build())) return false;
       try { await load(); } catch (err) { failed = 'load: ' + err.message; return false; }
+      // ── AN EMPTY PLAZA IS WORSE THAN A PAINTING ─────────────────────────
+      //
+      // This mattered less when a flag turned the layer on: whoever set it
+      // could unset it. On the default path it is the difference between a
+      // bad network and a broken game.
+      //
+      // The world is OPAQUE — floor, horizon, fog, the whole frame — so if it
+      // takes the stage with nobody standing in it, the result is not a
+      // degraded 3D scene, it is an empty street where the fight should be.
+      // A creature is different, and always has been: it arrives late by
+      // design, and the plate rule covers the gap by name. The PARTY is not
+      // optional. If any of the three failed to load, this hands the whole
+      // stage back to the paintings, which are coherent on their own.
+      const party = Object.keys(CAST).filter(id => !CAST[id].foe);
+      const stood = party.filter(id => figs[id]);
+      if (stood.length !== party.length) {
+        failed = 'party: ' + stood.length + '/' + party.length + ' stood up';
+        return false;
+      }
       document.body.classList.add('k-cast3d');
     // NOTHING NEEDS MARKING AS ABSENT ANY MORE. A plate keeps its painting
     // until a figure claims it by name every frame, so a model that failed to

@@ -5175,6 +5175,66 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 124 — the 3D stage is the game
+
+Twelve builds behind `?cast=3d` was the right way to grow a renderer. The
+painted stage kept working the whole time, every step could be measured against
+it, and nothing that went wrong in the world could break a run. But **a flag
+nobody sets is a feature nobody has**, and as of Build 123 there is no longer a
+reason to prefer the plates: every creature in the bestiary has a body, the
+world has a floor and a horizon, the camera answers the fight, and the party
+costs 6.1 MB rather than 16.6.
+
+So the test inverts. `wanted()` is true unless you ask for `?cast=2d`.
+
+### The way back has to be a real route
+
+A default that cannot be turned off is not a default, it is the only option —
+and this one has two callers who genuinely need the painting:
+
+- **A machine that cannot draw this.** No WebGL, no GPU, a browser that refuses
+  the context.
+- **Eight of the nine suites.** flow, road, slice, bond, camp, line, music and
+  beat measure *rules* — card costs, road topology, parry windows — and the
+  rules cannot tell which stage they are standing on. Booting them into a
+  software rasteriser drawing a flooded plaza sixty times a second would buy
+  nothing and cost the better part of an hour.
+
+So the harness gives a suite the painted stage unless it asks otherwise, and
+`cast.test.cjs` asks. Which leaves a hole exactly where it matters — **the
+default path is now the one path nothing exercised** — so the cast suite ends by
+opening two more pages in the same browser: one with no cast parameter at all,
+one with `?cast=2d`, checking that the first is in the world and the second is
+on the paintings. A default nobody tests is how "default" quietly becomes
+"only".
+
+### An empty plaza is worse than a painting
+
+This is the change that had to land *before* the flag flipped, and it is the
+whole reason the flip is safe.
+
+`enable()` has always returned false on a WebGL failure and left the paintings
+alone. What it did not check was whether anybody actually stood up. The world is
+**opaque** — floor, horizon, fog, the whole frame — so a page where the models
+404 or the network dies mid-load would have built the plaza, taken the stage,
+and drawn an empty street where the fight should be. Strictly worse than the 2D
+board, and silent.
+
+Behind a flag that is a debugging annoyance. On the default path it is the
+difference between a bad network and a broken game.
+
+So the party is now a precondition: if any of the three heroes failed to load,
+the whole stage goes back to the paintings, which are coherent on their own. **A
+creature is deliberately not covered by this** — it arrives late by design, and
+the plate rule has covered that gap by name since Build 118. The asymmetry is
+the point: a missing creature is an expected state with a defined appearance, a
+missing hero is a broken one.
+
+flow 257/257 · road 94/94 · slice 80/80 · bond 76/76 · **cast 63/63** ·
+camp 48/48 · line 32/32 · music 22/22 · beat 10/10 — no page errors.
+
+---
+
 ## Build 123 — every creature is a body now, and the party stops waiting for them
 
 Build 118 gave the Mourning Regent a model. Everything since has been about the

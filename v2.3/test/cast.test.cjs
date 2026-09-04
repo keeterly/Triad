@@ -14,7 +14,7 @@
 const { boot } = require('./harness.cjs');
 
 (async () => {
-  const { page, J, sleep, check, report, shot, browser } = await boot({ query: 'cast=3d' });
+  const { page, J, sleep, check, report, shot, browser, ctx } = await boot({ query: 'cast=3d' });
 
   // ═══ A · THE LAYER IS THERE, OR IT SAID WHY NOT ═══
   console.log('\n── the layer ──');
@@ -1274,6 +1274,49 @@ const { boot } = require('./harness.cjs');
     closest > 0.8 && Object.values(acts).every(v => v.behind === 0),
     JSON.stringify(Object.fromEntries(Object.entries(acts).map(([k, v]) => [k, v.at.join(',')])))
       + ' — closest pair ' + closest.toFixed(2) + ' m');
+
+  // ═══ N · THE PATH EVERY PLAYER TAKES ═══
+  //
+  // Every check above this line ran on a page that ASKED for the 3D stage.
+  // From Build 124 nobody asks — the layer is what you get for opening the
+  // game — so the thing that now needs proving is not that `?cast=3d` works
+  // but that the bare URL does. This opens one, in the same browser, with no
+  // cast parameter of any kind, and asks the layer whether it is on.
+  //
+  // …and the way back has to be real too, or "default" quietly means "only".
+  // `?cast=2d` is the route the other eight suites take; if it ever stopped
+  // meaning the painted stage, they would all silently start measuring
+  // something else.
+  console.log('\n── the path every player takes ──');
+  const stages = {};
+  for (const [name, q] of [['default', ''], ['opt-out', '&cast=2d']]) {
+    const p2 = await ctx.newPage();
+    await p2.goto('http://127.0.0.1:8099/v2.3/index.html?test=1' + q,
+                  { waitUntil: 'networkidle' });
+    await p2.waitForFunction(() => window.__ready === true, null, { timeout: 8000 })
+      .catch(() => {});
+    // the layer boots on DOMContentLoaded and then loads three models
+    await p2.waitForFunction(
+      () => window.Cast3D && (!window.Cast3D.wanted() || window.Cast3D._state().ready
+                              || window.Cast3D._state().failed),
+      null, { timeout: 30000 }).catch(() => {});
+    stages[name] = await p2.evaluate(() => ({
+      wanted: window.Cast3D ? window.Cast3D.wanted() : null,
+      on: window.Cast3D ? window.Cast3D._state().on : null,
+      failed: window.Cast3D ? window.Cast3D._state().failed : null,
+      // the body class is what the stylesheet reads to stand the plates down
+      body: document.body.classList.contains('k-cast3d'),
+    }));
+    await p2.close();
+  }
+  check('DEFAULT: opening the game with no flag at all puts you in the world',
+    stages.default.wanted === true && stages.default.on === true
+    && stages.default.body === true && !stages.default.failed,
+    JSON.stringify(stages.default));
+  check('DEFAULT: and ?cast=2d is a real way back to the painted stage',
+    stages['opt-out'].wanted === false && stages['opt-out'].on === false
+    && stages['opt-out'].body === false,
+    JSON.stringify(stages['opt-out']));
 
   await shot('cast3d');
   const out = report();

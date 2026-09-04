@@ -64,7 +64,21 @@ async function boot(opts = {}) {
     if (/THIS-DOES-NOT-EXIST/.test(src)) return;
     errs.push('console: ' + m.text());
   });
-  const query = opts.query ? '&' + String(opts.query).replace(/^[?&]/, '') : '';
+  // ── THE RULES DO NOT KNOW THE CAST EXISTS ─────────────────────────────────
+  //
+  // Build 124 made the 3D stage the default, which would otherwise have put
+  // every suite in this directory behind a software rasteriser drawing a
+  // flooded plaza sixty times a second — for checks about card costs, road
+  // topology and parry windows, none of which can tell which stage they are
+  // standing on. So a suite gets the painted stage unless it asks for the
+  // other one, and `cast.test.cjs` asks.
+  //
+  // That leaves the DEFAULT path — the one every player now takes — needing a
+  // check of its own rather than an assumption; it is the last thing the cast
+  // suite does.
+  const asked = String(opts.query || '');
+  const stage = /(^|[?&])cast=/.test(asked) ? '' : '&cast=2d';
+  const query = (opts.query ? '&' + asked.replace(/^[?&]/, '') : '') + stage;
   await page.goto(`http://127.0.0.1:${port}/v2.3/index.html?test=1${query}`, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.__ready === true, null, { timeout: 8000 });
   // THE TITLE IS ON THE REAL BOOT PATH, so the suites walk through it rather
