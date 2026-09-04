@@ -164,8 +164,27 @@ const round = (v) => +v.toFixed(DP);
       if (!clip) return { err: 'no clip "' + arg.clip + '" — has ' + clips.map(c => c.name).join(', ') };
 
       // ── WHICH NAMING IS THIS, AND WHICH BONES ARE THERE ──
+      // ── HOLD THE BONE THE MIXER WILL ACTUALLY DRIVE ──────────────────────
+      //
+      // A traversal that keys bones by name is not the same thing as three's
+      // own lookup, and on this file they disagree: an FBX can carry two
+      // skeletons whose bones share names, and `PropertyBinding.findNode`
+      // resolves a track to the FIRST it finds while a traversal keeps the
+      // LAST it wrote. Measured on the test fixture, `findNode('mixamorigHips')`
+      // and `bones['mixamorigHips']` were different objects.
+      //
+      // Everything then behaved perfectly and produced nothing: the tracks
+      // bound, the mixer posed its skeleton, and this tool sampled the other
+      // one — which never moves — so every departure came out identity and the
+      // converter wrote out the rest pose. The clip loaded, retargeted and
+      // played, and the figure stood there looking intact.
+      //
+      // So bones are resolved the way the animation system resolves them.
       const bones = {};
       root.traverse(o => { if (o.isBone || o.type === 'Bone') bones[o.name] = o; });
+      const drivenBy = (name) => THREE.PropertyBinding.findNode(root, name) || bones[name];
+      let doubled = 0;
+      for (const n of Object.keys(bones)) if (drivenBy(n) !== bones[n]) doubled++;
       const strip = (n) => n.replace(/^mixamorig[:_]?/i, '');
       const tables = [arg.MAP, arg.MIXAMO, arg.OURS];
       let map = null, hits = -1;
@@ -178,7 +197,7 @@ const round = (v) => +v.toFixed(DP);
         const to = map[strip(b)];
         // spine_04/_05 both fold onto Spine; keep the HIGHEST one, which is the
         // one whose motion the chest actually reads as
-        if (to && !mine[to]) mine[to] = bones[b];
+        if (to && !mine[to]) mine[to] = drivenBy(b);
       }
       const missing = Object.values(arg.MAP).filter((v, i, a) => a.indexOf(v) === i)
                             .filter(v => !mine[v]);
@@ -358,6 +377,7 @@ const round = (v) => +v.toFixed(DP);
         rigMoved: +Math.max(0, ...poseSeen.map(w => w.moved)).toFixed(1),
         bound: clip.tracks.filter(t => /quaternion$/.test(t.name))
                           .filter(t => !bones[t.name.split('.')[0]]).length,
+        doubled,
         others: clips.map(c => c.name).slice(0, 12),
       };
     }, { url, clip: spec.clip || null, verb, MAP, MIXAMO, OURS,
@@ -377,7 +397,10 @@ const round = (v) => +v.toFixed(DP);
             : got.rigMoved < 1
               ? ' The clip holds motion but the RIG never moved: '
                 + got.bound + ' of its rotation tracks name a node this tool did'
-                + ' not find as a bone, so the mixer is animating air.'
+                + ' not find as a bone'
+                + (got.doubled ? ', and ' + got.doubled + ' bone names resolve to a'
+                                 + ' DIFFERENT object than a traversal finds — two'
+                                 + ' skeletons sharing names.' : '.')
               : ' The rig moved, so the conversion dropped it downstream.'));
       continue;
     }
@@ -388,6 +411,7 @@ const round = (v) => +v.toFixed(DP);
     console.log(`  ${verb.padEnd(10)} ${got.naming.padEnd(7)} ${got.mapped} bones`
       + `  ${got.dur}s/${got.frames}f  scale ${got.scale}`
       + `  turns clip ${got.srcMoved}° rig ${got.rigMoved}° out ${got.outMoved}°`
+      + (got.doubled ? `  (${got.doubled} doubled bone names)` : '')
       + (got.missing.length ? '  MISSING ' + got.missing.join(',') : '')
       + `  <- ${got.source}`);
   }

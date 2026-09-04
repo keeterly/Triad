@@ -79,43 +79,54 @@ under an engine-agnostic Standard License and some as Unreal-only. This game is
 three.js, so a pack under UE-only terms cannot ship in it however good it is.
 It is per-pack and worth checking first.
 
-## STATE: the tool refuses to write a corpse, and says which stage failed
+## STATE: verified. Imports land at 0.1° of the source.
 
-The converter runs end to end on a real Mixamo FBX — naming detected, 22 of 22
-joints mapped, stride scaled — and **the clip it writes is the rest pose**. Every
-emitted quaternion is exactly `__rest`, constant across all 547 frames. Verified
-three ways: the raw values at frames 0, 200 and 540 are byte-identical to
-`__rest`; the departure-from-rest angle is 0.0° at every joint across 60 samples;
-and the runtime retarget passes 16-19° per bone where milled clips pass 127-140°.
-
-The tool now reports three separate numbers and **refuses to merge a clip that
-converted to nothing**, because a corpse in the library is worse than a crash:
+End to end on a real Mixamo FBX (three's `Samba Dancing.fbx`): naming detected,
+22 of 22 joints mapped, stride scaled 0.907, merged, loaded and played on the
+party. `test/import.probe.cjs` compares how far every joint turns from its own
+frame zero, on the source rig and on ours:
 
 ```
-testsamba: CONVERTED TO NOTHING — clip 156.7°, rig 0°, output 0°.
-  The clip holds motion but the RIG never moved: 0 of its rotation tracks
-  name a node this tool did not find as a bone, so the mixer is animating air.
+LeftForeArm    source 98.1°   ours 98.0°   gap 0.2°
+RightHand      source 109.8°  ours 109.8°  gap 0.2°
+Hips           source 60.4°   ours 60.4°   gap 0.1°
+   …
+mean gap 0.1°   worst 1.4°
 ```
 
-Read that as: the FBX's own tracks hold 156.7° of rotation, so the file is fine;
-every one of those tracks binds to a node the tool holds as a bone, so **naming
-is not the problem**; and yet the bones do not move when the mixer is asked for a
-frame. The fault is between `mixer.update` and the bone objects, and the two
-things already ruled out are the source data and the track-to-node binding.
+The tool prints three readings per clip and **refuses to merge one that
+converted to nothing** — a corpse in the library is worse than a crash:
 
-`mixer.setTime(t)` and `action.time = t; mixer.update(0)` both produce it, so it
-is not the way the clock is driven either.
+```
+testsamba  mixamo  22 bones  18.2s/547f  scale 0.907
+           turns clip 156.7° rig 179.2° out 101°  (52 doubled bone names)
+```
 
-**Do not use an imported clip until that line reads three non-zero numbers.**
+Read as: the FBX's tracks hold 156.7° of rotation, the rig moves 179.2° when the
+mixer is asked for a frame, and 101° survives into the output. All three non-zero
+is the pass condition.
 
-### The guard was wrong first, in a way worth remembering
+### The bug that took five metrics to corner: two skeletons, one set of names
 
-Its first version compared each track's FIRST keyframe against its LAST and
-declared a samba motionless. The clip loops, so its last key *is* its first — and
-it came back NEGATED, `(0.036, -0.298, 0, -0.954)` against
-`(-0.036, 0.298, 0, 0.954)`, which is the same rotation written the other way
-round, so the sign did not give it away either. It samples the middle against
-both ends now.
+The converter wrote out the REST POSE — every emitted quaternion exactly
+`__rest`, constant across all 547 frames — and every stage looked healthy while
+it did it. Tracks bound. The mixer ran. The clip loaded, retargeted and played,
+and the figure stood there translating on its hips track, intact and faintly
+alive.
+
+**An FBX can carry two skeletons whose bones share names.** This one has 52 such
+names. `PropertyBinding.findNode` resolves a track to the FIRST it finds; a
+`traverse` that writes `bones[o.name] = o` keeps the LAST. So the mixer posed one
+skeleton and this tool sampled the other, which never moves — every departure came
+out identity, and identity is exactly the rest pose.
+
+Bones are resolved through `PropertyBinding.findNode` now, the way the animation
+system resolves them, and the count of disagreeing names is reported so the trap
+is visible rather than silent.
+
+**The fidelity probe needs a fixture** and the packs are not in the repo, so it is
+a probe rather than a suite check. Run it against whatever you imported:
+`node v2.3/test/import.probe.cjs /import/YourClip.fbx yourverb`.
 
 ### Five invalid metrics, and why each failed
 
