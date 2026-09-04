@@ -1439,6 +1439,43 @@ const { boot } = require('./harness.cjs');
   check('AIR: an impact happens in the world — sparks in metres, a ring in the scene',
     blow.sparks > 30 && blow.rings > 0, JSON.stringify(blow));
 
+  // ═══ M4 · A CREATURE COMES APART ═══
+  //
+  // COUNT THE BODY, DO NOT WEIGH A PICTURE OF IT. The first instrument here
+  // screenshotted the creature's rectangle and compared PNG sizes, and it lied
+  // in both directions: a burning body adds a white-hot tear that costs MORE
+  // bytes than the body it is eating, and a solid body hides an arcade, sixty
+  // pieces of rubble and their reflections — so a whole Regent can compress
+  // SMALLER than the empty plaza behind her. The proxy was not even monotonic.
+  //
+  // `_cover` renders the figure alone into a small target and counts the pixels
+  // it covers, which is what `fit` has done since Build 112. That is the
+  // property rather than a stand-in for it.
+  console.log('\n── coming apart ──');
+  const gone = await J(() => {
+    const C3 = window.Cast3D, f = C3._figure('mourner');
+    if (!f) return null;
+    f.dead = false; f.burn = null;
+    f.mixer.timeScale = 0;                     // only the burn may change
+    const u = f.root.userData.mat.userData;
+    const out = [];
+    for (const b of [0, 0.4, 0.7, 1.0]) { u.burn.value = b; out.push(C3._cover('mourner')); }
+    u.burn.value = 0; f.mixer.timeScale = 1;
+    return { px: out, tall: +u.tall.value.toFixed(2), foot: +u.foot.value.toFixed(2) };
+  });
+  check('BURN: a creature comes apart from the feet up, and ends up gone',
+    !!gone && gone.px[0] > 400
+    && gone.px[1] < gone.px[0] * 0.8 && gone.px[2] < gone.px[1] * 0.7 && gone.px[3] === 0,
+    JSON.stringify(gone) + ' — pixels covered at burn 0 / .4 / .7 / 1');
+  // …and the height it burns through is MEASURED, not assumed. Two versions of
+  // this guessed: one divided by a constant 1.85, one assumed the model's
+  // origin sits at its soles. The Regent's origin is at her hips and her legs
+  // run to -1, so the whole lower body clamped to zero and she vanished at a
+  // quarter of the burn. No two of these eight models agree on either number.
+  check('BURN: …through a height read off the geometry, not guessed at',
+    !!gone && gone.tall > 0.5 && gone.foot < 0.01,
+    JSON.stringify({ tall: gone && gone.tall, foot: gone && gone.foot }));
+
   // ═══ N · THE PATH EVERY PLAYER TAKES ═══
   //
   // Every check above this line ran on a page that ASKED for the 3D stage.

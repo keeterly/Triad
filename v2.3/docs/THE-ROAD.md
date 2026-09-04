@@ -5175,6 +5175,105 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 128 — a creature burns away, and the instrument keeps lying
+
+"When a monster dies, it should disperse by first burning away and its body
+crumbling into ash and then flying off into the air."
+
+The body keeps animating the whole way through, which is the point: a figure
+that freezes and then dissolves is a sprite being switched off, and one that is
+still falling as it comes apart is dying. The `down` clip goes on playing under
+the tear.
+
+### The front is a height plus noise, not an alpha ramp
+
+A ramp dissolves a figure like a cross-fade — every part of it going at once,
+which reads as a texture problem rather than as a death. Threshold a noise field
+against a rising line and the body **tears** instead: thin extremities go first,
+the mass of the torso holds on, and the edge is different every time because the
+noise is sampled in the model's own space. The band immediately ahead of the
+front burns white before it goes, and ash comes off that same band — a thin
+strip at the height the shader is actually discarding, so what leaves the body
+leaves from where the body is coming apart.
+
+Everything else in the effects file falls. Sparks off a blade have weight, embers
+settle, the floor stops them. Ash does not: it is what is left when the weight
+has burned out of something, so it drifts with a small negative gravity and keeps
+going.
+
+### Two guesses about a number no model agrees on
+
+The front travels up the figure, so it needs to know where the figure starts and
+how tall it is **in the model's own units**. Both were guessed, and both were
+wrong:
+
+- **A constant 1.85.** Meshy returns whatever scale it feels like and every
+  figure is rescaled at the root afterwards. The Regent's local height is 2.0.
+- **Feet at zero.** Some of these models are built around the hips, so
+  `transformed.y` runs *negative* through the legs. Clamped to zero, the entire
+  lower body discarded the instant the front left the floor and the rest went
+  with it — the whole Regent gone at a quarter of the burn.
+
+Measured off the geometry's own bounding box: `foot = -1`, `tall = 2`. That box
+is famously the wrong tool for asking how tall a character stands in the world —
+Build 119 learned that the hard way — and exactly the right tool for asking what
+range `transformed` covers, because that is literally what it is a box around.
+
+### Weighing a picture is not counting a body
+
+The first instrument screenshotted the creature's rectangle and compared PNG
+sizes. It lied in both directions:
+
+- A burning body adds a white-hot tear that costs **more** bytes than the body
+  it is eating. At burn 0.25 it reported 224% of a whole Regent.
+- A solid body hides an arcade, sixty pieces of rubble and their reflections, so
+  a whole Regent can compress **smaller** than the empty plaza behind her.
+
+The proxy was not even monotonic. `_cover` renders the figure alone into a small
+target and counts the pixels it covers — what `fit` has done since Build 112 —
+and the profile came out **100 → 98 → 64 → 31 → 3 → 0%**.
+
+Its first control was broken too: hiding the body with `root.visible = false`
+lasts exactly one frame, because the loop decides visibility fresh every tick
+from who is on screen.
+
+### The list of things that are not bodies
+
+Two places render one figure alone and read the pixels back, and both are only
+correct if nothing else in the scene is drawing. **That list has now been got
+wrong three times in three builds.** Build 122 added an arcade, rubble and mist,
+and moved the Regent a quarter of a metre. Build 127 added a spark pool, a ribbon
+per figure and five shock rings — and a ring fired at the Regent a moment earlier
+put 73 pixels of "body" back into a finished burn.
+
+The pattern is not carelessness. The list lived inside the function that used it,
+so adding scenery anywhere else could not remind anybody. It is derived from the
+scene now, in one place, and both readers ask for it.
+
+### And a figure that was measured badly said nothing about it
+
+The Ashen Cultist stood **0.72 m above the floor** in one suite run and 0.06 in
+the next, from the same model on the same seed. `fit` recovers from a frame that
+came back empty by doubling its guess and trying again — sensible, except that it
+then returned whatever it last had whether or not that converged, so a
+measurement that failed was indistinguishable from one that succeeded and the
+figure was scaled and dropped by it regardless.
+
+It checks now, retries once from a clean guess, and reports `unfit` in the state
+if it still could not settle. A floating body is worth a loud number.
+
+flow 257/257 · road 94/94 · slice 85/85 · bond 76/76 · **cast 71/71** ·
+camp 48/48 · line 32/32 · music 22/22 · beat 10/10.
+
+`beat` came back 6/10 on the back-to-back run of all eight and 10/10 three times
+running on its own. It is the timing suite — it measures how many milliseconds a
+card takes to answer a finger — and it was the eighth browser launched in a row.
+The argument that settles it is not the re-runs: **`beat` boots `?cast=2d`, where
+not one line of this build executes.** No burn shader, no particles, no effects
+layer. A suite that cannot reach the code cannot be regressed by it.
+
+---
+
 ## Build 127 — the effects move into the world
 
 "Right now it's just a circle punch and lame slash."

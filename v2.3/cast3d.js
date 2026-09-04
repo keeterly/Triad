@@ -260,6 +260,36 @@ function watercolour(map, tone) {
   // there would have quietly deleted the strongest depth cue on the board.
   // So the same ladder is a uniform: 1 at the front, 0 at the back.
   m.userData.depth = { value: 1 };
+  // ── AND HOW MUCH OF IT IS LEFT (Build 128) ────────────────────────────────
+  //
+  // 0 is a whole body; 1 is nothing. Between them a burn front eats upward
+  // through the figure, and the band just ahead of it goes white-hot before it
+  // goes. Held on the material rather than passed in, because the figure has
+  // to keep animating through the whole thing — a creature that freezes and
+  // then fades is a sprite being switched off, and a creature that is still
+  // falling as it comes apart is dying.
+  m.userData.burn = { value: 0 };
+  // …AND HOW TALL THIS BODY IS IN ITS OWN UNITS. Not a constant. The first
+  // version divided the fragment's height by 1.85 and called it done, which is
+  // a guess about a number no model has ever agreed on: Meshy returns whatever
+  // scale it feels like and every figure is rescaled at the root afterwards.
+  // Measured, the Regent's local height is about 0.9 — so the burn front ran
+  // off the top of her at just past half its travel and the last of the body
+  // vanished all at once. `stand` fills this in from the height it just
+  // measured, which is the only number in the file that is not a guess.
+  m.userData.tall = { value: 1.85 };
+  // …AND WHERE ITS FEET ARE IN THOSE UNITS. Also not a constant, and this is
+  // the one that made the whole Regent vanish at a quarter of the burn: the
+  // first two versions assumed a model's local origin sits at its soles. Some
+  // of these are built around the hips, so `transformed.y` runs NEGATIVE
+  // through the legs — clamped to zero, which made the entire lower body
+  // discard the instant the front left the floor, and the rest went with it.
+  //
+  // A SkinnedMesh's geometry bounding box is famously the wrong tool for
+  // asking how tall a character is in the world (Build 119 learned that the
+  // hard way). It is exactly the right tool for asking what range
+  // `transformed` covers, because that is literally what it is a box around.
+  m.userData.foot = { value: 0 };
   // EVERY KNOB STAYS REACHABLE. Tuning a look by editing a constant, reloading
   // and comparing two screenshots taken a minute apart is how you end up
   // arguing about it; holding them all on the material means a sweep is one
@@ -275,10 +305,14 @@ function watercolour(map, tone) {
   };
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uDepth = m.userData.depth;
+    sh.uniforms.uBurn = m.userData.burn;
+    sh.uniforms.uTall = m.userData.tall;
+    sh.uniforms.uFoot = m.userData.foot;
     Object.assign(sh.uniforms, m.userData.u);
     sh.fragmentShader = sh.fragmentShader
       .replace('void main() {', `
         uniform float uBands, uGrain, uEdge, uLift, uDepth, uWash, uAir, uPaint;
+        uniform float uBurn;
         uniform vec3 uPaper, uShadow, uInk;
         float wcHash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         float wcTooth(vec2 p){
@@ -323,7 +357,60 @@ function watercolour(map, tone) {
           c *= 1.0 - air * 0.18;
           c = mix(c, uPaper * 0.92, air * 0.20);
           gl_FragColor.rgb = c;
+
+          // ── THE BURN ────────────────────────────────────────────────────
+          //
+          // A creature does not fade out. It comes APART: a ragged front eats
+          // up through the body, the strip immediately ahead of it glows, and
+          // what is behind it is simply gone.
+          //
+          // The front is a HEIGHT plus noise, not a plain alpha ramp. A ramp
+          // dissolves a figure like a cross-fade — every part of it going at
+          // once, which reads as a texture problem rather than as a death.
+          // Threshold a noise field against a rising line and the body tears
+          // instead: thin extremities go first, the mass of the torso holds
+          // on, and the edge is different every time because the noise is
+          // sampled in the model's own space.
+          //
+          // vBurnY is the fragment's height up the figure in its OWN units, so
+          // this works the same on a 1.86m husk and a 2.30m Regent without
+          // either of them being measured.
+          if ( uBurn > 0.0001 ) {
+            float grain = wcTooth( vBurnP.xz * 6.5 + vBurnP.y * 3.1 ) * 0.62
+                        + wcTooth( vBurnP.xy * 17.0 ) * 0.38;
+            // the front climbs a little past the top, so the last of the crown
+            // is gone by the time uBurn reaches 1
+            // FAR ENOUGH PAST THE TOP THAT THE NOISE CANNOT SAVE ANYTHING.
+            // At 1.34 the front only just cleared the crown, and the tear
+            // noise subtracts up to 0.15 — so a handful of fragments at the
+            // very top survived a finished burn. Measured: 73 pixels of Regent
+            // still standing at uBurn 1.0. The runtime hides the body a moment
+            // later anyway, which is exactly how a thing like this ships.
+            float front = uBurn * 1.52 - 0.20;
+            float edge = ( front - vBurnY ) + ( grain - 0.5 ) * 0.30;
+            if ( edge > 0.028 ) discard;                 // behind the front: gone
+            // …and the last band before it goes is the hottest thing on screen
+            float glow = smoothstep( -0.16, 0.028, edge );
+            gl_FragColor.rgb = mix( gl_FragColor.rgb,
+                                    mix( vec3( 0.85, 0.62, 0.24 ), vec3( 1.0, 0.96, 0.86 ),
+                                         smoothstep( 0.35, 1.0, glow ) ),
+                                    glow * 0.94 );
+            gl_FragColor.rgb += vec3( 1.0, 0.78, 0.42 ) * pow( glow, 3.0 ) * 1.5;
+          }
         }`);
+    // the height of this fragment up the body, and where it sits in the model,
+    // both in the figure's own space — so the tear is the same shape at any
+    // scale and travels with the animation rather than with the world
+    sh.vertexShader = sh.vertexShader
+      .replace('void main() {',
+               'uniform float uTall;\nuniform float uFoot;\n'
+               + 'varying float vBurnY;\nvarying vec3 vBurnP;\nvoid main() {')
+      .replace('#include <begin_vertex>', `
+        #include <begin_vertex>
+        vBurnP = transformed;
+        vBurnY = clamp( ( transformed.y - uFoot ) / uTall, 0.0, 1.0 );`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('void main() {', 'varying float vBurnY;\nvarying vec3 vBurnP;\nvoid main() {');
   };
   return m;
 }
@@ -946,6 +1033,32 @@ class Effects {
         { speed: 1.9, spread: 0.05, life: 0.42, size: 18, grav: 0, drag: 0.4 });
     }
   }
+  // ── ASH COMING OFF THE BURN FRONT ──────────────────────────────────────
+  //
+  // Emitted in a THIN BAND at the height the burn has reached, not from the
+  // whole body — which is the difference between a creature crumbling and a
+  // creature emitting smoke. The band is where the material is actually
+  // discarding fragments this frame, so what leaves the body leaves from the
+  // place the body is coming apart.
+  //
+  // And it goes UP. Everything else in this file falls: sparks off a blade
+  // have weight, embers settle, the floor stops them. Ash does not — it is
+  // what is left when the weight has burned out of something, so it drifts
+  // with a small negative gravity and almost no drag, and it keeps going.
+  ash(centre, radius, y, n, heat) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, r = radius * (0.25 + Math.random() * 0.85);
+      _fxA.set(centre.x + Math.cos(a) * r, y + (Math.random() - 0.5) * 0.09,
+               centre.z + Math.sin(a) * r * 0.55);
+      // outward and up, with a lean so a crowd of them does not rise as a column
+      _fxD.set(Math.cos(a) * 0.5, 1, Math.sin(a) * 0.5).normalize();
+      this.sparks.emit(_fxA, _fxD, 1, {
+        speed: 0.55 + Math.random() * 0.9, spread: 0.5,
+        life: 1.5 + Math.random() * 1.4, size: 14 + Math.random() * (heat ? 26 : 12),
+        grav: 0.62, drag: 0.55,
+      });
+    }
+  }
   step(dt, cam, px) {
     this.sparks.step(dt);
     this.sparks.mat.uniforms.uPx.value = px;
@@ -1026,6 +1139,8 @@ class Figure {
     // WHICH VERB, not which clip. `sword`, `daggers` and `staff` are three
     // clips for one word, and the air should answer the word.
     this.fxVerb = null;
+    // how far through coming apart this body is: null until it is dying
+    this.burn = null;
     // where the idle's weight is heading, and how long it has to get there;
     // `step` walks it
     this.idleWant = IDLE_WEIGHT;
@@ -1793,6 +1908,33 @@ const Cast3D = (() => {
     f.root.updateWorldMatrix(true, true);
   }
 
+  // ── EVERYTHING THAT IS NOT A BODY ────────────────────────────────────────
+  //
+  // Two different places render one figure alone and read the pixels back —
+  // `fit`, which measures a silhouette at load, and `_cover`, which asks how
+  // much of a body is left mid-burn. Both are only correct if NOTHING else in
+  // the scene is drawing, and this list has now been got wrong three times in
+  // three builds: Build 122 added an arcade, rubble and mist and moved the
+  // Regent a quarter of a metre; Build 128 added a spark pool, a ribbon per
+  // figure and five shock rings, and a ring fired at the Regent a moment
+  // earlier put 73 pixels of "body" back into a finished burn.
+  //
+  // The pattern is not carelessness, it is that the list lived in the function
+  // that used it, so adding scenery anywhere else could not remind anybody. It
+  // is derived now, from the scene as it actually is.
+  function notBodies() {
+    const out = ground
+      ? [ground, ground.userData.panel, ground.userData.haze,
+         ground.userData.props, ground.userData.mist]
+      : [];
+    if (fx) {
+      out.push(fx.sparks.points);
+      for (const k of Object.keys(fx.ribbons)) out.push(fx.ribbons[k].mesh);
+      for (const it of fx.shocks.items) out.push(it.mesh);
+    }
+    return out.filter(Boolean);
+  }
+
   // ── find each figure's frame by looking at it ────────────────────────────
   // Render one figure alone into a small offscreen target, read the alpha
   // channel, and solve for the camera that puts its silhouette in the middle
@@ -1834,14 +1976,32 @@ const Cast3D = (() => {
     // sheets of mist, and every one of them landed inside the silhouette this
     // measures — which moved the Regent a quarter of a metre and lifted her
     // twenty pixels, from nothing but new scenery being in shot.
-    const world = ground
-      ? [ground, ground.userData.panel, ground.userData.haze,
-         ground.userData.props, ground.userData.mist]
-      : [];
-    for (const o of world) if (o) o.visible = false;
+    const world = notBodies();
+    for (const o of world) o.visible = false;
     const fogWas = scene.fog; scene.fog = null;
 
-    for (let pass = 0; pass < 5; pass++) {
+    // ── AND IT HAS TO KNOW WHETHER IT WORKED ────────────────────────────────
+    //
+    // The loop below recovers from a frame that came back empty by doubling
+    // `viewH` and trying again — sensible, except that it then RETURNS whatever
+    // it last had whether or not that converged. A measurement that failed is
+    // indistinguishable from one that succeeded, and the figure is scaled and
+    // dropped by it regardless.
+    //
+    // Seen in the wild: the Ashen Cultist standing 0.72 m above the floor in
+    // one suite run and 0.06 in the next, from the same model on the same seed.
+    // A figure hanging in the air is exactly what an unconverged fit looks
+    // like, and the reason it is intermittent is that it depends on what else
+    // the renderer was doing during the two frames this borrows.
+    //
+    // So: try, check, and if the silhouette did not land near FILL, start over
+    // from a clean guess. Two attempts is enough — the pass loop converges in
+    // three or four from anywhere sane, and a second failure means something is
+    // wrong that a third would not fix either.
+    let converged = false;
+    for (let attempt = 0; attempt < 2 && !converged; attempt++) {
+      if (attempt) { f.viewH = 2.0; f.midX = 0; f.midY = 0.9; }
+    for (let pass = 0; pass < 6; pass++) {
       const aspect = W / H;
       cam.top = f.viewH / 2; cam.bottom = -f.viewH / 2;
       cam.left = -f.viewH * aspect / 2; cam.right = f.viewH * aspect / 2;
@@ -1868,14 +2028,16 @@ const Cast3D = (() => {
       f.midX += (cx - W / 2) * perPx;
       f.midY += (cy - H / 2) * perPx;
       const h = (y1 - y0) / H;
-      if (Math.abs(h - FILL) < 0.015) break;
+      if (Math.abs(h - FILL) < 0.015) { converged = true; break; }
       f.viewH *= h / FILL;
     }
+    }
+    f.fitOk = converged;
 
     renderer.setRenderTarget(prevTarget);
     renderer.setViewport(vpWas);
     renderer.setScissorTest(scissorWas);
-    for (const o of world) if (o) o.visible = worldWas;
+    for (const o of world) o.visible = worldWas;
     scene.fog = fogWas;
     for (const id of Object.keys(figs)) figs[id].root.visible = wasVisible[id];
     target.dispose();
@@ -1904,6 +2066,22 @@ const Cast3D = (() => {
       if (o.isMesh || o.isSkinnedMesh) { o.material = mat; o.frustumCulled = false; o.castShadow = true; }
     });
     root.scale.setScalar(tone.tall);
+    // WHAT RANGE DOES `transformed` ACTUALLY COVER? Ask the geometry, once,
+    // here — the union of every mesh's own bounding box in the model's own
+    // space. This is the range the burn front has to travel, and no two of
+    // these eight models agree on it.
+    let lo = Infinity, hi = -Infinity;
+    root.traverse(o => {
+      if (!(o.isMesh || o.isSkinnedMesh) || !o.geometry) return;
+      if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+      const b = o.geometry.boundingBox;
+      if (!b) return;
+      lo = Math.min(lo, b.min.y); hi = Math.max(hi, b.max.y);
+    });
+    if (isFinite(lo) && hi > lo) {
+      mat.userData.foot.value = lo;
+      mat.userData.tall.value = hi - lo;
+    }
     root.userData.mat = mat;
     // `frame` decides who is visible, from who is on screen; a creature that
     // arrives while nothing is wearing it must not flash up in the middle of
@@ -2202,6 +2380,11 @@ const Cast3D = (() => {
   let shotAt = 0;
   const _eye = new THREE.Vector3(), _look = new THREE.Vector3();
   const _size = new THREE.Vector2();
+  const _burnAt = new THREE.Vector3();
+  // long enough to read as a body coming apart rather than a sprite being
+  // switched off, short enough that it is over before the reckoning wants the
+  // camera. The `fell` shot is 1900ms; this finishes inside it.
+  const BURN_SECONDS = 1.45;
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // AZIMUTH TAKES THE SHORT WAY ROUND. Easing 350 degrees to 10 by subtracting
@@ -2385,7 +2568,11 @@ const Cast3D = (() => {
       const f = figs[id];
       f.step(dt);
       const node = nodeOf(id);
-      const vis = !!node && node.offsetParent !== null;
+      // A CREATURE THAT BURNED AWAY STAYS AWAY. Visibility is decided fresh
+      // every frame from who is on screen, which is right for everything
+      // except a body that no longer exists — without this the ash finishes
+      // rising and the corpse blinks back for the rest of the fight.
+      const vis = !f.dead && !!node && node.offsetParent !== null;
       f.root.visible = vis;
       if (vis) {
         claimed.push(node);
@@ -2483,6 +2670,31 @@ const Cast3D = (() => {
     // aim beam in Build 120, and the same fix: ask the thing that actually
     // knows.
     if (fx) {
+      // ── ANYTHING THAT IS COMING APART ──
+      for (const id of Object.keys(figs)) {
+        const f = figs[id];
+        if (f.burn == null) continue;
+        f.burn = Math.min(1.15, f.burn + dt / BURN_SECONDS);
+        const mat = f.root.userData.mat;
+        if (mat && mat.userData.burn) mat.userData.burn.value = Math.min(1, f.burn);
+        // ash off the front, at the height the front has actually reached —
+        // the same arithmetic the shader is doing, so the two agree
+        const front = Math.max(0, Math.min(1, f.burn * 1.34 - 0.17));
+        _burnAt.set(f.root.position.x + f.ctrOff, 0, f.root.position.z);
+        if (f.burn < 1.02) {
+          fx.ash(_burnAt, f.worldH * 0.20, f.root.position.y + front * f.worldH,
+                 f.burn < 0.12 ? 7 : 4, true);
+        }
+        if (f.burn >= 1.12) {
+          // gone. The plate underneath does NOT come back — a creature that
+          // has burned away has burned away, and `frame` would otherwise hand
+          // its painting straight back the moment the body stopped drawing.
+          f.root.visible = false;
+          f.burn = null;
+          f.dead = true;
+          if (mat && mat.userData.burn) mat.userData.burn.value = 0;
+        }
+      }
       for (const id of Object.keys(figs))
         if (figs[id].root.visible) fx.trail(id, figs[id], dt);
       fx.step(dt, cam, renderer.getSize(_size).y * renderer.getPixelRatio() * 0.5);
@@ -2638,6 +2850,28 @@ const Cast3D = (() => {
       fx.hit(at, toward, verb, power);
       return true;
     },
+    // ── A CREATURE BURNS AWAY ──────────────────────────────────────────────
+    //
+    // The body keeps animating the whole way through. That is the point: a
+    // figure that freezes and then dissolves is a sprite being switched off,
+    // and one that is still falling as it comes apart is dying. So this starts
+    // the burn and changes nothing else — `down` is already playing, and it
+    // goes on playing under the tear.
+    fell(id) {
+      const f = figs[id];
+      if (!on || !f || f.burn != null || f.dead) return false;
+      f.burn = 0;
+      return true;
+    },
+    // and a fight that starts puts every corpse back on its feet
+    revive() {
+      for (const id of Object.keys(figs)) {
+        const f = figs[id];
+        f.burn = null; f.dead = false;
+        const mat = f.root.userData.mat;
+        if (mat && mat.userData.burn) mat.userData.burn.value = 0;
+      }
+    },
     all(clip) { Object.keys(figs).forEach(id => this.play(id, clip)); },
     // test-only: what the layer thinks is true right now
     _state: () => ({
@@ -2648,6 +2882,12 @@ const Cast3D = (() => {
       bones: Object.keys(figs).length ? Object.keys(figs[Object.keys(figs)[0]].bones).length : 0,
       // the air: how many sparks are alive, and whether any arc is drawing
       sparks: fx ? (fx.sparks.live || 0) : 0,
+      // any figure whose silhouette measurement never settled — it will be the
+      // wrong size and standing at the wrong height, and saying so beats
+      // shipping a floating body
+      unfit: Object.keys(figs).filter(id => figs[id].fitOk === false),
+      burning: Object.keys(figs).filter(id => figs[id].burn != null),
+      gone: Object.keys(figs).filter(id => figs[id].dead),
       trails: fx ? Object.keys(fx.ribbons).filter(k => fx.ribbons[k].mesh.visible).length : 0,
       rings: fx ? fx.shocks.items.filter(i => i.t > 0).length : 0,
     }),
@@ -2829,6 +3069,55 @@ const Cast3D = (() => {
     // test-only: the air itself, so a probe can drive it at a fixed timestep
     // rather than at whatever the software rasteriser manages
     _fx: () => fx,
+    // ── test-only: HOW MUCH OF THIS BODY IS ACTUALLY DRAWN ─────────────────
+    //
+    // Screenshotting the creature's rectangle and weighing the PNG cannot
+    // answer this, and the way it fails is instructive: a burning body adds a
+    // white-hot tear that costs MORE bytes than the body it is eating, and a
+    // solid body hides an arcade, sixty pieces of rubble and their reflections,
+    // so a whole Regent can compress SMALLER than the empty plaza behind her.
+    // The proxy is not even monotonic.
+    //
+    // So do what `fit` has done since Build 112: render the figure alone into a
+    // small offscreen target and count the pixels it covers. That is the
+    // property, not a stand-in for it.
+    _cover(id) {
+      const f = figs[id];
+      if (!f || !renderer || !scene) return null;
+      const W = 96, H = 128;
+      const target = new THREE.WebGLRenderTarget(W, H);
+      const buf = new Uint8Array(W * H * 4);
+      const c = new THREE.OrthographicCamera(-1.4, 1.4, 1.9, -1.9, 0.01, 40);
+      const wasVis = {};
+      for (const k of Object.keys(figs)) {
+        wasVis[k] = figs[k].root.visible;
+        figs[k].root.visible = (k === id);
+      }
+      const world = notBodies();
+      const worldWas = world.map(o => o.visible);
+      for (const o of world) o.visible = false;
+      const fogWas = scene.fog; scene.fog = null;
+      const prev = renderer.getRenderTarget();
+      const vp = new THREE.Vector4(); renderer.getViewport(vp);
+      const p = f.root.position;
+      c.position.set(p.x + f.ctrOff, p.y + f.worldH / 2, p.z + 6);
+      c.lookAt(p.x + f.ctrOff, p.y + f.worldH / 2, p.z);
+      c.updateProjectionMatrix();
+      renderer.setRenderTarget(target);
+      renderer.setViewport(0, 0, W, H);
+      renderer.clear();
+      renderer.render(scene, c);
+      renderer.readRenderTargetPixels(target, 0, 0, W, H, buf);
+      renderer.setRenderTarget(prev);
+      renderer.setViewport(vp);
+      for (let i = 0; i < world.length; i++) world[i].visible = worldWas[i];
+      scene.fog = fogWas;
+      for (const k of Object.keys(figs)) figs[k].root.visible = wasVis[k];
+      target.dispose();
+      let n = 0;
+      for (let i = 0; i < W * H; i++) if (buf[i * 4 + 3] > 20) n++;
+      return n;
+    },
     // Tune the look without a reload: Cast3D.look({ bands: 5, wash: 0.4 }).
     // Called with nothing it reports what is currently set.
     look(next) {

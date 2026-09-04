@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 127;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 128;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1206,6 +1206,11 @@ function startCombat(opts) {
   const lineup = (opts.foes && opts.foes.length
     ? opts.foes.map(f => (typeof f === 'string' ? FOES[f] : f)).filter(Boolean).slice(0, ROWS.length)
     : [foe]);
+  // EVERY CORPSE STANDS BACK UP FOR A NEW FIGHT. A creature that burned away
+  // is marked gone on its figure so the frame loop stops handing its painting
+  // back — which is right for the rest of that fight and wrong for the next
+  // one, where the same model has to walk in alive.
+  try { const C3 = window.Cast3D; if (C3 && C3.revive) C3.revive(); } catch (e) {}
   C = {
     phase: 'INTRO',
     // WHICH FIGHT THIS IS. Build 94 stopped awaiting the end-of-turn hand
@@ -2103,6 +2108,16 @@ function fxFoeDown(F) {
   // rather than a twitching one.
   try { foeAnimKill('broken', F ? F.ix : undefined); } catch (e) {}
   foeCast(F ? F.ix : undefined, 'down');
+  // …AND THEN IT COMES APART. The CSS fall below is what a painted plate does
+  // when it dies; a body does something else. The burn runs under the `down`
+  // clip rather than instead of it, so the creature is still falling while it
+  // is coming apart — which is the difference between dying and being
+  // switched off.
+  try {
+    const C3 = window.Cast3D;
+    const id = box.dataset.foe;
+    if (C3 && C3.fell && id) C3.fell(id);
+  } catch (e) {}
   box.classList.remove('k-foe-down');
   void box.offsetWidth;
   box.classList.add('k-foe-down');
