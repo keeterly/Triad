@@ -185,33 +185,40 @@ const LOOK = {
   // COLOURS — and `look()` turns a dial name straight into a uniform name, so
   // a dial called `ink` hands a float to a vec3 and every figure's material
   // throws on the next frame. Measured: 316 page errors from one `look` call.
-  // ── OFF, BECAUSE IT DOES NOT WORK YET ────────────────────────────────────
+  // ── THE DRAWN LOOK, ON BY DEFAULT ────────────────────────────────────────
   //
-  // The plumbing is right: with the line at 0.0001 the pass runs, the frame
-  // goes to a target and back, and 1.2% of pixels change against a 0.8% control
-  // — a no-op, which is what a pass with nothing to do should be. Getting there
-  // took finding that a render target does not apply `outputColorSpace` the way
+  // What Arcane does is not a filter over a render, it is a painting that
+  // happens to be lit in three dimensions: flat tone in bands, a drawn contour
+  // where forms meet, and tooth over the sheet so nothing reads as vector art.
+  // These three dials are that, and they are set where a measured sweep put
+  // them rather than where they looked right in one screenshot.
+  //
+  // Getting here took two dead ends worth remembering. The first was the
+  // colour space: a render target does not apply `outputColorSpace` the way
   // the canvas does, so merely routing the frame through one shifted every
-  // pixel in it and read as ink covering the picture.
+  // pixel and read as ink covering the picture. The second was the detector —
+  // see the shader; it thresholded a ratio in a smooth band against a signal
+  // that turns out to be near-binary, and inked 64% of the frame at every
+  // setting it was given.
   //
-  // THE DETECTOR IS STILL WRONG. At 0.62 it darkens 64% of the frame, and the
-  // screenshots show a wash over the bodies rather than a line around them.
-  // The distribution says it should not: only about 5% of pixels carry a depth
-  // jump big enough to clear the threshold. That contradiction is the next
-  // thing to chase, and until it is settled these stay at zero — with all three
-  // at zero the target is never allocated and the render path is exactly what
-  // it was.
-  line:  0.0,    // how black the contour is
-  linew: 1.35,   // how wide, in pixels of the drawing buffer
-  flat:  0.0,    // how far the tone is pushed onto the band ladder
+  // With line, flat and tooth all at zero the target is never allocated and
+  // the render path is exactly what it was before any of this existed, so
+  // `?look=line:0,flat:0,tooth:0` is a true bypass.
+  line:  0.72,   // how black the contour is
+  linew: 1.15,   // how wide, in pixels of the drawing buffer
+  bite:  0.03,   // how far a surface must jump, as a fraction of its distance
+  reach: 14.0,   // …and how far out the ink carries, in metres
+  flat:  0.34,   // how far the tone is pushed onto the band ladder
   steps: 6,      // …and how many bands there are
-  tooth: 0.0,    // the grain of the sheet, over the whole frame
+  tooth: 0.05,   // the grain of the sheet, over the whole frame
 };
 // what each dial does, for the panel — and so the next person to open this
 // file does not have to read the shader to find out
 const LOOK_HELP = {
   line:  ['ink line', 0, 1, 0.01, 'the contour drawn where two surfaces meet'],
   linew: ['line width', 0.5, 3, 0.05, 'how wide that contour is, in buffer pixels'],
+  bite:  ['line bite', 0.01, 0.4, 0.005, 'how big a depth jump earns a line, as a fraction of its distance'],
+  reach: ['line reach', 2, 30, 0.5, 'how far out the ink carries, in metres — past this the plaza stays paint'],
   flat:  ['flatten', 0, 1, 0.01, 'tone stepped into bands across the whole frame'],
   steps: ['bands', 2, 10, 1, 'how many of them'],
   tooth: ['paper', 0, 0.4, 0.01, 'the grain of the sheet, over everything'],
@@ -3078,6 +3085,7 @@ const Cast3D = (() => {
         uTexel: { value: new THREE.Vector2() },
         uLine: { value: 0 }, uLineW: { value: 1 }, uFlat: { value: 0 },
         uSteps: { value: 6 }, uTooth: { value: 0 },
+        uBite: { value: 0.07 }, uReach: { value: 11 },
         uNear: { value: 0.1 }, uFar: { value: 100 },
       },
       vertexShader: `
@@ -3089,6 +3097,7 @@ const Cast3D = (() => {
         uniform sampler2D tDepth;
         uniform vec2 uTexel;
         uniform float uLine, uLineW, uFlat, uSteps, uTooth, uNear, uFar;
+        uniform float uBite, uReach;
         varying vec2 vUv;
 
         // the depth buffer is not linear; a difference in it means something
@@ -3111,77 +3120,72 @@ const Cast3D = (() => {
           // ── THE CONTOUR ──
           // A four-tap cross rather than a full Sobel: half the samples, and on
           // a line this thin the diagonals add nothing a player can see.
-          //
-          // The difference is RELATIVE to how far away the surface is. An
-          // absolute threshold draws the far wall as one solid slab of ink and
-          // misses the fold in a cloak a metre from the lens, because the same
-          // centimetre of depth is a different fraction of each.
           float c  = lin(vUv);
           float dl = lin(vUv - vec2(o.x, 0.0));
           float dr = lin(vUv + vec2(o.x, 0.0));
           float du = lin(vUv - vec2(0.0, o.y));
           float dd = lin(vUv + vec2(0.0, o.y));
 
-          // THE SECOND DERIVATIVE, RELATIVE TO THE FIRST.
+          // THE SECOND DERIVATIVE, IN METRES, AGAINST A THRESHOLD THAT GROWS
+          // WITH DISTANCE.
           //
           // A depth GRADIENT is not a discontinuity: a floor at a grazing angle
           // changes depth fast across every pixel of it and is not an edge
-          // anywhere. The first cut compared left against right and inked whole
-          // bodies solid black.
+          // anywhere. So the operator is a Laplacian — a linear ramp cancels in
+          // dl + dr - 2c and only a step survives.
           //
-          // A second derivative fixes that — a linear ramp cancels in
-          // dl + dr - 2c, only a step survives — but on its own it is still
-          // hostage to precision. Measured, this scene fills only the top 3% of
-          // the depth buffer (raw values 248-255 of 255), because a near plane
-          // of a tenth of a metre spends the whole range in front of the party.
-          // An absolute threshold on that is a threshold on quantisation noise.
-          //
-          // So it is the RATIO that decides. On a plane the curvature is zero
-          // whatever the slope; at a silhouette the curvature is as large as
-          // the slope. Dividing one by the other is scale-free: it needs no
-          // constant tuned to a distance, a lens or a depth format.
-          // NO BACKTICKS IN HERE — this shader is inside a template literal.
-          //
-          // ── AND THE THRESHOLD IS CALIBRATED, NOT GUESSED ────────────────
-          //
-          // Captured a real colour frame and a real depth frame out of the
-          // running game and measured this operator's distribution offline.
-          // Over the drawn pixels of one fight:
+          // The threshold used to be a RATIO of that curvature to the local
+          // slope, on the theory that it needed no constant tuned to a scene.
+          // It is scale-free and it does not work: it thresholds in a smooth
+          // band, and the signal is not smooth. Captured a real depth frame out
+          // of a running fight and measured the operator over the drawn pixels:
           //
           //     percentile   50th   90th   97th   99th   99.5th
-          //     laplacian       0      1      7    227      263
+          //     laplacian       0      1      7    227      263   (of 255, over a 14 m ramp)
           //
-          // It is a near-binary signal: nothing at all, then a cliff between
-          // the 97th and the 99th. The ratio form below thresholds in a smooth
-          // 0.55-1.15 band, which is the wrong REGIME for that shape — no
-          // amount of tuning inside it can separate a contour from a surface,
-          // which is why the pass inked 64% of the frame at every setting it
-          // was given. The threshold wants to sit between 7 and 227 on the
-          // absolute jump, and an offline composite at that setting inks 3.8%
-          // of the picture, which is what a drawn line looks like.
+          // Nothing at all, then a cliff between the 97th and the 99th. On a
+          // distribution shaped like that a smooth band cannot separate a
+          // contour from a surface at any setting, which is why the ratio form
+          // inked 64% of the frame however it was tuned. What separates them is
+          // a hard cut anywhere in the gap — 7 counts is 0.38 m, 227 is 12.5 m.
           //
-          // Left as it is until that is implemented and measured on the real
-          // buffer, because the dials are at zero and a half-changed detector
-          // is worse than a documented one.
-          float lapx = abs(dl + dr - 2.0 * c);
-          float lapy = abs(du + dd - 2.0 * c);
-          float floorg = 0.004 * c;            // so flat sky is 0/0 and not 1
-          float e = max(lapx / (abs(dl - dr) + floorg),
-                        lapy / (abs(du - dd) + floorg));
-          float line = smoothstep(0.55, 1.15, e);
+          // It is scaled by depth rather than left absolute because one pixel
+          // spans more world the further away it is: the same 0.38 m that is a
+          // silhouette on a body five metres out is ordinary floor curvature
+          // across the far side of the plaza. Dividing by c is the distance
+          // falloff, and it is one number (uBite) with a meaning — the fraction
+          // of its own distance a surface has to jump to earn a line.
+          // NO BACKTICKS IN HERE — this shader is inside a template literal.
+          float lap = max(abs(dl + dr - 2.0 * c), abs(du + dd - 2.0 * c));
+          float bite = uBite * c;
+          float line = smoothstep(bite, bite * 2.0, lap);
+
           // …and where nothing was drawn there is nothing to outline. The far
           // plane is not a surface; without this the whole world gets a border
           // and the sky gets a frame.
-          float solid = step(lin(vUv), uFar * 0.94);
-          line *= solid * uLine;
+          float solid = step(c, uFar * 0.94);
+          // THE INK HAS A RANGE. Arcane draws the two people talking, not every
+          // roof behind them — past uReach metres the line lets go and the back
+          // of the plaza stays paint. Without it the detector is honest and the
+          // picture is still wrong: a correct contour on every distant railing
+          // reads as clutter, not as drawing.
+          float near = 1.0 - smoothstep(uReach, uReach * 1.6, c);
+          line *= solid * near * uLine;
 
           // ── THE TONE, ON A LADDER ──
           // Stepped by LUMINANCE and reapplied as a ratio, so a red sash steps
           // with the same rungs as a grey wall and stays red. Quantising each
           // channel on its own is what turns a painting into a poster.
+          //
+          // AND ONLY ON THE PART OF THE PICTURE THAT IS BUILT, which is what
+          // the contour's own distance falloff already carries. The plaza behind the party is
+          // a painting already; running a six-rung ladder over it put a hard
+          // horizontal seam across the sky and flattened brushwork that was
+          // doing its job. The figures are the thing that reads as rendered,
+          // and they are the thing worth pushing onto the ladder.
           float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
           float stepped = floor(lum * uSteps + 0.5) / uSteps;
-          col = mix(col, col * (stepped / max(0.0025, lum)), uFlat);
+          col = mix(col, col * (stepped / max(0.0025, lum)), uFlat * near);
 
           // ── THE PAPER ──
           // In the drawing buffer's own pixels, so it stays the sheet the
@@ -3196,8 +3200,8 @@ const Cast3D = (() => {
           // against an input nobody has looked at is how the first two cuts of
           // this detector went: one fired on shading, one on something else,
           // and both were tuned rather than diagnosed.
-          if (uLine < -3.5) col = vec3((lapx + lapy) / max(0.5, c) * 8.0);
-          else if (uLine < -2.5) col = vec3(e * 0.5);
+          if (uLine < -3.5) col = vec3(lap);
+          else if (uLine < -2.5) col = vec3(smoothstep(bite, bite * 2.0, lap) * solid * near);
           else if (uLine < -1.5) col = vec3(texture2D(tDepth, vUv).x);
           // a clean ramp over the stage's own depth range, so a capture of it
           // can be composited offline at a readable precision
@@ -3219,6 +3223,8 @@ const Cast3D = (() => {
     m.uniforms.uTexel.value.set(1 / t.width, 1 / t.height);
     m.uniforms.uLine.value = LOOK.line;
     m.uniforms.uLineW.value = LOOK.linew;
+    m.uniforms.uBite.value = Math.max(0.002, LOOK.bite);
+    m.uniforms.uReach.value = Math.max(0.5, LOOK.reach);
     m.uniforms.uFlat.value = LOOK.flat;
     m.uniforms.uSteps.value = Math.max(2, Math.round(LOOK.steps));
     m.uniforms.uTooth.value = LOOK.tooth;

@@ -2103,6 +2103,15 @@ const { boot } = require('./harness.cjs');
     const settle = async () => { for (let i = 0; i < 6; i++)
       await new Promise(r => requestAnimationFrame(r)); };
     C3.uncut();
+    // A MOMENT FROM THE SECTION ABOVE CAN STILL BE HOLDING THE FRAME, and a
+    // stance asked for while one is — correctly, since Build 138 — updates
+    // where the camera lives without moving it. So both shots below would be
+    // recorded and neither would take, and the two readings would come back
+    // identical for a reason that has nothing to do with aiming at a person.
+    // The hold expiring is not the property under test; the check above this
+    // one is the one that owns it.
+    for (let i = 0; i < 240 && C3.shot().holding > 0; i++)
+      await new Promise(r => requestAnimationFrame(r));
     C3.shot('together', { at: 'foe' });
     await settle();
     const atFoe = C3.shot().at.atP.slice();
@@ -2118,6 +2127,84 @@ const { boot } = require('./harness.cjs');
     && Math.abs(about.atAsh[0] - about.ashX) < Math.abs(about.atFoe[0] - about.ashX),
     JSON.stringify(about) + ' — the lens ends up nearer Ash than the foe line does');
   await J(() => { window.Cast3D.uncut(); window.Cast3D.shot('home'); });
+
+  // ═══ N · THE DRAWN LOOK ═══
+  //
+  // The post pass exists to make a rendered scene read as a painted one, and
+  // the only part of it that can be wrong in an interesting way is the contour:
+  // it either finds the places where two surfaces meet, or it smears.
+  //
+  // MEASURING IT TOOK THREE WRONG INSTRUMENTS, so this uses none of them.
+  // Diffing an inked frame against the pass switched OFF carries the whole
+  // render-target round trip in the difference and reads 98% at every threshold
+  // — the ink is invisible underneath it. Diffing against the pass switched on
+  // with the line at zero is better but still a difference of two frames, and
+  // the frames move. What answers the question outright is the shader's own
+  // debug view, which outputs the contour mask alone: no second frame, no
+  // differencing, nothing for a colour space to spoil.
+  //
+  // And a single percentage is not enough. A detector that inks 2% of
+  // EVERYTHING uniformly is exactly as broken as one that inks 64%, only
+  // quieter. What a drawn line looks like is a few per cent of the frame,
+  // several times denser inside the figures than over the plaza behind them.
+  console.log('\n── the drawn look ──');
+  const ink = await J(async () => {
+    const C3 = window.Cast3D;
+    const grab = async () => {
+      await C3._snapshot();
+      const c = window.__castShot;
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      const lum = new Float32Array(c.width * c.height);
+      for (let i = 0, j = 0; i < d.length; i += 4, j++)
+        lum[j] = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+      return { lum, w: c.width, h: c.height };
+    };
+    const was = C3.look();               // look() with nothing reports what is set
+    C3.look({ line: -3 });                       // the contour mask, on its own
+    await new Promise(r => requestAnimationFrame(r));
+    await new Promise(r => requestAnimationFrame(r));
+    const m = await grab();
+    const b = document.getElementById('k-cast').getBoundingClientRect();
+    const sx = m.w / b.width, sy = m.h / b.height;
+    const inBox = new Uint8Array(m.w * m.h);
+    let boxN = 0;
+    for (const who of ['ash', 'elin', 'mira']) {
+      const el = document.querySelector('.k-hero[data-hero="' + who + '"]');
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      const x0 = Math.max(0, Math.round((r.left - b.left) * sx)), x1 = Math.min(m.w, Math.round((r.right - b.left) * sx));
+      const y0 = Math.max(0, Math.round((r.top - b.top) * sy)), y1 = Math.min(m.h, Math.round((r.bottom - b.top) * sy));
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++)
+        if (!inBox[y * m.w + x]) { inBox[y * m.w + x] = 1; boxN++; }
+    }
+    let farN = 0;
+    const isFar = new Uint8Array(m.w * m.h);
+    for (let y = 0; y < Math.floor(m.h / 3); y++) for (let x = 0; x < m.w; x++)
+      if (!inBox[y * m.w + x]) { isFar[y * m.w + x] = 1; farN++; }
+    let all = 0, box = 0, far = 0;
+    for (let i = 0; i < m.lum.length; i++) if (m.lum[i] > 127) {
+      all++; if (inBox[i]) box++; if (isFar[i]) far++;
+    }
+    C3.look(was);
+    return {
+      frame:   +(all / m.lum.length * 100).toFixed(2),
+      bodies:  +(box / Math.max(1, boxN) * 100).toFixed(2),
+      plaza:   +(far / Math.max(1, farN) * 100).toFixed(2),
+      onByDefault: was.line > 0.002,
+    };
+  });
+  check('LOOK: the contour is a LINE and not a wash — a few per cent of the picture',
+    ink.frame > 0.4 && ink.frame < 12,
+    JSON.stringify(ink) + ' — the ratio detector this replaced inked 64% at every setting it was given');
+  // THE ONE THAT ACTUALLY MATTERS. Coverage alone cannot tell a silhouette from
+  // an even sprinkle of noise; the ratio between where it draws and where it
+  // does not can.
+  check('LOOK: …and it draws round the PEOPLE, not over the square behind them',
+    ink.bodies > 2.5 && ink.bodies > ink.plaza * 2.5,
+    JSON.stringify(ink) + ' % of each region inked — an undiscriminating detector reads these equal');
+  check('LOOK: the drawn look is what you get for opening the game',
+    ink.onByDefault === true,
+    JSON.stringify({ line: ink.onByDefault }) + ' — it shipped switched off for four builds while the detector was wrong');
 
   // ═══ N · THE PATH EVERY PLAYER TAKES ═══
   //
