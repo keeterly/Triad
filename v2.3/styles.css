@@ -1481,7 +1481,15 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* TIME DILATION. Pausing animations is not the effect — v2.2 drained the colour
    out of the world and rushed a vignette in, and that is what sold the beat as
    a held breath rather than a stall. */
-#k-stage.k-slowmo > *:not(.k-pring):not(.k-grade):not(.k-pthread):not(.k-hitflash) {
+/* …AND THE FLASH DIMS WITH IT (Build 131). `.k-hitflash` was exempted here, so
+   a full-screen wash played at FULL strength over a world deliberately taken
+   down to a third — which inverts the contrast at the one moment the player has
+   to read a rhythm. A screenshot of a parry mid-volley is an orange rectangle
+   with the rings barely visible inside it, and that is the whole of "impact
+   just looks like an explosion and flash".
+   The rings, the grades and the thread stay bright, because they are the thing
+   being read. Everything else, including the flash, goes down together. */
+#k-stage.k-slowmo > *:not(.k-pring):not(.k-grade):not(.k-pthread) {
   filter: saturate(0.05) brightness(0.34) contrast(1.06); transition: filter 130ms ease-out; }
 #k-stage.k-slowmo .k-hero.k-parrying { filter: brightness(1.06) !important; }
 #k-stage.k-slowmo::before {

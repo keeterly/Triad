@@ -5304,6 +5304,31 @@ const { boot } = require('./harness.cjs');
   }
 
 
+  // ═══ THE SCREEN THE PLAYER HAS TO READ ═══
+  //
+  // Every hit appends a full-stage wash and removes it 140-250ms later, so a
+  // volley lands five inside a second and their alphas multiply — which is how
+  // a 0.20-alpha tint becomes a solid orange rectangle with the fight somewhere
+  // inside it. Measured before the fix: six synchronous impacts left six
+  // flashes and six pulses stacked. A flash is punctuation; you cannot say a
+  // sentence in three exclamation marks at once.
+  const wash = await J(() => {
+    const stage = document.getElementById('k-stage');
+    const hero = document.querySelector('.k-hero[data-hero="ash"]');
+    if (!stage || !hero) return null;
+    let f = 0, p = 0;
+    for (let i = 0; i < 6; i++) {
+      fxImpact(hero, 2.0, 'hurt', 'l');
+      f = Math.max(f, stage.querySelectorAll('.k-hitflash').length);
+      p = Math.max(p, stage.querySelectorAll('.k-pulse').length);
+    }
+    stage.querySelectorAll('.k-hitflash,.k-pulse').forEach(n => n.remove());
+    return { flashes: f, pulses: p };
+  });
+  check('SCREEN: six blows back to back leave one wash, not six',
+    !!wash && wash.flashes === 1 && wash.pulses === 1,
+    JSON.stringify(wash) + ' \u2014 Build 130 stacked all six');
+
   const summary = report();
   await H.browser.close();
   process.exit(summary.passed === summary.total && summary.errs === 0 ? 0 : 1);

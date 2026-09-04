@@ -5175,6 +5175,71 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 131 — pointing at the second enemy, and one wash at a time
+
+### A drag could not reach past the first body
+
+`dropTargetAt` scores candidates by **distance to the box, zero when the pointer
+is inside it**. That is a fine way to find the thing under a finger and a useless
+way to choose between two things under a finger: every containing candidate ties
+at nothing, `d < bestD` is false for all of them after the first, and the
+earliest in the list wins.
+
+It was right for as long as the opponents were painted plates laid out side by
+side — their boxes very nearly overlap and never quite do. Bodies in a
+perspective world do overlap, because that is what perspective is. A line of
+three measured 569–751, 666–830 and 765–875 across, so the middle of the second
+creature was inside the first one's box:
+
+| dropped on | hit |
+|---|---|
+| the first | the first |
+| the second | **the first** |
+| the third | **the second** |
+
+And the beam said so the whole way down, which is the part that makes it feel
+broken rather than fiddly.
+
+An overlap is broken by which body the pointer is nearest the **centre** of,
+which is what a player means by pointing at somebody. Both stages check out at
+three-for-three now.
+
+Worth being exact about the blame: the painted stage was never broken by this,
+because its boxes stop just short of each other. It is a rule that was always
+fragile, and 3D bodies are what pushed it over.
+
+### An impact was six impacts
+
+A screenshot of a parry mid-volley: an orange rectangle with the fight somewhere
+inside it, two MISS labels across the Regent's health bar, and the rings the
+player is supposed to be reading barely visible.
+
+Two things made it, and both are arithmetic rather than taste.
+
+**The washes stack.** Every hit appends a full-stage div and removes it 140–250
+ms later. A volley lands five inside a second, so two or three coexist and their
+alphas multiply. Measured directly — six impacts fired back to back, then count
+the DOM:
+
+    before   6 flashes, 6 pulses
+    after    1 flash,   1 pulse
+
+A flash is punctuation. You cannot say a sentence in three exclamation marks at
+once.
+
+**And the flash was exempt from the dim.** `k-slowmo` takes the world down to
+`brightness(0.34)` for the parry — and the rule carried `:not(.k-hitflash)`, so
+the wash played at FULL strength over a world deliberately darkened to a third.
+That inverts the contrast at the exact moment the player has to read a rhythm:
+the brightest thing on screen becomes the thing carrying no information. The
+rings, the grades and the thread stay bright, because they are what is being
+read; everything else now goes down together.
+
+flow 258/258 · road 94/94 · slice 85/85 · bond 76/76 · **cast 79/79** ·
+camp 48/48 · line 32/32 · music 22/22 · beat 10/10 — run beat first, per 130.
+
+---
+
 ## Build 130 — a figure is a place, not a person
 
 A screenshot of a fight against two Hollow Husks: the party standing as three

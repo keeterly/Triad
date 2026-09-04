@@ -1601,6 +1601,36 @@ const { boot } = require('./harness.cjs');
     !undone.acting && undone.holdFrac === 0, JSON.stringify(undone));
   await J(() => window.Cast3D.play('ash', 'idle'));
 
+  // ═══ M6 · A DRAG REACHES THE ENEMY IT IS POINTING AT ═══
+  //
+  // `dropTargetAt` scores candidates by distance to the box, ZERO when the
+  // pointer is inside it — a fine way to find the thing under a finger and a
+  // useless way to choose between two things under a finger, because every
+  // containing candidate ties at nothing and the earliest in the list wins.
+  //
+  // That was right while the opponents were painted plates laid out side by
+  // side; their boxes did not quite overlap. Bodies in a perspective world do,
+  // because that is what perspective IS — a line of three measured 569-751,
+  // 666-830 and 765-875 across, so the middle of the second was inside the
+  // first one's box. Dragging onto the second husk hit the first, and onto the
+  // third hit the second.
+  console.log('\n── pointing at the right enemy ──');
+  await J(() => startCombat({ foes: ['husk', 'husk', 'wraith'] }));
+  await sleep(2800);
+  const aimed = await J(() => {
+    const card = (C.hand || []).find(id => cardDef(id).target === 'enemy') || (C.hand || [])[0];
+    return [...document.querySelectorAll('#k-cast [data-foe]')]
+      .filter(n => n.offsetParent !== null)
+      .map(n => {
+        const r = n.getBoundingClientRect();
+        const d = dropTargetAt(r.left + r.width / 2, r.top + r.height / 2, card);
+        return { at: n.dataset.ix || '0', got: d && d.foe != null ? String(d.foe) : 'none' };
+      });
+  });
+  check('AIM: dropping on a body hits THAT body, even where three overlap',
+    aimed.length === 3 && aimed.every(a => a.at === a.got),
+    JSON.stringify(aimed));
+
   // ═══ N · THE PATH EVERY PLAYER TAKES ═══
   //
   // Every check above this line ran on a page that ASKED for the 3D stage.

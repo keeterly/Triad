@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 130;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 131;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -4314,6 +4314,14 @@ function impactTier(power) {
 // exchange — which is most of a fight — landed with no flash at all.
 function hitFlash(tier, tone) {
   const s = document.getElementById('k-stage'); if (!s) return;
+  // ── ONE WASH AT A TIME (Build 131) ──────────────────────────────────────
+  //
+  // Every hit appends a full-stage div and removes it 140-250ms later. A volley
+  // lands five of them inside a second, so at any moment two or three are
+  // stacked and their alphas multiply — which is how a 0.20-alpha tint ends up
+  // as a solid orange rectangle with the fight somewhere inside it. A flash is
+  // punctuation; you cannot say a sentence in three exclamation marks at once.
+  s.querySelectorAll('.k-hitflash').forEach(n => n.remove());
   const f = document.createElement('div');
   f.className = 'k-hitflash k-hitflash-' + (tone || 'hit') + (tier >= 3 ? ' k-hitflash-huge' : tier >= 2 ? ' k-hitflash-big' : '');
   s.appendChild(f);
@@ -4503,6 +4511,9 @@ function screenKick(power) {
   setTimeout(() => s.classList.remove(cls), 440);
 }
 function screenPulse(tone) {
+  // …and the same for the pulse underneath it, for the same reason
+  const st0 = document.getElementById('k-stage');
+  if (st0) st0.querySelectorAll('.k-pulse').forEach(n => n.remove());
   const s = document.getElementById('k-stage'); if (!s) return;
   const f = document.createElement('div');
   f.className = 'k-pulse k-pulse-' + (tone || 'hit');
@@ -6516,13 +6527,31 @@ function dropTargetAt(x, y, cardId) {
     const hud = el('k-party-hud');
     if (hud) cands.push({ zone: 'party', el: hud, r: hud.getBoundingClientRect() });
   }
-  let best = null, bestD = Infinity;
+  // ── WHEN TWO BODIES OVERLAP, THE POINTER MEANS THE NEARER ONE (Build 131) ──
+  //
+  // The metric below is distance to the box, ZERO when the pointer is inside
+  // it. That is a fine way to find the thing under a finger and a useless way
+  // to choose between two things under a finger: every candidate containing the
+  // point scores nothing, `d < bestD` is false for all of them after the first,
+  // and the earliest in the list always wins.
+  //
+  // It was right for as long as the opponents were painted plates laid out side
+  // by side. Bodies in a perspective world overlap on screen — that is what
+  // perspective IS — and a line of three creatures measured 569-751, 666-830
+  // and 765-875 across, so the middle of the second one was inside the first
+  // one's box too. Dragging onto the second husk hit the first, dragging onto
+  // the third hit the second, and the beam said so the whole way down.
+  //
+  // So an overlap is broken by which body the pointer is closest to the CENTRE
+  // of, which is what a player means by pointing at somebody.
+  let best = null, bestD = Infinity, bestC = Infinity;
   for (const c of cands) {
     // distance to the box, zero when the pointer is already inside it
     const dx = Math.max(c.r.left - x, 0, x - c.r.right);
     const dy = Math.max(c.r.top - y, 0, y - c.r.bottom);
     const d = Math.hypot(dx, dy);
-    if (d < bestD) { bestD = d; best = c; }
+    const cd = Math.hypot(x - (c.r.left + c.r.right) / 2, y - (c.r.top + c.r.bottom) / 2);
+    if (d < bestD - 0.5 || (d <= bestD + 0.5 && cd < bestC)) { bestD = d; bestC = cd; best = c; }
   }
   if (!best || bestD > SNAP_RADIUS) return null;
   return { zone: best.zone, hero: best.hero, foe: best.foe, el: best.el, snapped: bestD > 0 };
