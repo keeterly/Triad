@@ -10,19 +10,28 @@
 //   4. the body does not LEAN off its own base
 const { boot } = require('./harness.cjs');
 
-const CHAIN = [['Hips','Spine'],['Spine','Spine01'],['Spine01','Spine02'],
-  ['Spine02','neck'],['neck','Head'],
-  ['LeftUpLeg','LeftLeg'],['LeftLeg','LeftFoot'],['LeftFoot','LeftToeBase'],
-  ['RightUpLeg','RightLeg'],['RightLeg','RightFoot'],['RightFoot','RightToeBase'],
-  ['LeftArm','LeftForeArm'],['LeftForeArm','LeftHand'],
-  ['RightArm','RightForeArm'],['RightForeArm','RightHand']];
+// TWO CORRECTIONS TO THIS INSTRUMENT, BOTH OF WHICH IT GOT WRONG FIRST TIME.
+//
+// 1. ADJACENCY IS READ, NOT GUESSED. The first version hardcoded pairs like
+//    Hips>Spine and reported 9.7% "stretch" on a swing. Those two are not
+//    adjacent in this rig — the world distance between them is three times
+//    scale x offset, so there are joints in between — and the gap between
+//    non-adjacent joints legitimately changes when anything between them bends.
+//    Build 118 made exactly this mistake, fixed it, and wrote it down; this
+//    repeated it. The suite's own check reads the real hierarchy and reports
+//    0.00% drift across 23 bones.
+//
+// 2. A PLANTED FOOT IS ONE FOOT. The first version summed the distance to
+//    "whichever foot is lower", so every time the lower foot CHANGED it counted
+//    a stride width as slide. Each foot is now tracked on its own, and only
+//    while it stays down.
 
 (async () => {
   const { page, J, browser } = await boot({ query: 'cast=3d' });
   page.on('pageerror', e => console.log('!! PAGE ERROR:', e.message));
   await page.waitForFunction(() => window.Cast3D && window.Cast3D._state().ready, null, { timeout: 60000 });
 
-  const out = await J(async (CH) => {
+  const out = await J(async () => {
     const C3 = window.Cast3D;
     C3.disable();
     const res = {};
@@ -37,33 +46,41 @@ const CHAIN = [['Hips','Spine'],['Spine','Spine01'],['Spine01','Spine02'],
         for (let i = 0; i < 8; i++) f.step(DT);
         const V = new (f.root.position.constructor)();
         const wp = (b) => f.bones[b].getWorldPosition(new (f.root.position.constructor)());
+        // every bone whose PARENT is also a bone: the real adjacency
+        const pairs0 = [];
+        for (const n of Object.keys(f.bones)) {
+          const p = f.bones[n].parent;
+          if (p && p.isBone && f.bones[p.name]) pairs0.push([p.name, n]);
+        }
         const len0 = {}, worst = {};
-        let footSlide = 0, lean = 0;
-        let prevFoot = null;
+        let lean = 0;
+        const down = { LeftFoot: null, RightFoot: null };
+        const slide = { LeftFoot: 0, RightFoot: 0 };
         for (let i = 0; i < 70; i++) {
           f.step(DT);
           f.root.updateWorldMatrix(true, true);
-          for (const [a, b] of CH) {
-            if (!f.bones[a] || !f.bones[b]) continue;
+          for (const [a, b] of pairs0) {
             const d = wp(a).distanceTo(wp(b));
             const key = a + '>' + b;
             if (len0[key] === undefined) { len0[key] = d; continue; }
             const drift = Math.abs(d - len0[key]) / Math.max(1e-4, len0[key]);
             if (!(worst[key] >= drift)) worst[key] = drift;
           }
-          // the lower foot is the planted one; how far does it travel?
-          const lf = wp('LeftFoot'), rf = wp('RightFoot');
-          const plant = lf.y < rf.y ? lf : rf;
-          if (prevFoot && Math.min(lf.y, rf.y) < 0.12) footSlide += prevFoot.distanceTo(plant);
-          prevFoot = plant;
-          // and how far is the head off the midpoint of the feet, horizontally?
-          const h = wp('Head');
+          // ONE FOOT AT A TIME, and only while it is down
+          for (const foot of ['LeftFoot', 'RightFoot']) {
+            const p = wp(foot);
+            const planted = p.y < 0.14;
+            if (planted && down[foot]) slide[foot] += Math.hypot(p.x - down[foot].x, p.z - down[foot].z);
+            down[foot] = planted ? p : null;
+          }
+          const lf = wp('LeftFoot'), rf = wp('RightFoot'), h = wp('Head');
           const mid = lf.clone().add(rf).multiplyScalar(0.5);
           lean = Math.max(lean, Math.hypot(h.x - mid.x, h.z - mid.z));
         }
+        const footSlide = Math.max(slide.LeftFoot, slide.RightFoot);
         const pairs = Object.entries(worst).sort((a, b) => b[1] - a[1]);
         res[who][verb] = {
-          stretch: +(pairs[0] ? pairs[0][1] * 100 : 0).toFixed(1),
+          stretch: +(pairs[0] ? pairs[0][1] * 100 : 0).toFixed(2),
           stretchAt: pairs[0] ? pairs[0][0] : null,
           footSlide: +footSlide.toFixed(3),
           lean: +lean.toFixed(3),
@@ -73,7 +90,7 @@ const CHAIN = [['Hips','Spine'],['Spine','Spine01'],['Spine01','Spine02'],
     }
     await C3.enable();
     return res;
-  }, CHAIN);
+  });
 
   console.log('\nbone length drift %, planted-foot travel (m), head-off-base (m)\n');
   for (const [who, verbs] of Object.entries(out)) {

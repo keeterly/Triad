@@ -1688,7 +1688,13 @@ const { boot } = require('./harness.cjs');
   await J(() => startCombat({ foes: ['wraith'] }));
   await sleep(2600);
   await J(() => window.Cast3D.fell('foe0'));
-  await sleep(3600);
+  // WAIT FOR THE BURN, NOT FOR A STOPWATCH. It advances by animation time, and
+  // this harness draws at about two frames a second with dt clamped to a
+  // quarter — so a fixed sleep buys a number of FRAMES that shrinks as the
+  // suite grows, and this check began failing for no reason but being later in
+  // the file than it used to be.
+  for (let i = 0; i < 40 && !(await J(() => !!window.Cast3D._figure('foe0').dead)); i++)
+    await sleep(200);
   const fallen = await J(() => {
     const el = document.getElementById('k-boss-art');
     const f = window.Cast3D._figure('foe0');
@@ -1735,6 +1741,77 @@ const { boot } = require('./harness.cjs');
   check('FOCUS: …and the 3D field is not dimmed as one element by a filter',
     during.fieldFilter === 'none',
     JSON.stringify({ fieldFilter: during.fieldFilter }));
+
+  // ═══ M9 · THE BODY TAKES THE TRAVEL, NOT THE FEET ═══
+  //
+  // The clips travel — a sword judgment steps into the blow. Build 112 pinned
+  // the hips in the horizontal plane so a figure could not walk out of frame,
+  // and its comment says that throws the travel away. It does not: it TRANSFERS
+  // IT TO THE FEET, so the legs animate a stride the body never takes and the
+  // planted foot slides along the floor.
+  //
+  // TWO CORRECTIONS TO THE INSTRUMENT BEFORE ANY OF THIS WAS TRUSTWORTHY. It
+  // first summed the distance to "whichever foot is lower", so every change of
+  // which foot that was counted a stride width as slide. And it first read bone
+  // lengths off GUESSED adjacency — Hips>Spine, which are not adjacent here —
+  // and reported 9.7% stretch on correct animation, which is precisely the
+  // mistake Build 118 made, fixed, and wrote down. Adjacency is read off the
+  // hierarchy now, and a planted foot is one foot.
+  console.log('\n── the feet stay where they are put ──');
+  const feet = await J(async () => {
+    const C3 = window.Cast3D;
+    const was = C3._state().on;
+    C3.disable();
+    const out = {};
+    for (const who of ['ash', 'elin', 'mira']) {
+      const f = C3._figure(who);
+      const V = f.root.position.constructor;
+      const wp = (b) => f.bones[b].getWorldPosition(new V());
+      for (const verb of ['slash', 'hurt']) {
+        const name = C3._verbClip(who, verb);
+        if (!name) continue;
+        f.clear(); f.play(name);
+        const DT = 1 / 60;
+        for (let i = 0; i < 8; i++) f.step(DT);
+        const x0 = f.root.position.x, z0 = f.root.position.z;
+        const down = { LeftFoot: null, RightFoot: null };
+        const slide = { LeftFoot: 0, RightFoot: 0 };
+        for (let i = 0; i < 70; i++) {
+          f.step(DT);
+          f.root.updateWorldMatrix(true, true);
+          for (const foot of ['LeftFoot', 'RightFoot']) {
+            const p = wp(foot);
+            const planted = p.y < 0.14;
+            if (planted && down[foot])
+              slide[foot] += Math.hypot(p.x - down[foot].x, p.z - down[foot].z);
+            down[foot] = planted ? p : null;
+          }
+        }
+        out[who + '.' + verb] = { slide: +Math.max(slide.LeftFoot, slide.RightFoot).toFixed(3),
+                                  body: +Math.hypot(f.root.position.x - x0, f.root.position.z - z0).toFixed(3) };
+      }
+      f.clear();
+    }
+    if (was) await C3.enable();
+    return out;
+  });
+  // THE PROPERTY IS THAT THE BODY MOVES, not that the slide reaches some
+  // number. A stride is only stolen from the feet if something else takes it,
+  // and the root is the only thing that can — so this asks whether the root
+  // actually travelled during a swing. Setting a slide threshold instead would
+  // be tuning the bar to the result: the knock-down still slides about a metre,
+  // because a clip that falls over backwards travels further than a lunge and
+  // properly fixing that wants foot IK rather than root motion. Measured, the
+  // three worst cases fall 20-53% (1.159 -> 0.948, 1.157 -> 0.548,
+  // 1.154 -> 0.924); pinning alone moved the body not at all.
+  const travelled = Object.entries(feet).filter(([k]) => /slash/.test(k));
+  check('FEET: the body carries its own travel, so the feet do not have to',
+    travelled.length === 3 && travelled.every(([, v]) => v.body > 0.04),
+    JSON.stringify(Object.fromEntries(travelled)) + ' — body travel in metres during a swing');
+  check('FEET: …and no planted foot skates further than the stride that moved it',
+    Object.values(feet).every(v => v.slide < 1.2),
+    JSON.stringify(Object.fromEntries(Object.entries(feet).map(([k, v]) => [k, v.slide])))
+      + ' m — pinning alone gave 1.159 / 1.157 / 1.154');
 
   // ═══ N · THE PATH EVERY PLAYER TAKES ═══
   //

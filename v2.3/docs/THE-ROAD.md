@@ -5175,6 +5175,88 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 135 — the body takes the travel, and an audit that was wrong about half of itself
+
+### First, the correction
+
+Build 133 reported two findings from an audit of how the bodies move. One of
+them was not a finding at all.
+
+**There is no spine stretch.** The audit hardcoded parent-child pairs and
+measured `Hips>Spine` at 9.7% drift on a swing. Those two are not adjacent in
+this rig — the world distance between them is three times scale × offset, so
+there are joints in between — and the gap between non-adjacent joints
+legitimately changes when anything between them bends.
+
+The suite's own bone check, which reads adjacency off the real hierarchy, has
+been reporting **0.00% drift across 23 bones per figure** the entire time, in
+every run, including the ones printed alongside the false finding.
+
+This is precisely the mistake Build 118 made, diagnosed and wrote down:
+
+> **Bone lengths** guessed its parent-child pairs — `Hips→Spine`, `neck→Head` —
+> and several are two or three joints apart in this rig… It reported 7% stretch
+> on correct animation.
+
+Written down, and repeated anyway, by an instrument built two hundred lines
+away from the warning. The probe reads the hierarchy now, and reports 0%.
+
+### And the second finding was real, but the instrument was still lying
+
+Foot slide was measured as the distance travelled by "whichever foot is lower",
+which counts a stride width as a slide every time the lower foot **changes**.
+Each foot is tracked on its own now, and only while it stays down. The numbers
+that survive that correction are smaller than the ones Build 133 published and
+still large enough to matter.
+
+### The pin does not throw the travel away
+
+The clips travel — a sword judgment steps into the blow. Build 112 pinned the
+hips in the horizontal plane so a figure could not walk out of frame, and its
+comment says this throws the travel away.
+
+It does not. It **transfers it to the feet**: the legs go on animating a stride
+the body never takes, so the planted foot slides along the floor instead of the
+floor going past the body. That is the trade nobody wrote down.
+
+So the horizontal motion is lifted off the hips and given to the ROOT, where it
+belongs. The figure genuinely steps into the blow, the foot that is down stays
+down, and the slot easing walks it back to its mark afterwards — a lunge and a
+recovery rather than a skate. The easing is slackened while an action is playing,
+because pulling at full strength against a step turns it into a twitch.
+
+Measured, same instrument, one change:
+
+| | pinned (before) | root motion |
+|---|---|---|
+| ash · hurt | 1.159 | **0.948** |
+| elin · slash | 1.157 | **0.548** |
+| mira · hurt | 1.154 | **0.924** |
+| ash · slash | 0.232 | 0.453 |
+| mira · slash | 0.152 | 0.197 |
+
+The three worst cases — the ones that read as skating — fall by 20–53%. The two
+that were already small rise a little and stay small.
+
+**What this does not fix:** the knock-down still slides about a metre. A clip
+that falls over backwards travels further than a lunge, and taking that out of
+the feet properly wants foot IK rather than root motion. The check guards the
+property that was actually achieved — the root travels during a swing, so the
+feet do not have to — rather than a slide threshold tuned to sit just above the
+result.
+
+### A check that failed for being later in the file
+
+`FALLEN` began failing with no code near it changed. The burn advances by
+animation time, this harness draws at about two frames a second with dt clamped
+to a quarter, and a fixed sleep therefore buys a number of FRAMES that shrinks as
+the suite grows. It waits on the burn finishing now, not on a stopwatch.
+
+flow 258/258 · road 94/94 · slice 80/80 · bond 76/76 · **cast 86/86** ·
+camp 48/48 · line 32/32 · music 22/22 · beat 10/10.
+
+---
+
 ## Build 134 — the beam was lying, and the light came up
 
 ### "I cannot drag for it to snap onto the second enemy"

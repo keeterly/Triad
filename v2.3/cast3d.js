@@ -1055,6 +1055,7 @@ const FX_VERB = {
 };
 
 const _fxV = new THREE.Vector3(), _fxD = new THREE.Vector3();
+const _travel = new THREE.Vector3();
 const _fxQ = new THREE.Quaternion();
 const _fxA = new THREE.Vector3(), _fxB = new THREE.Vector3();
 
@@ -1410,7 +1411,39 @@ class Figure {
       else if (w !== this.idleWant) this.idle.setEffectiveWeight(this.idleWant);
     }
     this.mixer.update(dt);
+    // ── THE BODY TAKES THE TRAVEL, NOT THE FEET (Build 135) ────────────────
+    //
+    // The clips travel: a sword judgment steps into the blow, a knock-down
+    // falls over backwards. Build 112 pinned the hips in the horizontal plane
+    // so a figure could not walk out of frame, and its comment says this throws
+    // the travel away.
+    //
+    // It does not throw it away. It TRANSFERS IT TO THE FEET. The legs go on
+    // animating a stride the body never takes, so the planted foot slides along
+    // the floor instead of the floor going past the body — measured at up to
+    // 1.49 m of travel on a foot that is bearing weight, which is most of what
+    // reads as a body moving wrongly.
+    //
+    // So the horizontal motion is lifted off the hips and given to the ROOT,
+    // where it belongs. The figure genuinely steps into the blow, the foot that
+    // is down stays down, and the slot easing in `frame` walks it back to its
+    // mark afterwards — a lunge and a recovery rather than a skate.
     if (this.hips && this.hipRest) {
+      const hx = this.hips.position.x, hz = this.hips.position.z;
+      if (this.lastHip) {
+        const dx = hx - this.lastHip.x, dz = hz - this.lastHip.z;
+        // a clip that restarts jumps the hips a long way in one frame; that is
+        // a cut, not a step, and moving the whole body by it would teleport it
+        if (Math.abs(dx) < 6 && Math.abs(dz) < 6) {
+          _travel.set(dx, 0, dz).applyQuaternion(this.root.quaternion)
+                 .multiplyScalar(this.unit || 0);
+          this.root.position.x += _travel.x;
+          this.root.position.z += _travel.z;
+        }
+        this.lastHip.x = hx; this.lastHip.z = hz;
+      } else {
+        this.lastHip = { x: hx, z: hz };
+      }
       this.hips.position.x = this.hipRest.x;
       this.hips.position.z = this.hipRest.z;
     }
@@ -2380,6 +2413,12 @@ const Cast3D = (() => {
     f.root.position.x = slot[0] - f.ctrOff;
     f.root.position.z = slot[1];
     f.root.updateWorldMatrix(true, true);
+    // HOW MANY METRES IS ONE UNIT OF HIP TRAVEL? Measured off the bone rather
+    // than assumed: these models carry a unit conversion of about 0.01 in a
+    // node above the skeleton, and it lands differently per character once each
+    // has been rescaled to the height the fight wants.
+    if (f.hips) f.unit = f.hips.getWorldScale(_travel).x;
+    f.lastHip = null;
   }
 
   // ── ASK FOR SOMEBODY ────────────────────────────────────────────────────
@@ -2930,7 +2969,10 @@ const Cast3D = (() => {
       // that it is really over there rather than drawn smaller.
       const slot = slotOf(id);
       if (slot) {
-        const k = Math.min(1, dt * 5.5);
+        // …AND IT GIVES A LUNGE ROOM TO HAPPEN. Pulling at 5.5 while an action
+        // is driving the body forward damps the step into a twitch; the same
+        // ease brings it home once the swing is over, which is the recovery.
+        const k = Math.min(1, dt * (f.acting ? 1.1 : 5.5));
         f.root.position.x += (slot[0] - f.ctrOff - f.root.position.x) * k;
         f.root.position.z += (slot[1] - f.root.position.z) * k;
       }
