@@ -5175,6 +5175,94 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 130 — a figure is a place, not a person
+
+A screenshot of a fight against two Hollow Husks: the party standing as three
+bodies, and both opponents flat paintings.
+
+### One creature, one body, and the road deals two
+
+`figs` was keyed by creature. One `husk` figure, one `mourner` figure. That is
+fine for a board with one opponent and wrong the moment the road deals a matched
+pair — which it has been able to do since Build 101.
+
+Two husks share `data-foe="husk"`, so `nodeOf`'s **querySelector found only the
+first**, and there was only ever one body to find it with anyway. The pair
+fought the party as paintings while the heroes around them were solid.
+
+So the two ideas are separated:
+
+- **A model** is a downloaded GLB, one per creature, cached and shared.
+- **A figure** is somebody standing in a slot, and a slot is what the DOM says
+  it is: the party's three heroes by name, the foe line by its index.
+
+Two husks are two figures wearing two clones of one model. `SkeletonUtils` does
+the cloning, because `.clone()` on a SkinnedMesh returns a copy that **shares the
+original's skeleton** — two puppets on one set of strings, both playing whatever
+the last one was told to.
+
+The board is reconciled every frame rather than on a signal: a slot with nobody
+in it loses its body, a slot wearing a different creature gets a new one, a slot
+whose model has not arrived asks for it. Four querySelectors on a board that
+changes twice a minute, and the fight never has to know the 3D layer exists.
+
+Two other things were creature-keyed and quietly wrong for the same reason.
+`foeCast` translated an index into a creature's NAME — the same name for both of
+a pair — so telling the second husk to swing swung the first. And `actorOf`
+returned `data-foe`, so a blow landing on either husk threw its sparks off the
+first one.
+
+### Counting bodies was the wrong census
+
+The suite asserted eight figures and five foes. That counts the ENCOUNTER, not
+the cast: a fight against one Regent has four figures in it and always should.
+What the bestiary promises is that every creature in it has a model on the same
+rig, ready to be worn by however many slots the road deals — so that is what is
+checked now, alongside a board built with two of the same creature that has to
+come back as two bodies 1.2 m apart.
+
+### A cut is not an explosion
+
+"Right now impact just looks like an explosion and flash." Build 127 gave every
+impact the same cone of sparks and the same expanding ring — which is what a
+blast looks like, and what a sword looked like too.
+
+A ring is **radial**: it says the energy came from a point and went everywhere.
+True of a spell; false of a blade, which arrives along a line and leaves along
+the same one. So a physical hit gets a short bright mark instead — square to the
+lens, rolled to the direction the blow was travelling, stretching along its own
+length and gone in a fifth of a second — and its spray is a tight cone (0.42
+radians rather than 0.85) of fewer, faster, shorter-lived sparks that follow the
+blade instead of puffing.
+
+A spell keeps its ring. It earned it.
+
+| | sparks | ring | cut |
+|---|---|---|---|
+| a blade | 42 | — | 1 |
+| a spell | 102 | 1 | — |
+
+### And `beat` was not flaky after all
+
+It came back 6/10 on the back-to-back run of all eight suites, for the second
+build running, and 10/10 on its own. Last build I put that down to load and moved
+on, which is an assertion rather than a measurement.
+
+The experiment: run the same eight in the same session with **beat first**.
+
+    beat first  →  10/10
+    beat eighth →   6/10
+
+Same build, same code, same machine. `beat` is the timing suite — it measures how
+many milliseconds a card takes to answer a finger — and it is the one suite whose
+result depends on what the machine was doing beforehand. Position, not
+regression, and now demonstrated rather than assumed.
+
+flow 257/257 · road 94/94 · **cast 78/78** · bond 76/76 · slice 75/75 ·
+camp 48/48 · line 32/32 · music 22/22 · beat 10/10 (run first).
+
+---
+
 ## Build 129 — a blow being aimed is a blow half-thrown
 
 "Holding a card while choosing a target should have the character ready their

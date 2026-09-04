@@ -48,7 +48,7 @@ const { boot } = require('./harness.cjs');
     const mid = await J(() => {
       const s = window.Cast3D._state(); return { sparks: s.sparks, trails: s.trails };
     });
-    await J((v) => window.Cast3D.hit('mourner', v, 1.6, 'ash'), verb);
+    await J((v) => window.Cast3D.hit('foe0', v, 1.6, 'ash'), verb);
     await sleep(160);
     const hit = await J(() => {
       const s = window.Cast3D._state(); return { sparks: s.sparks, rings: s.rings };

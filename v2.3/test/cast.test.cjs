@@ -54,11 +54,43 @@ const { boot } = require('./harness.cjs');
   // special case anywhere in this layer — same rig, same retarget, same clip
   // library — which is the whole return on having done the retargeting
   // properly. Five creatures cost five models and no animation at all.
-  check('LAYER: the party AND EVERY creature are on one rig, 24 bones each',
-    !!st && st.figures.length === 8 && st.bones === 24 && st.foes.length === 5
-    && !st.missing.length,
-    JSON.stringify({ figures: st && st.figures, foes: st && st.foes,
-                     bones: st && st.bones, missing: st && st.missing }));
+  // …AND A CENSUS OF BODIES IS THE WRONG QUESTION NOW (Build 130). A figure is
+  // somebody standing in a slot on THIS board, so counting them counts the
+  // encounter rather than the cast — a fight against one Regent has four
+  // figures in it and always should. What the bestiary promises is that every
+  // creature in it has a MODEL, on the same rig, ready to be worn by however
+  // many slots the road deals.
+  const BESTIARY = ['husk', 'cultist', 'wraith', 'revenant', 'mourner'];
+  check('LAYER: every creature in the bestiary has a model, on one rig',
+    !!st && BESTIARY.every(c => st.creatures.indexOf(c) >= 0)
+    && ['ash', 'elin', 'mira'].every(c => st.creatures.indexOf(c) >= 0)
+    && st.bones === 24 && !st.missing.length,
+    JSON.stringify({ creatures: st && st.creatures, figures: st && st.figures,
+                     wearing: st && st.wearing, bones: st && st.bones,
+                     missing: st && st.missing }));
+
+  // ── AND TWO OF THE SAME CREATURE ARE TWO BODIES ──────────────────────────
+  //
+  // The bug this replaces: both Hollow Husks in a matched pair shared
+  // `data-foe="husk"`, so `nodeOf`'s querySelector found only the first — and
+  // there was only ever one husk figure to find it with anyway. Both of them
+  // fought the party as flat paintings while the heroes around them were solid.
+  await J(() => startCombat({ foes: ['husk', 'husk'] }));
+  await sleep(2600);
+  const pair = await J(() => {
+    const st2 = window.Cast3D._state();
+    const els = [...document.querySelectorAll('#k-cast [data-foe]')]
+      .filter(n => n.offsetParent !== null)
+      .map(n => ({ ix: n.dataset.ix || '0', on: n.classList.contains('k-cast3d-on') }));
+    const w = window.Cast3D._world();
+    return { foes: st2.foes, wearing: st2.wearing, els,
+             apart: st2.foes.length === 2
+               ? +Math.abs(w.actors[st2.foes[0]].x - w.actors[st2.foes[1]].x).toFixed(2) : 0 };
+  });
+  check('LAYER: two of the same creature are two bodies, in two places',
+    pair.foes.length === 2 && pair.apart > 0.5
+    && pair.els.length === 2 && pair.els.every(e => e.on),
+    JSON.stringify(pair));
 
   // THE VERBS THE FIGHT ALREADY SPEAKS. actionKind() has returned these four
   // since Build 36; if a clip goes missing the wiring fails silently, because
@@ -147,8 +179,8 @@ const { boot } = require('./harness.cjs');
     const cx = c.getContext('2d');
     const out = {};
     const SEL = { ash: '.k-hero[data-hero="ash"]', elin: '.k-hero[data-hero="elin"]',
-                  mira: '.k-hero[data-hero="mira"]', mourner: '#k-boss-art' };
-    for (const id of ['ash', 'elin', 'mira', 'mourner']) {
+                  mira: '.k-hero[data-hero="mira"]', foe0: '#k-boss-art' };
+    for (const id of ['ash', 'elin', 'mira', 'foe0']) {
       const r = document.querySelector(SEL[id]).getBoundingClientRect();
       const x = Math.round((r.left - b.left) * sx), y = Math.round((r.top - b.top) * sy);
       const w = Math.max(1, Math.round(r.width * sx)), hh = Math.max(1, Math.round(r.height * sy));
@@ -167,7 +199,7 @@ const { boot } = require('./harness.cjs');
   });
   const boxes = painted.boxes;
   check('INK: a figure is painted inside every actor\u2019s own box, foe included',
-    ['ash', 'elin', 'mira', 'mourner'].every(id => boxes[id] > 0.06),
+    ['ash', 'elin', 'mira', 'foe0'].every(id => boxes[id] > 0.06),
     JSON.stringify(boxes));
 
   const inBoxes = await J(() => {
@@ -175,8 +207,8 @@ const { boot } = require('./harness.cjs');
     const c = window.__castShot;
     const sx = c.width / b.width, sy = c.height / b.height;
     const SEL = { ash: '.k-hero[data-hero="ash"]', elin: '.k-hero[data-hero="elin"]',
-                  mira: '.k-hero[data-hero="mira"]', mourner: '#k-boss-art' };
-    return ['ash', 'elin', 'mira', 'mourner'].reduce((n, id) => {
+                  mira: '.k-hero[data-hero="mira"]', foe0: '#k-boss-art' };
+    return ['ash', 'elin', 'mira', 'foe0'].reduce((n, id) => {
       const r = document.querySelector(SEL[id]).getBoundingClientRect();
       return n + Math.round(r.width * sx) * Math.round(r.height * sy);
     }, 0);
@@ -318,7 +350,7 @@ const { boot } = require('./harness.cjs');
   const apart = (a, b) => a && b && a.some((v, i) => Math.abs(v - b[i]) > 0.02);
   check('IDLE: the three of them breathe out of step with each other',
     apart(phases.ash, phases.elin) && apart(phases.elin, phases.mira)
-    && apart(phases.mira, phases.mourner),
+    && apart(phases.mira, phases.foe0),
     JSON.stringify(phases));
 
   // ═══ D2 · THE PACE, AND THE SEAM ═══
@@ -639,7 +671,7 @@ const { boot } = require('./harness.cjs');
     };
     const V = (b) => b.getWorldPosition(new (b.position.constructor)());
     const out = {};
-    for (const id of ['ash', 'elin', 'mira', 'mourner']) {
+    for (const id of ['ash', 'elin', 'mira', 'foe0']) {
       const f = window.Cast3D._figure(id);
       const pairs = pairsOf(f);
       const len = () => pairs.map(([a, b]) => +V(f.bones[a]).distanceTo(V(f.bones[b])).toFixed(5));
@@ -756,7 +788,7 @@ const { boot } = require('./harness.cjs');
   // arrived — it is scaled to what the fight needs.
   const talls = Object.fromEntries(Object.entries(world.actors).map(([k, v]) => [k, v.tall]));
   check('WORLD: the party stands level with itself and the Regent looms over it',
-    talls.ash === talls.elin && talls.elin === talls.mira && talls.mourner > talls.ash * 1.15,
+    talls.ash === talls.elin && talls.elin === talls.mira && talls.foe0 > talls.ash * 1.15,
     JSON.stringify(talls) + ' m');
 
   // THE READ SURVIVED THE REWRITE. The ladder the 2D stage drew — the party
@@ -849,8 +881,10 @@ const { boot } = require('./harness.cjs');
     // eventually. Only actors actually on screen have a rect to compare.
     for (const id of Object.keys(w.actors)) {
       if (!w.actors[id].visible) continue;
-      const n = document.querySelector(w.actors[id].foe
-        ? '#k-cast [data-foe="' + id + '"]' : '.k-hero[data-hero="' + id + '"]');
+      const n = !w.actors[id].foe
+        ? document.querySelector('.k-hero[data-hero="' + id + '"]')
+        : (id === 'foe0' ? document.getElementById('k-boss-art')
+           : document.querySelector('#k-cast .k-foe-art[data-ix="' + id.slice(3) + '"]'));
       if (!n) continue;
       const r = n.getBoundingClientRect();
       out.actors[id] = {
@@ -913,22 +947,25 @@ const { boot } = require('./harness.cjs');
   // to tests exactly that, and goes on testing it however much of the bestiary
   // gets built.
   console.log('\n── the right body on the right creature ──');
+  // …AND THE SLOT LOSES ITS BODY ENTIRELY NOW (Build 130). Under the old
+  // arrangement a foe figure existed for the whole fight and merely stopped
+  // being visible; a slot is reconciled against the DOM every frame, so an
+  // element wearing a creature nothing knows about is not a hidden body — it
+  // is no body at all. That is a better answer, and it is what to assert.
   const plate = await J(async () => {
     const boss = document.getElementById('k-boss-art');
-    const settle = async () => { for (let i = 0; i < 8; i++) await new Promise(r => requestAnimationFrame(r)); };
+    const settle = async () => { for (let i = 0; i < 10; i++) await new Promise(r => requestAnimationFrame(r)); };
+    const body = () => { const f = window.Cast3D._figure('foe0'); return !!f && f.root.visible; };
     const was = boss.dataset.foe;
     await settle();
-    const asRegent = { on: boss.classList.contains('k-cast3d-on'),
-                       drawn: window.Cast3D._figure('mourner').root.visible };
+    const asRegent = { on: boss.classList.contains('k-cast3d-on'), drawn: body() };
     boss.dataset.foe = 'nobody';                 // a name no model answers to
     await settle();
-    const asStranger = { on: boss.classList.contains('k-cast3d-on'),
-                         drawn: window.Cast3D._figure('mourner').root.visible,
+    const asStranger = { on: boss.classList.contains('k-cast3d-on'), drawn: body(),
                          paintOpacity: getComputedStyle(boss.querySelector('img')).opacity };
     boss.dataset.foe = was;
     await settle();
-    const back = { on: boss.classList.contains('k-cast3d-on'),
-                   drawn: window.Cast3D._figure('mourner').root.visible };
+    const back = { on: boss.classList.contains('k-cast3d-on'), drawn: body() };
     return { was, asStranger, asRegent, back };
   });
   check('PLATE: the Regent\u2019s body is drawn for the Regent',
@@ -979,7 +1016,7 @@ const { boot } = require('./harness.cjs');
     // standing there its painting is hidden on purpose, and hiding it twice
     // proves nothing
     b.dataset.foe = 'nobody';
-    for (const id of ['ash', 'elin', 'mira', 'mourner']) {
+    for (const id of ['ash', 'elin', 'mira', 'foe0']) {
       const f = window.Cast3D._figure(id);
       if (f) { f.clear(); f.mixer.timeScale = 0; }
     }
@@ -1020,7 +1057,7 @@ const { boot } = require('./harness.cjs');
   await J((was) => {
     document.getElementById('k-boss-art').style.visibility = '';
     document.getElementById('k-boss-art').dataset.foe = was;
-    for (const id of ['ash', 'elin', 'mira', 'mourner']) {
+    for (const id of ['ash', 'elin', 'mira', 'foe0']) {
       const f = window.Cast3D._figure(id);
       if (f) f.mixer.timeScale = 1;
     }
@@ -1061,9 +1098,9 @@ const { boot } = require('./harness.cjs');
       const on = (k) => w.actors[k].screen.x > -60 && w.actors[k].screen.x < 992;
       // what the shot was named for: the foe for a duel, the defender for a
       // parry, the whole board otherwise
-      const subj = name === 'duel' ? ['mourner']
+      const subj = name === 'duel' ? ['foe0']
                  : name === 'parry' ? ['ash', 'elin', 'mira']
-                 : ['ash', 'mourner'];
+                 : ['ash', 'foe0'];
       out[name] = { x: w.cam.x, y: w.cam.y, z: w.cam.z,
                     behind: Object.keys(w.actors)
                       .filter(k => w.actors[k].visible && w.actors[k].screen.behind),
@@ -1429,15 +1466,34 @@ const { boot } = require('./harness.cjs');
     !!air && !air.ward.drawn,
     JSON.stringify(air && air.ward));
 
+  // ── A CUT IS NOT AN EXPLOSION ──
+  //
+  // Build 127 gave every impact the same cone of sparks and the same expanding
+  // ring, which is what a blast looks like — and what a sword looked like too,
+  // so a hit read as "an explosion and a flash" whatever threw it.
+  //
+  // A ring is RADIAL: it says the energy came from a point and went everywhere.
+  // True of a spell, false of a blade, which arrives along a line and leaves
+  // along the same one. So the property is not "an impact makes particles" but
+  // that the two are TOLD APART, and this asserts exactly that swap.
   const blow = await J(async () => {
     const C3 = window.Cast3D;
-    C3.hit('mourner', 'slash', 1.6, 'ash');
-    await new Promise(r => requestAnimationFrame(r));
-    const s = C3._state();
-    return { sparks: s.sparks, rings: s.rings };
+    const rd = async () => { await new Promise(r => requestAnimationFrame(r));
+                             const s = C3._state();
+                             return { sparks: s.sparks, rings: s.rings, cuts: s.cuts }; };
+    C3.hit('foe0', 'slash', 1.6, 'ash');
+    const steel = await rd();
+    await new Promise(r => setTimeout(r, 900));
+    C3.hit('foe0', 'cast', 1.6, 'elin');
+    const spell = await rd();
+    return { steel, spell };
   });
-  check('AIR: an impact happens in the world — sparks in metres, a ring in the scene',
-    blow.sparks > 30 && blow.rings > 0, JSON.stringify(blow));
+  check('AIR: an impact happens in the world — sparks in metres, not pixels',
+    blow.steel.sparks > 15 && blow.spell.sparks > 15, JSON.stringify(blow));
+  check('AIR: …and a blade cuts along a line where a spell goes off in a circle',
+    blow.steel.cuts > 0 && blow.steel.rings === 0
+    && blow.spell.rings > 0 && blow.spell.cuts === 0,
+    JSON.stringify(blow));
 
   // ═══ M4 · A CREATURE COMES APART ═══
   //
@@ -1453,13 +1509,13 @@ const { boot } = require('./harness.cjs');
   // property rather than a stand-in for it.
   console.log('\n── coming apart ──');
   const gone = await J(() => {
-    const C3 = window.Cast3D, f = C3._figure('mourner');
+    const C3 = window.Cast3D, f = C3._figure('foe0');
     if (!f) return null;
     f.dead = false; f.burn = null;
     f.mixer.timeScale = 0;                     // only the burn may change
     const u = f.root.userData.mat.userData;
     const out = [];
-    for (const b of [0, 0.4, 0.7, 1.0]) { u.burn.value = b; out.push(C3._cover('mourner')); }
+    for (const b of [0, 0.4, 0.7, 1.0]) { u.burn.value = b; out.push(C3._cover('foe0')); }
     u.burn.value = 0; f.mixer.timeScale = 1;
     return { px: out, tall: +u.tall.value.toFixed(2), foot: +u.foot.value.toFixed(2) };
   });

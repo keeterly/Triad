@@ -9,17 +9,17 @@ const { boot } = require('./harness.cjs');
   await page.waitForFunction(() => window.Cast3D && window.Cast3D._state().ready, null, { timeout: 60000 });
   await J(() => window.Cast3D.warm());
   const out = await J(() => {
-    const C3 = window.Cast3D, f = C3._figure('mourner');
+    const C3 = window.Cast3D, f = C3._figure('foe0');
     const u = f.root.userData.mat.userData;
     f.dead = false; f.burn = null; f.mixer.timeScale = 0;
     const r = {};
-    u.burn.value = 0;   r.whole = C3._cover('mourner');
-    u.burn.value = 1;   r.burnt = C3._cover('mourner');
-    u.burn.value = 1.6; r.past = C3._cover('mourner');
+    u.burn.value = 0;   r.whole = C3._cover('foe0');
+    u.burn.value = 1;   r.burnt = C3._cover('foe0');
+    u.burn.value = 1.6; r.past = C3._cover('foe0');
     // and the true floor: nothing of this body drawn at all
     const keep = [];
     f.root.traverse(o => { if (o.isMesh || o.isSkinnedMesh) { keep.push([o, o.visible]); o.visible = false; } });
-    r.nothing = C3._cover('mourner');
+    r.nothing = C3._cover('foe0');
     for (const [o, v] of keep) o.visible = v;
     // how many meshes does this body actually have, and do they share a material?
     const mats = new Set();

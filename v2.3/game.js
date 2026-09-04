@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 129;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 130;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -2115,7 +2115,7 @@ function fxFoeDown(F) {
   // switched off.
   try {
     const C3 = window.Cast3D;
-    const id = box.dataset.foe;
+    const id = actorOf(box);
     if (C3 && C3.fell && id) C3.fell(id);
   } catch (e) {}
   box.classList.remove('k-foe-down');
@@ -4516,8 +4516,12 @@ function screenPulse(tone) {
 // has no opinion about.
 function actorOf(node) {
   if (!node || !node.dataset) return null;
-  return node.dataset.hero || node.dataset.foe
-    || (node.id === 'k-boss-art' ? node.dataset.foe : null) || null;
+  if (node.dataset.hero) return node.dataset.hero;
+  // A FOE IS A PLACE, NOT A NAME (Build 130). `data-foe` says which creature is
+  // standing here and two of them can be the same creature; what identifies a
+  // BODY is the slot. `#k-boss-art` is slot 0 and carries no `data-ix`.
+  if (node.dataset.foe) return 'foe' + (node.dataset.ix || 0);
+  return null;
 }
 // THE LAST THING THE FIGHT KNOWS is who swung. Set on the way into an action
 // and read on the way out of it, so the sparks come off the body in the
@@ -4748,9 +4752,13 @@ function castPlay(heroId, clip) {
 function foeCast(ix, clip) {
   const C3 = window.Cast3D;
   if (!C3 || !clip) return;
-  const F = C && C.foes && C.foes[ix == null ? (C.aim || 0) : ix];
-  const id = F ? F.id : 'mourner';
-  C3.play(id, clip);
+  // WHICH BODY, NOT WHICH CREATURE (Build 130). This translated an index into
+  // the creature's NAME, which was the same name for both of a matched pair —
+  // so telling the second Hollow Husk to swing swung the first one. The index
+  // IS the slot, and the slot is the body.
+  const slot = 'foe' + (ix == null ? (C && C.aim) || 0 : ix);
+  C3.play(slot, clip);
+  if (clip && clip !== 'idle' && clip !== 'hurt' && clip !== 'down') _fxFrom = slot;
 }
 
 // ── the cast ─────────────────────────────────────────────────────────────────

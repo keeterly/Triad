@@ -13,20 +13,20 @@ const { boot } = require('./harness.cjs');
   // alone into a small target and counts the pixels it covers — ground truth,
   // and immune to both ways the PNG proxy lied.
   const tall = await J(() => {
-    const f = window.Cast3D._figure('mourner');
+    const f = window.Cast3D._figure('foe0');
     const u = f.root.userData.mat.userData;
     return { uTall: +u.tall.value.toFixed(3), uFoot: +u.foot.value.toFixed(3),
              worldH: +f.worldH.toFixed(3), scale: +f.root.scale.x.toFixed(3) };
   });
   console.log('body, as measured off the geometry:', JSON.stringify(tall));
   const cover = await J(() => {
-    const C3 = window.Cast3D, f = C3._figure('mourner');
+    const C3 = window.Cast3D, f = C3._figure('foe0');
     f.dead = false; f.burn = null; f.mixer.timeScale = 0;
     const u = f.root.userData.mat.userData;
     const out = [];
     for (const b of [0, 0.2, 0.4, 0.6, 0.8, 1.0]) {
       u.burn.value = b;
-      out.push([b, C3._cover('mourner')]);
+      out.push([b, C3._cover('foe0')]);
     }
     u.burn.value = 0; f.mixer.timeScale = 1;
     return out;
@@ -40,14 +40,14 @@ const { boot } = require('./harness.cjs');
   console.log('state', JSON.stringify({ burning: st.burning, gone: st.gone, sparks: st.sparks }));
 
   // and the real thing, end to end
-  await J(() => { const C3 = window.Cast3D; const f = C3._figure('mourner');
+  await J(() => { const C3 = window.Cast3D; const f = C3._figure('foe0');
     f.dead = false; f.root.visible = true;
     const m = f.root.userData.mat; if (m) m.userData.burn.value = 0;
-    C3.fell('mourner'); });
+    C3.fell('foe0'); });
   for (let i = 0; i < 6; i++) {
     await sleep(420);
     const s = await J(() => { const x = window.Cast3D._state();
-      const f = window.Cast3D._figure('mourner');
+      const f = window.Cast3D._figure('foe0');
       return { burn: f.burn == null ? null : +f.burn.toFixed(2), gone: x.gone, sparks: x.sparks }; });
     console.log('  t' + i, JSON.stringify(s));
   }

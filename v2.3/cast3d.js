@@ -34,6 +34,12 @@
 
 import * as THREE from './lib/three.module.min.js';
 import { GLTFLoader } from './lib/GLTFLoader.js';
+// A SKINNED MESH CANNOT BE CLONED WITH `.clone()`. The copy comes back sharing
+// the ORIGINAL's skeleton, so two Hollow Husks would be one puppet in two
+// places — both playing whatever the last one was told to. SkeletonUtils
+// rebuilds the bone hierarchy and rebinds, which is the only way two of the
+// same creature can stand on a board and act independently.
+import { clone as cloneSkinned } from './lib/SkeletonUtils.js';
 
 // ── who is on the board, and what colour they are ──────────────────────────
 //
@@ -178,7 +184,9 @@ const LOOK_HELP = {
 // VERB rather than for what Meshy called them: the game never has to know that
 // a parry arrived as "Armature|Sword_Parry|baselayer".
 const VERB = {
-  slash: (id) => CAST[id].strike,     // sword · staff · daggers
+  // …and it is handed the FIGURE's own tone rather than a name to look up,
+  // because a foe slot is called `foe1` and there is no such creature.
+  slash: (tone) => tone.strike,       // sword · staff · daggers
   cast:  () => 'cast',
   heal:  () => 'heal',
   ward:  () => 'ward',
@@ -938,26 +946,92 @@ class Shocks {
   }
 }
 
+// ── A CUT IS NOT AN EXPLOSION ──────────────────────────────────────────────
+//
+// Build 127 gave every impact the same two things: a cone of sparks and an
+// expanding ring. That is what a blast looks like, and it is what a sword
+// looked like too, which is why a hit read as "an explosion and a flash"
+// whatever threw it.
+//
+// A ring is RADIAL — it says the energy came from a point and went everywhere.
+// That is true of a spell and false of a blade, which arrives along a line and
+// leaves along the same line. So a physical hit gets this instead: a short,
+// bright, elongated mark, square to the lens and rotated to the direction the
+// blow was travelling, that stretches along its own length and is gone in a
+// fifth of a second. It reads as the cut rather than as the detonation.
+const CUTS = 4;
+class Cuts {
+  constructor(map) {
+    this.items = [];
+    const g = new THREE.PlaneGeometry(1, 1);
+    for (let i = 0; i < CUTS; i++) {
+      const m = new THREE.MeshBasicMaterial({
+        map, transparent: true, opacity: 0, depthWrite: false,
+        blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(g, m);
+      mesh.visible = false; mesh.renderOrder = 7; mesh.frustumCulled = false;
+      this.items.push({ mesh, mat: m, t: 0, dur: 1, len: 1, spin: 0 });
+    }
+  }
+  // `along` is the blow's direction in the world; the mark is laid on that line
+  fire(at, along, len, dur) {
+    const it = this.items.find(i => i.t <= 0) || this.items[0];
+    it.mesh.position.copy(at);
+    it.t = it.dur = dur || 0.2;
+    it.len = len;
+    it.along = (it.along || new THREE.Vector3()).copy(along).normalize();
+    it.mesh.visible = true;
+    return it;
+  }
+  step(dt, cam) {
+    for (const it of this.items) {
+      if (it.t <= 0) continue;
+      it.t -= dt;
+      if (it.t <= 0) { it.t = 0; it.mesh.visible = false; continue; }
+      const p = 1 - it.t / it.dur;
+      // square to the lens, then rolled so its length lies along the blow —
+      // worked out in SCREEN space, because that is where the player sees it
+      it.mesh.quaternion.copy(cam.quaternion);
+      _fxV.copy(it.along).applyQuaternion(_fxQ.copy(cam.quaternion).invert());
+      it.mesh.rotateZ(Math.atan2(_fxV.y, _fxV.x));
+      // it opens fast along its own length and thins as it goes
+      it.mesh.scale.set(it.len * (0.55 + p * 1.5), it.len * 0.26 * (1 - p * 0.72), 1);
+      it.mat.opacity = (1 - p) * (1 - p) * 0.95;
+    }
+  }
+}
+
 // ── WHAT EACH VERB LOOKS LIKE ──────────────────────────────────────────────
 //
 // One table, because the difference between a sword and a spell should be a
 // row here rather than a branch somewhere in the fight. `hand` is which wrist
 // throws it, `reach` how far the weapon extends past it, and the rest is how
 // the air answers.
+// `cut` is a blade arriving along a line; `ring` is energy leaving a point in
+// every direction. A verb gets one or the other, never both, because both at
+// once is exactly the undifferentiated bang this replaces.
 const FX_VERB = {
-  slash: { trail: true, reach: 0.92, hue: 'hot',
-           hit: { n: 46, speed: 6.2, spread: 0.85, life: 0.5, size: 30, ring: 1.5 } },
-  cast:  { trail: true, reach: 0.34, hue: 'gold', charge: true,
+  // A SWORD. Tight cone along the blow — 0.42 rather than 0.85, so the spray
+  // follows the blade instead of puffing — fewer sparks, faster, shorter-lived,
+  // and a cut mark rather than a shockwave.
+  slash: { trail: true, reach: 0.92,
+           hit: { n: 26, speed: 8.4, spread: 0.42, life: 0.36, size: 26, cut: 1.25 } },
+  // A SPELL, which really is radial: this is the one that has earned its ring.
+  cast:  { trail: true, reach: 0.34, charge: true,
            hit: { n: 64, speed: 4.4, spread: 1.9, life: 0.9, size: 34, ring: 2.2, grav: -0.7 } },
-  heal:  { trail: false, charge: true, rise: true,
+  heal:  { trail: false, charge: true,
            hit: { n: 40, speed: 1.5, spread: 1.6, life: 1.5, size: 26, ring: 0.9, grav: 1.5, drag: 1.1 } },
   ward:  { trail: false, charge: true,
            hit: { n: 34, speed: 2.2, spread: 2.4, life: 0.8, size: 24, ring: 1.7, grav: -0.4 } },
+  // A DEFLECTION is steel on steel: almost no spray, one short bright mark
+  // across the line of the blow that was turned aside.
   parry: { trail: false,
-           hit: { n: 30, speed: 5.5, spread: 0.7, life: 0.34, size: 22, ring: 1.1 } },
+           hit: { n: 16, speed: 6.6, spread: 0.34, life: 0.26, size: 20, cut: 0.85 } },
 };
 
 const _fxV = new THREE.Vector3(), _fxD = new THREE.Vector3();
+const _fxQ = new THREE.Quaternion();
 const _fxA = new THREE.Vector3(), _fxB = new THREE.Vector3();
 
 // ── THE DIRECTOR ───────────────────────────────────────────────────────────
@@ -974,8 +1048,10 @@ class Effects {
     this.shocks = new Shocks();
     this.ribbons = {};
     this.slashMap = slashTexture();
+    this.cuts = new Cuts(this.slashMap);
     scene.add(this.sparks.points);
     for (const it of this.shocks.items) scene.add(it.mesh);
+    for (const it of this.cuts.items) scene.add(it.mesh);
     this.scene = scene;
   }
   ribbonFor(id) {
@@ -1019,7 +1095,8 @@ class Effects {
       speed: h.speed, spread: h.spread, life: h.life, size: h.size,
       grav: h.grav, drag: h.drag,
     });
-    this.shocks.fire(at, h.ring * k, verb === 'heal' ? 0.7 : 0.42);
+    if (h.cut) this.cuts.fire(at, toward, h.cut * (0.8 + k * 0.4), 0.19);
+    if (h.ring) this.shocks.fire(at, h.ring * k, verb === 'heal' ? 0.7 : 0.42);
   }
   // a spell gathering in the hand before it goes anywhere
   charge(at, verb) {
@@ -1063,6 +1140,7 @@ class Effects {
     this.sparks.step(dt);
     this.sparks.mat.uniforms.uPx.value = px;
     this.shocks.step(dt, cam);
+    this.cuts.step(dt, cam);
   }
 }
 
@@ -1329,6 +1407,24 @@ const Cast3D = (() => {
   let clips = {}, windows = {}, meta = {}, restSrc = {}, parentOf = {};
   const fetching = {};
   let warming = null, unloaded = [];
+  // ── A FIGURE PER SLOT, A MODEL PER CREATURE (Build 130) ──────────────────
+  //
+  // Until now `figs` was keyed by creature: one `husk` figure, one `mourner`
+  // figure. That is fine for a board with one opponent on it and wrong the
+  // moment the road deals two of the same creature — which it has been able to
+  // do since Build 101. Two Hollow Husks share `data-foe="husk"`, so `nodeOf`'s
+  // querySelector found only the first, and there was only ever one body to
+  // find it with anyway. Both of them fought the party as flat paintings.
+  //
+  // So the two ideas are separated. A MODEL is a downloaded GLB, one per
+  // creature, cached here and shared. A FIGURE is somebody standing in a slot
+  // on the board, and a slot is what the DOM says it is: the party's three
+  // heroes by name, and the foe line by its index. Two husks are two figures
+  // wearing two clones of one model.
+  const models = {};                 // creature id -> the loaded gltf
+  const wearing = {};                // slot key -> which creature it is wearing
+  const FOE_SLOTS = 4;               // #k-boss-art plus the three the line can add
+  const foeKey = (ix) => 'foe' + (ix || 0);
 
   // ═══ THE WORLD (Build 119) ═════════════════════════════════════════════════
   //
@@ -1537,7 +1633,8 @@ const Cast3D = (() => {
       const want = at === 'foe';
       let n = 0, x = 0, z = 0;
       for (const id of Object.keys(figs)) {
-        if (!!CAST[id].foe !== want || !figs[id].root.visible) continue;
+        const t = figs[id].tone;
+        if (!!t.foe !== want || !figs[id].root.visible) continue;
         x += figs[id].root.position.x; z += figs[id].root.position.z; n++;
       }
       if (n) return [x / n, 0, z / n];
@@ -1998,6 +2095,7 @@ const Cast3D = (() => {
       out.push(fx.sparks.points);
       for (const k of Object.keys(fx.ribbons)) out.push(fx.ribbons[k].mesh);
       for (const it of fx.shocks.items) out.push(it.mesh);
+      for (const it of fx.cuts.items) out.push(it.mesh);
     }
     return out.filter(Boolean);
   }
@@ -2121,9 +2219,12 @@ const Cast3D = (() => {
   // Everything that turns a downloaded GLB into a figure on the floor, in one
   // place, because it now happens at two different times: three heroes before
   // the layer says it is ready, and each creature whenever it turns up.
-  function mount(id, gltf) {
-    const tone = CAST[id];
-    const root = gltf.scene;
+  function mount(key, castId, gltf) {
+    const tone = CAST[castId];
+    // EVERY SLOT GETS ITS OWN BODY. The cached gltf is the pattern, never the
+    // thing on stage — hand the same scene graph to two slots and they share a
+    // skeleton, which is one puppet standing in two places.
+    const root = cloneSkinned(gltf.scene);
     let map = null;
     root.traverse(o => {
       if (o.isMesh || o.isSkinnedMesh) map = map || o.material.map || o.material.emissiveMap;
@@ -2155,7 +2256,9 @@ const Cast3D = (() => {
     // the floor for the one frame before that runs.
     root.visible = false;
     scene.add(root);
-    const f = figs[id] = new Figure(root, tone, clips, restSrc, parentOf, windows, meta);
+    wearing[key] = castId;
+    const f = figs[key] = new Figure(root, tone, clips, restSrc, parentOf, windows, meta);
+    f.cast = castId;
     // one frame of the idle, so the measurement sees a standing figure rather
     // than whatever the bind pose happens to be
     f.step(0.016);
@@ -2164,8 +2267,18 @@ const Cast3D = (() => {
     const side = tone.side || 1;
     aim(f, side * FOE_HEADING - side * tone.turn);
     fit(f);
-    stand(id);
+    stand(key);
     return f;
+  }
+
+  // …and taking a slot down again, when the fight replaces who stands there
+  function unmount(key) {
+    const f = figs[key];
+    if (!f) return;
+    scene.remove(f.root);
+    if (fx && fx.ribbons[key]) { scene.remove(fx.ribbons[key].mesh); delete fx.ribbons[key]; }
+    delete figs[key];
+    delete wearing[key];
   }
 
   // ── AND NOW PUT IT ON THE GROUND ────────────────────────────────────────
@@ -2187,15 +2300,16 @@ const Cast3D = (() => {
   // other, the big things looming over them — and then dropped until its feet
   // touch y=0. Nobody floats and nobody sinks, because neither is a number
   // anyone chose.
-  function stand(id) {
-    const f = figs[id];
+  function stand(key) {
+    const f = figs[key];
+    const tone = f.tone;
     const h0 = f.viewH * FILL;                       // metres, as generated
-    const s = (CAST[id].metres || TALL_M[CAST[id].foe ? 'foe' : 'hero']) / h0;
+    const s = (tone.metres || TALL_M[tone.foe ? 'foe' : 'hero']) / h0;
     f.root.scale.multiplyScalar(s);
     f.worldH = h0 * s;
     f.ctrOff = f.midX * s;                           // it is not centred either
     f.root.position.y = -(f.midY - h0 / 2) * s;      // soles to the floor
-    const slot = slotOf(id) || STAGE.hero.front;
+    const slot = slotOf(key) || STAGE.hero.front;
     f.root.position.x = slot[0] - f.ctrOff;
     f.root.position.z = slot[1];
     f.root.updateWorldMatrix(true, true);
@@ -2211,11 +2325,11 @@ const Cast3D = (() => {
   // ONE MISSING MODEL IS NOT A DEAD LAYER. A creature that has not been
   // generated yet leaves its painted plate alone and lets the rest of the cast
   // stand up, rather than taking the whole stage down with it.
-  function want(id) {
-    if (!CAST[id] || figs[id] || missing.indexOf(id) >= 0) return Promise.resolve();
-    if (fetching[id]) return fetching[id];
-    return (fetching[id] = new GLTFLoader().loadAsync(ART + CAST[id].model)
-      .then(g => { mount(id, g); }, () => { missing.push(id); }));
+  function want(castId) {
+    if (!CAST[castId] || models[castId] || missing.indexOf(castId) >= 0) return Promise.resolve();
+    if (fetching[castId]) return fetching[castId];
+    return (fetching[castId] = new GLTFLoader().loadAsync(ART + CAST[castId].model)
+      .then(g => { models[castId] = g; }, () => { missing.push(castId); }));
   }
 
   // THE CLIP LIBRARY IS SHARED, THE MODELS ARE NOT. Meshy's humanoid rig is
@@ -2259,12 +2373,23 @@ const Cast3D = (() => {
     clipNames = Object.keys(clips);
 
     const ids = Object.keys(CAST);
-    await Promise.all(ids.filter(id => !CAST[id].foe).map(want));
+    const party = ids.filter(id => !CAST[id].foe);
+    await Promise.all(party.map(want));
+    // a hero's slot is their own name — there is only ever one of each
+    for (const id of party) if (models[id]) mount(id, id, models[id]);
     ready = true;
 
     unloaded = ids.filter(id => CAST[id].foe);
     warming = unloaded.slice()
       .reduce((p, id) => p.then(() => want(id)), Promise.resolve());
+  }
+
+  // WHICH CREATURE IS THIS SLOT WEARING? Heroes are their own creature and
+  // always have been; a foe slot is wearing whatever the fight last put in it.
+  function castOf(key) {
+    if (CAST[key]) return CAST[key];
+    const id = wearing[key];
+    return id ? CAST[id] : null;
   }
 
   // ── WHOSE ELEMENT IS THIS? ─────────────────────────────────────────────────
@@ -2282,8 +2407,14 @@ const Cast3D = (() => {
   // somebody else's body, which is the honest thing for the layer to do with
   // an actor it does not have.
   function nodeOf(id) {
-    if (!CAST[id].foe) return document.querySelector(CAST[id].sel);
-    return document.querySelector('#k-cast [data-foe="' + id + '"]');
+    // A HERO IS A NAME; A FOE IS A PLACE. `#k-boss-art` is where the first
+    // opponent has always stood and carries no `data-ix`; the line adds the
+    // rest with one each. Asking by `data-foe` found the first element wearing
+    // that creature, which is the same element for both of a matched pair.
+    if (CAST[id]) return document.querySelector(CAST[id].sel);
+    const ix = +String(id).slice(3) || 0;
+    return ix === 0 ? document.getElementById('k-boss-art')
+                    : document.querySelector('#k-cast .k-foe-art[data-ix="' + ix + '"]');
   }
 
   // ── WHICH SLOT IS THIS BODY STANDING IN? ───────────────────────────────────
@@ -2298,7 +2429,8 @@ const Cast3D = (() => {
       || (node.classList.contains('k-row-front') ? 'front'
         : node.classList.contains('k-row-mid') ? 'mid'
         : node.classList.contains('k-row-back') ? 'back' : null);
-    if (CAST[id].foe) {
+    const tone = castOf(id) || (figs[id] && figs[id].tone);
+    if (tone && tone.foe) {
       const host = document.getElementById('k-cast');
       const line = host && host.classList.contains('k-line-many');
       // one opponent stands where one opponent has always stood; a LINE of
@@ -2626,15 +2758,32 @@ const Cast3D = (() => {
     // WHICH ELEMENTS ARE WEARING A FIGURE THIS FRAME. An element only gives up
     // its painting to a model that is actually standing on it — see `nodeOf` —
     // so the claim is made here, per frame, rather than assumed once at load.
-    // ANYONE WHO HAS TURNED UP GETS ASKED FOR. This is the one moment lazy
-    // loading has to notice: an element is wearing a foe id and there is no
-    // model on it yet. In practice the warm queue has almost always got there
-    // first — a fight is minutes into a run — and this list empties as the
-    // models land, so the common case costs an empty loop.
-    for (let i = 0; i < unloaded.length; i++) {
-      const id = unloaded[i];
-      if (figs[id] || missing.indexOf(id) >= 0) { unloaded.splice(i--, 1); continue; }
-      if (nodeOf(id)) want(id);
+    // ── WHO IS ACTUALLY ON THE BOARD? ──
+    //
+    // The fight owns the line: it builds an element per opponent and stamps the
+    // creature on it. This reads that back every frame and makes the world
+    // agree — a slot with nobody in it loses its body, a slot wearing a
+    // different creature than last turn gets a new one, and a slot whose model
+    // has not arrived asks for it.
+    //
+    // Doing it per frame rather than on a signal is what makes two Hollow Husks
+    // work without the fight knowing the 3D layer exists. It is four
+    // querySelectors on a board that changes twice a minute.
+    for (let ix = 0; ix < FOE_SLOTS; ix++) {
+      const key = foeKey(ix);
+      const node = ix === 0 ? document.getElementById('k-boss-art')
+                            : document.querySelector('#k-cast .k-foe-art[data-ix="' + ix + '"]');
+      const live = node && node.offsetParent !== null;
+      const castId = live ? node.dataset.foe : null;
+      if (!live || !castId || !CAST[castId] || !CAST[castId].foe) {
+        if (figs[key]) unmount(key);
+        continue;
+      }
+      if (figs[key] && wearing[key] !== castId) unmount(key);
+      if (!figs[key]) {
+        if (models[castId]) mount(key, castId, models[castId]);
+        else if (missing.indexOf(castId) < 0) want(castId);
+      }
     }
 
     const claimed = [];
@@ -2885,7 +3034,7 @@ const Cast3D = (() => {
       // ready/release pairing in two places that must agree, which is the kind
       // of thing that is correct on the day and wrong three builds later.
       if (f.holdFrac && f.fxVerb === verb) { f.release(); return true; }
-      const okp = f.play(pick ? pick(heroId) : verb);
+      const okp = f.play(pick ? pick(f.tone) : verb);
       // THE VERB, KEPT. The clip is `sword` or `daggers` or `staff`; the air
       // needs to know it was a `slash`. Set after the play so a refused clip
       // cannot leave a trail with nothing swinging it.
@@ -2929,7 +3078,7 @@ const Cast3D = (() => {
         toward.set(at.x - (src.root.position.x + src.ctrOff), 0.35,
                    at.z - src.root.position.z).normalize();
       } else {
-        toward.set(CAST[targetId] && CAST[targetId].foe ? 1 : -1, 0.4, 0.2).normalize();
+        toward.set(t.tone.foe ? 1 : -1, 0.4, 0.2).normalize();
       }
       fx.hit(at, toward, verb, power);
       return true;
@@ -2944,7 +3093,7 @@ const Cast3D = (() => {
       if (!on || !f || f.dead) return false;
       if (f.holdFrac && f.fxVerb === verb) return true;
       const pick = VERB[verb];
-      const name = pick ? pick(heroId) : verb;
+      const name = pick ? pick(f.tone) : verb;
       if (!f.actions[name]) return false;
       if (!f.ready(name, READY_AT[verb] === undefined ? 0.34 : READY_AT[verb])) return false;
       f.fxVerb = verb;
@@ -2985,7 +3134,13 @@ const Cast3D = (() => {
     // test-only: what the layer thinks is true right now
     _state: () => ({
       on, ready, failed, clips: clipNames, missing,
-      foes: Object.keys(CAST).filter(id => CAST[id].foe && figs[id]),
+      // WHO IS STANDING THERE, and what each one is wearing — a board with two
+      // Hollow Husks on it is two entries, which is the whole point
+      foes: Object.keys(figs).filter(k => figs[k].tone.foe),
+      wearing: Object.assign({}, wearing),
+      // …and the bestiary itself: a model is downloaded once and shared by
+      // however many of that creature the road decided to deal
+      creatures: Object.keys(models),
       figures: Object.keys(figs),
       playing: Object.fromEntries(Object.keys(figs).map(id => [id, figs[id].clipName || null])),
       bones: Object.keys(figs).length ? Object.keys(figs[Object.keys(figs)[0]].bones).length : 0,
@@ -2999,6 +3154,7 @@ const Cast3D = (() => {
       gone: Object.keys(figs).filter(id => figs[id].dead),
       trails: fx ? Object.keys(fx.ribbons).filter(k => fx.ribbons[k].mesh.visible).length : 0,
       rings: fx ? fx.shocks.items.filter(i => i.t > 0).length : 0,
+      cuts: fx ? fx.cuts.items.filter(i => i.t > 0).length : 0,
     }),
     // test-only: THE WORLD, MEASURED OFF THE WORLD. Not the table it was
     // configured from — the live scene graph, the live camera, and where the
@@ -3041,7 +3197,7 @@ const Cast3D = (() => {
           visible: f.root.visible,
           // so a check can find the element the way `nodeOf` finds it, rather
           // than keeping its own list of who is a monster
-          foe: !!CAST[id].foe,
+          foe: !!f.tone.foe,
           screen: { x: +foot.x.toFixed(1), ground: +foot.y.toFixed(1),
                     h: +(foot.y - crown.y).toFixed(1), behind: foot.behind },
         };
@@ -3108,7 +3264,10 @@ const Cast3D = (() => {
       return [+(e.x / D).toFixed(2), +(e.y / D).toFixed(2), +(e.z / D).toFixed(2)];
     },
     // test-only: which library clip a verb resolves to for this person
-    _verbClip: (heroId, verb) => (VERB[verb] ? VERB[verb](heroId) : null),
+    _verbClip: (heroId, verb) => {
+      const t = (figs[heroId] && figs[heroId].tone) || CAST[heroId];
+      return t && VERB[verb] ? VERB[verb](t) : null;
+    },
     // test-only: which way each chest ACTUALLY points, measured off the live
     // skeleton — not the number in the table that was supposed to cause it.
     // Two builds shipped a party fighting backwards because the dial was read
@@ -3130,10 +3289,13 @@ const Cast3D = (() => {
     turn(next) {
       if (!next) return Object.fromEntries(Object.keys(CAST).map(id => [id, CAST[id].turn]));
       for (const id of Object.keys(next)) {
-        if (!figs[id]) continue;
+        if (!CAST[id]) continue;
         CAST[id].turn = next[id];
         const side = CAST[id].side || 1;
-        aim(figs[id], side * FOE_HEADING - side * next[id]);
+        // every slot wearing this creature turns, not just the first one
+        for (const key of Object.keys(figs))
+          if (figs[key].cast === id || key === id)
+            aim(figs[key], side * FOE_HEADING - side * next[id]);
       }
       return this.turn();
     },
