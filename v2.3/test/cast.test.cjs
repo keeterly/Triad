@@ -2128,6 +2128,69 @@ const { boot } = require('./harness.cjs');
     JSON.stringify(about) + ' — the lens ends up nearer Ash than the foe line does');
   await J(() => { window.Cast3D.uncut(); window.Cast3D.shot('home'); });
 
+  // ═══ N · THE BODY IS STILL A BODY ═══
+  //
+  // An imported clip can be wrong in a way every other check in this file
+  // passes over. The suite already asks whether a verb moves the figure, and
+  // whether two verbs look different from each other — a party folded into a
+  // ball moves plenty and looks nothing like a party standing up, so both
+  // sailed through. So did the importer's own gate, which asks how far the
+  // furthest joint TURNED: the angle of a rotation does not change when you
+  // change the frame you measure it in, so a clip rotated into completely the
+  // wrong axes turns exactly as far as one rotated correctly.
+  //
+  // Measured on the import that shipped in Build 140: a heavy sword swing put
+  // the trunk 131 degrees off vertical halfway through — past horizontal, head
+  // below the hips, both feet 70cm in the air — and the ordinary swing reached
+  // 111. The clips that replaced them reach 73 at the top of a leap.
+  //
+  // ONE CLIP IS ALLOWED TO GO PAST HORIZONTAL and it is the knock-down, where
+  // being horizontal is the entire point. Everything else is a person on their
+  // feet, whatever else they are doing.
+  console.log('\n── the body is still a body ──');
+  const folds = await J(async () => {
+    const C3 = window.Cast3D, f = C3._figure('ash');
+    const B = {};
+    f.root.traverse(o => { if (o.isBone) B[o.name] = o; });
+    const wp = (n) => { const o = B[n]; if (!o) return null;
+      const m = o.matrixWorld.elements; return [m[12], m[13], m[14]]; };
+    const worst = {};
+    for (const clip of Object.keys(f.actions)) {
+      const a = f.actions[clip], dur = a.getClip().duration;
+      let mx = 0;
+      for (let i = 0; i < 8; i++) {
+        for (const k of Object.keys(f.actions)) { f.actions[k].setEffectiveWeight(0); f.actions[k].stop(); }
+        if (f.idle) f.idle.setEffectiveWeight(0);
+        a.reset(); a.setEffectiveWeight(1); a.play(); a.paused = true;
+        a.time = dur * (i / 7) * 0.999;
+        f.mixer.update(0);
+        f.root.updateMatrixWorld(true);
+        const h = wp('Hips'), hd = wp('Head');
+        if (!h || !hd) continue;
+        const v = [hd[0] - h[0], hd[1] - h[1], hd[2] - h[2]];
+        const L = Math.hypot(v[0], v[1], v[2]) || 1;
+        mx = Math.max(mx, Math.acos(Math.max(-1, Math.min(1, v[1] / L))) * 180 / Math.PI);
+      }
+      worst[clip] = +mx.toFixed(0);
+    }
+    for (const k of Object.keys(f.actions)) { f.actions[k].paused = false; f.actions[k].setEffectiveWeight(0); f.actions[k].stop(); }
+    f.acting = null; if (f.idle) f.idle.setEffectiveWeight(1);
+    return worst;
+  });
+  const upright = Object.entries(folds).filter(([k]) => k !== 'down');
+  const bent = upright.filter(([, v]) => v >= 90).map(([k, v]) => k + ' ' + v + '°');
+  check('BODY: nobody folds past horizontal — the knock-down is the one that may',
+    bent.length === 0 && folds.down != null,
+    JSON.stringify(folds) + ' — the furthest the trunk gets from vertical, in degrees;'
+      + ' the Build 140 import read swordHeavy 131 and sword 111');
+  // …AND THE POSE THE PLAYER SEES MOST HAS TO READ AS STANDING. An idle is on
+  // screen between every decision, so a permanent stoop is the single most
+  // visible thing a bad conversion does: the import shipped one at 37 degrees.
+  check('BODY: …and the idle is a person standing, not a person stooping',
+    folds.idle != null && folds.idle < 32,
+    JSON.stringify({ idle: folds.idle }) + '° off vertical at its worst — the'
+      + ' hand-authored guards read 14 and the Build 140 import read 37');
+
   // ═══ N · THE DRAWN LOOK ═══
   //
   // The post pass exists to make a rendered scene read as a painted one, and

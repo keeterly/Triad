@@ -16,17 +16,39 @@
 //
 // ── WHY THIS IS SMALL ──────────────────────────────────────────────────────
 //
-// Because the runtime retargeter is already general. `retarget` in cast3d.js
-// does not compare skeletons; it computes each bone's DEPARTURE from a rest
-// pose and replays that departure on the target's own rest:
+// Because the retargeter is small: it does not compare skeletons, it computes
+// each bone's DEPARTURE from a rest pose and replays that departure on the
+// target's own rest. What it cannot guess is the two things a foreign skeleton
+// does not come with: WHICH BONE IS WHICH, and what the source's rest pose was.
 //
-//     D(b)  = A_s(b) · G_s(b)⁻¹
-//     A_t(b) = D(b) · G_t(b)
+// ── AND THE DEPARTURE IS MEASURED IN THE BONE'S OWN FRAME ──────────────────
 //
-// which is orientation-agnostic. It does not care that Unreal's upper arm
-// points down a different axis than Meshy's. What it cannot do is guess two
-// things a foreign skeleton does not come with: WHICH BONE IS WHICH, and what
-// the source skeleton's rest pose was.
+// There are two ways to write that sentence and only one of them is true.
+//
+//     D  = A_s · G_s⁻¹      A_t = D · G_t          (world)
+//     D  = G_s⁻¹ · A_s      A_t = G_t · D          (the bone's own rest frame)
+//
+// The first says "whatever this bone did in the source's WORLD, do that in
+// ours". It is only correct when the two skeletons stand in the same world.
+// The second says "whatever this bone did relative to where it rests, do that
+// relative to where you rest", and is the one that needs no agreement about
+// which way is up.
+//
+// This file shipped the first, under a comment claiming it was orientation
+// agnostic. It is not, and Unreal is Z-UP while this library is Y-up, so every
+// rotation arrived about the wrong axes. Measured on the shipped clips: the
+// party stood permanently hunched at 36 degrees off vertical where the
+// hand-authored clips read 10, and a heavy sword swing folded the figure into
+// a ball on the floor — 131 degrees of trunk pitch, both feet 70cm in the air —
+// halfway through the swing.
+//
+// WHY NOTHING CAUGHT IT. The importer's own fidelity gate asks how far the
+// furthest joint TURNED, and the angle of a rotation is invariant under a
+// change of frame. A clip rotated into completely the wrong axes turns exactly
+// as far as one rotated correctly, so the gate read a healthy number over a
+// figure folded in half. `test/retarget.probe.cjs` is the check that can see
+// it: it converts the same clip twice, once with the source stood on its side,
+// and the two conversions have to agree.
 //
 // So this tool supplies both, offline, and re-expresses the animation against
 // the rest pose the library already carries — `__rest` — so an imported clip
@@ -223,12 +245,26 @@ const round = (v) => +v.toFixed(DP);
       Object.keys(mine).forEach(visit);
 
       const Q = () => new THREE.Quaternion();
+      // ── STAND THE SOURCE IN A ROTATED FRAME, ON PURPOSE ──
+      //
+      // Only ever set by test/retarget.probe.cjs. Both the rest pose and every
+      // sampled frame accumulate from the topmost mapped bone, so this seeds
+      // that accumulation — which is exactly what a source authored Z-up looks
+      // like from in here, and nothing a scene-graph rotation could reproduce:
+      // the world above the pelvis never enters this arithmetic.
+      //
+      // A conversion that asks each bone what it did RELATIVE TO ITS OWN REST
+      // cancels this seed exactly, because it appears on the left of both the
+      // rest and the pose. One that measures the departure in the shared frame
+      // does not. That difference is the whole test.
+      const spin = new THREE.Quaternion();
+      if (arg.spin) spin.setFromAxisAngle(new THREE.Vector3(1, 0, 0), arg.spin * Math.PI / 180);
       const round = (v) => +v.toFixed(4);
       const gOf = (rest, par) => {
         const G = {};
         for (const n of order) {
           const p = par[n];
-          G[n] = (p && G[p] ? G[p].clone() : Q()).multiply(rest[n]).normalize();
+          G[n] = (p && G[p] ? G[p].clone() : spin.clone()).multiply(rest[n]).normalize();
         }
         return G;
       };
@@ -365,14 +401,18 @@ const round = (v) => +v.toFixed(DP);
         const A = {};
         for (const b of order) {
           const p = parentOf[b];
-          A[b] = (p && A[p] ? A[p].clone() : Q()).multiply(mine[b].quaternion).normalize();
+          A[b] = (p && A[p] ? A[p].clone() : spin.clone()).multiply(mine[b].quaternion).normalize();
         }
         // the same DEPARTURE from rest, carried onto our rest pose
         const At = {};
         for (const b of order) {
           if (!Gtgt[b]) continue;                       // a bone our rig does not have
-          d.copy(A[b]).multiply(tmp.copy(Gsrc[b]).invert()).normalize();
-          At[b] = d.clone().multiply(Gtgt[b]).normalize();
+          // THE BONE'S OWN REST FRAME, NOT THE WORLD'S — see the header. The
+          // world form (A · Gsrc⁻¹, then · Gtgt) is what shipped, and it makes
+          // the conversion depend on which way the source happened to be
+          // standing.
+          d.copy(tmp.copy(Gsrc[b]).invert()).multiply(A[b]).normalize();
+          At[b] = Gtgt[b].clone().multiply(d).normalize();
         }
         // …and back to a LOCAL rotation, against OUR hierarchy rather than the
         // source's — which is the whole reason a spine named backwards matters
@@ -423,7 +463,7 @@ const round = (v) => +v.toFixed(DP);
         doubled,
         others: clips.map(c => c.name).slice(0, 12),
       };
-    }, { url, clip: spec.clip || null, verb, MAP, MIXAMO, OURS,
+    }, { url, clip: spec.clip || null, verb, MAP, MIXAMO, OURS, spin: +(process.env.SPIN || 0),
          lib: { __rest: lib.__rest, __parent: lib.__parent,
                 __hipRest: hipRestOf(lib) } });
 
