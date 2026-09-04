@@ -1141,6 +1141,20 @@ class Figure {
     this.fxVerb = null;
     // how far through coming apart this body is: null until it is dying
     this.burn = null;
+    // ── A BLOW THAT IS BEING AIMED IS A BLOW HALF-THROWN (Build 129) ────────
+    //
+    // While a card is held over a target the hero is not standing still and is
+    // not swinging either — they are WOUND UP, and letting go finishes the
+    // motion they already started.
+    //
+    // Which means the ready pose is not a separate animation. It is the first
+    // third of the swing, stopped. That is the whole trick: there is nothing
+    // to blend into and nothing to blend out of, because the hold and the
+    // follow-through are one clip played in two halves, so releasing cannot
+    // pop no matter how long the player took to decide.
+    this.holdFrac = 0;      // where in the clip to stop, 0 = not holding
+    this.held = false;      // …and whether it has got there yet
+    this.wob = 0;
     // where the idle's weight is heading, and how long it has to get there;
     // `step` walks it
     this.idleWant = IDLE_WEIGHT;
@@ -1212,8 +1226,26 @@ class Figure {
     return true;
   }
 
+  // wind up and stop, at `frac` of the way through the clip
+  ready(name, frac) {
+    if (!this.play(name)) return false;
+    this.holdFrac = frac;
+    this.held = false;
+    this.wob = 0;
+    this.holdAge = 0;
+    return true;
+  }
+  // …and let it go, from exactly where it stopped
+  release() {
+    if (!this.holdFrac) return false;
+    this.holdFrac = 0;
+    this.held = false;
+    if (this.acting) this.acting.paused = false;
+    return true;
+  }
   clear() {
-    if (this.acting) this.acting.fadeOut(0.22);
+    if (this.acting) { this.acting.paused = false; this.acting.fadeOut(0.22); }
+    this.holdFrac = 0; this.held = false;
     // ── AND THE IDLE COMES BACK OVER THE SAME 0.22s ──────────────────────
     //
     // Setting this outright was the SECOND pop, and it hid behind the first.
@@ -1231,6 +1263,41 @@ class Figure {
   }
 
   step(dt) {
+    // ── HOLD, BUT DO NOT FREEZE ──
+    //
+    // A paused action still poses the body, so the wind-up simply stays on
+    // screen — and a wind-up that is perfectly still for four seconds while
+    // the player thinks reads as a crash. The fix cannot be to blend an idle
+    // underneath: that is precisely the near-antipodal blend that Build 125
+    // measured throwing the hips eighty degrees in a 240th of a second.
+    //
+    // So the tension comes from INSIDE the same clip. The action's own time
+    // breathes a few hundredths of a second either side of the mark, which is
+    // a body straining against a held pose and cannot pop, because there is
+    // only ever one clip posing the figure.
+    if (this.holdFrac && this.acting) {
+      // ── AND IT LETS GO BY ITSELF EVENTUALLY ──
+      //
+      // Every path that ends a drag calls `unready`, and that is exactly the
+      // kind of promise that holds until someone adds a ninth path. A hero
+      // frozen at the top of a backswing for the rest of a fight is a worse
+      // failure than a wind-up that quietly relaxes, so the hold has an outside
+      // limit. Nobody deliberates over a card for eight seconds.
+      this.holdAge = (this.holdAge || 0) + dt;
+      if (this.holdAge > 8) {
+        this.clear();                 // …and `clear` has just nulled `acting`
+      } else {
+        const mark = this.acting.getClip().duration * this.holdFrac;
+        if (!this.held && this.acting.time >= mark) {
+          this.held = true;
+          this.acting.paused = true;
+        }
+        if (this.held) {
+          this.wob += dt;
+          this.acting.time = Math.max(0, mark + Math.sin(this.wob * 2.3) * 0.042);
+        }
+      }
+    }
     // the idle's weight is ours to move, and it moves at the speed of the
     // fades it is answering rather than instantly
     if (this.idle) {
@@ -2381,6 +2448,13 @@ const Cast3D = (() => {
   const _eye = new THREE.Vector3(), _look = new THREE.Vector3();
   const _size = new THREE.Vector2();
   const _burnAt = new THREE.Vector3();
+  // HOW FAR INTO EACH SWING THE WIND-UP ENDS. Read off the clips rather than
+  // chosen: the library's windows already trim each action down to the part
+  // where something happens (Build 121), so a third of the way in is the top
+  // of the backswing for a sword and the gather for a spell. A ward has almost
+  // no wind-up — the arm goes up and stays up — so it holds later, near the
+  // top of the guard, which is the pose that reads as "braced".
+  const READY_AT = { slash: 0.34, cast: 0.38, heal: 0.30, ward: 0.52 };
   // long enough to read as a body coming apart rather than a sprite being
   // switched off, short enough that it is over before the reckoning wants the
   // camera. The `fell` shot is 1900ms; this finishes inside it.
@@ -2801,6 +2875,16 @@ const Cast3D = (() => {
       // "stop acting", not "play the idle once and then stop".
       if (verb === 'idle') { f.clear(); return true; }
       const pick = VERB[verb];
+      // ── A PLAY THAT FINDS THE BLOW ALREADY WOUND UP LETS IT GO ────────────
+      //
+      // Nothing at the call site had to change for this. The fight has said
+      // `castPlay(hero, 'slash')` when a card resolves since Build 36, and it
+      // still does; if that hero is standing there holding the first third of
+      // exactly that swing, this continues it instead of starting a second
+      // one. Rewiring the resolve path to know about aiming would have put the
+      // ready/release pairing in two places that must agree, which is the kind
+      // of thing that is correct on the day and wrong three builds later.
+      if (f.holdFrac && f.fxVerb === verb) { f.release(); return true; }
       const okp = f.play(pick ? pick(heroId) : verb);
       // THE VERB, KEPT. The clip is `sword` or `daggers` or `staff`; the air
       // needs to know it was a `slash`. Set after the play so a refused clip
@@ -2848,6 +2932,31 @@ const Cast3D = (() => {
         toward.set(CAST[targetId] && CAST[targetId].foe ? 1 : -1, 0.4, 0.2).normalize();
       }
       fx.hit(at, toward, verb, power);
+      return true;
+    },
+    // ── WIND UP, AND WAIT ──────────────────────────────────────────────────
+    //
+    // Called while a card is being aimed. Idempotent: dragging across four
+    // targets must not restart the wind-up four times, so a hero already
+    // holding this verb is left exactly where it is.
+    ready(heroId, verb) {
+      const f = figs[heroId];
+      if (!on || !f || f.dead) return false;
+      if (f.holdFrac && f.fxVerb === verb) return true;
+      const pick = VERB[verb];
+      const name = pick ? pick(heroId) : verb;
+      if (!f.actions[name]) return false;
+      if (!f.ready(name, READY_AT[verb] === undefined ? 0.34 : READY_AT[verb])) return false;
+      f.fxVerb = verb;
+      const r = fx && fx.ribbons[heroId];
+      if (r) r.clear();
+      return true;
+    },
+    // …and put the card back: the wind-up unwinds rather than completing
+    unready(heroId) {
+      const f = figs[heroId];
+      if (!f || !f.holdFrac) return false;
+      f.clear();
       return true;
     },
     // ── A CREATURE BURNS AWAY ──────────────────────────────────────────────

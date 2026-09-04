@@ -1476,6 +1476,75 @@ const { boot } = require('./harness.cjs');
     !!gone && gone.tall > 0.5 && gone.foot < 0.01,
     JSON.stringify({ tall: gone && gone.tall, foot: gone && gone.foot }));
 
+  // ═══ M5 · A BLOW BEING AIMED IS A BLOW HALF-THROWN ═══
+  //
+  // While a card is held over a target the hero is wound up, and letting go
+  // finishes the motion they already started. The ready pose is therefore NOT
+  // a separate animation — it is the first third of the swing, stopped — which
+  // is what makes the release unable to pop however long the player deliberates.
+  console.log('\n── winding up ──');
+  const snapR = () => J(() => {
+    const f = window.Cast3D._figure('ash');
+    return { holdFrac: f.holdFrac, held: f.held, acting: !!f.acting, verb: f.fxVerb,
+             time: f.acting ? +f.acting.time.toFixed(3) : null,
+             paused: f.acting ? f.acting.paused : null,
+             dur: f.acting ? +f.acting.getClip().duration.toFixed(3) : null };
+  });
+  await J(() => window.Cast3D.play('ash', 'idle'));
+  await sleep(400);
+  await J(() => window.Cast3D.ready('ash', 'slash'));
+  await sleep(1500);
+  const wound = await snapR();
+  check('READY: aiming winds the hero up and stops them a third into the swing',
+    wound.acting && wound.held && wound.paused
+    && Math.abs(wound.time - wound.dur * 0.34) < 0.09,
+    JSON.stringify(wound));
+
+  // …AND IT BREATHES. A wind-up perfectly still for four seconds while the
+  // player thinks reads as a crash. It cannot come from blending an idle
+  // underneath — that is the near-antipodal blend Build 125 measured throwing
+  // the hips eighty degrees in a 240th of a second — so the tension is the
+  // action's own time straining either side of the mark, inside one clip.
+  const pA = await J(() => { const w = window.Cast3D._figure('ash').bones.RightHand;
+    return w.getWorldPosition(w.position.clone()).toArray(); });
+  await sleep(500);
+  const pB = await J(() => { const w = window.Cast3D._figure('ash').bones.RightHand;
+    return w.getWorldPosition(w.position.clone()).toArray(); });
+  const breath = Math.hypot(pA[0] - pB[0], pA[1] - pB[1], pA[2] - pB[2]) * 1000;
+  check('READY: …and the held pose breathes rather than freezing',
+    breath > 2 && breath < 400, breath.toFixed(1) + ' mm at the wrist over half a second');
+
+  // A RESTART IS A TRIP TO ZERO, NOT A WOBBLE. Comparing two samples of a
+  // breathing hold cannot detect one: the tension moves the clip's time by
+  // ±42ms, so any threshold small enough to catch a restart is smaller than the
+  // breath — the first version of this check reported a working hold as
+  // restarted. `play` resets to 0, so that is what to look for.
+  const beforeR = await snapR();
+  await J(() => window.Cast3D.ready('ash', 'slash'));
+  const afterR = await snapR();
+  check('READY: dragging across a second target does not restart the wind-up',
+    afterR.acting && afterR.time > beforeR.dur * 0.34 - 0.1,
+    JSON.stringify({ before: beforeR.time, after: afterR.time,
+                     mark: +(beforeR.dur * 0.34).toFixed(3) }));
+
+  // and the drop finishes THAT swing rather than starting another
+  await J(() => window.Cast3D.play('ash', 'slash'));
+  const rel = await snapR();
+  check('READY: letting go finishes the same swing, from where it stopped',
+    rel.acting && !rel.paused && rel.holdFrac === 0
+    && rel.time > beforeR.dur * 0.30,
+    JSON.stringify(rel));
+
+  await sleep(1800);
+  await J(() => window.Cast3D.ready('ash', 'slash'));
+  await sleep(900);
+  await J(() => window.Cast3D.unready('ash'));
+  await sleep(260);
+  const undone = await snapR();
+  check('READY: …and a card that comes back unwinds the arm',
+    !undone.acting && undone.holdFrac === 0, JSON.stringify(undone));
+  await J(() => window.Cast3D.play('ash', 'idle'));
+
   // ═══ N · THE PATH EVERY PLAYER TAKES ═══
   //
   // Every check above this line ran on a page that ASKED for the 3D stage.

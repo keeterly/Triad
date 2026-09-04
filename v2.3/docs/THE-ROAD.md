@@ -5175,6 +5175,76 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 129 — a blow being aimed is a blow half-thrown
+
+"Holding a card while choosing a target should have the character ready their
+attack, with letting go finishing out the action."
+
+### The ready pose is not a separate animation
+
+That is the whole design, and everything good about it follows from that one
+decision. It is **the first third of the swing, stopped.**
+
+The obvious build is a `ready` clip and a `strike` clip: wind up into one, hold
+it, then cross-fade into the other when the player lets go. That needs a blend
+at exactly the worst moment — the release, the thing the player is waiting for —
+and Build 125 spent a whole build establishing that blending a held pose against
+a moving one is where this rig throws the hips eighty degrees in a 240th of a
+second.
+
+Holding one clip halfway through has no blend in it at all. The hold and the
+follow-through are the same animation played in two halves, so a release cannot
+pop no matter how long the player deliberated over it.
+
+### It has to breathe
+
+A wind-up perfectly still for four seconds while somebody thinks reads as a
+crash, not as tension. The obvious fix — put the idle back underneath at a
+whisper — is exactly the near-antipodal blend Build 125 removed.
+
+So the tension comes from **inside the same clip**: the action's own time
+strains a few hundredths of a second either side of the mark. Measured, that is
+about 15 mm of travel at the wrist over half a second — a body straining against
+a held pose — and it cannot pop, because there is still only ever one clip
+posing the figure.
+
+### Nothing at the call site changed
+
+The fight has said `castPlay(hero, 'slash')` when a card resolves since Build 36,
+and it still does. If that hero happens to be standing there holding the first
+third of exactly that swing, `play` continues it instead of starting a second
+one.
+
+The alternative was to teach the resolve path about aiming, which puts the
+ready/release pairing in two places that have to agree — the kind of thing that
+is correct on the day and wrong three builds later.
+
+### Every way a drag can end
+
+A hero left standing at the top of a backswing for the rest of the turn is worse
+than no feature. There are more ways out of a drag than there look to be: dropped
+on the hand, dropped on nothing, dropped on something it cannot legally hit,
+refused for AP, the card detached by a re-render mid-gesture, a pointercancel
+from the browser. `dropCommit` returning false covers most of them and `abandon`
+covers the rest.
+
+And then the hold unwinds by itself after eight seconds anyway, because "every
+path calls unready" is precisely the kind of promise that holds until somebody
+adds a ninth path.
+
+### A restart is a trip to zero, not a wobble
+
+The check for "dragging across a second target must not restart the wind-up"
+failed a working hold, and the reason is the feature above. Comparing two samples
+of a **breathing** hold cannot detect a restart: the tension moves the clip's
+time by ±42 ms, so any threshold small enough to catch a restart is smaller than
+the breath. `play` resets to zero, so that is what to look for.
+
+flow 257/257 · road 94/94 · slice 80/80 · bond 76/76 · **cast 76/76** ·
+camp 48/48 · line 32/32 · music 22/22 · beat 10/10 — no page errors.
+
+---
+
 ## Build 128 — a creature burns away, and the instrument keeps lying
 
 "When a monster dies, it should disperse by first burning away and its body

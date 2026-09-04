@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 128;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 129;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -4695,11 +4695,51 @@ function castShot(name, opts) {
   const C3 = window.Cast3D;
   if (C3 && C3.shot) C3.shot(name, opts);
 }
+// ── AIMING A CARD IS THE FIRST HALF OF THROWING IT (Build 129) ─────────────
+//
+// The verb a card will speak is known the moment it leaves the fan — the same
+// `actionKind` the resolve path uses — so the hero can start the swing while
+// the player is still choosing where to put it, and the drop finishes the
+// motion rather than starting a new one.
+//
+// WHICH HERO, when a card has two owners: the pair card is thrown by whoever
+// is named first, because a wind-up is a body and a body has to be one person.
+// (Both of them acting on a duo card is the cinematic job, not this one.)
+function cardVerb(id) {
+  try {
+    const def = cardDef(id);
+    if (!def) return null;
+    return actionKind(def, def.effects || []);
+  } catch (e) { return null; }
+}
+function cardActor(id) {
+  try {
+    const hs = ownerHeroes(cardDef(id));
+    return hs && hs.length ? hs[0] : null;
+  } catch (e) { return null; }
+}
+let _readyWho = null;
+function castReady(id) {
+  const C3 = window.Cast3D;
+  if (!C3 || !C3.ready) return;
+  const who = cardActor(id), verb = cardVerb(id);
+  if (!who || !verb) return;
+  if (_readyWho && _readyWho !== who) castUnready();
+  if (C3.ready(who, verb)) _readyWho = who;
+}
+function castUnready() {
+  const C3 = window.Cast3D;
+  if (C3 && C3.unready && _readyWho) C3.unready(_readyWho);
+  _readyWho = null;
+}
 function castPlay(heroId, clip) {
   const C3 = window.Cast3D;
   if (C3 && heroId && clip) C3.play(heroId, clip);
   // remember who is swinging, so the impact knows which way the blow came from
   if (clip && clip !== 'idle' && clip !== 'hurt' && clip !== 'down') _fxFrom = heroId;
+  // …and a blow that has been thrown is no longer being aimed. `play` releases
+  // the hold inside the layer; this is only the bookkeeping on this side.
+  if (_readyWho === heroId) _readyWho = null;
 }
 // …AND SO DOES THE FOE. It is the same rig on the other side of the board, so
 // it speaks the same verbs — `foeCast` only exists to translate an index into
@@ -6643,6 +6683,7 @@ function attachCardInput(btn) {
   // corner of the screen, still pointing at the Regent, long after the drop.
   const abandon = () => {
     dragging = false; armed = false; held = false; lastPt = null;
+    castUnready();                                // the blow is not thrown
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
     aimClear();
     const hand1 = el('k-hand'); if (hand1) hand1.classList.remove('k-hand-cancel');
@@ -6726,6 +6767,8 @@ function attachCardInput(btn) {
       btn.style.setProperty('--dragx', '0px');
       btn.style.setProperty('--dragy', '0px');
       btn.classList.add('k-aiming');
+      // the hero starts the swing as the card leaves the fan
+      castReady(btn.dataset.card);
       const stg0 = el('k-stage'), sr0 = stg0.getBoundingClientRect();
       const k0 = sr0.width / stg0.offsetWidth || 1;
       const h0 = btn.getBoundingClientRect();
@@ -6787,7 +6830,12 @@ function attachCardInput(btn) {
     }
     if (wasDragging) {
       const over = dropTargetAt(e.clientX, e.clientY, id);
-      if (!dropCommit(id, over)) renderHand();
+      // A CARD THAT COMES BACK UNWINDS THE ARM. `dropCommit` returning false
+      // is every way a drag can end without a blow: dropped on the hand,
+      // dropped on nothing, dropped on something it cannot legally hit, or
+      // refused for AP. The hero must not be left standing at the top of a
+      // backswing for the rest of the turn.
+      if (!dropCommit(id, over)) { castUnready(); renderHand(); }
       else { lockHand(); clearSelection(); }
       return;
     }
@@ -6798,6 +6846,7 @@ function attachCardInput(btn) {
     else { _sel = id; renderHand(); renderApDial(); showPick(id); }
   });
   btn.addEventListener('pointercancel', () => { clearTimeout(holdT); armed = false; dragging = false;
+    castUnready();
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
     aimClear();
     const hc = el('k-hand'); if (hc) hc.classList.remove('k-hand-cancel');
