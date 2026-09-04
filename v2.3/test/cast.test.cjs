@@ -2265,9 +2265,19 @@ const { boot } = require('./harness.cjs');
   check('LOOK: …and it draws round the PEOPLE, not over the square behind them',
     ink.bodies > 2.5 && ink.bodies > ink.plaza * 2.5,
     JSON.stringify(ink) + ' % of each region inked — an undiscriminating detector reads these equal');
-  check('LOOK: the drawn look is what you get for opening the game',
-    ink.onByDefault === true,
-    JSON.stringify({ line: ink.onByDefault }) + ' — it shipped switched off for four builds while the detector was wrong');
+  // …AND IT STAYS OFF UNTIL THE PASS IS FREE. Build 140 shipped it on and the
+  // game went dark, because routing the frame through a render target and
+  // straight back — with the shader doing nothing at all — moves the drawing
+  // buffer's mean luminance from 0.274 to 0.150 and crushes 52% of the picture
+  // into the darkest eighth of the range, against 5%. Four accounts of the
+  // missing conversion were measured and all four were wrong; the one exponent
+  // that fits is a number with no meaning. Until that is understood rather than
+  // fitted, the defaults leave the target unallocated and the render path
+  // byte-for-byte what it was before the pass existed.
+  check('LOOK: …and it does not ship until the round trip costs nothing',
+    ink.onByDefault === false,
+    JSON.stringify({ line: ink.onByDefault }) + ' — on by default is what made'
+      + ' Build 140 dark; ?look=line:0.72,flat:0.34,tooth:0.05 still turns it on');
 
   // ═══ N · THE PATH EVERY PLAYER TAKES ═══
   //

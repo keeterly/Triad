@@ -6,6 +6,8 @@
 const { boot } = require('./harness.cjs');
 const LOOKS = {
   off:   { line: 0, flat: 0, tooth: 0 },
+  raw:   { line: -5, flat: 0, tooth: 0 },
+  enc:   { line: -7, flat: 0, tooth: 0 },
   mask:  { line: -3, linew: 1.15, bite: 0.03, reach: 14, flat: 0, tooth: 0 },
   ink:   { line: 0.72, linew: 1.15, bite: 0.03, reach: 14, flat: 0, tooth: 0 },
   band:  { line: 0, flat: 0.34, steps: 6, tooth: 0.05 },

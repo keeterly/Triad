@@ -185,32 +185,49 @@ const LOOK = {
   // COLOURS — and `look()` turns a dial name straight into a uniform name, so
   // a dial called `ink` hands a float to a vec3 and every figure's material
   // throws on the next frame. Measured: 316 page errors from one `look` call.
-  // ── THE DRAWN LOOK, ON BY DEFAULT ────────────────────────────────────────
+  // ── THE DRAWN LOOK, AND WHY IT IS OFF ────────────────────────────────────
   //
   // What Arcane does is not a filter over a render, it is a painting that
   // happens to be lit in three dimensions: flat tone in bands, a drawn contour
   // where forms meet, and tooth over the sheet so nothing reads as vector art.
-  // These three dials are that, and they are set where a measured sweep put
-  // them rather than where they looked right in one screenshot.
+  // The contour works — measured, it inks 2.4% of the picture, 6.5% of the
+  // party's own boxes and 1.5% of the square behind them, which is a drawn line
+  // and not a wash. `?look=line:0.72,flat:0.34,tooth:0.05` turns it on.
   //
-  // Getting here took two dead ends worth remembering. The first was the
-  // colour space: a render target does not apply `outputColorSpace` the way
-  // the canvas does, so merely routing the frame through one shifted every
-  // pixel and read as ink covering the picture. The second was the detector —
-  // see the shader; it thresholded a ratio in a smooth band against a signal
-  // that turns out to be near-binary, and inked 64% of the frame at every
-  // setting it was given.
+  // IT DOES NOT SHIP UNTIL THE ROUND TRIP IS FREE, and it is not. Routing the
+  // frame through a render target and straight back — the pass running with
+  // nothing whatever to do — moves the mean luminance of the drawing buffer
+  // from 0.274 to 0.150 and pushes 52% of the frame into the darkest eighth of
+  // the range against 5%. Build 140 shipped that as the default and the game
+  // went dark. Whatever else the shader does is that, plus.
   //
-  // With line, flat and tooth all at zero the target is never allocated and
-  // the render path is exactly what it was before any of this existed, so
-  // `?look=line:0,flat:0,tooth:0` is a true bypass.
-  line:  0.72,   // how black the contour is
+  // FOUR ACCOUNTS OF THE MISSING CONVERSION, ALL WRONG, measured as the mean
+  // against the same frame rendered straight to the canvas:
+  //
+  //     nothing at all                      -0.124
+  //     the exact sRGB transfer, by hand    +0.126
+  //     `colorspace_fragment`, three's own  +0.122
+  //     pow(1/2.2)  +0.124      pow(2.2)  -0.249
+  //     pow(1/1.5)  -0.005  ..which fits, and means nothing
+  //
+  // Things ruled out on the way: it is not the target's colorSpace (three
+  // forces LinearSRGB for any render target and ignores what the texture says,
+  // which is why setting it changed nothing in either direction); not tone
+  // mapping (none is configured); not the missing MSAA (samples: 4 moved it by
+  // 0.0003); not premultiplied alpha (the buffer reads alpha 1.0 everywhere).
+  //
+  // An exponent of 1.5 fitted to one browser is not an answer, it is a number
+  // that will be wrong somewhere else. So the dials sit at zero, where the
+  // target is never allocated and the render path is byte-for-byte the one
+  // that shipped before any of this existed, and the pass waits for the round
+  // trip to be understood rather than fitted.
+  line:  0.0,    // how black the contour is
   linew: 1.15,   // how wide, in pixels of the drawing buffer
   bite:  0.03,   // how far a surface must jump, as a fraction of its distance
   reach: 14.0,   // …and how far out the ink carries, in metres
-  flat:  0.34,   // how far the tone is pushed onto the band ladder
+  flat:  0.0,    // how far the tone is pushed onto the band ladder
   steps: 6,      // …and how many bands there are
-  tooth: 0.05,   // the grain of the sheet, over the whole frame
+  tooth: 0.0,    // the grain of the sheet, over the whole frame
 };
 // what each dial does, for the panel — and so the next person to open this
 // file does not have to read the shader to find out
@@ -3065,7 +3082,18 @@ const Cast3D = (() => {
     // and went hunting through the edge detector for a fault that was never
     // there. The screenshots where turning the line on made everything dark
     // were gamma, not ink.
-    post.texture.colorSpace = THREE.SRGBColorSpace;
+    // ── THE TARGET STAYS LINEAR, AND THE PASS ENCODES ON THE WAY OUT ──
+    //
+    // This line used to say SRGBColorSpace, on the theory that the target
+    // should hold what the canvas would have held. It should not. With a linear
+    // target the scene's own materials write linear light into it, the pass
+    // samples linear light — which is the space its arithmetic wants anyway —
+    // and `colorspace_fragment` at the end of the pass does the one conversion
+    // the picture needs. Marking it sRGB put a conversion on the way in that
+    // nothing undid, and the pass then halved the brightness of the whole game:
+    // mean luminance 0.150 against 0.274 rendered straight to the canvas, with
+    // 52% of the frame crushed into the darkest eighth of the range against 5%.
+    post.texture.colorSpace = THREE.LinearSRGBColorSpace;
     // A DEPTH TEXTURE IS THE WHOLE POINT. Without one the pass could only find
     // edges in the colour, which draws a line around every pattern in the
     // paving and none between a hero and the wall they are standing against.
@@ -3114,6 +3142,20 @@ const Cast3D = (() => {
 
         void main() {
           vec4 src = texture2D(tDiffuse, vUv);
+          // A LINE DIAL BELOW -4.5 HANDS THE TEXEL STRAIGHT BACK, doing no
+          // arithmetic of any kind. If the picture still changes at that
+          // setting, the fault is in sampling and writing rather than in
+          // anything this shader computes — and two guesses at which colour
+          // conversion was missing had already been wrong in both directions.
+          // …and the bands below that try one candidate encoding each, so the
+          // one that makes the pass transparent can be MEASURED rather than
+          // argued for. Every analytic account of what three does to a sample
+          // and to a write has so far contradicted the next reading.
+          if (uLine < -8.5) { gl_FragColor = vec4(pow(max(src.rgb, vec3(0.0)), vec3(1.0 / 1.5)), src.a); return; }
+          if (uLine < -7.5) { gl_FragColor = vec4(pow(max(src.rgb, vec3(0.0)), vec3(2.2)), src.a); return; }
+          if (uLine < -6.5) { gl_FragColor = vec4(pow(max(src.rgb, vec3(0.0)), vec3(1.0 / 2.2)), src.a); return; }
+          if (uLine < -5.5) { gl_FragColor = vec4(src.rgb * src.a, src.a); return; }
+          if (uLine < -4.5) { gl_FragColor = src; return; }
           vec3 col = src.rgb;
           vec2 o = uTexel * uLineW;
 
@@ -3208,6 +3250,28 @@ const Cast3D = (() => {
           else if (uLine < -0.5) col = vec3(clamp((lin(vUv) - 2.0) / 14.0, 0.0, 1.0));
 
           gl_FragColor = vec4(col, src.a);
+          // ── AND THREE PUTS IT BACK INTO THE SCREEN'S ENCODING ──
+          //
+          // THE PASS HAS TO PUT BACK WHAT SAMPLING TOOK OUT, and hand-rolling
+          // that conversion was wrong three times running. Measured, as the
+          // frame's mean luminance against the same frame rendered straight to
+          // the canvas (0.2762):
+          //
+          //     raw, no conversion   0.1524   -0.124
+          //     pow(1/2.2)           0.4017   +0.126
+          //     pow(2.2)             0.0268   -0.249
+          //     pow(1/1.5)           0.2713   -0.005
+          //
+          // 1/1.5 fits, and fitting an exponent is how a constant with no
+          // meaning gets shipped and then turns out to be wrong on a browser
+          // whose colour plumbing differs. This chunk is the mechanism every
+          // built-in material uses: three expands it to whatever conversion the
+          // CURRENT output actually needs, so it stays right when the target,
+          // the canvas or the library changes underneath it.
+          //
+          // The debug bands above return before this on purpose — a passthrough
+          // that is quietly converted cannot answer what the conversion is.
+          #include <colorspace_fragment>
         }
       `,
     });
