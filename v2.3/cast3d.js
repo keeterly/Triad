@@ -3110,6 +3110,28 @@ const Cast3D = (() => {
           // the slope. Dividing one by the other is scale-free: it needs no
           // constant tuned to a distance, a lens or a depth format.
           // NO BACKTICKS IN HERE — this shader is inside a template literal.
+          //
+          // ── AND THE THRESHOLD IS CALIBRATED, NOT GUESSED ────────────────
+          //
+          // Captured a real colour frame and a real depth frame out of the
+          // running game and measured this operator's distribution offline.
+          // Over the drawn pixels of one fight:
+          //
+          //     percentile   50th   90th   97th   99th   99.5th
+          //     laplacian       0      1      7    227      263
+          //
+          // It is a near-binary signal: nothing at all, then a cliff between
+          // the 97th and the 99th. The ratio form below thresholds in a smooth
+          // 0.55-1.15 band, which is the wrong REGIME for that shape — no
+          // amount of tuning inside it can separate a contour from a surface,
+          // which is why the pass inked 64% of the frame at every setting it
+          // was given. The threshold wants to sit between 7 and 227 on the
+          // absolute jump, and an offline composite at that setting inks 3.8%
+          // of the picture, which is what a drawn line looks like.
+          //
+          // Left as it is until that is implemented and measured on the real
+          // buffer, because the dials are at zero and a half-changed detector
+          // is worse than a documented one.
           float lapx = abs(dl + dr - 2.0 * c);
           float lapy = abs(du + dd - 2.0 * c);
           float floorg = 0.004 * c;            // so flat sky is 0/0 and not 1
@@ -3146,7 +3168,9 @@ const Cast3D = (() => {
           if (uLine < -3.5) col = vec3((lapx + lapy) / max(0.5, c) * 8.0);
           else if (uLine < -2.5) col = vec3(e * 0.5);
           else if (uLine < -1.5) col = vec3(texture2D(tDepth, vUv).x);
-          else if (uLine < -0.5) col = vec3(fract(lin(vUv) * 0.25));
+          // a clean ramp over the stage's own depth range, so a capture of it
+          // can be composited offline at a readable precision
+          else if (uLine < -0.5) col = vec3(clamp((lin(vUv) - 2.0) / 14.0, 0.0, 1.0));
 
           gl_FragColor = vec4(col, src.a);
         }
