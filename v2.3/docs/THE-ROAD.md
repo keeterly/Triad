@@ -5175,6 +5175,125 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 138 — a duo was one person, and the camera was never allowed to answer
+
+Two of them and three of them are the two moments this deck is named for. Twelve
+cards are owned by a PAIR — `ash|mira`, `elin|mira` — one by the bond itself, and
+the all-out is everybody at once.
+
+Recorded from inside the page, an all-out plays exactly three clips:
+
+```
+  431 shot allout
+ 2253 play foe0 hurt
+ 3078 play foe0 hurt
+ 3980 play foe0 hurt
+```
+
+All three are the VICTIM flinching. Ash, Elin and Mira stand in their idles
+through the whole of "the three of them cross the floor at once". A pair card was
+the same story with one body instead of none: `fxPlayCard` animates
+`primaryHero`, so **Both Blades swung one blade.**
+
+The all-out's charge was a CSS keyframe on `.k-hero img`, and `body.k-cast3d`
+sets exactly that element to `opacity: 0`. It has been animating an invisible
+picture since the day the figures became pixels in a canvas.
+
+### The instrument lied first, and it lied the other way
+
+The first version of that probe polled `Cast3D.shot()` over the Playwright bridge
+every 90ms and reported that **the camera never left the home pose either** —
+one distinct frame across the whole all-out.
+
+That was the harness. This browser draws at about one and a half frames a second
+and every `evaluate` waits its turn on the page's own thread, so twenty "samples"
+spanned fourteen seconds and the first one landed after the all-out had finished.
+Wrapping `play` and `shot` and reading the log afterwards cannot miss anything,
+and it shows the camera moving exactly as written. Same lesson as Build 137's cut
+counter, one build later: **check that the meter can see the thing before
+believing what it says about it.**
+
+### And then the meter found something real
+
+```
+  540 play mira slash
+  540 shot strike {"for":760}
+  540 shot home {}
+```
+
+`{ for: ms }` has existed since Build 122 with one job — stop a phase parking the
+camera on top of an action — and it has never once worked. A stance took the
+frame unconditionally, and `setPhase('PLAYER_READY')` fires `castShot('home')`
+the instant a card resolves. **Every action shot in this game, `strike` and
+`grace` alike, has been asked for and thrown away within a millisecond for
+sixteen builds.** The comment above `SHOT_FOR` describes a feature that was not
+running.
+
+A stance says where the camera LIVES, and `rig` already eases back to exactly
+that when the hold expires. So while a moment holds the frame, a stance now
+updates the destination and leaves the frame alone.
+
+### A shot can be about a person
+
+`at` could name a SIDE (`party`, `foe`), the board, or a literal world point.
+A duo is none of those: it is two named people, and framing it means holding on
+one of them and cutting to the other. An array of NAMES is now a shot's subject —
+one person, or the midpoint of several — while an array of numbers stays the
+literal point it always was. It is read off the world every frame, so it follows
+them if they move.
+
+### A cut list
+
+`shot` sets one pose, or one move between two poses, and that was the whole
+language — which is why every moment in this game was one continuous camera move
+and no moment was ever CUT.
+
+`Cast3D.sequence([{ shot, opts, hold }, …])` is a list of frames on a clock, and
+it is cancellable: a later moment drops whatever is still pending, so a kill
+landing mid-all-out takes the camera and the rest of the list does not fight it.
+A stance does *not* cancel it, which is the same distinction the hold fix draws.
+
+### What the two of them do now
+
+A duo is three shots, because two singles say "one, then the other" and the third
+says "and that was one thing":
+
+| | | measured |
+|---|---|---|
+| `commit` | low, off the line, pushing in on whoever throws it | az −30 → −20, 3.90 → 3.40 m |
+| `answer` | the other side, opposite cant, arriving already moving | az 34 → 18, 3.60 → 4.30 m |
+| `together` | pulls back to hold them both | az −12 → −2, 5.20 → 5.90 m |
+
+The second hero acts 200ms after the first. Not zero: two bodies playing one clip
+on one frame reads as a duplicated sprite, and the whole point is that there is an
+order to it.
+
+The all-out staggers all three by 190ms and then cuts to `alloutland` — low, wide,
+swung round onto the line of them — and **hands the camera back after the blows
+rather than before them.** `fxAllOut` used to end with `castShot('home')`, and
+everything below the await it returns from is the part where anything is actually
+hit.
+
+Measured through a real duo, frame by frame:
+
+```
+   45  commit   az -30  3.90m
+ 1423  answer   az  34  3.60m
+ 2236  together az -12  5.20m
+ 3503  home     az   0  7.35m
+```
+
+### Still open
+
+The all-out's three bodies play `slash` where they should play their own verb
+against their own target, and none of them travels — they swing on the spot,
+which reads at this distance and would not in a closer shot. The high and low
+parry guards still want the camera-aware second pass the horizontal pair got in
+137.
+
+cast 99/99 · flow 258/258 · road 94/94 · slice 85/85 · bond 76/76 ·
+camp 48/48 · line 32/32 · music 22/22 · beat 10/10 — no page errors.
+
 ## Build 137 — the parry was never a motion
 
 The parry was supposed to learn to answer the direction of the blow. Build 136

@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 137;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 138;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -2096,6 +2096,10 @@ async function allOut() {
     await sleep(150);
   }
   struckLine.forEach(F => { if (!F.dead) breakDamage(TUNE.alloutBrk, F); });
+  // NOW the camera goes home — after the blows, not before them. `fxAllOut`
+  // used to end with `castShot('home')`, and everything below the await it
+  // returns from is the part where anything is actually hit.
+  if (C.phase !== 'VICTORY') castShot('home', { speed: 1.1 });
   logLine('ALL-OUT — ' + living.length + ' as one.'
     + (gearedUp ? ' They find another gear: +' + TUNE.alloutAp + ' AP for the rest of this.' : ''));
   if (gearedUp) fxApGear();
@@ -4768,6 +4772,16 @@ function castShot(name, opts) {
   const C3 = window.Cast3D;
   if (C3 && C3.shot) C3.shot(name, opts);
 }
+// …AND A MOMENT THAT NEEDS MORE THAN ONE FRAME NAMES A CUT LIST INSTEAD.
+// Same guard, same no-op with the painted stage.
+function castCut(list) {
+  const C3 = window.Cast3D;
+  if (C3 && C3.sequence) C3.sequence(list);
+}
+// How long after the first of a pair commits the second one answers. Not zero:
+// two bodies playing one clip on one frame reads as a duplicated sprite, and
+// the whole point of a duo is that there is an order to it.
+const DUO_RELAY = 200;
 // ── AIMING A CARD IS THE FIRST HALF OF THROWING IT (Build 129) ─────────────
 //
 // The verb a card will speak is known the moment it leaves the fan — the same
@@ -4916,6 +4930,27 @@ function fxPlayCard(cardId, ev) {
   if (h) { h.classList.remove('k-acts'); void h.offsetWidth; h.classList.add('k-acts'); }
   const kind = actionKind(ev.card, ev.resolvedEffects);
   castPlay(heroId, kind);
+  // ── A DUO IS TWO BODIES (Build 138) ──────────────────────────────────────
+  //
+  // Twelve cards in this deck are owned by a PAIR — `ash|mira`, `elin|mira` —
+  // and a thirteenth by the bond itself. Since they existed, exactly one person
+  // has moved when one is played: `primaryHero` picks the first name and the
+  // other one stands in their idle watching. The card is called Both Blades and
+  // one blade swings.
+  //
+  // NOT AT THE SAME INSTANT, THOUGH. Two people playing the same clip on the
+  // same frame reads as a copy-paste, not as a pair — the eye needs the second
+  // one to be ANSWERING the first. A fifth of a second is the gap; short enough
+  // to be one action, long enough to have an order.
+  const both = ownerHeroes(ev.card);
+  const second = both.length > 1 && !ownerDown(ev.card) ? both[1] : null;
+  if (second && C.heroes[second] && !C.heroes[second].downed) {
+    const h2 = document.querySelector('.k-hero[data-hero="' + second + '"]');
+    setTimeout(() => {
+      if (h2) { h2.classList.remove('k-acts'); void h2.offsetWidth; h2.classList.add('k-acts'); }
+      castPlay(second, kind);
+    }, DUO_RELAY);
+  }
   // ── THE CAMERA ANSWERS THE ACTION, NOT JUST THE PHASE (Build 122) ─────────
   //
   // Until now a shot was chosen by which half of the turn it was: the player's
@@ -4928,7 +4963,17 @@ function fxPlayCard(cardId, ev) {
   // because a combo is the thing the deck is named for.
   const SHOT_FOR = { slash: 'strike', cast: 'strike', heal: 'grace', ward: 'grace' };
   const combo = !!(ev.condActive && ev.card.cond);
-  if (SHOT_FOR[kind]) {
+  if (second) {
+    // …AND THE CAMERA CUTS BETWEEN THEM. One frame on whoever commits, a cut to
+    // whoever answers as they answer, and a third that holds them both — which
+    // is the shot that says the two singles were one action. A cut list rather
+    // than a move, because no amount of easing between two poses is a cut.
+    castCut([
+      { shot: 'commit',   opts: { for: 2600, speed: 2.6, at: [heroId] }, hold: DUO_RELAY + 60 },
+      { shot: 'answer',   opts: { for: 2000, speed: 3.4, at: [second] }, hold: 620 },
+      { shot: 'together', opts: { for: 1100, speed: 1.9, at: both.slice() } },
+    ]);
+  } else if (SHOT_FOR[kind]) {
     castShot(SHOT_FOR[kind],
       combo ? { for: 1250, speed: 2.2, dist: kind === 'heal' || kind === 'ward' ? 5.8 : 4.9 }
             : { for: 760, speed: 2.9 });
@@ -5643,29 +5688,54 @@ function fxKizunaReady() {
 }
 // The three of them cross the floor at once. The camera drains, they strike,
 // and the frame holds — this is the payoff for a whole fight of charging it.
+// ── AND THREE OF THEM IS THREE BODIES (Build 138) ──────────────────────────
+//
+// Recorded from inside the page rather than sampled from outside it — the
+// suite's browser draws at about 1.5fps, and polling a 520ms window across a
+// Playwright bridge reported the camera never moving, which was the harness
+// talking — the all-out played exactly three clips, and all three of them were
+// the VICTIM flinching. Ash, Elin and Mira stood in their idles through the
+// whole of "the three of them cross the floor at once".
+//
+// The charge was a CSS keyframe on `.k-hero img`, and `body.k-cast3d` sets
+// exactly that element to `opacity: 0`. It has been animating an invisible
+// picture since the day the world became a canvas.
+//
+// STAGGERED, AND THE STAGGER IS THE POINT. Three identical swings on one frame
+// is a chord; three landing a fifth of a second apart is a phrase, and the last
+// one is the one that reads as the finish.
+const ALLOUT_STEP = 190;
 async function fxAllOut(living) {
   const stage = el('k-stage'); if (!stage) return;
   stage.classList.add('k-allout');
   camPush(3, foeBox(C ? C.aim : 0) || document.getElementById('k-boss-art'));
-  // the payoff shot: swing off the axis so all three crossing the floor read as
-  // three, and stand up a little so the line of them is legible
-  castShot('allout', { speed: 1.3 });
   const tag = document.createElement('div');
   tag.className = 'k-combo-call k-combo-call-big k-allout-call';
   tag.textContent = 'All-Out';
   tag.style.left = '466px'; tag.style.top = '150px';
   stage.appendChild(tag);
+  // THE CUT LIST. Wide and swinging while they commit, then down onto the line
+  // of them for the blows. The old shot handed the camera back with
+  // `castShot('home')` at the END of this function — which runs BEFORE allOut()
+  // deals a single point of damage, so the payoff of a whole fight's charging
+  // landed on the board's resting frame.
+  const hold = ALLOUT_STEP * living.length + 240;
+  castCut([
+    { shot: 'allout',     opts: { for: hold + 2200, speed: 1.3 }, hold },
+    { shot: 'alloutland', opts: { for: 2000, speed: 2.1 } },
+  ]);
   living.forEach((id, i) => {
     const h = document.querySelector('.k-hero[data-hero="' + id + '"]');
-    if (h) setTimeout(() => {
-      h.classList.add('k-charging');
-      setTimeout(() => h.classList.remove('k-charging'), 620);
-    }, i * 90);
+    setTimeout(() => {
+      if (h) { h.classList.remove('k-charging'); void h.offsetWidth; h.classList.add('k-charging');
+               setTimeout(() => h.classList.remove('k-charging'), 620); }
+      // …and the body itself, which is the half that was missing
+      castPlay(id, 'slash');
+    }, i * ALLOUT_STEP);
   });
-  await sleep(520);
+  await sleep(ALLOUT_STEP * living.length + 300);
   tag.remove();
   stage.classList.remove('k-allout');
-  castShot('home', { speed: 1.1 });
 }
 function renderBossHud() {
   el('k-bhp').textContent = fmtN(C.boss.hp);

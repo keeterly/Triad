@@ -1655,6 +1655,14 @@ const Cast3D = (() => {
                  at: 'board',
                  to: { az: 26, dist: 6.70, height: 2.15, aimY: 1.44, roll: -1.5, fov: 55 },
                  over: 2200 },
+    // …and where it goes once all three have committed: down onto the line of
+    // them, low and wide, so the blows land in frame rather than after it. The
+    // all-out used to hand the camera back BEFORE the damage was dealt — the
+    // shot was over and the board was home by the time anything was hit.
+    alloutland:{ az: -46, dist: 5.40, height: 1.10, aimY: 1.42, roll: -5, fov: 60,
+                 at: 'foe',
+                 to: { az: -22, dist: 6.30, height: 1.85, aimY: 1.40, roll: 0, fov: 55 },
+                 over: 1600 },
     // ── THE PARRY, WHICH IS THE ONE MOMENT THE PLAYER HAS TO ACT ──────────
     //
     // It was az -13, dist 5.10, height 1.42: thirteen degrees off dead centre
@@ -1716,6 +1724,31 @@ const Cast3D = (() => {
                  at: 'foe',
                  to: { az: -34, dist: 5.20, height: 1.66, aimY: 1.14, roll: 0, fov: 55 },
                  over: 1850 },
+    // ── AND THE SHOTS A DUO AND A TRIO ASK FOR (Build 138) ──────────────────
+    //
+    // These are the only shots in the table whose `at` is left out, because
+    // they are always sent with one: a duo shot is ABOUT the two people
+    // throwing it and a relay shot is about whoever answers. That is what the
+    // named-subject `at` is for.
+    //
+    // COMMIT is the first half of a duo: low, off the line, close enough that
+    // the hero filling it reads as a person rather than a rank, and pushing in
+    // while they wind up.
+    commit:    { az: -30, dist: 3.90, height: 1.24, aimY: 1.44, roll: -4, fov: 58,
+                 to: { az: -20, dist: 3.40, height: 1.30, roll: -1, fov: 60 },
+                 over: 800 },
+    // ANSWER is the cut: the other side of the line, the opposite cant, and it
+    // arrives already moving. Cutting to a still frame after a moving one is
+    // what makes a cut read as a mistake.
+    answer:    { az:  34, dist: 3.60, height: 1.16, aimY: 1.46, roll: 6, fov: 60,
+                 to: { az: 18, dist: 4.30, height: 1.44, roll: 0, fov: 55 },
+                 over: 1000 },
+    // TOGETHER is the frame that holds them BOTH, and it is the reason a duo
+    // gets three shots rather than two: two singles say "one, then the other",
+    // and the third says "and that was one thing".
+    together:  { az: -12, dist: 5.20, height: 1.86, aimY: 1.50, roll: 0, fov: 54,
+                 to: { az: -2, dist: 5.90, height: 2.05, roll: 0, fov: 52 },
+                 over: 1100 },
     // A DEFLECTION IS A FRACTION OF A SECOND, so its shot is nearly a cut — and
     // the little it has time to do is snap back toward level, which reads as
     // the frame recoiling off the block.
@@ -1726,7 +1759,31 @@ const Cast3D = (() => {
   };
   // where a shot may be aimed. `party` and `foe` are read off the world rather
   // than written down, so a shot follows whoever is actually standing there.
+  // ── …AND A SHOT CAN BE ABOUT A PERSON (Build 138) ────────────────────────
+  //
+  // `at` has been able to say `party`, `foe`, `board` or a literal world point
+  // since Build 119, and that is everything a shot needs as long as a shot is
+  // about a SIDE. A duo card is not: it is two named people doing one thing,
+  // and framing it means holding on one of them and then whipping to the other.
+  // There was no way to say that.
+  //
+  // So an array of NAMES is a shot's subject — one person, or the midpoint of
+  // several — while an array of numbers stays the literal point it always was.
+  // Nothing had to be added to the shot table: `at: ['ash', 'mira']` is a
+  // two-shot, and it follows them if they move, because it is read off the
+  // world every frame like the sides are.
   function aimPoint(at) {
+    if (Array.isArray(at) && typeof at[0] === 'string') {
+      let n = 0, x = 0, z = 0;
+      for (const id of at) {
+        const f = figs[id];
+        if (!f || !f.root.visible) continue;
+        x += f.root.position.x + (f.ctrOff || 0); z += f.root.position.z; n++;
+      }
+      // a shot about somebody who is not on the board is a shot about the board
+      if (n) return [x / n, 0, z / n];
+      return BOARD;
+    }
     if (Array.isArray(at)) return at;
     if (at === 'party' || at === 'foe') {
       const want = at === 'foe';
@@ -2723,6 +2780,11 @@ const Cast3D = (() => {
   const BASE = full(SHOTS.home);
   let holdUntil = 0;
   let shotSpeed = 1.6;
+  // the pending steps of a cut list, and a flag so the list's own calls into
+  // `shot` are not mistaken for somebody interrupting it
+  const cutTimers = [];
+  let cutting = false;
+  function cutStop() { while (cutTimers.length) clearTimeout(cutTimers.pop()); }
   // when the current shot began, so a move knows how far through it is
   let shotAt = 0;
   const _eye = new THREE.Vector3(), _look = new THREE.Vector3();
@@ -3563,10 +3625,53 @@ const Cast3D = (() => {
     // doing whatever it was doing, and nothing else in the game has to know a
     // camera moved. Called with nothing it reports where the camera is
     // actually standing, which is not always where it was last sent.
+    // ── A CUT LIST (Build 138) ────────────────────────────────────────────
+    //
+    // `shot` sets one pose, or one move between two poses, and for a hundred
+    // builds that was the whole language — which is why every moment in this
+    // game is one continuous camera move and no moment is ever CUT.
+    //
+    // A duo and an all-out are the two things that cannot be said that way. Two
+    // people doing one thing is a two-shot: hold on the one who commits, whip
+    // to the one who answers. Three of them is a crescendo — wide, then in,
+    // then off the line as it lands. Both are a sequence of shots on a clock,
+    // and a sequence is not something `shot` can express however many fields it
+    // grows.
+    //
+    // Each entry is `{ shot, opts, hold }`: what to cut to, how to ask for it,
+    // and how long before the next one. It is plain `setTimeout` and it is
+    // CANCELLABLE — a later `shot` or `sequence` drops whatever is still
+    // pending, so a kill landing in the middle of an all-out takes the camera
+    // and the rest of the cut list does not fight it for the frame.
+    sequence(list) {
+      cutStop();
+      if (!Array.isArray(list) || !list.length) return false;
+      let t = 0;
+      list.forEach((step, i) => {
+        const go = () => {
+          cutting = true;
+          // …by name off the module's own export rather than through `this`,
+          // which a destructured call would not have
+          try { Cast3D.shot(step.shot, step.opts); } finally { cutting = false; }
+        };
+        if (i === 0) go();
+        else cutTimers.push(setTimeout(go, t));
+        t += Math.max(0, step.hold || 0);
+      });
+      return true;
+    },
+    // …and a way to say "stop cutting" without asking for a frame
+    uncut: () => cutStop(),
     shot(name, opts) {
       if (name == null) return { asked: { ...SHOT }, base: { ...BASE },
                                  holding: holdUntil ? Math.max(0, Math.round(holdUntil - now())) : 0,
                                  at: { ...TRIPOD, atP: TRIPOD.atP.slice() } };
+      // A FRAME ASKED FOR FROM OUTSIDE THE CUT LIST ENDS THE CUT LIST — unless
+      // it is a stance, which is only saying where to go once the cutting is
+      // done. `setPhase` fires `castShot('home')` the instant a card resolves,
+      // and treating that as an interruption cancelled every duo's second and
+      // third shot before either played.
+      if (!cutting && opts && opts.for) cutStop();
       const base = typeof name === 'string' ? SHOTS[name] : name;
       if (!base) return false;
       // `full` is what stops a move leaking. Every pose is filled out to the
@@ -3579,6 +3684,23 @@ const Cast3D = (() => {
         holdUntil = now() + opts.for;      // a moment: hand the camera back after
       } else {
         Object.assign(BASE, next);          // a stance: this is where it lives
+        // ── …AND A STANCE WAITS FOR THE MOMENT IT INTERRUPTED (Build 138) ──
+        //
+        // `{ for: ms }` has existed since Build 122 to stop a phase parking the
+        // camera on top of an action, and it has never once worked, because a
+        // stance took the frame unconditionally two lines below this.
+        //
+        // Measured: playing a card logs `shot strike {for:760}` and
+        // `shot home {}` ON THE SAME TICK — `fxPlayCard` asks for the beat and
+        // `setPhase('PLAYER_READY')` immediately overwrites it. Every action
+        // shot in this game, `strike` and `grace` alike, has been asked for and
+        // discarded within a millisecond for sixteen builds. The comment above
+        // `SHOT_FOR` describes a feature that was not running.
+        //
+        // A stance says where the camera LIVES, and `rig` already eases back to
+        // exactly that when the hold expires. So while a moment holds the
+        // frame, a stance updates the destination and does not touch it.
+        if (holdUntil > now()) return true;
         holdUntil = 0;
       }
       Object.assign(SHOT, next);

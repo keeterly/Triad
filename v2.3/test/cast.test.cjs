@@ -1947,6 +1947,123 @@ const { boot } = require('./harness.cjs');
     G('U').up > G('none').up && G('D').up < G('U').up,
     JSON.stringify({ U: G('U').up, D: G('D').up, none: G('none').up }) + ' m of lift');
 
+  // ═══ M12 · TWO OF THEM, AND THREE ═══
+  //
+  // Twelve cards in this deck are owned by a PAIR and one by the bond itself,
+  // and the all-out is all three at once. Recorded from inside the page — the
+  // browser here draws at about 1.5fps, so polling a half-second window over
+  // the Playwright bridge measures the harness rather than the game — the
+  // all-out played exactly three clips and all three were the VICTIM flinching.
+  // A pair card moved one person. `Both Blades` swung one blade.
+  console.log('\n── two of them, and three ──');
+  const tap = () => J(() => {
+    const C3 = window.Cast3D;
+    window.__log = [];
+    const t0 = performance.now();
+    if (!C3.__rawPlay) { C3.__rawPlay = C3.play; C3.__rawShot = C3.shot; }
+    C3.play = function (id, verb) {
+      window.__log.push([Math.round(performance.now() - t0), 'play', id, verb]);
+      return C3.__rawPlay.apply(C3, arguments);
+    };
+    C3.shot = function (name, opts) {
+      if (name != null && typeof name === 'string')
+        window.__log.push([Math.round(performance.now() - t0), 'shot', name, !!(opts && opts.for)]);
+      return C3.__rawShot.apply(C3, arguments);
+    };
+  });
+  const drain = () => J(() => {
+    const C3 = window.Cast3D;
+    if (C3.__rawPlay) { C3.play = C3.__rawPlay; C3.shot = C3.__rawShot;
+                        C3.__rawPlay = null; C3.__rawShot = null; }
+    return window.__log || [];
+  });
+  const heroesIn = (log) => [...new Set(log.filter(r => r[1] === 'play'
+      && ['ash', 'elin', 'mira'].includes(r[2]) && r[3] !== 'idle').map(r => r[2]))].sort();
+  const shotsIn = (log) => log.filter(r => r[1] === 'shot' && r[3]).map(r => r[2]);
+
+  await tap();
+  await J(async () => {
+    window.K.forceHand(['bothblades']);           // owner: ash|mira
+    window.K.state().ap = 9;
+    await window.K.playCard('bothblades', { foe: 0 });
+  });
+  await sleep(3400);
+  const duo = await drain();
+  check('DUO: a pair card moves BOTH of the people who own it',
+    heroesIn(duo).join(',') === 'ash,mira',
+    JSON.stringify(heroesIn(duo)) + ' acted — Both Blades is owned by ash|mira');
+  check('DUO: …one after the other, so it reads as an answer and not a copy',
+    (() => { const p = duo.filter(r => r[1] === 'play' && ['ash', 'mira'].includes(r[2]));
+             return p.length >= 2 && p[1][0] - p[0][0] >= 120; })(),
+    JSON.stringify(duo.filter(r => r[1] === 'play' && ['ash', 'mira'].includes(r[2]))));
+  check('DUO: and the camera CUTS — one on each of them, then a frame holding both',
+    ['commit', 'answer', 'together'].every(n => shotsIn(duo).includes(n)),
+    JSON.stringify(shotsIn(duo)));
+
+  await tap();
+  await J(async () => { const st = window.K.state(); st.kizuna = 100; await window.K.allOut(); });
+  await sleep(4200);
+  const trio = await drain();
+  check('TRIO: an all-out moves every living body, not just the one being hit',
+    heroesIn(trio).length === 3,
+    JSON.stringify(heroesIn(trio)) + ' — it used to be nobody');
+  check('TRIO: …and the camera is still on them when the blows land',
+    shotsIn(trio).includes('alloutland'),
+    JSON.stringify(shotsIn(trio)) + ' — home used to be asked for BEFORE the damage');
+
+  // ── A PHASE MUST NOT STEAL THE FRAME FROM A BEAT ──
+  //
+  // `{ for: ms }` has existed since Build 122 precisely to stop this, and it
+  // never worked: a stance took the frame unconditionally, and `setPhase` fires
+  // `castShot('home')` the instant a card resolves. Measured, `shot strike` and
+  // `shot home` land on the SAME TICK — so every action shot in this game has
+  // been asked for and thrown away within a millisecond for sixteen builds.
+  const steal = await J(() => {
+    const C3 = window.Cast3D;
+    C3.uncut();
+    C3.shot('home');                          // a clean stance, nothing held
+    const home = C3.shot().asked.az;
+    C3.shot('strike', { for: 4000 });         // a beat takes the frame
+    const held = C3.shot().asked.az;
+    C3.shot('home');                          // what setPhase does, one tick later
+    const s = C3.shot();
+    return { home, held, after: s.asked.az, lives: s.base.az, holding: s.holding > 0 };
+  });
+  check('SHOT: a phase says where the camera LIVES; it does not interrupt a beat',
+    steal.holding && steal.held === steal.after
+    && steal.after !== steal.home && steal.lives === steal.home,
+    JSON.stringify(steal) + ' — azimuth. `after` is the beat still on screen'
+      + ' and `lives` is where the stance will take it once the beat is done');
+
+  // ── AND A SHOT CAN BE ABOUT A PERSON ──
+  // `at` could name a SIDE or a literal point. A duo is neither: it is two
+  // named people, and framing it means holding on one and cutting to the other.
+  // Compared against the same shot aimed at the foe line, because the question
+  // is whether the lens actually goes somewhere else — not whether the field
+  // was copied through.
+  const about = await J(async () => {
+    const C3 = window.Cast3D;
+    const f = C3._figure('ash');
+    if (!f) return null;
+    const settle = async () => { for (let i = 0; i < 6; i++)
+      await new Promise(r => requestAnimationFrame(r)); };
+    C3.uncut();
+    C3.shot('together', { at: 'foe' });
+    await settle();
+    const atFoe = C3.shot().at.atP.slice();
+    C3.shot('together', { at: ['ash'] });
+    await settle();
+    const s = C3.shot();
+    return { asked: s.asked.at, atFoe: atFoe.map(v => +v.toFixed(2)),
+             atAsh: s.at.atP.map(v => +v.toFixed(2)),
+             ashX: +(f.root.position.x + (f.ctrOff || 0)).toFixed(2) };
+  });
+  check('SHOT: a shot can be about a PERSON, not just a side of the board',
+    !!about && Array.isArray(about.asked) && about.asked[0] === 'ash'
+    && Math.abs(about.atAsh[0] - about.ashX) < Math.abs(about.atFoe[0] - about.ashX),
+    JSON.stringify(about) + ' — the lens ends up nearer Ash than the foe line does');
+  await J(() => { window.Cast3D.uncut(); window.Cast3D.shot('home'); });
+
   // ═══ N · THE PATH EVERY PLAYER TAKES ═══
   //
   // Every check above this line ran on a page that ASKED for the 3D stage.
