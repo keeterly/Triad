@@ -47,8 +47,32 @@ const rest = d.__rest, parent = d.__parent;
 // ── the body's frame, measured ─────────────────────────────────────────────
 // FK the rest pose once. The bone offsets come from frame 0 of any clip's
 // position tracks, which are constant for everything but the hips.
+// ── THE SKELETON'S SHAPE COMES FROM WHICHEVER CLIP STILL CARRIES IT ────────
+//
+// Bone offsets — the lengths that make this a body rather than a list of
+// rotations — ride in each clip's per-bone `.position` tracks. The milled Meshy
+// clips carry all 24. An IMPORTED clip carries exactly one, `Hips.position`,
+// because that is all the importer emits.
+//
+// So reading them off a fixed clip name is a trap that springs the day that
+// clip is replaced from a pack: `hurt` became an import, every bone but the
+// hips collapsed to the origin, and the body frame came out as three zero
+// vectors. Every rotation is then about a zero axis, which is the identity —
+// so the tool cheerfully rewrote all five guards as the rest pose. The only
+// thing that caught it was the axes being printed.
+const withOffsets = Object.keys(d)
+  .filter(k => !k.startsWith('__') && d[k].tracks)
+  .map(k => [k, d[k].tracks.filter(t => t.name.endsWith('.position')).length])
+  .sort((a, b) => b[1] - a[1])[0];
+if (!withOffsets || withOffsets[1] < 20) {
+  console.error('No clip left carries per-bone offsets (best: '
+    + (withOffsets ? withOffsets[0] + ' with ' + withOffsets[1] : 'none')
+    + '). The rest skeleton cannot be rebuilt, and writing the guards without it'
+    + ' would silently emit the rest pose.');
+  process.exit(2);
+}
 const off = {};
-for (const t of d.hurt.tracks) {
+for (const t of d[withOffsets[0]].tracks) {
   if (!t.name.endsWith('.position')) continue;
   off[t.name.split('.')[0]] = new THREE.Vector3(t.values[0], t.values[1], t.values[2]);
 }
@@ -108,9 +132,22 @@ function localsFor(pose) {
 // reading as five linear ramps bolted together.
 const FPS = 30;
 const ease = (u) => u * u * (3 - 2 * u);
-// where the source rig's pelvis rests, in its own centimetres — the anchor a
-// `lift` is measured from
-const HIP_REST = off.Hips.clone();
+// ── THE ANCHOR IS PINNED, NOT DERIVED ──────────────────────────────────────
+//
+// Where the source rig's pelvis STANDS, in its own centimetres, and the height
+// a `lift` is measured from. It is a literal on purpose.
+//
+// Taking it off whichever clip supplied the bone offsets makes it a property of
+// the library's contents rather than of the rig: `hurt` opens standing with the
+// hips at 94.2 and `staff` opens low at 74.1, so when an import replaced `hurt`
+// and the offsets moved to `staff`, every guard dropped twenty rig-centimetres
+// and all five figures stood fifteen centimetres inside the paving. Nothing
+// about the parries had changed.
+//
+// Measured off the milled library's standing clips. If the rig is ever
+// regenerated this number moves with it — and the floor check in the cast suite
+// is what will say so.
+const HIP_REST = new THREE.Vector3(-2.493, 94.16, 14.261);
 function buildClip(name, keys, beat) {
   const dur = keys[keys.length - 1][0];
   const n = Math.max(2, Math.round(dur * FPS) + 1);
@@ -362,9 +399,16 @@ const SPEC = {
 for (const [name, [brace, arm, past]] of Object.entries(SPEC)) {
   d[name] = buildClip(name, shape(brace, arm, past), BEAT);
 }
+// A ZERO AXIS IS AN IDENTITY ROTATION, AND IDENTITY IS THE REST POSE.
+if (AXIS.up.length() < 0.9 || AXIS.right.length() < 0.9 || AXIS.fwd.length() < 0.9) {
+  console.error('The body frame is degenerate — up ' + AXIS.up.toArray()
+    + ', right ' + AXIS.right.toArray() + '. Nothing written.');
+  process.exit(2);
+}
 fs.writeFileSync(LIB, JSON.stringify(d));
 const kb = (n) => (JSON.stringify(d[n]).length / 1024).toFixed(1) + 'kB';
 console.log('authored', Object.keys(SPEC).map(n => n + ' ' + kb(n)).join('  '));
+console.log('offsets from ' + withOffsets[0] + ' (' + withOffsets[1] + ' tracks)');
 console.log('body frame  up', AXIS.up.toArray().map(v => +v.toFixed(2)),
             ' right', AXIS.right.toArray().map(v => +v.toFixed(2)),
             ' fwd', AXIS.fwd.toArray().map(v => +v.toFixed(2)));
