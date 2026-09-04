@@ -2703,6 +2703,21 @@ const Cast3D = (() => {
   // So the dim moves inside. The scene's own lights come down, which darkens
   // the plaza and the mist and everything standing in them — and whoever the
   // moment is ABOUT keeps a light of their own.
+  // ── TIME, WHICH THE WORLD DID NOT HAVE (Build 136) ───────────────────────
+  //
+  // `parrySlowmo` has toggled `k-slowmo` since Build 22 and its comment calls it
+  // "Clair-Obscur slow-mo: the instant a note becomes tappable, time dilates".
+  // What the class does is `animation-play-state: paused` on the stage's
+  // children — it stops CSS keyframes. The 3D world is a canvas driven by a
+  // requestAnimationFrame loop, and no CSS property has ever touched it, so the
+  // one place the fight actually happens ran at full speed through every
+  // dilation. The bar slowed; the swing did not.
+  //
+  // Slowing is a factor on dt, and it eases rather than steps: time arriving at
+  // a third of its speed between two frames is a stutter, and time sliding into
+  // a third of its speed is the effect the game has been claiming for a hundred
+  // builds.
+  let slowLevel = 1, slowWant = 1;
   let focusLevel = 1, focusWant = 1;
   const focusOn = {};
   const _spot = { light: null };
@@ -2824,8 +2839,13 @@ const Cast3D = (() => {
     // and, worse, drifted out of step with the combat beats they exist to
     // match. A quarter of a second still stops a backgrounded tab from
     // teleporting the whole party when it comes back.
-    const dt = last ? Math.min(0.25, (now - last) / 1000) : 0.016;
+    const real = last ? Math.min(0.25, (now - last) / 1000) : 0.016;
     last = now;
+    // the dial itself moves in REAL time — otherwise slowing down would slow
+    // down the act of slowing down, and the ease would never arrive
+    if (Math.abs(slowWant - slowLevel) > 0.002)
+      slowLevel += (slowWant - slowLevel) * Math.min(1, real / 0.12);
+    const dt = real * slowLevel;
 
     const b = host.getBoundingClientRect();
     if (!b.width) return;
@@ -3255,6 +3275,16 @@ const Cast3D = (() => {
     // `focus(['foe0','ash'])` takes the world down and holds these two lit.
     // `focus(null)` gives it back. The fight names the bodies the moment is
     // about; it does not have to know there are lights.
+    // ── HOW FAST TIME IS RUNNING IN HERE ───────────────────────────────────
+    //
+    // 1 is now. Anything less is a held breath. The camera, the bodies, the
+    // sparks and the burn all read the same clock, because a world where the
+    // fighters slow down and the embers do not is a world with two clocks in
+    // it and the player can see both.
+    slow(factor) {
+      slowWant = Math.max(0.05, Math.min(1, factor == null ? 1 : factor));
+      return true;
+    },
     focus(keys) {
       for (const k of Object.keys(focusOn)) delete focusOn[k];
       if (!keys || !keys.length) { focusWant = 1; return true; }
@@ -3335,6 +3365,7 @@ const Cast3D = (() => {
       rings: fx ? fx.shocks.items.filter(i => i.t > 0).length : 0,
       cuts: fx ? fx.cuts.items.filter(i => i.t > 0).length : 0,
       focus: +focusLevel.toFixed(3),
+      slow: +slowLevel.toFixed(3),
       lit: Object.keys(focusOn),
     }),
     // test-only: THE WORLD, MEASURED OFF THE WORLD. Not the table it was

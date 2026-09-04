@@ -5175,6 +5175,68 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 136 — time dilates where the fight is, and the creature swings
+
+"When the enemy attacks it should be dramatic and time dilates. During time
+dilation is when the parrying should happen."
+
+### The world never slowed down
+
+`parrySlowmo` has toggled `k-slowmo` since Build 22, and the comment above it
+reads *"Clair-Obscur slow-mo: the instant a note becomes tappable, time
+dilates."*
+
+What the class does is `animation-play-state: paused` on the stage's children.
+It stops **CSS keyframes**. The 3D world is a canvas driven by its own
+requestAnimationFrame loop, and no CSS property has ever reached inside one — so
+for every build since the world existed, the bar slowed, the interface slowed,
+and the swing coming at the player ran at full speed. **The one thing the player
+is being asked to answer is the one thing that never slowed down.**
+
+Slowing is a factor on `dt`, applied where every clock in the layer reads it: the
+mixers, the camera easing, the sparks, the burn. One clock, because a world where
+the fighters slow and the embers do not is a world with two of them and the
+player can see both.
+
+The dial itself eases in real time. Two reasons: arriving at a third of speed
+between two frames is a stutter rather than an effect, and a dial that moved on
+the slowed clock would slow down the act of slowing down and never arrive.
+
+Measured as distance travelled by a bone in a fixed slice of **real** time, so
+the number cannot be produced by the dial alone:
+
+| | wrist travel, same real window |
+|---|---|
+| normal | 0.909 m |
+| dilated | **0.090 m** |
+
+Before this change that ratio was exactly 1.0.
+
+### And the enemy was standing there
+
+"The parry screen just shows bubbles to tap, but the enemy is not present."
+
+It was present — Build 133 made sure it was lit — and it was **standing still**.
+The bar drew a ring, a label and a dotted thread from a body that never moved, so
+the player was answering a diagram of an attack rather than an attack.
+
+The thread already knows which creature is throwing each note (Build 101 made it
+follow the blow through a composed bar rather than pointing at the front of the
+line all turn). That same body now plays its strike as the note arms, on the beat
+the ring is counting down to.
+
+flow 258/258 · road 94/94 · slice 85/85 · bond 76/76 · **cast 88/88** ·
+camp 48/48 · line 32/32 · music 22/22 · beat 10/10.
+
+### Still open
+
+The parry motion does not yet answer the **direction** of the swipe — a note
+carries one (`CLAW ←!`) and the defender plays the same parry whichever way the
+blow comes from. That wants either a mirrored clip or a root-yaw kick keyed off
+the note's direction, and it is the next thing here.
+
+---
+
 ## Build 135 — the body takes the travel, and an audit that was wrong about half of itself
 
 ### First, the correction

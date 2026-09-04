@@ -1813,6 +1813,49 @@ const { boot } = require('./harness.cjs');
     JSON.stringify(Object.fromEntries(Object.entries(feet).map(([k, v]) => [k, v.slide])))
       + ' m — pinning alone gave 1.159 / 1.157 / 1.154');
 
+  // ═══ M10 · TIME DILATES WHERE THE FIGHT IS ═══
+  //
+  // `parrySlowmo` has toggled `k-slowmo` since Build 22, and its comment calls
+  // it "Clair-Obscur slow-mo: the instant a note becomes tappable, time
+  // dilates". What the class does is `animation-play-state: paused` on the
+  // stage's children — it stops CSS keyframes. The 3D world is a canvas driven
+  // by its own animation loop, and no CSS property has ever touched it, so for
+  // every build since the world existed the bar slowed and the swing coming at
+  // you did not. The one thing the player is being asked to answer was the one
+  // thing that never slowed down.
+  //
+  // Measured as distance travelled by a bone in a fixed slice of REAL time, so
+  // the number cannot be produced by the dial alone.
+  console.log('\n── time dilates ──');
+  const clock = await J(async () => {
+    const C3 = window.Cast3D;
+    const w = () => { const b = C3._figure('ash').bones.RightHand;
+                      return b.getWorldPosition(b.position.clone()); };
+    const run = async () => {
+      C3.play('ash', 'slash');
+      await new Promise(r => setTimeout(r, 240));
+      const a = w();
+      await new Promise(r => setTimeout(r, 640));
+      return a.distanceTo(w());
+    };
+    C3.slow(1);
+    const fast = await run();
+    C3.slow(0.34);
+    await new Promise(r => setTimeout(r, 380));
+    const slow = await run();
+    const at = C3._state().slow;
+    C3.slow(1);
+    await new Promise(r => setTimeout(r, 380));
+    return { fast: +fast.toFixed(3), slow: +slow.toFixed(3),
+             dial: at, back: C3._state().slow };
+  });
+  check('TIME: slowing down reaches the world, not just the interface',
+    clock.fast > 0.05 && clock.slow / clock.fast < 0.62,
+    JSON.stringify(clock) + ' — metres of wrist travel in the same real time;'
+      + ' 1.0 would mean the canvas ignored it');
+  check('TIME: …and it gives the clock back',
+    clock.back > 0.9, JSON.stringify({ back: clock.back }));
+
   // ═══ N · THE PATH EVERY PLAYER TAKES ═══
   //
   // Every check above this line ran on a page that ASKED for the 3D stage.

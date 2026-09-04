@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 135;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 136;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -3604,6 +3604,17 @@ function parryFocus(on) {
 function parrySlowmo(on) {
   const st = el('k-stage'); if (!st) return;
   st.classList.toggle('k-slowmo', !!on);
+  // ── …AND IN THE WORLD, WHERE THE FIGHT IS (Build 136) ───────────────────
+  //
+  // The class above pauses CSS keyframes. The 3D world is a canvas driven by
+  // its own animation loop, and no CSS property has ever reached it — so for
+  // every build since the world existed, "time dilates" slowed the interface
+  // and left the swing coming at full speed. The blow the player is answering
+  // was the one thing that never slowed down.
+  try {
+    const C3 = window.Cast3D;
+    if (C3 && C3.slow) C3.slow(on ? 0.34 : 1);
+  } catch (e) {}
 }
 // A dotted thread from whatever is swinging to the ring, so the blow reads as
 // coming from the Regent rather than appearing out of the air.
@@ -4209,6 +4220,18 @@ async function runVolleyRhythm(hits, answerers, sub) {
     if (soonest && soonest !== threadHero) {
       threadHero = soonest;
       if (thread) thread.remove();
+      // ── AND THE CREATURE ACTUALLY SWINGS (Build 136) ──────────────────────
+      //
+      // "The enemy is not present." It was — Build 133 made sure it was lit —
+      // but it was STANDING THERE. The bar drew a ring, a label and a dotted
+      // thread from a body that never moved, so the player was answering a
+      // diagram of an attack rather than an attack. Whoever is throwing this
+      // note throws it: the body that the thread is about to be drawn from
+      // plays its own strike, on the same beat the ring is counting down to.
+      try {
+        const ix = srcAt(soonest);
+        foeCast(ix, 'slash');
+      } catch (e) {}
       const a = anchorFor(soonest);
       // FROM WHOEVER IS THROWING IT. The thread is the one cue that says where
       // a blow is coming from, and in a line that is a different body from note
