@@ -27,8 +27,18 @@ much worse afternoon than using a branch in the first place.
 
 ## Exporting from Unreal
 
-Content Browser → select the animation sequences → right-click →
-**Asset Actions → Export…** → FBX.
+**Easiest: run the script.** `v2.3/tools/export-anims.py` batch-exports with the
+right settings and writes a `manifest.json` beside the FBX. Set `SOURCE` and
+`OUT`, and leave `LIST_ONLY = True` for the first run to see what is in the pack
+— these run to hundreds of sequences and this pipeline wants about ten. Then set
+`ONLY = [...]` to the ones you want and `LIST_ONLY = False`.
+
+In Unreal: **Output Log → the Python field at the bottom** →
+`py "C:/path/to/Triad/v2.3/tools/export-anims.py"`. If that field is not there,
+enable **Edit → Plugins → Python Editor Script Plugin** and restart.
+
+**By hand, if you prefer:** Content Browser → select the animation sequences →
+right-click → **Asset Actions → Export…** → FBX.
 
 | setting | value | why |
 |---|---|---|
