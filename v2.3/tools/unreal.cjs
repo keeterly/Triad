@@ -232,6 +232,7 @@ const round = (v) => +v.toFixed(DP);
       const mixer = new THREE.AnimationMixer(root);
       const action = mixer.clipAction(clip);
       action.play();
+      action.paused = true;
       const FPS = 30;
       const n = Math.max(2, Math.round(clip.duration * FPS) + 1);
       const times = [], out = {}, hip = [];
@@ -249,9 +250,53 @@ const round = (v) => +v.toFixed(DP);
       if (srcHipY > 1e-6 && hipRest[1]) scale = hipRest[1] / srcHipY;
 
       const d = Q(), tmp = Q();
+      // ── DID THE SOURCE ACTUALLY MOVE? ────────────────────────────────────
+      //
+      // The first cut of this tool wrote out the REST POSE — every emitted
+      // quaternion exactly `__rest`, constant across all 547 frames of a samba
+      // — because the mixer never posed the FBX and every departure came out as
+      // identity. Nothing downstream could tell: the clip loaded, parsed,
+      // retargeted and played, and the figure stood there translating on its
+      // hips track looking intact and faintly alive. A tool that can silently
+      // emit a rest pose is worse than one that crashes.
+      //
+      // AND IT DOES NOT COMPARE THE FIRST FRAME WITH THE LAST. The first cut of
+      // this guard did, and reported a samba as motionless: the clip LOOPS, so
+      // its last key is its first — and it came back negated, which is the same
+      // rotation written the other way round, so even the sign did not give it
+      // away. Middle against ends is the reading that survives a loop.
+      const d0 = Q(), d1 = Q();
+      const spread = (vals, keys) => {
+        if (keys < 3) return 0;
+        const mid = (keys >> 1) * 4;
+        let w = 0;
+        for (const o of [0, (keys - 1) * 4]) {
+          d0.fromArray(vals, o).normalize();
+          d1.fromArray(vals, mid).normalize();
+          w = Math.max(w, 2 * Math.acos(Math.min(1, Math.abs(d0.dot(d1)))) / (Math.PI / 180));
+        }
+        return w;
+      };
+      let moved = 0;
+      for (const t of clip.tracks) if (/\.quaternion$/.test(t.name))
+        moved = Math.max(moved, spread(t.values, t.times.length));
+
+      // …AND A THIRD READING: did the RIG respond? A clip can hold motion and
+      // still pose nothing, if the mixer's tracks do not bind to the bones this
+      // tool is holding — three sanitises `mixamorig:Hips` to `mixamorigHips`,
+      // and a binding that misses warns to the console and animates air. Source
+      // motion, rig response and output motion are three separate claims and
+      // the error message should say which one failed.
+      const poseWatch = ['Hips', 'RightHand', 'LeftFoot'].filter(k => mine[k]);
+      const poseSeen = poseWatch.map(k => ({ k, q: mine[k].quaternion.clone(), moved: 0 }));
+
       for (let i = 0; i < n; i++) {
         const t = (i / (n - 1)) * clip.duration;
-        mixer.setTime(t);
+        // POSE BY THE ACTION'S OWN CLOCK. `mixer.setTime` rewinds every action
+        // to zero and re-advances, which is a different thing from asking for a
+        // frame and is not the pattern the rest of this repo's probes use.
+        action.time = t;
+        mixer.update(0);
         root.updateMatrixWorld(true);
         times.push(+t.toFixed(4));
         // the source's global orientation this frame, parents first
@@ -276,6 +321,9 @@ const round = (v) => +v.toFixed(DP);
                                     : At[b].clone()).normalize();
           out[b].push(round(local.x), round(local.y), round(local.z), round(local.w));
         }
+        for (const w of poseSeen)
+          w.moved = Math.max(w.moved,
+            2 * Math.acos(Math.min(1, Math.abs(w.q.dot(mine[w.k].quaternion)))) / (Math.PI / 180));
         // ROOT MOTION LIVES IN THE HIPS HERE. Unreal keeps it on a `root` bone
         // this rig does not have, and Build 135 already reads the hips' travel
         // and gives it to the figure's root — so folding one into the other is
@@ -286,6 +334,14 @@ const round = (v) => +v.toFixed(DP);
                    round(hipRest[1] + (w.y - srcHipY) * scale),
                    round(hipRest[2] + w.z * scale));
         }
+      }
+      // …and did OUR OUTPUT move? Both halves, because the source clip having
+      // motion and the conversion carrying it are two different claims.
+      let out_moved = 0;
+      for (const b of tOrder) {
+        const v = out[b];
+        if (!v || v.length < 12) continue;
+        out_moved = Math.max(out_moved, spread(v, v.length / 4));
       }
       const tracks = [];
       if (hip.length) tracks.push({ name: 'Hips.position', type: 'vector', times, values: hip });
@@ -298,6 +354,10 @@ const round = (v) => +v.toFixed(DP);
         naming: map === arg.MAP ? 'unreal' : map === arg.MIXAMO ? 'mixamo' : 'native',
         mapped: Object.keys(mine).length, missing, scale: +scale.toFixed(3),
         source: clip.name, frames: n, dur: +clip.duration.toFixed(2),
+        srcMoved: +moved.toFixed(1), outMoved: +out_moved.toFixed(1),
+        rigMoved: +Math.max(0, ...poseSeen.map(w => w.moved)).toFixed(1),
+        bound: clip.tracks.filter(t => /quaternion$/.test(t.name))
+                          .filter(t => !bones[t.name.split('.')[0]]).length,
         others: clips.map(c => c.name).slice(0, 12),
       };
     }, { url, clip: spec.clip || null, verb, MAP, MIXAMO, OURS,
@@ -305,12 +365,29 @@ const round = (v) => +v.toFixed(DP);
                 __hipRest: hipRestOf(lib) } });
 
     if (got.err) { console.error('  ' + verb + ': ' + got.err); continue; }
+    // REFUSE TO WRITE A REST POSE. `outMoved` is how far the furthest joint
+    // turns between the first emitted frame and the last; a clip that converted
+    // to nothing reads zero here, and writing it would put a corpse in the
+    // library that every downstream check would happily call a clip.
+    if (got.outMoved < 1) {
+      console.error('  ' + verb + ': CONVERTED TO NOTHING — clip ' + got.srcMoved
+        + '°, rig ' + got.rigMoved + '°, output ' + got.outMoved + '°.'
+        + (got.srcMoved < 1
+            ? ' The clip itself holds no rotation.'
+            : got.rigMoved < 1
+              ? ' The clip holds motion but the RIG never moved: '
+                + got.bound + ' of its rotation tracks name a node this tool did'
+                + ' not find as a bone, so the mixer is animating air.'
+              : ' The rig moved, so the conversion dropped it downstream.'));
+      continue;
+    }
     lib[verb] = got.clip;
     if (spec.beat) lib[verb].beat = spec.beat;
     if (spec.loop) lib[verb].loop = true;
     report.push({ verb, ...got, clip: undefined });
     console.log(`  ${verb.padEnd(10)} ${got.naming.padEnd(7)} ${got.mapped} bones`
       + `  ${got.dur}s/${got.frames}f  scale ${got.scale}`
+      + `  turns clip ${got.srcMoved}° rig ${got.rigMoved}° out ${got.outMoved}°`
       + (got.missing.length ? '  MISSING ' + got.missing.join(',') : '')
       + `  <- ${got.source}`);
   }

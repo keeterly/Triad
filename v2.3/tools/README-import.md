@@ -79,36 +79,43 @@ under an engine-agnostic Standard License and some as Unreal-only. This game is
 three.js, so a pack under UE-only terms cannot ship in it however good it is.
 It is per-pack and worth checking first.
 
-## STATE: it runs, and the clip arrives FLAT — a real bug, precisely located
+## STATE: the tool refuses to write a corpse, and says which stage failed
 
-Verified end to end against a real Mixamo FBX (three's `Samba Dancing.fbx`):
-naming detected, 22 of 22 joints mapped, stride scaled 0.907, merged, loaded and
-played on all three heroes without error.
+The converter runs end to end on a real Mixamo FBX — naming detected, 22 of 22
+joints mapped, stride scaled — and **the clip it writes is the rest pose**. Every
+emitted quaternion is exactly `__rest`, constant across all 547 frames. Verified
+three ways: the raw values at frames 0, 200 and 540 are byte-identical to
+`__rest`; the departure-from-rest angle is 0.0° at every joint across 60 samples;
+and the runtime retarget passes 16-19° per bone where milled clips pass 127-140°.
 
-**But the rotations never reach the rig.** Measured with `test/import.probe.cjs`:
+The tool now reports three separate numbers and **refuses to merge a clip that
+converted to nothing**, because a corpse in the library is worse than a crash:
 
-| clip | rotation surviving the runtime retarget |
-|---|---|
-| `hurt` (milled) | 127-140° per bone over 50 frames |
-| `parryU` (authored) | 297-299° per bone over 27 frames |
-| **`testsamba` (imported)** | **16-19° per bone over 547 frames** |
+```
+testsamba: CONVERTED TO NOTHING — clip 156.7°, rig 0°, output 0°.
+  The clip holds motion but the RIG never moved: 0 of its rotation tracks
+  name a node this tool did not find as a bone, so the mixer is animating air.
+```
 
-The imported clip is essentially the rest pose with jitter. The figure translates
-— the `Hips.position` track works — so it *looks* intact and slightly alive,
-which is exactly why five earlier readings were confusing. It is not animating.
+Read that as: the FBX's own tracks hold 156.7° of rotation, so the file is fine;
+every one of those tracks binds to a node the tool holds as a bone, so **naming
+is not the problem**; and yet the bones do not move when the mixer is asked for a
+frame. The fault is between `mixer.update` and the bone objects, and the two
+things already ruled out are the source data and the track-to-node binding.
 
-The JSON itself is fine: 4934° of authored rotation, tracks named, typed and
-sized identically to the clips that do work. So the loss happens between the file
-and the mixer, in `retarget()` — and the shape of the loss (departure ≈ identity)
-says the tool is emitting locals that already equal `__rest`, i.e. **its own
-accumulation and `retarget`'s disagree somewhere.** The prime suspect is the
-localisation step in `unreal.cjs`: when a bone's parent is absent from `At` it
-falls back to treating that bone as a root, while `retarget` accumulates through
-the parent's REST instead. Any disagreement in that chain collapses the
-departure.
+`mixer.setTime(t)` and `action.time = t; mixer.update(0)` both produce it, so it
+is not the way the clock is driven either.
 
-**Do not use an imported clip in the game until the table above shows the
-imported row in the same range as the other two.**
+**Do not use an imported clip until that line reads three non-zero numbers.**
+
+### The guard was wrong first, in a way worth remembering
+
+Its first version compared each track's FIRST keyframe against its LAST and
+declared a samba motionless. The clip loops, so its last key *is* its first — and
+it came back NEGATED, `(0.036, -0.298, 0, -0.954)` against
+`(-0.036, 0.298, 0, 0.954)`, which is the same rotation written the other way
+round, so the sign did not give it away either. It samples the middle against
+both ends now.
 
 ### Five invalid metrics, and why each failed
 
