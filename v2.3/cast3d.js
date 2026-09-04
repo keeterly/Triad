@@ -167,10 +167,54 @@ const LOOK = {
   // horizon is a reflection, so this is not a polish setting — it is most of
   // what makes the ground read as that ground.
   wet: 0.70,
+  // ── AND THE WHOLE FRAME IS DRAWN, NOT RENDERED (Build 140) ───────────────
+  //
+  // Everything above this line is per-object: a wash on a body, a shadow on the
+  // floor. What makes a picture read as DRAWN rather than as 3D with a filter
+  // on it is the one thing no per-object shader can do — a line where two
+  // things meet. A contour belongs to the pair of surfaces either side of it,
+  // so it can only be found once the whole frame exists and its depth is
+  // known.
+  //
+  // `ink` is that line, taken off a depth edge. `flat` is the tone stepped into
+  // bands across the whole picture rather than per body, so a hero and the
+  // paving behind them land on the same ladder. `paper` is the tooth, over
+  // everything, which is what stops the flat areas reading as vector art.
+  // NOT `ink` AND NOT `paper`, however well those read. The watercolour shader
+  // already has `uniform vec3 uPaper, uShadow, uInk` — they are its pigment
+  // COLOURS — and `look()` turns a dial name straight into a uniform name, so
+  // a dial called `ink` hands a float to a vec3 and every figure's material
+  // throws on the next frame. Measured: 316 page errors from one `look` call.
+  // ── OFF, BECAUSE IT DOES NOT WORK YET ────────────────────────────────────
+  //
+  // The plumbing is right: with the line at 0.0001 the pass runs, the frame
+  // goes to a target and back, and 1.2% of pixels change against a 0.8% control
+  // — a no-op, which is what a pass with nothing to do should be. Getting there
+  // took finding that a render target does not apply `outputColorSpace` the way
+  // the canvas does, so merely routing the frame through one shifted every
+  // pixel in it and read as ink covering the picture.
+  //
+  // THE DETECTOR IS STILL WRONG. At 0.62 it darkens 64% of the frame, and the
+  // screenshots show a wash over the bodies rather than a line around them.
+  // The distribution says it should not: only about 5% of pixels carry a depth
+  // jump big enough to clear the threshold. That contradiction is the next
+  // thing to chase, and until it is settled these stay at zero — with all three
+  // at zero the target is never allocated and the render path is exactly what
+  // it was.
+  line:  0.0,    // how black the contour is
+  linew: 1.35,   // how wide, in pixels of the drawing buffer
+  flat:  0.0,    // how far the tone is pushed onto the band ladder
+  steps: 6,      // …and how many bands there are
+  tooth: 0.0,    // the grain of the sheet, over the whole frame
 };
 // what each dial does, for the panel — and so the next person to open this
 // file does not have to read the shader to find out
 const LOOK_HELP = {
+  line:  ['ink line', 0, 1, 0.01, 'the contour drawn where two surfaces meet'],
+  linew: ['line width', 0.5, 3, 0.05, 'how wide that contour is, in buffer pixels'],
+  flat:  ['flatten', 0, 1, 0.01, 'tone stepped into bands across the whole frame'],
+  steps: ['bands', 2, 10, 1, 'how many of them'],
+  tooth: ['paper', 0, 0.4, 0.01, 'the grain of the sheet, over everything'],
   paint: ['watercolour', 0, 1, 0.01, 'how much of the wash is applied at all'],
   bands: ['washes', 2, 8, 1, 'how many flat tones the brush lays down'],
   wash:  ['flatten', 0, 1, 0.01, 'how much of the real painting the wash eats'],
@@ -2941,6 +2985,193 @@ const Cast3D = (() => {
     cam.updateMatrixWorld();
   }
 
+  // ═══ THE FRAME IS DRAWN OVER (Build 140) ═════════════════════════════════
+  //
+  // Everything the look had until now was PER OBJECT: a wash on a body, a
+  // shadow under it, air on the back ranks. None of that can draw the thing
+  // that actually makes a picture read as drawn — A LINE WHERE TWO THINGS
+  // MEET. A contour belongs to the pair of surfaces either side of it, and no
+  // shader running on one of them knows the other is there. It exists only
+  // once the whole frame does.
+  //
+  // So the world goes to a target with its depth kept, and one full-screen
+  // pass finds the contours in that depth and lays them over the colour. Three
+  // things, in the order a person would do them: draw the line, step the tone
+  // onto a ladder, then let the paper's tooth through.
+  //
+  // THE ALPHA IS CARRIED THROUGH UNTOUCHED, which is not a detail: the canvas
+  // is transparent where the world is not, and the DOM stage shows through it.
+  // A pass that wrote opaque black into those pixels would put a box over the
+  // hand of cards.
+  let post = null, postScene = null, postCam = null, postMat = null;
+  function inkWanted() {
+    // ABS, because the debug views drive the line dial NEGATIVE and a gate
+    // that reads `> 0.002` skips the pass entirely — which showed the plain
+    // render and made two different debug modes produce identical histograms.
+    return Math.abs(LOOK.line) > 0.002 || LOOK.flat > 0.002 || LOOK.tooth > 0.002;
+  }
+  function postTarget() {
+    const w = Math.max(2, Math.round(sized.w * sized.dpr));
+    const h = Math.max(2, Math.round(sized.h * sized.dpr));
+    if (post && post.width === w && post.height === h) return post;
+    if (post) { post.dispose(); if (post.depthTexture) post.depthTexture.dispose(); }
+    post = new THREE.WebGLRenderTarget(w, h);
+    post.texture.minFilter = THREE.LinearFilter;
+    post.texture.magFilter = THREE.LinearFilter;
+    // ── THE TARGET ENCODES THE WAY THE CANVAS DOES ─────────────────────────
+    //
+    // `renderer.outputColorSpace` applies when drawing to the CANVAS and not
+    // when drawing to a target, which defaults to linear. So simply routing the
+    // frame through here and back changed every pixel in it — and the first
+    // three cuts of this pass read that as the ink covering 64% of the picture
+    // and went hunting through the edge detector for a fault that was never
+    // there. The screenshots where turning the line on made everything dark
+    // were gamma, not ink.
+    post.texture.colorSpace = THREE.SRGBColorSpace;
+    // A DEPTH TEXTURE IS THE WHOLE POINT. Without one the pass could only find
+    // edges in the colour, which draws a line around every pattern in the
+    // paving and none between a hero and the wall they are standing against.
+    post.depthTexture = new THREE.DepthTexture(w, h);
+    post.depthTexture.format = THREE.DepthFormat;
+    post.depthTexture.type = THREE.UnsignedIntType;
+    return post;
+  }
+  function postPass() {
+    if (postMat) return postMat;
+    postMat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      uniforms: {
+        tDiffuse: { value: null }, tDepth: { value: null },
+        uTexel: { value: new THREE.Vector2() },
+        uLine: { value: 0 }, uLineW: { value: 1 }, uFlat: { value: 0 },
+        uSteps: { value: 6 }, uTooth: { value: 0 },
+        uNear: { value: 0.1 }, uFar: { value: 100 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+      `,
+      fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform sampler2D tDepth;
+        uniform vec2 uTexel;
+        uniform float uLine, uLineW, uFlat, uSteps, uTooth, uNear, uFar;
+        varying vec2 vUv;
+
+        // the depth buffer is not linear; a difference in it means something
+        // different a metre away than it does ten, so it is converted before
+        // anything is compared
+        float lin(vec2 uv) {
+          float d = texture2D(tDepth, uv).x;
+          float z = d * 2.0 - 1.0;
+          return (2.0 * uNear * uFar) / (uFar + uNear - z * (uFar - uNear));
+        }
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        void main() {
+          vec4 src = texture2D(tDiffuse, vUv);
+          vec3 col = src.rgb;
+          vec2 o = uTexel * uLineW;
+
+          // ── THE CONTOUR ──
+          // A four-tap cross rather than a full Sobel: half the samples, and on
+          // a line this thin the diagonals add nothing a player can see.
+          //
+          // The difference is RELATIVE to how far away the surface is. An
+          // absolute threshold draws the far wall as one solid slab of ink and
+          // misses the fold in a cloak a metre from the lens, because the same
+          // centimetre of depth is a different fraction of each.
+          float c  = lin(vUv);
+          float dl = lin(vUv - vec2(o.x, 0.0));
+          float dr = lin(vUv + vec2(o.x, 0.0));
+          float du = lin(vUv - vec2(0.0, o.y));
+          float dd = lin(vUv + vec2(0.0, o.y));
+
+          // THE SECOND DERIVATIVE, RELATIVE TO THE FIRST.
+          //
+          // A depth GRADIENT is not a discontinuity: a floor at a grazing angle
+          // changes depth fast across every pixel of it and is not an edge
+          // anywhere. The first cut compared left against right and inked whole
+          // bodies solid black.
+          //
+          // A second derivative fixes that — a linear ramp cancels in
+          // dl + dr - 2c, only a step survives — but on its own it is still
+          // hostage to precision. Measured, this scene fills only the top 3% of
+          // the depth buffer (raw values 248-255 of 255), because a near plane
+          // of a tenth of a metre spends the whole range in front of the party.
+          // An absolute threshold on that is a threshold on quantisation noise.
+          //
+          // So it is the RATIO that decides. On a plane the curvature is zero
+          // whatever the slope; at a silhouette the curvature is as large as
+          // the slope. Dividing one by the other is scale-free: it needs no
+          // constant tuned to a distance, a lens or a depth format.
+          // NO BACKTICKS IN HERE — this shader is inside a template literal.
+          float lapx = abs(dl + dr - 2.0 * c);
+          float lapy = abs(du + dd - 2.0 * c);
+          float floorg = 0.004 * c;            // so flat sky is 0/0 and not 1
+          float e = max(lapx / (abs(dl - dr) + floorg),
+                        lapy / (abs(du - dd) + floorg));
+          float line = smoothstep(0.55, 1.15, e);
+          // …and where nothing was drawn there is nothing to outline. The far
+          // plane is not a surface; without this the whole world gets a border
+          // and the sky gets a frame.
+          float solid = step(lin(vUv), uFar * 0.94);
+          line *= solid * uLine;
+
+          // ── THE TONE, ON A LADDER ──
+          // Stepped by LUMINANCE and reapplied as a ratio, so a red sash steps
+          // with the same rungs as a grey wall and stays red. Quantising each
+          // channel on its own is what turns a painting into a poster.
+          float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+          float stepped = floor(lum * uSteps + 0.5) / uSteps;
+          col = mix(col, col * (stepped / max(0.0025, lum)), uFlat);
+
+          // ── THE PAPER ──
+          // In the drawing buffer's own pixels, so it stays the sheet the
+          // picture is on rather than a texture floating in the world.
+          float tooth = hash(floor(vUv / uTexel * 0.5)) - 0.5;
+          col += tooth * uTooth;
+
+          // the ink is a constant, not a swatch anybody will pick
+          col = mix(col, vec3(0.169, 0.149, 0.133), clamp(line, 0.0, 1.0));
+
+          // A NEGATIVE LINE DIAL SHOWS THE DEPTH INSTEAD. Tuning a threshold
+          // against an input nobody has looked at is how the first two cuts of
+          // this detector went: one fired on shading, one on something else,
+          // and both were tuned rather than diagnosed.
+          if (uLine < -3.5) col = vec3((lapx + lapy) / max(0.5, c) * 8.0);
+          else if (uLine < -2.5) col = vec3(e * 0.5);
+          else if (uLine < -1.5) col = vec3(texture2D(tDepth, vUv).x);
+          else if (uLine < -0.5) col = vec3(fract(lin(vUv) * 0.25));
+
+          gl_FragColor = vec4(col, src.a);
+        }
+      `,
+    });
+    postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    postScene = new THREE.Scene();
+    postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMat));
+    return postMat;
+  }
+  function drawInk(t) {
+    const m = postPass();
+    m.uniforms.tDiffuse.value = t.texture;
+    m.uniforms.tDepth.value = t.depthTexture;
+    m.uniforms.uTexel.value.set(1 / t.width, 1 / t.height);
+    m.uniforms.uLine.value = LOOK.line;
+    m.uniforms.uLineW.value = LOOK.linew;
+    m.uniforms.uFlat.value = LOOK.flat;
+    m.uniforms.uSteps.value = Math.max(2, Math.round(LOOK.steps));
+    m.uniforms.uTooth.value = LOOK.tooth;
+    m.uniforms.uNear.value = cam.near;
+    m.uniforms.uFar.value = cam.far;
+    renderer.render(postScene, postCam);
+  }
+
   function frame(now) {
     raf = requestAnimationFrame(frame);
     if (!ready || !on) return;
@@ -3257,7 +3488,21 @@ const Cast3D = (() => {
     // ONE SCENE, ONE CAMERA, ONE PASS. Four scissored renders and four
     // orthographic frames are what it took to fake a shared space; a shared
     // space needs none of them.
-    renderer.render(scene, cam);
+    //
+    // …AND THEN THE FRAME IS DRAWN OVER (Build 140). When any of the ink dials
+    // are up the world goes to a target first, so the contour pass can read the
+    // depth it needs; with them all at zero this is the same single render to
+    // the canvas it has always been, and the target is never even allocated.
+    if (inkWanted()) {
+      const t = postTarget();
+      renderer.setRenderTarget(t);
+      renderer.clear();
+      renderer.render(scene, cam);
+      renderer.setRenderTarget(null);
+      drawInk(t);
+    } else {
+      renderer.render(scene, cam);
+    }
 
     for (const id of Object.keys(figs)) follow(id, figs[id], css);
     followRows(css);
@@ -3862,11 +4107,18 @@ const Cast3D = (() => {
         if (next.floor != null)
           ground.material.color.setScalar(0.5 + next.floor * 1.6);
       }
+      // A DIAL NAME IS NOT A UNIFORM NAME, and treating it as one is how a
+      // dial called `ink` came to hand a float to `uniform vec3 uInk` — the
+      // watercolour's pigment colour — and throw on every figure, every frame.
+      // The types have to agree before the write, because the collision is
+      // silent right up until the GPU refuses it.
       for (const id of Object.keys(figs)) {
         const u = figs[id].root.userData.mat.userData.u;
         for (const k of Object.keys(next)) {
           const key = 'u' + k[0].toUpperCase() + k.slice(1);
-          if (u[key]) u[key].value = next[k];
+          if (!u[key]) continue;
+          if (typeof u[key].value !== typeof next[k]) continue;
+          u[key].value = next[k];
         }
       }
       Object.assign(LOOK, next);
