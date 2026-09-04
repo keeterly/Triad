@@ -79,31 +79,59 @@ under an engine-agnostic Standard License and some as Unreal-only. This game is
 three.js, so a pack under UE-only terms cannot ship in it however good it is.
 It is per-pack and worth checking first.
 
-## STATE: it runs; fidelity is NOT yet proven
+## STATE: it runs, and the clip arrives FLAT — a real bug, precisely located
 
 Verified end to end against a real Mixamo FBX (three's `Samba Dancing.fbx`):
-naming detected, 22 of 22 joints mapped, stride scaled 0.907, merged, loaded by
-the game and played on all three heroes **without error and without visible
-disfigurement** — the figure stands intact, which is the main failure mode of a
-bad retarget.
+naming detected, 22 of 22 joints mapped, stride scaled 0.907, merged, loaded and
+played on all three heroes without error.
 
-**Whether the resulting pose actually matches the source is unmeasured.** Three
-attempts at that metric were all invalid:
+**But the rotations never reach the rig.** Measured with `test/import.probe.cjs`:
 
-1. Comparing world positions — drove the *source* skeleton with a clip expressed
-   against *our* rest pose, which is precisely the mismatch the retarget exists
-   to resolve. Errors larger than the limbs, confidently produced.
-2. Comparing bone directions in world space — added our characters' facing yaw
-   to every segment. The legs and spine reported 16-26°, which is about the size
-   of that yaw; the arms reported 72-97°, which is not.
-3. Normalising by the hips' world quaternion — Meshy's `Hips` has a bind
-   orientation of `(-0.49, -0.49, -0.58, 0.43)`, so dividing by it is not a body
-   frame. Every number got worse.
+| clip | rotation surviving the runtime retarget |
+|---|---|
+| `hurt` (milled) | 127-140° per bone over 50 frames |
+| `parryU` (authored) | 297-299° per bone over 27 frames |
+| **`testsamba` (imported)** | **16-19° per bone over 547 frames** |
 
-**The next step** is a metric that is independent of both proportion and
-orientation: evaluate the converted clip on a skeleton whose rest *is* `__rest`,
-in isolation from any character and any yaw, and compare segment directions
-against the source in a frame anchored on the hips-and-shoulders triangle rather
-than on any single bone's bind quaternion. Reading (2) is the one worth chasing:
-if the arms really are wrong while the legs are right, it is arm-specific and
-findable. Do not trust an imported clip in the game until that reads clean.
+The imported clip is essentially the rest pose with jitter. The figure translates
+— the `Hips.position` track works — so it *looks* intact and slightly alive,
+which is exactly why five earlier readings were confusing. It is not animating.
+
+The JSON itself is fine: 4934° of authored rotation, tracks named, typed and
+sized identically to the clips that do work. So the loss happens between the file
+and the mixer, in `retarget()` — and the shape of the loss (departure ≈ identity)
+says the tool is emitting locals that already equal `__rest`, i.e. **its own
+accumulation and `retarget`'s disagree somewhere.** The prime suspect is the
+localisation step in `unreal.cjs`: when a bone's parent is absent from `At` it
+falls back to treating that bone as a root, while `retarget` accumulates through
+the parent's REST instead. Any disagreement in that chain collapses the
+departure.
+
+**Do not use an imported clip in the game until the table above shows the
+imported row in the same range as the other two.**
+
+### Five invalid metrics, and why each failed
+
+Worth reading before writing a sixth:
+
+1. **World positions** — drove the *source* skeleton with a clip expressed
+   against *our* rest pose: the exact mismatch the retarget exists to resolve.
+   Errors larger than the limbs.
+2. **Bone directions in world space** — added our characters' facing yaw to every
+   segment. A yaw barely moves a vertical thigh and moves a horizontal arm by its
+   full angle, so it read as an arm-specific bug that did not exist.
+3. **Normalising by the hips' world quaternion** — Meshy's `Hips` bind is
+   `(-0.49, -0.49, -0.58, 0.43)`; that is not a body frame. Every number worsened.
+4. **Directions in a body-relative basis** — valid, and the wrong *question*:
+   departure-based retargeting preserves relative motion, not absolute pose, so
+   comparing poses measures the two rest poses against each other.
+5. **Departure from an observed rest** — right question, but reading the rest by
+   zeroing every weight left the action unable to pose the body afterwards, and
+   the metric reported perfect agreement with a corpse.
+
+What finally worked needs no rest pose and no common frame at all: measure how
+far each joint has turned **from its own frame zero**, on each rig, and compare
+those two angles. The angle of a rotation is unchanged by a change of frame, and
+both rigs are playing the same performance, so frame zero means the same instant
+on both. `test/import.probe.cjs` does this, and it refuses to report agreement
+when our figure is not moving.
