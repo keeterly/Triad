@@ -298,6 +298,10 @@ function watercolour(map, tone) {
   // hard way). It is exactly the right tool for asking what range
   // `transformed` covers, because that is literally what it is a box around.
   m.userData.foot = { value: 0 };
+  // 1 while the world is at full strength, and while the world is dimmed for a
+  // parry this is what says "not you" — the figure the moment is about keeps
+  // its own light instead of going down with the plaza.
+  m.userData.lit = { value: 1 };
   // EVERY KNOB STAYS REACHABLE. Tuning a look by editing a constant, reloading
   // and comparing two screenshots taken a minute apart is how you end up
   // arguing about it; holding them all on the material means a sweep is one
@@ -316,11 +320,13 @@ function watercolour(map, tone) {
     sh.uniforms.uBurn = m.userData.burn;
     sh.uniforms.uTall = m.userData.tall;
     sh.uniforms.uFoot = m.userData.foot;
+    sh.uniforms.uLit = m.userData.lit;
     Object.assign(sh.uniforms, m.userData.u);
     sh.fragmentShader = sh.fragmentShader
       .replace('void main() {', `
         uniform float uBands, uGrain, uEdge, uLift, uDepth, uWash, uAir, uPaint;
         uniform float uBurn;
+        uniform float uLit;
         uniform vec3 uPaper, uShadow, uInk;
         float wcHash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         float wcTooth(vec2 p){
@@ -364,6 +370,11 @@ function watercolour(map, tone) {
           c = mix(c, vec3(g), air * 0.42);
           c *= 1.0 - air * 0.18;
           c = mix(c, uPaper * 0.92, air * 0.20);
+          // …and if the world has been taken down for a moment that is not
+          // about this body, take this body down with it. The lights do the
+          // scene; this does the figures, because a dimmed key still leaves a
+          // hero readable and the point is that only one of them should be.
+          c *= uLit;
           gl_FragColor.rgb = c;
 
           // ── THE BURN ────────────────────────────────────────────────────
@@ -1770,9 +1781,33 @@ const Cast3D = (() => {
     // is lit like paper; with the wash off, that same flat ambient turns a
     // painted cloak into a sticker. A key from the front-right and a cool rim
     // from behind put the folds back.
-    scene.add(new THREE.AmbientLight(0xffffff, 0.88));
-    const k = new THREE.DirectionalLight(0xffffff, 1.45);
-    k.position.set(4.5, 7.5, 5.0);
+    // ── LIGHT THAT BELONGS TO THIS WORLD (Build 133) ─────────────────────
+    //
+    // What was here: a WHITE ambient at 0.88 and a WHITE key at 1.45. That is
+    // two thirds of the light in the scene arriving from nowhere, with no
+    // colour and no direction — every shadow filled flat, every form softened,
+    // nothing to separate a grey cloak from a grey wall. "Bland" is the exact
+    // right word for it, and the cause is the ambient rather than the key.
+    //
+    // The world is a flooded plaza under a low sun: warm light coming in along
+    // the ground from the lit end of the street, cool sky bouncing off wet
+    // stone everywhere else. So the flat ambient becomes a HEMISPHERE — cool
+    // above, warm-dark below, which is what standing on wet stone under an open
+    // sky actually does — and it drops to a third of its old strength so there
+    // are shadows to model with.
+    //
+    // Warm key, cool fill. It is the oldest rule in the book and this scene had
+    // neither half of it.
+    const hemi = new THREE.HemisphereLight(0xc3d4ea, 0x4b3f34, 0.34);
+    scene.add(hemi);
+    scene.userData.hemi = hemi;
+    const k = new THREE.DirectionalLight(0xffe3b8, 2.15);
+    // LOW AND ALONG THE STREET, not overhead. At (4.5, 7.5, 5.0) the sun was
+    // almost straight above the party, which throws a puddle of shadow under
+    // each figure and models nothing. Dropped to a raking angle, the same light
+    // rims the tops of shoulders, finds the folds in a cloak, and throws the
+    // long shadows the plaza has been drawing on its floor since Build 119.
+    k.position.set(7.5, 4.2, 3.4);
     k.castShadow = true;
     k.shadow.mapSize.set(1024, 1024);
     const sc = k.shadow.camera;
@@ -1783,10 +1818,24 @@ const Cast3D = (() => {
     // without striping the cloaks.
     k.shadow.bias = -0.0012;
     k.shadow.normalBias = 0.02;
-    const r = new THREE.DirectionalLight(0x9fb6d8, 0.72);
-    r.position.set(-5, 3.5, -4);
-    scene.add(k, r);
+    // the cool counter, from behind and low, so a body has an edge against the
+    // mist rather than dissolving into it
+    const r = new THREE.DirectionalLight(0x8ba6cf, 1.05);
+    r.position.set(-6, 2.4, -5);
+    // …and a dim warm bounce up off the water, which is the one light this
+    // scene has a physical reason to expect and did not have
+    const b = new THREE.DirectionalLight(0xd8a06a, 0.30);
+    b.position.set(1.5, -3, 4);
+    scene.add(k, r, b);
     scene.userData.key = k;
+    scene.userData.rim = r;
+    scene.userData.bounce = b;
+    // what each light is worth at full strength, so a focus can take them down
+    // and put them back without anybody writing the numbers twice
+    LIGHT_FULL.hemi = hemi.intensity;
+    LIGHT_FULL.key = k.intensity;
+    LIGHT_FULL.rim = r.intensity;
+    LIGHT_FULL.bounce = b.intensity;
 
     // ── THE WORLD IN THE ROUND (Build 120) ───────────────────────────────────
     //
@@ -2593,6 +2642,26 @@ const Cast3D = (() => {
   const _eye = new THREE.Vector3(), _look = new THREE.Vector3();
   const _size = new THREE.Vector2();
   const _burnAt = new THREE.Vector3();
+  const LIGHT_FULL = {};
+  // ── THE PARRY DIMS THE WORLD, NOT THE PICTURE (Build 133) ────────────────
+  //
+  // `k-parry-focus` and `k-slowmo` put a CSS filter on the stage's children —
+  // and `#k-cast` lives inside `#k-field`, which IS one of those children. So
+  // the whole 3D world went down as a single element: the party, the plaza and
+  // THE CREATURE SWINGING AT YOU, all to 34% brightness and 5% saturation.
+  // A screenshot of a parry is a black rectangle with one yellow ring in it,
+  // and the attack the ring is asking you to answer is invisible.
+  //
+  // `.k-hero.k-parrying { filter: none }` was the escape hatch for this and it
+  // stopped working the day the figures became pixels in a canvas rather than
+  // elements of their own.
+  //
+  // So the dim moves inside. The scene's own lights come down, which darkens
+  // the plaza and the mist and everything standing in them — and whoever the
+  // moment is ABOUT keeps a light of their own.
+  let focusLevel = 1, focusWant = 1;
+  const focusOn = {};
+  const _spot = { light: null };
   // HOW FAR INTO EACH SWING THE WIND-UP ENDS. Read off the clips rather than
   // chosen: the library's windows already trim each action down to the part
   // where something happens (Build 121), so a third of the way in is the top
@@ -2764,6 +2833,28 @@ const Cast3D = (() => {
       sized.w = css.w; sized.h = css.h; sized.dpr = dpr;
       renderer.setPixelRatio(dpr);
       renderer.setSize(css.w, css.h, false);
+    }
+
+    // ── EASE THE FOCUS ──
+    //
+    // Never a cut. A parry opens with the world going down over about a fifth
+    // of a second, which reads as the light being pulled off everything else
+    // rather than as a lamp being switched.
+    if (Math.abs(focusWant - focusLevel) > 0.002) {
+      focusLevel += (focusWant - focusLevel) * Math.min(1, dt / 0.18);
+      const sd = scene.userData;
+      if (sd.hemi) sd.hemi.intensity = LIGHT_FULL.hemi * (0.16 + 0.84 * focusLevel);
+      if (sd.key) sd.key.intensity = LIGHT_FULL.key * (0.14 + 0.86 * focusLevel);
+      if (sd.rim) sd.rim.intensity = LIGHT_FULL.rim * (0.30 + 0.70 * focusLevel);
+      if (sd.bounce) sd.bounce.intensity = LIGHT_FULL.bounce * (0.20 + 0.80 * focusLevel);
+    }
+    // whoever the moment is about stays lit; everybody else rides the level
+    for (const id of Object.keys(figs)) {
+      const mat = figs[id].root.userData.mat;
+      if (!mat || !mat.userData.lit) continue;
+      const want = focusOn[id] ? 1 : (0.34 + 0.66 * focusLevel);
+      const has = mat.userData.lit.value;
+      if (Math.abs(want - has) > 0.002) mat.userData.lit.value = has + (want - has) * Math.min(1, dt / 0.18);
     }
 
     rig(host, dt);
@@ -3112,6 +3203,18 @@ const Cast3D = (() => {
       fx.hit(at, toward, verb, power);
       return true;
     },
+    // ── THE LIGHT COMES OFF EVERYTHING EXCEPT THIS ─────────────────────────
+    //
+    // `focus(['foe0','ash'])` takes the world down and holds these two lit.
+    // `focus(null)` gives it back. The fight names the bodies the moment is
+    // about; it does not have to know there are lights.
+    focus(keys) {
+      for (const k of Object.keys(focusOn)) delete focusOn[k];
+      if (!keys || !keys.length) { focusWant = 1; return true; }
+      for (const k of keys) if (k) focusOn[k] = 1;
+      focusWant = 0;
+      return true;
+    },
     // ── WIND UP, AND WAIT ──────────────────────────────────────────────────
     //
     // Called while a card is being aimed. Idempotent: dragging across four
@@ -3184,6 +3287,8 @@ const Cast3D = (() => {
       trails: fx ? Object.keys(fx.ribbons).filter(k => fx.ribbons[k].mesh.visible).length : 0,
       rings: fx ? fx.shocks.items.filter(i => i.t > 0).length : 0,
       cuts: fx ? fx.cuts.items.filter(i => i.t > 0).length : 0,
+      focus: +focusLevel.toFixed(3),
+      lit: Object.keys(focusOn),
     }),
     // test-only: THE WORLD, MEASURED OFF THE WORLD. Not the table it was
     // configured from — the live scene graph, the live camera, and where the

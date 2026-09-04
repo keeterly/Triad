@@ -1678,6 +1678,42 @@ const { boot } = require('./harness.cjs');
     fallen.dead && !fallen.body && fallen.on3d && fallen.paint === '0',
     JSON.stringify(fallen));
 
+  // ═══ M8 · THE PARRY DIMS THE WORLD, NOT THE PICTURE ═══
+  //
+  // `k-parry-focus` and `k-slowmo` put a CSS filter on the stage's children,
+  // and `#k-cast` lives inside `#k-field`, which IS one of those children — so
+  // the party, the plaza and THE CREATURE SWINGING AT YOU all went down as a
+  // single element to 34% brightness and 5% saturation. A screenshot of a parry
+  // is a black rectangle with one yellow ring in it and no attack behind it.
+  // `.k-hero.k-parrying { filter: none }` was the escape hatch and it stopped
+  // meaning anything the day the figures became pixels in a canvas.
+  console.log('\n── the light comes off the world, not the fight ──');
+  await J(() => startCombat({ foes: ['mourner'] }));
+  await sleep(2400);
+  const beforeF = await J(() => window.Cast3D._state().focus);
+  await J(() => parryFocus(true));
+  await sleep(1300);
+  const during = await J(() => {
+    const st = window.Cast3D._state();
+    const sd = { key: 0, hemi: 0 };
+    const f = window.Cast3D._figure('foe0');
+    return { focus: st.focus, lit: st.lit,
+             foeLit: +f.root.userData.mat.userData.lit.value.toFixed(2),
+             fieldFilter: getComputedStyle(document.getElementById('k-field')).filter };
+  });
+  await J(() => parryFocus(false));
+  await sleep(1000);
+  const afterF = await J(() => window.Cast3D._state().focus);
+  check('FOCUS: a parry takes the light off the world and leaves it on the fight',
+    beforeF === 1 && during.focus < 0.35 && afterF > 0.8
+    && during.lit.indexOf('foe0') >= 0 && during.foeLit > 0.9,
+    JSON.stringify({ before: beforeF, during: during.focus, after: afterF,
+                     lit: during.lit, foeLit: during.foeLit }));
+  // …and the CSS must not be flattening the whole world on top of that
+  check('FOCUS: …and the 3D field is not dimmed as one element by a filter',
+    during.fieldFilter === 'none',
+    JSON.stringify({ fieldFilter: during.fieldFilter }));
+
   // ═══ N · THE PATH EVERY PLAYER TAKES ═══
   //
   // Every check above this line ran on a page that ASKED for the 3D stage.

@@ -5175,6 +5175,91 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 133 — light that belongs to this world, and a parry you can see
+
+A screenshot of a parry: a black rectangle, one yellow ring, and nowhere in it
+the creature the ring is asking you to answer.
+
+### The dim took the whole world with it
+
+`k-parry-focus` and `k-slowmo` put a CSS filter on the stage's children. `#k-cast`
+lives inside `#k-field`, and `#k-field` **is** one of those children — so the
+party, the plaza and the thing swinging at you all went down together, as a
+single element, to 34% brightness and 5% saturation.
+
+`.k-hero.k-parrying { filter: none }` was the escape hatch built for exactly this
+problem, and it stopped meaning anything the day the figures became pixels in a
+canvas instead of elements of their own. A CSS filter cannot pick one body out
+of a rendered frame.
+
+So the dim moves inside. With the 3D stage up the field is left alone, and the
+world darkens **by its own lights** — which can hold one body lit while the rest
+goes down, and a filter on a canvas never could. The painted stage keeps the old
+rules, where they still work.
+
+`Cast3D.focus(['foe0','ash',…])` takes the scene's lights down over about a fifth
+of a second and holds the named bodies at full. The fight names who the moment is
+about; it does not have to know there are lights.
+
+### The lighting was two thirds nothing
+
+    AmbientLight(0xffffff, 0.88)
+    DirectionalLight(0xffffff, 1.45) at (4.5, 7.5, 5.0)
+
+A **white** ambient at 0.88 against a **white** key at 1.45: most of the light in
+the scene arriving from no direction and with no colour, filling every shadow
+flat. "Bland" is the precise word, and the ambient is the culprit rather than the
+key. And the key sat almost straight over the party, which puddles a shadow under
+each figure and models nothing.
+
+The world is a flooded plaza under a low sun — warm light along the ground from
+the lit end of the street, cool sky bouncing off wet stone everywhere else. So:
+
+- the flat ambient becomes a **hemisphere**, cool above and warm-dark below,
+  at a third of its old strength, so there are shadows left to model with;
+- the key goes **warm and raking** (7.5, 4.2, 3.4), which rims shoulders, finds
+  the folds in a cloak, and throws the long shadows the plaza has been drawing
+  on its floor since Build 119;
+- a cool counter from behind and low, so a body has an edge against the mist;
+- and a dim warm bounce up off the water — the one light this scene had a
+  physical reason to expect and did not have.
+
+Warm key, cool fill. The oldest rule there is, and this scene had neither half.
+
+### An audit of how the bodies move
+
+Asked for, and worth doing properly: four properties a real skeleton has, each
+measured against the rig as it plays, rather than an opinion about the look.
+
+| | stretch (worst bone) | planted foot travel | head off base |
+|---|---|---|---|
+| ash · idle | 0.2% | 0.12 m | 0.14 m |
+| ash · slash | **9.7%** | **0.84 m** | 0.52 m |
+| ash · hurt | 1.5% | **1.33 m** | 0.23 m |
+| elin · slash | 3.7% | **0.90 m** | 0.44 m |
+| mira · hurt | 1.4% | **1.49 m** | 0.14 m |
+
+Two findings, both concrete and neither a matter of taste:
+
+**The feet skate.** Up to a metre and a half of travel on a foot that is bearing
+weight. The cause is named in the file already — the clips travel, a sword
+judgment steps into the blow, and the hips are pinned in x and z so the figure
+does not walk out of frame. Pinning the hips does not remove the travel; it
+transfers it to the feet. That is the trade nobody wrote down, and it is most of
+what reads as unnatural.
+
+**And the spine changes length.** `Hips>Spine` drifts up to 9.7% on a swing —
+every character, every clip, the same joint pair. A rotation cannot change the
+distance between a parent and a child, so something in the retarget or the blend
+is not a pure rotation there.
+
+Both are the next build. Neither is guessed at.
+
+flow 258/258 · road 94/94 · slice 80/80 · bond 76/76 · **cast 83/83** ·
+camp 48/48 · line 32/32 · music 22/22 · beat 10/10.
+
+---
+
 ## Build 132 — a spark is a size, and a corpse stays gone
 
 Two screenshots. A hit: a white-gold circle swallowing a third of the frame with

@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 132;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 133;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -3568,6 +3568,25 @@ let _grid = null;                // { t0, idx } — the live volley's beat clock
 function parryFocus(on) {
   const st = el('k-stage'); if (!st) return;
   st.classList.toggle('k-parry-focus', !!on);
+  // ── AND THE WORLD PUTS ITS OWN LIGHT ON THE ATTACK (Build 133) ──────────
+  //
+  // The CSS above dims the stage's children, and with the 3D stage up the
+  // entire world is ONE of those children — so the creature swinging at you
+  // went down with everything else and the player was asked to answer an
+  // attack they could not see. The world dims from the inside now, and the
+  // bodies the moment is about keep their light: whoever is swinging, and
+  // whoever is being swung at.
+  try {
+    const C3 = window.Cast3D;
+    if (!C3 || !C3.focus) return;
+    if (!on) { C3.focus(null); return; }
+    const keys = [];
+    const src = C && C.foes ? livingFoes() : [];
+    for (const F of src) keys.push('foe' + F.ix);
+    for (const h of Object.keys((C && C.heroes) || {}))
+      if (!C.heroes[h].downed) keys.push(h);
+    C3.focus(keys.length ? keys : null);
+  } catch (e) {}
 }
 // Clair-Obscur slow-mo: the instant a note becomes tappable, time dilates.
 function parrySlowmo(on) {

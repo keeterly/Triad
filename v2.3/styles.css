@@ -1477,6 +1477,21 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-stage.k-parry-focus > *:not(.k-pring):not(.k-grade):not(.k-pthread) {
   filter: saturate(0.22) brightness(0.5); transition: filter 180ms var(--ease-out); }
 #k-stage.k-parry-focus .k-hero.k-parrying { filter: none; }
+/* ── THE WORLD DIMS ITSELF (Build 133) ──────────────────────────────────────
+   `#k-field` is a direct child of the stage, and the entire 3D world lives
+   inside it — so both rules above took the party, the plaza and the creature
+   swinging at you down together, as one element, to 34% brightness and 5%
+   saturation. A screenshot of a parry is a black rectangle with one yellow ring
+   in it and no attack visible behind it.
+   `.k-hero.k-parrying { filter: none }` was the escape hatch for exactly this,
+   and it stopped meaning anything the day the figures became pixels in a canvas
+   instead of elements of their own.
+   With the 3D stage up the field is left alone here and dims from the inside,
+   by its own lights — which can hold one body lit while the rest goes down, and
+   a CSS filter on a canvas never could. The painted stage keeps the old rules,
+   where they still work. */
+body.k-cast3d #k-stage.k-parry-focus > #k-field,
+body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
 #k-stage.k-slowmo > *:not(.k-pring):not(.k-grade) { animation-play-state: paused !important; }
 /* TIME DILATION. Pausing animations is not the effect — v2.2 drained the colour
    out of the world and rushed a vignette in, and that is what sold the beat as
