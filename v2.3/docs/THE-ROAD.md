@@ -5175,6 +5175,110 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 125 — the jitter was three snaps, and none of them were in the animation
+
+"Animations need to be smoother and actually read well. They are sloppy and
+jittery right now."
+
+The tempting reading is that the clips are undersampled — they are baked at 30
+keys a second and a sword swing is fast. Raising `RESAMPLE_FPS` is a one-line
+change and it would have felt like a fix. It does nothing, and the measurement
+says so twice.
+
+### Measuring motion without measuring the frame rate
+
+"Jittery" is a claim about the clip. Watching the animation run in a harness
+that rasterises in software at two frames a second measures the harness, and
+reading the keyframes measures the data rather than what the mixer does with it.
+
+So: switch the layer off so nothing else touches the mixer, drive one figure's
+mixer **by hand at a fixed 240 Hz**, and read a bone's angular acceleration. The
+timestep is constant by construction, so nothing in the number comes from how
+fast the page draws. Smooth motion accelerates smoothly; a pose that snaps shows
+up as one spike two samples wide, hundreds of times the surrounding values.
+
+Six acting verbs, six spikes, **peaks of 145 to 592 rad/s²** — and every one of
+them landed on the clip's own beat:
+
+| verb | spike at | the clip's beat |
+|---|---|---|
+| parry | 0.650 s | 0.66 |
+| hurt | 0.650 s | 0.66 |
+| ward | 1.042 s | 1.05 |
+| heal | 1.092 s | 1.10 |
+| slash | 1.142 s | 1.15 |
+| cast | 1.192 s | 1.20 |
+
+Six for six. **Nothing was wrong in the middle of any animation.** The jitter was
+the animation *ending*.
+
+### Three snaps, peeled one at a time
+
+**One — the action stopped contributing the instant it finished.** A LoopOnce
+action without `clampWhenFinished` is disabled by three.js the moment it reaches
+its end: full contribution to none between two frames. `clear()` calls
+`fadeOut(0.22)` a beat later, which reads like a crossfade in the source and is
+not one, because by the time it runs there is nothing left to fade. Clamping
+holds the final pose so the fade has something to blend out of. Peaks fell 4–5×.
+
+**Two — the idle's weight was a step, not a ramp.** With the pose held, the idle
+underneath still went from a whisper to full strength in a single frame — a
+two-and-a-half-fold jump in what the body is being blended toward. Fading the
+action out over 0.22 s while snapping the idle in is not a crossfade, it is two
+cuts that happen to overlap. The idle's weight is now walked by `step()` at the
+speed of the fade it is answering. Five of the six verbs went clean: cast 592 →
+15, ward 478 → 12, parry 290 → 7.
+
+**Three — and the survivor was the most interesting.** One spike remained, on the
+sword, and it was not at the end of the clip. The probe named the joint: the
+Hips, moving **80° in a 240th of a second** at clip time 0.74, with every weight
+in the mixer steady.
+
+The keyframes were innocent. Baked at 30 Hz the worst step between adjacent keys
+was 31.7°; baked at 120 Hz it was 8.3° — exactly a quarter, which is what a
+faithful resampling of a smooth curve looks like. The data was fine at every
+rate, and the spike did not move.
+
+So the experiment was to take the idle out from underneath and play the sword
+alone. The same instant is smooth. **The clip was never the problem — the blend
+was.** A standing idle under a lunging swing puts the two Hips rotations
+near-antipodal, and a weighted blend between near-antipodal quaternions is
+unstable: the shortest arc between them flips as they pass 180°, and the result
+jumps to a rotation eighty degrees away.
+
+The fix is the same one the brief asked for in different words. **The idle now
+gets out of the way entirely while an action plays.** It was there at a quarter
+weight to keep held poses breathing; it cost more than it bought twice over,
+because a quarter of a standing pose smeared over every swing is exactly what
+"the actions don't read" is made of. An action is a statement, and averaging it
+with someone standing still softens the one thing it was for.
+
+| verb | Build 124 | Build 125 |
+|---|---|---|
+| slash | 362.0 | 10.3 |
+| cast | 592.3 | 14.2 |
+| ward | 478.1 | 12.8 |
+| heal | 145.4 | 7.3 |
+| parry | 290.4 | 7.1 |
+| hurt | 320.3 | 6.1 |
+
+### And the sample rate, measured twice, stays where it was
+
+The first A/B said 30, 60 and 120 Hz were indistinguishable — but that ran while
+the blend flip dominated everything, so it could not have seen a sampling
+effect. Re-run with the flip gone, higher rates are **slightly worse** (slash 47
+→ 58) and 60 is identical to 120: a finer sampler resolves the true peak of a
+fast swing more sharply rather than smoothing anything. The remaining
+acceleration is authored motion.
+
+`RESAMPLE_FPS` stays at 30, and quadrupling every baked track for nothing is the
+change that did not ship.
+
+flow 257/257 · road 94/94 · slice 85/85 · bond 76/76 · **cast 64/64** ·
+camp 48/48 · line 32/32 · music 22/22 · beat 10/10 — no page errors.
+
+---
+
 ## Build 124 — the 3D stage is the game
 
 Twelve builds behind `?cast=3d` was the right way to grow a renderer. The

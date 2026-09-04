@@ -1275,6 +1275,59 @@ const { boot } = require('./harness.cjs');
     JSON.stringify(Object.fromEntries(Object.entries(acts).map(([k, v]) => [k, v.at.join(',')])))
       + ' — closest pair ' + closest.toFixed(2) + ' m');
 
+  // ═══ M · THE MOTION IS SMOOTH, AND THAT IS A MEASUREMENT ═══
+  //
+  // "Sloppy and jittery" is a claim about the CLIP, and the two ways to check
+  // it are both wrong: watching it in a harness that rasterises in software at
+  // two frames a second measures the harness, and reading the keyframes
+  // measures the data rather than what the mixer does with it.
+  //
+  // So this drives one figure's mixer BY HAND at a fixed 240 Hz with the layer
+  // switched off, and reads the angular acceleration of the acting arm. Smooth
+  // motion accelerates smoothly. A pose that snaps — an action that stops
+  // contributing the instant it ends, an idle whose weight jumps, a blend that
+  // flips branch between two near-antipodal rotations — shows up as one spike
+  // two samples wide, hundreds of times the surrounding values.
+  //
+  // Build 124 measured 145 to 592 rad/s on the six acting verbs, one spike per
+  // clip, every one of them landing on the clip's own beat. This is the
+  // number that must not come back.
+  console.log('\n── the motion itself ──');
+  const smooth = await J(async (vs) => {
+    const C3 = window.Cast3D;
+    const was = C3._state().on;
+    C3.disable();
+    const f = C3._figure('ash');
+    const STEP = 1 / 240, out = {};
+    for (const v of vs) {
+      const name = C3._verbClip('ash', v);
+      if (!name) continue;
+      f.clear(); f.play(name);
+      for (let i = 0; i < 60; i++) f.step(STEP);      // past the fade-in
+      const bone = f.bones.RightHand || f.bones.Hips;
+      const q = [];
+      for (let i = 0; i < 400; i++) {
+        f.step(STEP);
+        bone.updateWorldMatrix(true, false);
+        const c = bone.quaternion.clone();
+        bone.getWorldQuaternion(c);
+        q.push(c);
+      }
+      const w = [];
+      for (let i = 1; i < q.length; i++)
+        w.push(2 * Math.acos(Math.min(1, Math.abs(q[i - 1].dot(q[i])))) / STEP);
+      let peak = 0;
+      for (let i = 1; i < w.length; i++) peak = Math.max(peak, Math.abs(w[i] - w[i - 1]));
+      out[v] = +peak.toFixed(1);
+    }
+    f.clear();
+    if (was) await C3.enable();
+    return out;
+  }, ['slash', 'cast', 'ward', 'heal', 'parry', 'hurt']);
+  check('MOTION: no action snaps — the body is never thrown between two frames',
+    Object.values(smooth).length === 6 && Object.values(smooth).every(v => v < 90),
+    JSON.stringify(smooth) + ' rad/s\u00b2 peak — Build 124 ran 145 to 592');
+
   // ═══ N · THE PATH EVERY PLAYER TAKES ═══
   //
   // Every check above this line ran on a page that ASKED for the 3D stage.

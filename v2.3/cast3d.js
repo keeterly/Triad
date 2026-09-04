@@ -505,8 +505,29 @@ class Figure {
       // afford, so the division lands just over 1 rather than at three.
       const beat = meta[name] && meta[name].beat;
       a.timeScale = (loops || !beat) ? 1 : (rt.duration / beat);
-      if (HOLDS[name]) { a.loop = THREE.LoopOnce; a.clampWhenFinished = true; }
-      else if (!loops) a.loop = THREE.LoopOnce;
+      // ── THE POSE HOLDS UNTIL SOMETHING BLENDS IT AWAY (Build 125) ────────
+      //
+      // This is what "sloppy and jittery" was, and it was one line.
+      //
+      // A LoopOnce action WITHOUT `clampWhenFinished` is disabled by three.js
+      // the instant it reaches its end: its contribution goes from full to
+      // nothing between one frame and the next, and the body snaps from the
+      // last frame of the swing to the idle in a single tick. `clear()` calls
+      // `fadeOut(0.22)` a moment later, which reads like a crossfade and is
+      // not one — by the time it runs there is nothing left to fade, because
+      // the action already stopped contributing.
+      //
+      // Measured on the rig rather than argued about: driving the mixer by
+      // hand at 240 Hz and reading the right hand's angular acceleration, every
+      // clip had exactly ONE spike, two to three samples wide, three hundred
+      // times the typical value — and every one of them landed on the clip's
+      // own beat. Six clips, six pops, 0.65s on a 0.66s parry, 1.142 on a
+      // 1.15s sword. Nothing was wrong in the middle of any animation.
+      //
+      // Clamping holds the final pose instead. The action stays enabled and
+      // paused on its last frame, so `clear()`'s fade has something real to
+      // blend out of and the idle comes back underneath it over 0.22s.
+      if (!loops) { a.loop = THREE.LoopOnce; a.clampWhenFinished = true; }
       this.actions[name] = a;
     }
     this.meta = meta || {};
@@ -525,6 +546,10 @@ class Figure {
     }
     this.clipName = null;
     this.acting = null;
+    // where the idle's weight is heading, and how long it has to get there;
+    // `step` walks it
+    this.idleWant = IDLE_WEIGHT;
+    this.idleRamp = 0.22;
 
     // THE CLIPS TRAVEL. A sword judgment steps into the blow and a knock-down
     // falls over backwards — motion that is right in a vacuum and wrong in a
@@ -566,9 +591,27 @@ class Figure {
     a.reset();
     a.setEffectiveWeight(1);
     a.fadeIn(0.12).play();
-    // the idle keeps running underneath at a whisper, so a held pose still
-    // breathes rather than freezing solid
-    if (this.idle) this.idle.setEffectiveWeight(HOLDS[name] ? 0 : 0.25);
+    // ── AND THE IDLE GETS OUT OF THE WAY ────────────────────────────────
+    //
+    // It used to stay underneath at a quarter weight, on the theory that a
+    // held pose should keep breathing. It cost more than it bought, twice
+    // over.
+    //
+    // NUMERICALLY: blending a standing idle under a lunging swing puts the two
+    // Hips rotations near-antipodal, and a weighted blend between near-
+    // antipodal quaternions is unstable — the shortest arc between them flips
+    // as they pass 180°, and the blended result jumps to a rotation eighty
+    // degrees away between one frame and the next. Measured: the sword's hips
+    // moved 80° in a 240th of a second at clip time 0.74, with both weights
+    // steady. Take the idle out and the same instant is smooth. The clip was
+    // never the problem.
+    //
+    // AND VISUALLY: a quarter of a standing pose smeared over every swing is
+    // exactly what "the actions don't read" is made of. An action is a
+    // statement; averaging it with someone standing still softens the one
+    // thing it was for.
+    this.idleWant = 0;
+    this.idleRamp = 0.12;                 // out as fast as the action comes in
     this.acting = a;
     this.clipName = name;
     return true;
@@ -576,12 +619,31 @@ class Figure {
 
   clear() {
     if (this.acting) this.acting.fadeOut(0.22);
-    if (this.idle) this.idle.setEffectiveWeight(IDLE_WEIGHT);
+    // ── AND THE IDLE COMES BACK OVER THE SAME 0.22s ──────────────────────
+    //
+    // Setting this outright was the SECOND pop, and it hid behind the first.
+    // With the action's final pose clamped the swing no longer vanishes, but
+    // the idle underneath it still went from a whisper to full strength
+    // between two frames — a two-and-a-half-fold jump in what the body is
+    // being blended toward, which is its own snap. Fading the action out over
+    // 0.22s while ramping the idle in over anything shorter is not a
+    // crossfade; it is two cuts that happen to overlap.
+    this.idleWant = IDLE_WEIGHT;
+    this.idleRamp = 0.22;                 // back in over the action's own fade
     this.acting = null;
     this.clipName = null;
   }
 
   step(dt) {
+    // the idle's weight is ours to move, and it moves at the speed of the
+    // fades it is answering rather than instantly
+    if (this.idle) {
+      const w = this.idle.getEffectiveWeight();
+      const k = Math.min(1, dt / (this.idleRamp || 0.22));
+      if (Math.abs(this.idleWant - w) > 0.0005)
+        this.idle.setEffectiveWeight(w + (this.idleWant - w) * k);
+      else if (w !== this.idleWant) this.idle.setEffectiveWeight(this.idleWant);
+    }
     this.mixer.update(dt);
     if (this.hips && this.hipRest) {
       this.hips.position.x = this.hipRest.x;
