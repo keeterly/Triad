@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 126;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 127;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -4496,10 +4496,41 @@ function screenPulse(tone) {
 }
 // power ~0.4 (a graze) to ~2.5 (a finisher). dir is the way the struck figure
 // is thrown — 'l' away from the Regent, 'r' away from the party.
-function fxImpact(node, power, tone, dir) {
+// WHO IS THIS ELEMENT? The world wants an actor, not a rectangle. Heroes carry
+// `data-hero`, creatures `data-foe`, and anything else is scenery the 3D layer
+// has no opinion about.
+function actorOf(node) {
+  if (!node || !node.dataset) return null;
+  return node.dataset.hero || node.dataset.foe
+    || (node.id === 'k-boss-art' ? node.dataset.foe : null) || null;
+}
+// THE LAST THING THE FIGHT KNOWS is who swung. Set on the way into an action
+// and read on the way out of it, so the sparks come off the body in the
+// direction the blow was travelling rather than puffing out symmetrically.
+let _fxFrom = null;
+function castHit(node, power, verb) {
+  const C3 = window.Cast3D;
+  if (!C3 || !C3.hit) return false;
+  const id = actorOf(node);
+  return id ? C3.hit(id, verb, power, _fxFrom) : false;
+}
+function fxImpact(node, power, tone, dir, verb) {
   const tier = impactTier(power);
   const c = centreOf(node);
-  if (c) shockRing(c.x, c.y, power, tone);
+  // ── THE RING IS IN THE WORLD NOW (Build 127) ────────────────────────────
+  //
+  // `shockRing` appends a CSS circle to the flat stage and grows its width.
+  // That was right while the fight was a painting: the circle sat next to the
+  // sprite it belonged to and nothing could tell. With a real world underneath
+  // it is a decal stuck on the lens — it cannot be occluded by the body it
+  // happened to, it does not move when the camera does, and it is the same
+  // size whether the hit was two metres away or nine.
+  //
+  // So when the 3D stage is up the impact is thrown in metres, at chest
+  // height, on the actual figure. The 2D ring stays for `?cast=2d`, where it is
+  // still the right answer.
+  const inWorld = castHit(node, power, verb || (tone === 'hurt' ? 'slash' : 'slash'));
+  if (c && !inWorld) shockRing(c.x, c.y, power, tone);
   screenKick(power);
   hitFlash(tier, tone);
   camPush(tier, node);
@@ -4652,6 +4683,8 @@ function castShot(name, opts) {
 function castPlay(heroId, clip) {
   const C3 = window.Cast3D;
   if (C3 && heroId && clip) C3.play(heroId, clip);
+  // remember who is swinging, so the impact knows which way the blow came from
+  if (clip && clip !== 'idle' && clip !== 'hurt' && clip !== 'down') _fxFrom = heroId;
 }
 // …AND SO DOES THE FOE. It is the same rig on the other side of the board, so
 // it speaks the same verbs — `foeCast` only exists to translate an index into

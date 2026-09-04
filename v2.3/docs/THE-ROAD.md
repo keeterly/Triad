@@ -5175,6 +5175,112 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 127 — the effects move into the world
+
+"Right now it's just a circle punch and lame slash."
+
+Both descriptions were literal. `shockRing` built a `<div>`, gave it a CSS class
+and grew its width; a swing was a keyframe animation on the sprite. Neither was
+badly made — they were made for a game that was a painting, and they stopped
+being right the moment there was a world underneath them.
+
+### What was actually wrong with a div
+
+Not that it looked cheap. That it was **on the wrong layer**, and every symptom
+followed from that one fact:
+
+- It could not be occluded by the body it happened to, because it was drawn
+  after everything.
+- It did not move when the camera did — and as of Build 126 the camera moves
+  through the whole beat.
+- It was the same size whether the hit landed two metres away or nine, because
+  a CSS pixel does not know about distance.
+- It never touched the water. The plaza has been flooded since Build 122 and the
+  reflection pass renders **the scene**; an effect outside the scene simply is
+  not in the reflection.
+
+So the effects move into the scene. Same camera, same depth buffer, same mirror
+pass — a spark thrown behind the Regent goes behind the Regent, and the floor
+picks all of it up for nothing.
+
+### Nothing is fetched
+
+Three textures, drawn on a canvas at load, the way the floor has been since
+Build 122: a **mote** (soft, and bitten at the edge with a dozen erase-arcs so a
+hundred of them don't read as a hundred identical circles), a **streak**, and the
+**slash edge** — a horizontal heat ramp times a vertical falloff, chewed with a
+couple of octaves of cheap value noise. That last one is the whole job: a weapon
+trail with a clean gradient reads as a plastic swoosh, and what makes it a slash
+is that the edge is *torn*.
+
+The palette is the game's own — bone white at the core, through the gold the
+KIZUNA bar and every combo already use, out to the ash grey the bestiary is
+painted in. A sword in this world throws embers and ink, not neon.
+
+### The slash is the path the weapon actually took
+
+This is the part that cannot be faked with a sprite. A slash is not a picture of
+an arc, it is the surface a blade swept through the air — so the trail is built
+from the hand bone's **real world position**, sampled every frame while the
+swing plays, and the mesh is the ruled surface between the wrist and a point out
+along the forearm.
+
+It costs nothing extra to be correct: the bone is already being posed sixty times
+a second by an animation the fight chose, so the arc is automatically the arc
+*that character* makes with *that weapon*. Ash's longsword and Mira's daggers
+need no separate art; they have separate arms.
+
+Measured at a fixed 60 Hz — because a trail's length is a function of frame rate
+and this harness rasterises in software at about two frames a second, so watching
+the real loop would have measured Chromium — the blade tip sweeps **5.6 metres of
+world** across a swing, over 22 samples.
+
+### Sparks are one pool and one draw call
+
+900 points in a geometry allocated once and never grown; a burst finds dead slots
+and refills them. Size falls off with distance the way a lens does, so a spark
+thrown toward the camera **grows**. Colour rides hot → gold → ash across a
+particle's life, because an ember *cools* rather than just fading, and it flickers
+because a tumbling ember does. Additive with depth-write off: sparks must be
+occluded by bodies and must never occlude each other, or a burst becomes a mosaic
+of squares.
+
+### Three bugs, and the third was not in this build
+
+**The arc started a frame late, every time.** The ribbon was looked up at the top
+of the trail function — before the code that creates it — so on the first frame
+of a swing the sample just taken was never stepped into the mesh.
+
+**A slow machine drew no arc at all.** The mesh required three samples before it
+would show. Any frame rate low enough to take fewer than three during a swing got
+nothing — and the machines that draw slowest are exactly the ones already
+struggling to sell the hit. Two samples is a quad, and a quad is a slash.
+
+**And `enable()` was rebuilding the world.** `disable()` stops the loop and hides
+the canvas; it does not throw anything away. `enable()` did not know that, so
+every re-enable built a second canvas, a second renderer, a second scene and
+reloaded every model, while the first was still in the DOM. Nothing looked wrong
+— the new world is identical — so it has been happening quietly since Build 125,
+when the smoothness check first started toggling the layer.
+
+What found it was an effect. A check fired an impact immediately after a
+re-enable and measured **zero** sparks, because the sparks went into the scene it
+had just replaced. A bug that produces an identical picture is invisible until
+something has to persist across it.
+
+### And the 2D ring stays
+
+`?cast=2d` still gets its circle. It was never wrong for a painting, and it is
+still the right answer on a machine that cannot draw the other thing.
+
+flow 257/257 · road 94/94 · slice 80/80 · bond 76/76 · **cast 69/69** ·
+camp 48/48 · line 32/32 · music 22/22 · beat 10/10 — no page errors.
+
+The eight logic suites boot `?cast=2d`, so a green run there is also the check
+that the painted stage still gets its circle.
+
+---
+
 ## Build 126 — a shot becomes a move
 
 A screenshot of a parry in progress: three figures the same size, in profile,

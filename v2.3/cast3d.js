@@ -476,6 +476,483 @@ function sampleQuat(track, t, into) {
   return into.slerp(b, u).normalize();
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THE EFFECTS, WHICH BELONG IN THE WORLD (Build 127)
+//
+// A hit used to be a `<div>`. `shockRing` appended a CSS circle to the stage
+// and animated its width; a swing was a keyframe on the sprite. Both lived on
+// the flat DOM layer ABOVE the world, which meant an impact could not be
+// occluded by the body it happened to, did not move when the camera did, sat
+// at whatever size the screen said rather than the distance, and never once
+// touched the water the whole plaza is standing in.
+//
+// So the effects move into the scene. Same camera, same depth buffer, same
+// reflection pass — a spark thrown behind the Regent goes behind the Regent,
+// and the flooded floor picks all of it up for free because the mirror pass
+// renders the scene and the scene is where these now live.
+//
+// NOTHING IS FETCHED. Every texture here is drawn on a canvas at load, the way
+// the floor has been since Build 122: a soft mote, a hot streak, and a torn
+// ink edge for the ribbon. Three small textures beat three downloads, and they
+// can be tuned in the file that uses them.
+//
+// AND THE PALETTE IS THE GAME'S. Bone white at the core, through the gold the
+// KIZUNA bar and every combo already use, out to the ash grey the bestiary is
+// painted in. No cyan, no magenta — a sword in this world throws embers and
+// ink, not neon.
+const FX_HOT = new THREE.Color(0xfff4d8);
+const FX_GOLD = new THREE.Color(0xd8a33f);
+const FX_ASH = new THREE.Color(0x6d635a);
+
+function fxCanvas(size, draw) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  draw(c.getContext('2d'), size);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// a mote: soft, round, and slightly eaten at the edge so it reads as ash
+// rather than as a lens dot
+function moteTexture() {
+  return fxCanvas(64, (x, s) => {
+    const g = x.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.35, 'rgba(255,255,255,0.55)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g;
+    x.fillRect(0, 0, s, s);
+    // bite a little out of it, so a hundred of these do not look like a hundred
+    // of the same circle
+    x.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < 14; i++) {
+      const a = Math.random() * Math.PI * 2, r = s * (0.22 + Math.random() * 0.26);
+      x.beginPath();
+      x.arc(s / 2 + Math.cos(a) * r, s / 2 + Math.sin(a) * r, s * 0.05 * Math.random(), 0, 7);
+      x.fill();
+    }
+  });
+}
+
+// a streak: the same mote stretched, for anything travelling fast enough to
+// smear — the sparks off an impact and the motes inside a blast
+function streakTexture() {
+  return fxCanvas(64, (x, s) => {
+    const g = x.createLinearGradient(0, s / 2, s, s / 2);
+    g.addColorStop(0, 'rgba(255,255,255,0)');
+    g.addColorStop(0.42, 'rgba(255,255,255,0.85)');
+    g.addColorStop(0.55, 'rgba(255,255,255,1)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g;
+    for (let y = 0; y < s; y++) {
+      const d = Math.abs(y - s / 2) / (s / 2);
+      x.globalAlpha = Math.max(0, 1 - d * d * 3.4);
+      x.fillRect(0, y, s, 1);
+    }
+  });
+}
+
+// THE RIBBON'S EDGE IS THE WHOLE JOB. A weapon trail with a clean gradient
+// reads as a plastic swoosh; what makes it a SLASH is that the edge is torn.
+// This is a horizontal ramp — hot at the leading edge, gone at the trailing —
+// multiplied by a vertical falloff and then chewed with noise, so the arc has
+// an ink-brush edge rather than an airbrushed one.
+function slashTexture() {
+  return fxCanvas(256, (x, s) => {
+    const img = x.createImageData(s, s);
+    for (let y = 0; y < s; y++) {
+      for (let i = 0; i < s; i++) {
+        const u = i / (s - 1), v = y / (s - 1);
+        // along the arc: a hot leading edge that falls away behind
+        const along = Math.pow(u, 0.55);
+        // across it: thin at both lips, solid through the middle
+        const across = 1 - Math.pow(Math.abs(v * 2 - 1), 1.7);
+        // and the tear — a couple of octaves of cheap value noise
+        const n = Math.sin(u * 21.7 + v * 9.3) * 0.5 + Math.sin(u * 47.1 - v * 23.7) * 0.28
+                + Math.sin(v * 61.3 + u * 5.1) * 0.16;
+        let a = along * across * (0.72 + n * 0.34);
+        a = Math.max(0, Math.min(1, a));
+        // the leading two-fifths burn white, the tail cools to gold
+        const heat = Math.pow(u, 2.2);
+        const o = (y * s + i) * 4;
+        img.data[o] = 255;
+        img.data[o + 1] = 244 - (1 - heat) * 60;
+        img.data[o + 2] = 216 - (1 - heat) * 140;
+        img.data[o + 3] = a * 255;
+      }
+    }
+    x.putImageData(img, 0, 0);
+  });
+}
+
+// ── ONE POOL, ONE DRAW CALL ────────────────────────────────────────────────
+//
+// Every spark in the fight is a point in a single BufferGeometry that is
+// allocated once and never grows. A burst does not create anything: it finds
+// dead slots and refills them. This matters more than it looks in a browser —
+// the alternative, a mesh per effect, spends its whole budget on allocation and
+// draw calls and then stutters on the garbage, which is the exact opposite of
+// what an impact is for.
+//
+// The shader is deliberately small. Size falls off with distance the way a real
+// lens does (so a spark thrown toward the camera GROWS), colour rides from hot
+// through gold to ash across a particle's life, and everything is additive with
+// depth WRITING OFF — sparks must be occluded by bodies but must never occlude
+// each other, or a burst turns into a mosaic of squares.
+const SPARKS = 900;
+class Sparks {
+  constructor(map) {
+    this.n = SPARKS;
+    this.pos = new Float32Array(SPARKS * 3);
+    this.vel = new Float32Array(SPARKS * 3);
+    this.life = new Float32Array(SPARKS);      // seconds remaining
+    this.max = new Float32Array(SPARKS);       // seconds it started with
+    this.seed = new Float32Array(SPARKS);
+    this.scale = new Float32Array(SPARKS);
+    this.drag = new Float32Array(SPARKS);
+    this.grav = new Float32Array(SPARKS);
+    this.next = 0;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
+    g.setAttribute('aLife', new THREE.BufferAttribute(this.life, 1));
+    g.setAttribute('aMax', new THREE.BufferAttribute(this.max, 1));
+    g.setAttribute('aScale', new THREE.BufferAttribute(this.scale, 1));
+    g.setAttribute('aSeed', new THREE.BufferAttribute(this.seed, 1));
+    g.setDrawRange(0, SPARKS);
+    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 60);
+    const m = new THREE.ShaderMaterial({
+      uniforms: {
+        uMap: { value: map },
+        uHot: { value: FX_HOT }, uGold: { value: FX_GOLD }, uAsh: { value: FX_ASH },
+        uPx: { value: 1 },
+      },
+      transparent: true, depthWrite: false, depthTest: true,
+      blending: THREE.AdditiveBlending,
+      vertexShader: `
+        attribute float aLife; attribute float aMax;
+        attribute float aScale; attribute float aSeed;
+        uniform float uPx;
+        varying float vAge; varying float vSeed;
+        void main() {
+          vSeed = aSeed;
+          vAge = aMax > 0.0 ? 1.0 - aLife / aMax : 1.0;
+          vec4 mv = modelViewMatrix * vec4( position, 1.0 );
+          // a spark thrown at the lens grows, because it is nearer
+          gl_PointSize = aScale * uPx / max( 0.35, -mv.z );
+          gl_Position = projectionMatrix * mv;
+          if ( aLife <= 0.0 ) gl_Position = vec4( 2.0, 2.0, 2.0, 1.0 );  // parked offscreen
+        }`,
+      fragmentShader: `
+        uniform sampler2D uMap;
+        uniform vec3 uHot; uniform vec3 uGold; uniform vec3 uAsh;
+        varying float vAge; varying float vSeed;
+        void main() {
+          vec4 t = texture2D( uMap, gl_PointCoord );
+          // white-hot, then gold, then ash — a spark COOLS, it does not just fade
+          vec3 c = mix( uHot, uGold, smoothstep( 0.0, 0.42, vAge ) );
+          c = mix( c, uAsh, smoothstep( 0.5, 1.0, vAge ) );
+          // and it flickers, because an ember tumbling in the air does
+          float flick = 0.78 + 0.22 * sin( vSeed * 40.0 + vAge * 34.0 );
+          float a = t.a * ( 1.0 - vAge ) * flick;
+          gl_FragColor = vec4( c * ( 1.0 + ( 1.0 - vAge ) * 1.6 ), a );
+        }`,
+    });
+    this.points = new THREE.Points(g, m);
+    this.points.frustumCulled = false;
+    this.points.renderOrder = 6;
+    this.geo = g;
+    this.mat = m;
+  }
+
+  // fire `count` sparks from `at`, thrown along `dir` with `spread` radians of
+  // scatter. Everything else is per-effect taste.
+  emit(at, dir, count, o) {
+    o = o || {};
+    const speed = o.speed || 4, spread = o.spread === undefined ? 1.1 : o.spread;
+    const life = o.life || 0.55, size = o.size || 26;
+    const grav = o.grav === undefined ? -3.2 : o.grav;
+    const drag = o.drag === undefined ? 2.4 : o.drag;
+    const d = _fxD.copy(dir).normalize();
+    for (let k = 0; k < count; k++) {
+      const i = this.next = (this.next + 1) % SPARKS;
+      // a cone around `dir`: pick a random vector, push it toward the axis
+      _fxV.set(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1);
+      if (_fxV.lengthSq() < 1e-6) _fxV.set(0, 1, 0);
+      _fxV.normalize().multiplyScalar(spread).add(d).normalize();
+      const s = speed * (0.45 + Math.random() * 0.9);
+      this.pos[i * 3] = at.x + _fxV.x * 0.06;
+      this.pos[i * 3 + 1] = at.y + _fxV.y * 0.06;
+      this.pos[i * 3 + 2] = at.z + _fxV.z * 0.06;
+      this.vel[i * 3] = _fxV.x * s;
+      this.vel[i * 3 + 1] = _fxV.y * s;
+      this.vel[i * 3 + 2] = _fxV.z * s;
+      const L = life * (0.6 + Math.random() * 0.8);
+      this.life[i] = L; this.max[i] = L;
+      this.scale[i] = size * (0.55 + Math.random() * 0.9);
+      this.seed[i] = Math.random();
+      this.drag[i] = drag; this.grav[i] = grav;
+    }
+  }
+
+  step(dt) {
+    const p = this.pos, v = this.vel, l = this.life;
+    let live = 0;
+    for (let i = 0; i < SPARKS; i++) {
+      if (l[i] <= 0) continue;
+      live++;
+      l[i] -= dt;
+      if (l[i] <= 0) { l[i] = 0; continue; }
+      const k = Math.max(0, 1 - this.drag[i] * dt);
+      const j = i * 3;
+      v[j] *= k; v[j + 1] = v[j + 1] * k + this.grav[i] * dt; v[j + 2] *= k;
+      p[j] += v[j] * dt; p[j + 1] += v[j + 1] * dt; p[j + 2] += v[j + 2] * dt;
+      // the floor is wet stone, not a hole: an ember that reaches it stops
+      if (p[j + 1] < 0.02) { p[j + 1] = 0.02; v[j + 1] *= -0.22; v[j] *= 0.6; v[j + 2] *= 0.6; }
+    }
+    this.live = live;
+    if (live || this._wasLive) {
+      this.geo.attributes.position.needsUpdate = true;
+      this.geo.attributes.aLife.needsUpdate = true;
+      this.geo.attributes.aMax.needsUpdate = true;
+      this.geo.attributes.aScale.needsUpdate = true;
+      this.geo.attributes.aSeed.needsUpdate = true;
+    }
+    this._wasLive = live > 0;
+  }
+}
+
+// ── THE SLASH IS THE PATH THE WEAPON ACTUALLY TOOK ─────────────────────────
+//
+// This is the part that cannot be faked with a sprite, and the reason the old
+// one read as a decal stuck on the screen: a slash is not a picture of an arc,
+// it is the surface a blade swept through the air. So the trail is BUILT from
+// the hand bone's real world position, sampled every frame while the swing
+// plays, and the mesh is the ruled surface between the wrist and a point out
+// along the blade.
+//
+// It costs nothing extra to be correct here — the bone is already being posed
+// sixty times a second by an animation the fight chose, so the arc is
+// automatically the arc that character makes with that weapon. Ash's longsword
+// and Mira's daggers do not need separate art; they have separate arms.
+const TRAIL = 22;                     // segments kept — about a third of a second
+class Ribbon {
+  constructor(map) {
+    this.n = TRAIL;
+    const g = new THREE.BufferGeometry();
+    this.pos = new Float32Array(TRAIL * 2 * 3);
+    this.uv = new Float32Array(TRAIL * 2 * 2);
+    const idx = [];
+    for (let i = 0; i < TRAIL - 1; i++) {
+      const a = i * 2;
+      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+    for (let i = 0; i < TRAIL; i++) {
+      const u = i / (TRAIL - 1);
+      this.uv[i * 4] = u; this.uv[i * 4 + 1] = 0;
+      this.uv[i * 4 + 2] = u; this.uv[i * 4 + 3] = 1;
+    }
+    g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(this.uv, 2));
+    g.setIndex(idx);
+    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 60);
+    this.mat = new THREE.MeshBasicMaterial({
+      map, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending, opacity: 0,
+    });
+    this.mesh = new THREE.Mesh(g, this.mat);
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 5;
+    this.mesh.visible = false;
+    this.geo = g;
+    this.head = 0; this.filled = 0; this.fade = 0;
+    this.pts = [];
+    for (let i = 0; i < TRAIL; i++) this.pts.push({ a: new THREE.Vector3(), b: new THREE.Vector3() });
+  }
+  // one sample: the wrist, and a point `reach` metres out along the forearm's
+  // own direction — which is where a blade would be
+  push(wrist, out, reach) {
+    const p = this.pts[this.head];
+    p.a.copy(wrist);
+    p.b.copy(out).sub(wrist).normalize().multiplyScalar(reach).add(wrist);
+    this.head = (this.head + 1) % TRAIL;
+    if (this.filled < TRAIL) this.filled++;
+    this.fade = 1;
+  }
+  step(dt) {
+    if (this.fade <= 0) { this.mesh.visible = false; return; }
+    // THE TAIL DIES ON ITS OWN. A trail that is simply switched off at the end
+    // of the swing pops; one that keeps drawing while its opacity falls reads
+    // as the air closing behind the blade.
+    this.fade = Math.max(0, this.fade - dt * 3.6);
+    this.mat.opacity = this.fade * this.fade * 0.95;
+    // TWO SAMPLES IS A QUAD, AND A QUAD IS A SLASH. Requiring three meant a
+    // frame rate low enough to take fewer than three samples during a swing
+    // drew no arc at all — which is not a state anybody should ship to, since
+    // the machines that draw slowest are exactly the ones already struggling
+    // to sell the hit.
+    this.mesh.visible = this.filled >= 2;
+    if (!this.mesh.visible) return;
+    for (let i = 0; i < TRAIL; i++) {
+      // oldest first, so u=0 is the tail and u=1 is the leading edge
+      const src = this.pts[(this.head + i) % TRAIL];
+      const o = i * 6;
+      this.pos[o] = src.a.x; this.pos[o + 1] = src.a.y; this.pos[o + 2] = src.a.z;
+      this.pos[o + 3] = src.b.x; this.pos[o + 4] = src.b.y; this.pos[o + 5] = src.b.z;
+    }
+    this.geo.attributes.position.needsUpdate = true;
+  }
+  clear() { this.filled = 0; this.fade = 0; this.mesh.visible = false; }
+}
+
+// ── THE SHOCKWAVE, WHICH IS NOW A RING IN THE WORLD ────────────────────────
+//
+// `shockRing` drew a CSS circle at a screen position and grew its width. This
+// is a ring of geometry standing at the point of impact, facing the camera,
+// expanding in METRES — so it is the right size for how far away the hit was
+// without anybody computing that, it is occluded by whatever is in front of it,
+// and it lands in the water with everything else.
+const SHOCKS = 5;
+class Shocks {
+  constructor() {
+    this.items = [];
+    const g = new THREE.RingGeometry(0.42, 0.5, 44);
+    for (let i = 0; i < SHOCKS; i++) {
+      const m = new THREE.MeshBasicMaterial({
+        color: FX_HOT, transparent: true, opacity: 0, depthWrite: false,
+        blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(g, m);
+      mesh.visible = false; mesh.renderOrder = 5; mesh.frustumCulled = false;
+      this.items.push({ mesh, mat: m, t: 0, dur: 1, size: 1 });
+    }
+  }
+  fire(at, size, dur) {
+    const it = this.items.find(i => i.t <= 0) || this.items[0];
+    it.mesh.position.copy(at);
+    it.t = it.dur = dur || 0.42;
+    it.size = size;
+    it.mesh.visible = true;
+    return it;
+  }
+  step(dt, cam) {
+    for (const it of this.items) {
+      if (it.t <= 0) continue;
+      it.t -= dt;
+      if (it.t <= 0) { it.t = 0; it.mesh.visible = false; continue; }
+      const p = 1 - it.t / it.dur;
+      // fast out of the gate and slowing — an impact does not expand linearly
+      const e = 1 - Math.pow(1 - p, 3);
+      it.mesh.scale.setScalar(0.25 + e * it.size);
+      it.mat.opacity = (1 - p) * (1 - p) * 0.9;
+      it.mesh.quaternion.copy(cam.quaternion);      // always square to the lens
+    }
+  }
+}
+
+// ── WHAT EACH VERB LOOKS LIKE ──────────────────────────────────────────────
+//
+// One table, because the difference between a sword and a spell should be a
+// row here rather than a branch somewhere in the fight. `hand` is which wrist
+// throws it, `reach` how far the weapon extends past it, and the rest is how
+// the air answers.
+const FX_VERB = {
+  slash: { trail: true, reach: 0.92, hue: 'hot',
+           hit: { n: 46, speed: 6.2, spread: 0.85, life: 0.5, size: 30, ring: 1.5 } },
+  cast:  { trail: true, reach: 0.34, hue: 'gold', charge: true,
+           hit: { n: 64, speed: 4.4, spread: 1.9, life: 0.9, size: 34, ring: 2.2, grav: -0.7 } },
+  heal:  { trail: false, charge: true, rise: true,
+           hit: { n: 40, speed: 1.5, spread: 1.6, life: 1.5, size: 26, ring: 0.9, grav: 1.5, drag: 1.1 } },
+  ward:  { trail: false, charge: true,
+           hit: { n: 34, speed: 2.2, spread: 2.4, life: 0.8, size: 24, ring: 1.7, grav: -0.4 } },
+  parry: { trail: false,
+           hit: { n: 30, speed: 5.5, spread: 0.7, life: 0.34, size: 22, ring: 1.1 } },
+};
+
+const _fxV = new THREE.Vector3(), _fxD = new THREE.Vector3();
+const _fxA = new THREE.Vector3(), _fxB = new THREE.Vector3();
+
+// ── THE DIRECTOR ───────────────────────────────────────────────────────────
+//
+// Holds the pool, the ribbons and the rings, and knows which bone is holding
+// what. It is driven entirely by things the layer already knows: which figure
+// is acting, which clip it is playing, and where the other side is standing.
+// Nothing in game.js has to describe an effect — it says "slash" the way it
+// always has, and the air does the rest.
+class Effects {
+  constructor(scene) {
+    this.sparks = new Sparks(moteTexture());
+    this.streak = streakTexture();
+    this.shocks = new Shocks();
+    this.ribbons = {};
+    this.slashMap = slashTexture();
+    scene.add(this.sparks.points);
+    for (const it of this.shocks.items) scene.add(it.mesh);
+    this.scene = scene;
+  }
+  ribbonFor(id) {
+    if (!this.ribbons[id]) {
+      const r = new Ribbon(this.slashMap);
+      this.scene.add(r.mesh);
+      this.ribbons[id] = r;
+    }
+    return this.ribbons[id];
+  }
+  // called every frame for every visible figure: if it is mid-swing, take a
+  // sample of where its weapon is
+  trail(id, f, dt) {
+    const spec = FX_VERB[f.fxVerb];
+    const swinging = f.acting && spec && spec.trail;
+    if (swinging) {
+      const arm = f.tone.strike === 'daggers' ? 'LeftHand' : 'RightHand';
+      const wrist = f.bones[arm] || f.bones.RightHand;
+      const fore = f.bones[arm === 'LeftHand' ? 'LeftForeArm' : 'RightForeArm'];
+      if (wrist) {
+        wrist.getWorldPosition(_fxA);
+        if (fore) fore.getWorldPosition(_fxB); else _fxB.copy(_fxA).add(_fxD.set(0, 1, 0));
+        // out along the forearm, away from the elbow — where a blade would be
+        _fxD.copy(_fxA).sub(_fxB).normalize().multiplyScalar(2).add(_fxA);
+        this.ribbonFor(id).push(_fxA, _fxD, spec.reach);
+      }
+    }
+    // READ IT AFTER, NOT BEFORE. Looked up at the top of the function this was
+    // whatever existed when the frame began — which on the first frame of a
+    // swing is nothing, so the sample just taken was never stepped into the
+    // mesh and the arc started one frame late every time.
+    const r = this.ribbons[id];
+    if (r) r.step(dt);
+  }
+  // the blow lands. `at` is where, `toward` is which way the energy goes.
+  hit(at, toward, verb, power) {
+    const spec = FX_VERB[verb] || FX_VERB.slash;
+    const h = spec.hit;
+    const k = Math.max(0.55, Math.min(1.9, power || 1));
+    this.sparks.emit(at, toward, Math.round(h.n * k), {
+      speed: h.speed, spread: h.spread, life: h.life, size: h.size,
+      grav: h.grav, drag: h.drag,
+    });
+    this.shocks.fire(at, h.ring * k, verb === 'heal' ? 0.7 : 0.42);
+  }
+  // a spell gathering in the hand before it goes anywhere
+  charge(at, verb) {
+    const spec = FX_VERB[verb];
+    if (!spec || !spec.charge) return;
+    // drawn INWARD: velocity toward the hand, so the motes converge
+    for (let i = 0; i < 14; i++) {
+      _fxV.set(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize();
+      _fxD.copy(_fxV).multiplyScalar(-1);
+      this.sparks.emit(_fxA.copy(at).addScaledVector(_fxV, 0.55), _fxD, 1,
+        { speed: 1.9, spread: 0.05, life: 0.42, size: 18, grav: 0, drag: 0.4 });
+    }
+  }
+  step(dt, cam, px) {
+    this.sparks.step(dt);
+    this.sparks.mat.uniforms.uPx.value = px;
+    this.shocks.step(dt, cam);
+  }
+}
+
 // ── the figure ─────────────────────────────────────────────────────────────
 // One per hero: their own model, their own mixer, and whatever clip is
 // playing over the idle underneath it.
@@ -546,6 +1023,9 @@ class Figure {
     }
     this.clipName = null;
     this.acting = null;
+    // WHICH VERB, not which clip. `sword`, `daggers` and `staff` are three
+    // clips for one word, and the air should answer the word.
+    this.fxVerb = null;
     // where the idle's weight is heading, and how long it has to get there;
     // `step` walks it
     this.idleWant = IDLE_WEIGHT;
@@ -632,6 +1112,7 @@ class Figure {
     this.idleRamp = 0.22;                 // back in over the action's own fade
     this.acting = null;
     this.clipName = null;
+    this.fxVerb = null;
   }
 
   step(dt) {
@@ -657,6 +1138,7 @@ const Cast3D = (() => {
   let on = false, ready = false, failed = null;
   let renderer = null, scene = null, cam = null, canvas = null;
   let ground = null, reflect = null, mirror = null;
+  let fx = null;
   const sized = { w: 0, h: 0, dpr: 0 };
   const figs = {};
   let last = 0, raf = 0, pending = null, clipNames = [], missing = [];
@@ -1251,6 +1733,9 @@ const Cast3D = (() => {
       mist.add(m);
     }
     scene.add(mist);
+    // the effects live in the scene, which is the whole point of them: same
+    // depth buffer as the bodies, and the reflection pass picks them up free
+    fx = new Effects(scene);
     ground.userData.mist = mist;
 
     // …AND THE AIR BETWEEN. Real distance fog is what makes forty metres of
@@ -1716,6 +2201,7 @@ const Cast3D = (() => {
   // when the current shot began, so a move knows how far through it is
   let shotAt = 0;
   const _eye = new THREE.Vector3(), _look = new THREE.Vector3();
+  const _size = new THREE.Vector2();
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // AZIMUTH TAKES THE SHORT WAY ROUND. Easing 350 degrees to 10 by subtracting
@@ -1985,6 +2471,23 @@ const Cast3D = (() => {
       }
     }
 
+    // ── THE AIR, LAST ──
+    //
+    // After the bodies have been posed and before anything is drawn: a swing
+    // that has moved this frame has a new sample in its trail, and every spark
+    // in the fight ages by the same dt everything else did.
+    //
+    // The point size is handed the drawing buffer's height because a point
+    // sprite is sized in PIXELS. Without it a spark would be one size at
+    // 932x430 and another at a magnified window — the same class of bug as the
+    // aim beam in Build 120, and the same fix: ask the thing that actually
+    // knows.
+    if (fx) {
+      for (const id of Object.keys(figs))
+        if (figs[id].root.visible) fx.trail(id, figs[id], dt);
+      fx.step(dt, cam, renderer.getSize(_size).y * renderer.getPixelRatio() * 0.5);
+    }
+
     // ONE SCENE, ONE CAMERA, ONE PASS. Four scissored renders and four
     // orthographic frames are what it took to fake a shared space; a shared
     // space needs none of them.
@@ -2017,6 +2520,27 @@ const Cast3D = (() => {
     wanted: () => !/(^|[?&])cast=2d(&|$)/.test(location.search),
     async enable() {
       if (on) return true;
+      // ── SWITCHING BACK ON IS NOT STARTING OVER ─────────────────────────
+      //
+      // `disable()` stops the loop and hides the canvas; it does not throw the
+      // world away. `enable()` did not know that, so every re-enable built a
+      // SECOND canvas, a second renderer, a second scene, and reloaded every
+      // model — while the first one was still sitting in the DOM. Nothing
+      // looked wrong, which is why it survived: the new world is identical to
+      // the old one, so the only symptom was a suite that quietly doubled its
+      // memory and lost every effect that had been fired into the scene the
+      // first one owned.
+      //
+      // That last part is how it was found. A check fired an impact
+      // immediately after a re-enable and measured zero sparks — because the
+      // sparks went into the scene it had just replaced.
+      if (renderer && scene) {
+        on = true; last = 0;
+        document.body.classList.add('k-cast3d');
+        if (canvas) canvas.style.display = '';
+        if (!raf) raf = requestAnimationFrame(frame);
+        return true;
+      }
       if (!(await build())) return false;
       try { await load(); } catch (err) { failed = 'load: ' + err.message; return false; }
       // ── AN EMPTY PLAZA IS WORSE THAN A PAINTING ─────────────────────────
@@ -2065,7 +2589,54 @@ const Cast3D = (() => {
       // "stop acting", not "play the idle once and then stop".
       if (verb === 'idle') { f.clear(); return true; }
       const pick = VERB[verb];
-      return f.play(pick ? pick(heroId) : verb);
+      const okp = f.play(pick ? pick(heroId) : verb);
+      // THE VERB, KEPT. The clip is `sword` or `daggers` or `staff`; the air
+      // needs to know it was a `slash`. Set after the play so a refused clip
+      // cannot leave a trail with nothing swinging it.
+      if (okp) {
+        f.fxVerb = verb;
+        if (fx) {
+          const r = fx.ribbons[heroId];
+          if (r) r.clear();                       // a new swing starts a new arc
+          // a spell gathers before it goes anywhere
+          const spec = FX_VERB[verb];
+          if (spec && spec.charge) {
+            const arm = f.tone.strike === 'daggers' ? 'LeftHand' : 'RightHand';
+            const h = f.bones[arm] || f.bones.RightHand;
+            if (h) fx.charge(h.getWorldPosition(new THREE.Vector3()), verb);
+          }
+        }
+      }
+      return okp;
+    },
+    // ── THE BLOW LANDS ─────────────────────────────────────────────────────
+    //
+    // game.js has always said WHERE a hit happened by handing over a DOM
+    // element, because for eleven builds the effect was a div next to it. It
+    // now says WHO, and the world already knows where that is standing — chest
+    // height on the figure, in metres, which is the only place an impact was
+    // ever really happening.
+    //
+    // `toward` is the line from whoever threw it, so the sparks come off the
+    // body in the direction the blow was travelling instead of puffing
+    // symmetrically like a firework.
+    hit(targetId, verb, power, fromId) {
+      if (!on || !fx) return false;
+      const t = figs[targetId];
+      if (!t || !t.root.visible) return false;
+      const at = new THREE.Vector3(t.root.position.x + t.ctrOff,
+                                   t.root.position.y + t.worldH * 0.58,
+                                   t.root.position.z);
+      const src = fromId && figs[fromId];
+      const toward = new THREE.Vector3();
+      if (src && src.root.visible) {
+        toward.set(at.x - (src.root.position.x + src.ctrOff), 0.35,
+                   at.z - src.root.position.z).normalize();
+      } else {
+        toward.set(CAST[targetId] && CAST[targetId].foe ? 1 : -1, 0.4, 0.2).normalize();
+      }
+      fx.hit(at, toward, verb, power);
+      return true;
     },
     all(clip) { Object.keys(figs).forEach(id => this.play(id, clip)); },
     // test-only: what the layer thinks is true right now
@@ -2075,6 +2646,10 @@ const Cast3D = (() => {
       figures: Object.keys(figs),
       playing: Object.fromEntries(Object.keys(figs).map(id => [id, figs[id].clipName || null])),
       bones: Object.keys(figs).length ? Object.keys(figs[Object.keys(figs)[0]].bones).length : 0,
+      // the air: how many sparks are alive, and whether any arc is drawing
+      sparks: fx ? (fx.sparks.live || 0) : 0,
+      trails: fx ? Object.keys(fx.ribbons).filter(k => fx.ribbons[k].mesh.visible).length : 0,
+      rings: fx ? fx.shocks.items.filter(i => i.t > 0).length : 0,
     }),
     // test-only: THE WORLD, MEASURED OFF THE WORLD. Not the table it was
     // configured from — the live scene graph, the live camera, and where the
@@ -2251,6 +2826,9 @@ const Cast3D = (() => {
       .then(() => Promise.all(Object.keys(fetching).map(k => fetching[k])))
       .then(() => Object.keys(figs)),
     _figure: (id) => figs[id] || null,
+    // test-only: the air itself, so a probe can drive it at a fixed timestep
+    // rather than at whatever the software rasteriser manages
+    _fx: () => fx,
     // Tune the look without a reload: Cast3D.look({ bands: 5, wash: 0.4 }).
     // Called with nothing it reports what is currently set.
     look(next) {

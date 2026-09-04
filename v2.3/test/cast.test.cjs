@@ -1383,6 +1383,62 @@ const { boot } = require('./harness.cjs');
     JSON.stringify(paths.home));
   await J(() => window.Cast3D.shot('home'));
 
+  // ═══ M3 · THE AIR ═══
+  //
+  // A hit used to be a `<div>`: `shockRing` appended a CSS circle to the flat
+  // stage and grew its width, and a swing was a keyframe on a sprite. Both sat
+  // on the layer ABOVE the world, so an impact could not be occluded by the
+  // body it happened to, did not move when the camera did, and never touched
+  // the water the whole plaza stands in.
+  //
+  // THE SLASH IS MEASURED AT A TIMESTEP THIS MACHINE DOES NOT CHOOSE. A weapon
+  // trail is built from samples of where the blade was, so its length is a
+  // function of the frame rate — and this harness rasterises in software at
+  // about two frames a second. Watching the real loop would measure Chromium.
+  // Driving the figure and the trail by hand at 60 Hz measures the trail.
+  console.log('\n── the air ──');
+  const air = await J(() => {
+    const C3 = window.Cast3D, F = C3._fx();
+    if (!F) return null;
+    const was = C3._state().on;
+    C3.disable();
+    const f = C3._figure('ash');
+    const out = {};
+    for (const v of ['slash', 'ward']) {
+      f.clear();
+      if (F.ribbons.ash) F.ribbons.ash.clear();
+      f.play(C3._verbClip('ash', v));
+      f.fxVerb = v;
+      const DT = 1 / 60;
+      for (let i = 0; i < 40; i++) { f.step(DT); F.trail('ash', f, DT); }
+      const r = F.ribbons.ash;
+      let span = 0;
+      if (r) for (let i = 1; i < r.filled; i++)
+        span += r.pts[(r.head + i - 1) % r.n].b.distanceTo(r.pts[(r.head + i) % r.n].b);
+      out[v] = { drawn: !!(r && r.mesh.visible), swept: +span.toFixed(2) };
+    }
+    f.clear();
+    return { out, was };
+  }).then(async (r) => { if (r && r.was) await J(() => window.Cast3D.enable()); return r && r.out; });
+  check('AIR: a slash is the path the weapon actually took, in metres of world',
+    !!air && air.slash.drawn && air.slash.swept > 1.5,
+    JSON.stringify(air && air.slash) + ' — swept by the blade across the swing');
+  // …and a verb that swings nothing draws nothing. A trail on every action is
+  // the same mistake as a trail on none: it stops meaning "something cut".
+  check('AIR: …and a verb with no blade in it draws no arc',
+    !!air && !air.ward.drawn,
+    JSON.stringify(air && air.ward));
+
+  const blow = await J(async () => {
+    const C3 = window.Cast3D;
+    C3.hit('mourner', 'slash', 1.6, 'ash');
+    await new Promise(r => requestAnimationFrame(r));
+    const s = C3._state();
+    return { sparks: s.sparks, rings: s.rings };
+  });
+  check('AIR: an impact happens in the world — sparks in metres, a ring in the scene',
+    blow.sparks > 30 && blow.rings > 0, JSON.stringify(blow));
+
   // ═══ N · THE PATH EVERY PLAYER TAKES ═══
   //
   // Every check above this line ran on a page that ASKED for the 3D stage.
