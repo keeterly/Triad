@@ -13,5 +13,10 @@ v2.3/test/film/
 __pycache__/
 v2.3/test/feel.txt
 
-# animation packs staged for tools/unreal.cjs — source files, never shipped
-import/
+# Animation-pack source staged for tools/unreal.cjs. NOT shipped to players —
+# the game loads only the derived clips.json. Ignored BY DEFAULT so a pack can
+# never be committed to main by accident: hand one over with `git add -f` on a
+# side branch, which is the only route that can be undone completely. See
+# import/README.md.
+import/*
+!import/README.md
