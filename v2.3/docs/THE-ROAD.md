@@ -5175,6 +5175,67 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 132 — a spark is a size, and a corpse stays gone
+
+Two screenshots. A hit: a white-gold circle swallowing a third of the frame with
+the fight somewhere behind it. And a reckoning: the Grief-Wraith standing there
+whole, in two dimensions, under a banner reading FALLEN.
+
+### The glowing circle was arithmetic
+
+`gl_PointSize` is measured in pixels. Build 127 fed it
+
+    aScale * (bufferHeight * dpr * 0.5) / distance
+
+with `aScale` around 30. That `0.5` was invented rather than derived — there is
+no quantity it is half of. On a 430-pixel stage the sum comes to
+**30 × 537 / 7 = 2300 pixels per ember**: every single spark more than five
+times taller than the screen, every impact a solid disc.
+
+"The particles are way too big" and "all hits just look like a glowing circle"
+are the same sentence, and neither is about taste.
+
+The projection is size over distance, exactly like everything else in the frame.
+A sphere `d` metres across at `z` metres covers `d · H / (2 z tan(fov/2))`
+pixels, so `uPx` is the pixels a one-metre sphere covers at one metre — and it is
+recomputed every frame, because the lens is part of a shot now and a push-in
+changes it. Sizes are metres.
+
+| | Build 127 | Build 132 |
+|---|---|---|
+| a spark at 7 m | 799 px | **3.5 px** |
+| a spark at 4 m | 1398 px | 6.2 px |
+| the largest ash at 5 m | 1462 px | 7.6 px |
+
+(measured on the harness's 430-pixel buffer; on a real screen the stage zoom
+carries the pixel ratio with it, so those land near 8, 14 and 17)
+
+### And a creature came back as a painting
+
+Claiming an element is what stands its painted plate down. Build 128 stopped
+claiming it the instant the burn finished — so a creature dissolved into ash and
+its **painting faded straight back in behind it**. Which is precisely what the
+reckoning screenshot is: a fully-drawn 2D wraith under the word FALLEN.
+
+Build 128's own comment asserted the opposite of what its code did:
+
+> the plate underneath does NOT come back
+
+It does. It did. Dead counts as *here* now — the slot goes on holding its
+element and simply draws nothing into it.
+
+### A note for the next person editing a shader
+
+The GLSL in this file lives inside a JavaScript template literal. A backtick in
+a comment — `like this` — closes the string, and the module then fails to parse
+with an error pointing at a GLSL identifier, which sends you looking at the
+shader. It cost a round trip.
+
+flow 258/258 · road 94/94 · slice 85/85 · bond 76/76 · **cast 81/81** ·
+camp 48/48 · line 32/32 · music 22/22 · beat 10/10.
+
+---
+
 ## Build 131 — pointing at the second enemy, and one wash at a time
 
 ### A drag could not reach past the first body

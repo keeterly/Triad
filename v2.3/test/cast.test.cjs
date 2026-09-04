@@ -1631,6 +1631,53 @@ const { boot } = require('./harness.cjs');
     aimed.length === 3 && aimed.every(a => a.at === a.got),
     JSON.stringify(aimed));
 
+  // ═══ M7 · A SPARK IS A SIZE, AND A CORPSE STAYS GONE ═══
+  //
+  // `gl_PointSize` is pixels. Build 127 fed it `aScale * (bufferHeight * dpr *
+  // 0.5) / distance` with aScale around 30 — a factor invented rather than
+  // derived — which on a 430-pixel stage is 30 x 537 / 7 = 2300 PIXELS per
+  // ember. Every spark five times taller than the screen, and every impact a
+  // white circle with the fight somewhere behind it. "All hits just look like
+  // a glowing circle" was arithmetic, not taste.
+  //
+  // The projection is size over distance, like everything else in the frame:
+  // a sphere `d` metres across at `z` metres covers `d * H / (2 z tan(fov/2))`
+  // pixels. So sizes are METRES now, and this checks the number the shader will
+  // actually produce rather than the dial that feeds it.
+  console.log('\n── how big is a spark ──');
+  const spark = await J(() => {
+    const F = window.Cast3D._fx();
+    if (!F) return null;
+    const uPx = F.sparks.mat.uniforms.uPx.value;
+    return { uPx: +uPx.toFixed(1),
+             at7m: +(0.055 * uPx / 7).toFixed(1),
+             at4m: +(0.055 * uPx / 4).toFixed(1),
+             ash5m: +(0.085 * uPx / 5).toFixed(1) };
+  });
+  check('SPARK: an ember is an ember, not a screen — a few pixels at fighting range',
+    !!spark && spark.at7m > 1 && spark.at7m < 24 && spark.at4m < 40,
+    JSON.stringify(spark) + ' px — Build 127 produced 799 here, on a 430px stage');
+
+  // …AND A BODY THAT BURNED AWAY DOES NOT HAND ITS PAINTING BACK. Claiming the
+  // element is what stands the plate down, and Build 128 stopped claiming it
+  // the moment the burn finished — so a creature dissolved into ash and its
+  // PAINTING faded back in behind it. The reckoning showed the Grief-Wraith
+  // standing whole, in 2D, under a banner reading FALLEN.
+  await J(() => startCombat({ foes: ['wraith'] }));
+  await sleep(2600);
+  await J(() => window.Cast3D.fell('foe0'));
+  await sleep(3600);
+  const fallen = await J(() => {
+    const el = document.getElementById('k-boss-art');
+    const f = window.Cast3D._figure('foe0');
+    return { on3d: el.classList.contains('k-cast3d-on'),
+             paint: getComputedStyle(el.querySelector('img')).opacity,
+             body: !!f && f.root.visible, dead: !!(f && f.dead) };
+  });
+  check('FALLEN: a creature that burned away stays gone, painting and all',
+    fallen.dead && !fallen.body && fallen.on3d && fallen.paint === '0',
+    JSON.stringify(fallen));
+
   // ═══ N · THE PATH EVERY PLAYER TAKES ═══
   //
   // Every check above this line ran on a page that ASKED for the 3D stage.

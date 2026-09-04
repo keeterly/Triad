@@ -734,8 +734,21 @@ class Sparks {
           vSeed = aSeed;
           vAge = aMax > 0.0 ? 1.0 - aLife / aMax : 1.0;
           vec4 mv = modelViewMatrix * vec4( position, 1.0 );
-          // a spark thrown at the lens grows, because it is nearer
-          gl_PointSize = aScale * uPx / max( 0.35, -mv.z );
+          // ── A SPARK IS A SIZE IN METRES, NOT A NUMBER (Build 132) ───────
+          //
+          // uPx is the pixels a one-metre sphere covers at one metre, so this
+          // is the real projection: size / distance, exactly like everything
+          // else in the frame. A spark thrown at the lens grows because it is
+          // nearer, and one thrown away shrinks, and both do it by the right
+          // amount.
+          //
+          // What shipped in 127 was aScale * (height * dpr * 0.5) / dist,
+          // (this is GLSL inside a template literal — no backticks in here)
+          // with aScale around 30 — a factor invented rather than derived. On a
+          // 430-pixel stage that is 30 * 537 / 7 = 2300 PIXELS per ember: every
+          // spark five times taller than the screen, every impact a white
+          // circle with the fight behind it.
+          gl_PointSize = clamp( aScale * uPx / max( 0.35, -mv.z ), 1.0, 96.0 );
           gl_Position = projectionMatrix * mv;
           if ( aLife <= 0.0 ) gl_Position = vec4( 2.0, 2.0, 2.0, 1.0 );  // parked offscreen
         }`,
@@ -766,7 +779,7 @@ class Sparks {
   emit(at, dir, count, o) {
     o = o || {};
     const speed = o.speed || 4, spread = o.spread === undefined ? 1.1 : o.spread;
-    const life = o.life || 0.55, size = o.size || 26;
+    const life = o.life || 0.55, size = o.size || 0.055;   // METRES
     const grav = o.grav === undefined ? -3.2 : o.grav;
     const drag = o.drag === undefined ? 2.4 : o.drag;
     const d = _fxD.copy(dir).normalize();
@@ -1016,18 +1029,18 @@ const FX_VERB = {
   // follows the blade instead of puffing — fewer sparks, faster, shorter-lived,
   // and a cut mark rather than a shockwave.
   slash: { trail: true, reach: 0.92,
-           hit: { n: 26, speed: 8.4, spread: 0.42, life: 0.36, size: 26, cut: 1.25 } },
+           hit: { n: 26, speed: 8.4, spread: 0.42, life: 0.36, size: 0.055, cut: 1.25 } },
   // A SPELL, which really is radial: this is the one that has earned its ring.
   cast:  { trail: true, reach: 0.34, charge: true,
-           hit: { n: 64, speed: 4.4, spread: 1.9, life: 0.9, size: 34, ring: 2.2, grav: -0.7 } },
+           hit: { n: 64, speed: 4.4, spread: 1.9, life: 0.9, size: 0.07, ring: 2.2, grav: -0.7 } },
   heal:  { trail: false, charge: true,
-           hit: { n: 40, speed: 1.5, spread: 1.6, life: 1.5, size: 26, ring: 0.9, grav: 1.5, drag: 1.1 } },
+           hit: { n: 40, speed: 1.5, spread: 1.6, life: 1.5, size: 0.06, ring: 0.9, grav: 1.5, drag: 1.1 } },
   ward:  { trail: false, charge: true,
-           hit: { n: 34, speed: 2.2, spread: 2.4, life: 0.8, size: 24, ring: 1.7, grav: -0.4 } },
+           hit: { n: 34, speed: 2.2, spread: 2.4, life: 0.8, size: 0.055, ring: 1.7, grav: -0.4 } },
   // A DEFLECTION is steel on steel: almost no spray, one short bright mark
   // across the line of the blow that was turned aside.
   parry: { trail: false,
-           hit: { n: 16, speed: 6.6, spread: 0.34, life: 0.26, size: 20, cut: 0.85 } },
+           hit: { n: 16, speed: 6.6, spread: 0.34, life: 0.26, size: 0.045, cut: 0.85 } },
 };
 
 const _fxV = new THREE.Vector3(), _fxD = new THREE.Vector3();
@@ -1107,7 +1120,7 @@ class Effects {
       _fxV.set(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize();
       _fxD.copy(_fxV).multiplyScalar(-1);
       this.sparks.emit(_fxA.copy(at).addScaledVector(_fxV, 0.55), _fxD, 1,
-        { speed: 1.9, spread: 0.05, life: 0.42, size: 18, grav: 0, drag: 0.4 });
+        { speed: 1.9, spread: 0.05, life: 0.42, size: 0.04, grav: 0, drag: 0.4 });
     }
   }
   // ── ASH COMING OFF THE BURN FRONT ──────────────────────────────────────
@@ -1131,7 +1144,7 @@ class Effects {
       _fxD.set(Math.cos(a) * 0.5, 1, Math.sin(a) * 0.5).normalize();
       this.sparks.emit(_fxA, _fxD, 1, {
         speed: 0.55 + Math.random() * 0.9, spread: 0.5,
-        life: 1.5 + Math.random() * 1.4, size: 14 + Math.random() * (heat ? 26 : 12),
+        life: 1.5 + Math.random() * 1.4, size: 0.03 + Math.random() * (heat ? 0.055 : 0.025),
         grav: 0.62, drag: 0.55,
       });
     }
@@ -2795,9 +2808,21 @@ const Cast3D = (() => {
       // every frame from who is on screen, which is right for everything
       // except a body that no longer exists — without this the ash finishes
       // rising and the corpse blinks back for the rest of the fight.
-      const vis = !f.dead && !!node && node.offsetParent !== null;
+      const here = !!node && node.offsetParent !== null;
+      const vis = !f.dead && here;
       f.root.visible = vis;
-      if (vis) {
+      // ── A BODY THAT BURNED AWAY KEEPS ITS ELEMENT ─────────────────────────
+      //
+      // Claiming the element is what stands the painted plate down, and Build
+      // 128 stopped claiming it the moment the burn finished — so a creature
+      // dissolved into ash and its PAINTING faded straight back in behind it.
+      // The reckoning screen showed the Grief-Wraith standing there whole, in
+      // 2D, under a banner reading FALLEN. The comment in 128 asserted the
+      // opposite of what the code did.
+      //
+      // Dead still counts as here. The slot goes on holding its element and
+      // simply draws nothing into it.
+      if (here) {
         claimed.push(node);
         if (!node.classList.contains('k-cast3d-on')) node.classList.add('k-cast3d-on');
       }
@@ -2920,7 +2945,11 @@ const Cast3D = (() => {
       }
       for (const id of Object.keys(figs))
         if (figs[id].root.visible) fx.trail(id, figs[id], dt);
-      fx.step(dt, cam, renderer.getSize(_size).y * renderer.getPixelRatio() * 0.5);
+      // pixels per metre at one metre: the drawing buffer's height over the
+      // frustum's height at unit distance. Recomputed every frame because the
+      // lens is part of a shot now and a push-in changes it.
+      fx.step(dt, cam, (renderer.getSize(_size).y * renderer.getPixelRatio())
+                       / (2 * Math.tan(cam.fov * D / 2)));
     }
 
     // ONE SCENE, ONE CAMERA, ONE PASS. Four scissored renders and four
