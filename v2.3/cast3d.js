@@ -124,7 +124,13 @@ const FOE_HEADING = 90;
 // the suites' own flag, already on the URL — see the drawing-buffer note in
 // `frame`. It never changes what is drawn, only how many pixels it is drawn in.
 const TEST = /(^|[?&])test=1(&|$)/.test(location.search);
-const CLIPS_URL = ART + 'clips.json';
+// …AND THE LIBRARY RIDES THIS FILE'S OWN CACHE BUSTER. The clips are DATA that
+// changes with a build — Build 137 replaced the parry with five of them — and
+// `clips.json` had no version on it, so a returning player would have got the
+// new code reading the old library out of their cache. `import.meta.url`
+// already carries the `?v=` the page put on the script tag; borrowing it means
+// there is no second number to remember to bump.
+const CLIPS_URL = ART + 'clips.json' + (import.meta.url.match(/[?&]v=[^&]*/) || [''])[0].replace('&', '?');
 
 // ── the look, in one place ─────────────────────────────────────────────────
 // `?cast=3d&tune=1` puts these on screen; window.Cast3D.look({...}) overrides
@@ -190,11 +196,34 @@ const VERB = {
   cast:  () => 'cast',
   heal:  () => 'heal',
   ward:  () => 'ward',
-  parry: () => 'parry',
+  // …AND A PARRY ANSWERS THE ARROW. A note carries a direction — `CLAW <-` —
+  // and until Build 137 the defender played the same clip whichever way the
+  // blow came from, because there was only ever one and it barely moved. There
+  // are five now: four guards and a centre-line shove for a note with no
+  // arrow. Which arrow gets which guard is settled by PARRY_DIR, and that was
+  // measured on screen rather than reasoned about.
+  parry: (tone, dir) => 'parry' + (PARRY_DIR[dir] || ''),
   hurt:  () => 'hurt',
   down:  () => 'down',
   idle:  () => 'idle',
 };
+
+// WHICH GUARD ANSWERS WHICH ARROW.
+//
+// A note's arrow is what the THUMB does: `CLAW <-` asks for a swipe to the
+// left. The guard that reads as answering it is the one whose hands travel the
+// same way ACROSS THE SCREEN, because a thumb and an arm going the same way is
+// the whole coupling — anything else and the hand is fighting the picture.
+//
+// That is a camera question, not an anatomy one, and it was measured rather
+// than reasoned about: each guard was played on the live board and the point
+// between the hands projected through the real lens. `parryR` carries it
+// +0.105 in clip space — a hundred pixels to the right of where it started —
+// and `parryL` carries it -0.041 the other way. So the names mean what the
+// arrows mean, and this table is the identity it should be. It stays here
+// because it is the thing that would have to change if the party ever turned
+// to face the camera.
+const PARRY_DIR = { L: 'L', R: 'R', U: 'U', D: 'D' };
 
 // A CLIP THAT HOLDS DOES NOT HAND THE BODY BACK. Everything else returns to
 // the idle when it finishes; going down stays down until the fight says
@@ -935,6 +964,7 @@ class Ribbon {
 const SHOCKS = 5;
 class Shocks {
   constructor() {
+    this.fired = 0;      // …and the same for rings, so the pair can be compared
     this.items = [];
     const g = new THREE.RingGeometry(0.42, 0.5, 44);
     for (let i = 0; i < SHOCKS; i++) {
@@ -948,6 +978,7 @@ class Shocks {
     }
   }
   fire(at, size, dur) {
+    this.fired++;
     const it = this.items.find(i => i.t <= 0) || this.items[0];
     it.mesh.position.copy(at);
     it.t = it.dur = dur || 0.42;
@@ -997,9 +1028,20 @@ class Cuts {
       mesh.visible = false; mesh.renderOrder = 7; mesh.frustumCulled = false;
       this.items.push({ mesh, mat: m, t: 0, dur: 1, len: 1, spin: 0 });
     }
+    // ── HOW MANY HAVE EVER BEEN THROWN ────────────────────────────────────
+    //
+    // A cut lives 0.19s, and a test that reads how many are ALIVE one frame
+    // after a blow is really reading the frame rate: the suite's headless
+    // browser draws at about 1.5fps, `dt` is capped at a quarter-second, and
+    // every mark it fires is dead before anything can look at it. The check
+    // that guards "a blade cuts along a line" went red for that and nothing
+    // else. A monotonic count of how many were FIRED cannot be starved by a
+    // slow machine, which is the property the check was always after.
+    this.fired = 0;
   }
   // `along` is the blow's direction in the world; the mark is laid on that line
   fire(at, along, len, dur) {
+    this.fired++;
     const it = this.items.find(i => i.t <= 0) || this.items[0];
     it.mesh.position.copy(at);
     it.t = it.dur = dur || 0.2;
@@ -3203,7 +3245,7 @@ const Cast3D = (() => {
     // staff for Elin and a pair of daggers for Mira; everything else is the
     // same motion whoever throws it. Resolving that here means game.js keeps
     // speaking the four words actionKind() has returned since Build 36.
-    play(heroId, verb) {
+    play(heroId, verb, dir) {
       const f = figs[heroId];
       if (!on || !f) return false;
       // IDLE IS NOT AN ACTION, it is what is left when no action is playing.
@@ -3221,7 +3263,7 @@ const Cast3D = (() => {
       // ready/release pairing in two places that must agree, which is the kind
       // of thing that is correct on the day and wrong three builds later.
       if (f.holdFrac && f.fxVerb === verb) { f.release(); return true; }
-      const okp = f.play(pick ? pick(f.tone) : verb);
+      const okp = f.play(pick ? pick(f.tone, dir) : verb);
       // THE VERB, KEPT. The clip is `sword` or `daggers` or `staff`; the air
       // needs to know it was a `slash`. Set after the play so a refused clip
       // cannot leave a trail with nothing swinging it.
@@ -3364,6 +3406,9 @@ const Cast3D = (() => {
       trails: fx ? Object.keys(fx.ribbons).filter(k => fx.ribbons[k].mesh.visible).length : 0,
       rings: fx ? fx.shocks.items.filter(i => i.t > 0).length : 0,
       cuts: fx ? fx.cuts.items.filter(i => i.t > 0).length : 0,
+      // …and how many have been thrown in total, which a slow frame cannot eat
+      ringsFired: fx ? fx.shocks.fired : 0,
+      cutsFired: fx ? fx.cuts.fired : 0,
       focus: +focusLevel.toFixed(3),
       slow: +slowLevel.toFixed(3),
       lit: Object.keys(focusOn),
@@ -3476,9 +3521,9 @@ const Cast3D = (() => {
       return [+(e.x / D).toFixed(2), +(e.y / D).toFixed(2), +(e.z / D).toFixed(2)];
     },
     // test-only: which library clip a verb resolves to for this person
-    _verbClip: (heroId, verb) => {
+    _verbClip: (heroId, verb, dir) => {
       const t = (figs[heroId] && figs[heroId].tone) || CAST[heroId];
-      return t && VERB[verb] ? VERB[verb](t) : null;
+      return t && VERB[verb] ? VERB[verb](t, dir) : null;
     },
     // test-only: which way each chest ACTUALLY points, measured off the live
     // skeleton — not the number in the table that was supposed to cause it.

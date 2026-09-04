@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 136;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 137;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -4300,7 +4300,11 @@ async function runVolleyRhythm(hits, answerers, sub) {
         if (track && ni === 0) track.wake();
         document.querySelectorAll('.k-hero').forEach(h =>
           h.classList.toggle('k-parrying', h.dataset.hero === who));
-    castPlay(who, 'parry');
+        // …AND THE GUARD ANSWERS THE ARROW (Build 137). The note has carried a
+        // direction since Build 16 and the defender played the same motion
+        // whichever way the blow came from — which, once the parry became a
+        // motion at all, was the last thing in this bar that did not read.
+        castPlay(who, 'parry', parseNote(type).dir);
         const dur = Math.max(180, Math.round(land - performance.now()));
         // THE BLOW IS THROWN HERE, so this is where the thing throwing it moves
         // — and in a line, WHICH thing. `hits[hi].src` is stamped on every hit
@@ -4801,9 +4805,9 @@ function castUnready() {
   if (C3 && C3.unready && _readyWho) C3.unready(_readyWho);
   _readyWho = null;
 }
-function castPlay(heroId, clip) {
+function castPlay(heroId, clip, dir) {
   const C3 = window.Cast3D;
-  if (C3 && heroId && clip) C3.play(heroId, clip);
+  if (C3 && heroId && clip) C3.play(heroId, clip, dir);
   // remember who is swinging, so the impact knows which way the blow came from
   if (clip && clip !== 'idle' && clip !== 'hurt' && clip !== 'down') _fxFrom = heroId;
   // …and a blow that has been thrown is no longer being aimed. `play` releases

@@ -5175,6 +5175,135 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 137 — the parry was never a motion
+
+The parry was supposed to learn to answer the direction of the blow. Build 136
+closed by naming that as the one thing left in the bar that did not read: a note
+carries an arrow — `CLAW ←!` — and the defender played the same motion whichever
+way the claw came from.
+
+Before mirroring anything, the clip got measured. **It moves the weapon hand
+three centimetres.**
+
+| clip | hand travel, lateral | rise | total bone rotation |
+|---|---|---|---|
+| `sword` | 0.86 m | 1.67 m | 8161° |
+| `hurt` | 0.76 m | 0.33 m | 2824° |
+| `ward` | 0.11 m | 0.26 m | 2245° |
+| **`parry`** | **0.032 m** | **0.033 m** | **676°** |
+
+That last row is a person standing still. The windowing was not to blame — the
+source clip carries 676 degrees across every joint over its whole 1.9 seconds,
+and the biggest mover in it is a forearm at twenty-seven. Whatever GLB the mill
+was pointed at in Build 117, it was not a parry.
+
+So "play test parry, it needs work too" was never a polish note. There was
+nothing there to polish, and mirroring a three-centimetre clip would have
+produced two indistinguishable three-centimetre clips.
+
+### Five guards, authored
+
+The mill's inputs are gone — ten six-megabyte GLBs that were never kept — so the
+parry is written by hand, the way Build 112 wrote the first eight verbs.
+`tools/parry.mjs` builds five clips: one for each arrow a note can carry, and a
+centre-line shove for a note that carries none.
+
+**A pose is written in the body's own frame, not in bone-local quaternions.**
+This rig's bind orientations are arbitrary — `Hips` rests at
+`(-0.49, -0.49, -0.58, 0.43)` — so "rotate the upper arm about its X" means
+nothing anyone can picture, and picking axes by guessing is the exact mistake
+this codebase has now paid for three times. The tool FKs the rest skeleton, reads
+the body's axes off it (up runs hips-to-head, right runs shoulder-to-shoulder,
+forward is their cross product), and does the algebra:
+
+```
+A_s(b) = R(b) · G_s(b)              the world orientation the pose asks for
+q(b)   = A_s(parent)⁻¹ · A_s(b)     the local rotation that produces it
+```
+
+which is the same departure-from-rest the loader's `retarget` reads. A pose says
+*turn the chest twelve degrees and lean it eight back*, and it lands on Ash, Mira,
+Elin and every creature alike without the tool knowing any of their proportions.
+
+Each guard is six keys — rest, anticipation, contact at 30%, follow-through,
+settle, rest — baked at 30fps with a smoothstep between them, so a five-key clip
+does not read as five linear ramps bolted together. 27 kB each; the library went
+from 703 kB to 772.
+
+### Sideways is a camera question, not an anatomy one
+
+The first cut built the two horizontal guards as reflections of each other across
+the sagittal plane: flip every rotation about an in-plane axis, swap Left bones
+for Right. The algebra is right. The result was useless twice over.
+
+The small reason is that a mirror swaps which arm **leads**, and these people
+hold one weapon. Ash's sword is in his right hand in both guards.
+
+The large one is that **the party is not facing the camera.** They stand on the
+left of the board turned toward the foe line, so from the lens their own left and
+right run almost straight into and out of the screen. Measured through the real
+projection, the two mirrored guards carried the hands the same +0.065 of clip
+space, *the same way* — because the difference between them was almost entirely
+depth, and depth is not a direction an arrow can mean.
+
+So sideways, for these guards, is the body's fore-and-aft axis, which is the one
+that projects across the screen. A right arrow is met by driving the guard **out**
+along it, toward the thing that threw the blow; a left arrow by **dragging it
+back** past the shoulder. A push and a pull rather than a pair of reflections, and
+each of them reads in its follow-through, so every direction gets its own instead
+of an overshoot of its contact pose.
+
+Measured on the finished clips, through the lens:
+
+| arrow | clip | screen travel | lift |
+|---|---|---|---|
+| — | `parry` | −0.018 … +0.066 | 0.42 m |
+| ← | `parryL` | **−0.039** … +0.039 | 0.22 m |
+| → | `parryR` | −0.010 … **+0.104** | 0.43 m |
+| ↑ | `parryU` | +0.101 | **0.57 m** |
+| ↓ | `parryD` | +0.024 | 0.37 m |
+
+The guard now gets 0.22–0.57 m from where it started, against 0.03 before.
+
+`PARRY_DIR` is the identity table it should be, and it stays in the source
+because it is the thing that would have to change if the party ever turned to
+face the camera.
+
+### The clip library rides this file's cache buster
+
+`clips.json` is DATA that changes with a build, and it had no version on its URL
+— so a returning player would have got Build 137's code reading Build 136's
+library out of their cache, which is a parry that does not move. `cast3d.js`
+takes the `?v=` the page already put on its own script tag out of
+`import.meta.url`, so there is no second number to remember to bump.
+
+### A check that was measuring the frame rate
+
+`AIR: a blade cuts along a line where a spell goes off in a circle` went red, and
+nothing about blades had changed.
+
+It read how many cut marks were **alive** one frame after the blow. A cut lives
+0.19 seconds. The suite's headless browser draws at about one and a half frames a
+second and the layer caps `dt` at a quarter second, so every mark it fired was
+dead before anything could look at it. The check reported a blade behaving like a
+spell because the machine was slow.
+
+`Cuts` and `Shocks` keep a monotonic count of how many have been **thrown** now,
+and the check compares before and after. A slow frame cannot eat that. This is
+the fourth instrument in this stretch of the road to produce a confident wrong
+answer, and it is the same lesson every time: check that the meter measures the
+property before believing what it says about it.
+
+### Still open
+
+The knock-down still slides about a metre — properly fixing it wants foot IK. The
+high and low guards read, but less strongly than the push and the pull; they want
+a second pass with the camera in mind the way the horizontal pair got one. And
+the duo/trio cinematics are still ahead.
+
+flow 258/258 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
+camp 48/48 · music 22/22 · beat 10/10 · **cast 92/92** — no page errors.
+
 ## Build 136 — time dilates where the fight is, and the creature swings
 
 "When the enemy attacks it should be dramatic and time dilates. During time

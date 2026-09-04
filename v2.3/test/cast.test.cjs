@@ -1476,17 +1476,27 @@ const { boot } = require('./harness.cjs');
   // True of a spell, false of a blade, which arrives along a line and leaves
   // along the same one. So the property is not "an impact makes particles" but
   // that the two are TOLD APART, and this asserts exactly that swap.
+  //
+  // COUNT WHAT WAS THROWN, NOT WHAT IS STILL IN THE AIR. The first instrument
+  // here read how many marks were ALIVE one frame after the blow, and a cut
+  // lives 0.19 seconds — so on the suite's headless browser, which draws at
+  // about one and a half frames a second, every cut was dead before anything
+  // could look at it and the check reported a blade behaving like a spell. It
+  // was measuring the frame rate. `cutsFired` and `ringsFired` are monotonic
+  // and a slow machine cannot eat them.
   const blow = await J(async () => {
     const C3 = window.Cast3D;
     const rd = async () => { await new Promise(r => requestAnimationFrame(r));
                              const s = C3._state();
-                             return { sparks: s.sparks, rings: s.rings, cuts: s.cuts }; };
+                             return { sparks: s.sparks, rings: s.ringsFired, cuts: s.cutsFired }; };
+    const was = await rd();
     C3.hit('foe0', 'slash', 1.6, 'ash');
-    const steel = await rd();
+    const a = await rd();
     await new Promise(r => setTimeout(r, 900));
     C3.hit('foe0', 'cast', 1.6, 'elin');
-    const spell = await rd();
-    return { steel, spell };
+    const b = await rd();
+    const d = (x, y) => ({ sparks: x.sparks, rings: x.rings - y.rings, cuts: x.cuts - y.cuts });
+    return { steel: d(a, was), spell: d(b, a) };
   });
   check('AIR: an impact happens in the world — sparks in metres, not pixels',
     blow.steel.sparks > 15 && blow.spell.sparks > 15, JSON.stringify(blow));
@@ -1855,6 +1865,87 @@ const { boot } = require('./harness.cjs');
       + ' 1.0 would mean the canvas ignored it');
   check('TIME: …and it gives the clock back',
     clock.back > 0.9, JSON.stringify({ back: clock.back }));
+
+  // ═══ M11 · THE GUARD ANSWERS THE ARROW ═══
+  //
+  // Two things are being protected here, and the second is the one that was
+  // wrong for twenty-five builds.
+  //
+  // THAT THERE IS A MOTION AT ALL. The shipped `parry` moved the weapon hand
+  // three centimetres — measured against 86 for a sword swing and 76 for a
+  // flinch — because whatever GLB the mill was pointed at was a person standing
+  // still. "The parry needs work" was not a polish note; there was nothing to
+  // polish. So the floor is a real one: a parry has to move a hand further than
+  // a body breathing does.
+  //
+  // AND THAT THE FIVE OF THEM DIFFER ON SCREEN. A note carries an arrow, and
+  // the guards have to travel the way it points IN THE PICTURE — which is not
+  // the same as travelling that way in the body, because the party stands side
+  // on to the lens. The first cut of the authored clips mirrored one guard to
+  // make the other; the algebra was right and both of them came out moving the
+  // same way on screen, because the difference between them was depth. So this
+  // measures where the hands go THROUGH THE REAL CAMERA, which is the only
+  // frame the arrow on the note is drawn in.
+  console.log('\n── the guard answers the arrow ──');
+  const guards = await J(async () => {
+    const C3 = window.Cast3D, f = C3._figure('ash');
+    const parts = C3._parts();
+    const mul = (m, v) => { const e = m.elements, o = [];
+      for (let r = 0; r < 4; r++) o[r] = e[r] * v[0] + e[4 + r] * v[1] + e[8 + r] * v[2] + e[12 + r] * v[3];
+      return o; };
+    const guard = () => {
+      const g = ['LeftHand', 'RightHand'].map(n => {
+        const b = f.bones[n]; b.updateWorldMatrix(true, false);
+        const e = b.matrixWorld.elements; return [e[12], e[13], e[14]];
+      });
+      const m = [0, 1, 2].map(i => (g[0][i] + g[1][i]) / 2);
+      parts.cam.updateMatrixWorld();
+      const v = mul(parts.cam.projectionMatrix, mul(parts.cam.matrixWorldInverse, [...m, 1]));
+      return { x: v[3] ? v[0] / v[3] : 0, y: m[1] };
+    };
+    const out = {};
+    for (const dir of [null, 'L', 'R', 'U', 'D']) {
+      const clip = C3._verbClip('ash', 'parry', dir);
+      const a = f.actions[clip];
+      if (!a) { out[dir || 'none'] = null; continue; }
+      for (const k of Object.keys(f.actions)) { f.actions[k].setEffectiveWeight(0); f.actions[k].stop(); }
+      if (f.idle) f.idle.setEffectiveWeight(0);
+      a.reset(); a.setEffectiveWeight(1); a.play(); a.paused = true;
+      const dur = a.getClip().duration;
+      let x0 = 0, y0 = 0, lo = 0, hi = 0, top = 0, bot = 0, far = 0;
+      for (let i = 0; i <= 20; i++) {
+        a.time = dur * (i / 20);
+        f.mixer.update(0);
+        f.root.updateMatrixWorld(true);
+        const g = guard();
+        if (i === 0) { x0 = g.x; y0 = g.y; }
+        lo = Math.min(lo, g.x - x0); hi = Math.max(hi, g.x - x0);
+        bot = Math.min(bot, g.y - y0); top = Math.max(top, g.y - y0);
+        far = Math.max(far, Math.abs(g.y - y0));
+      }
+      for (const k of Object.keys(f.actions)) { f.actions[k].setEffectiveWeight(0); f.actions[k].stop(); }
+      out[dir || 'none'] = { clip, right: +hi.toFixed(4), left: +lo.toFixed(4),
+                             up: +top.toFixed(3), down: +bot.toFixed(3), reach: +far.toFixed(3) };
+    }
+    if (f.idle) f.idle.setEffectiveWeight(0.55);
+    C3.play('ash', 'idle');
+    return out;
+  });
+  const G = (k) => guards[k] || { right: 0, left: 0, up: 0, down: 0, reach: 0 };
+  check('GUARD: a parry is a MOTION — the shipped one moved a hand three centimetres',
+    ['none', 'L', 'R', 'U', 'D'].every(k => guards[k] && guards[k].reach > 0.12),
+    JSON.stringify(Object.fromEntries(Object.entries(guards).map(([k, v]) => [k, v && v.reach])))
+      + ' m — how far the guard gets from where it started');
+  check('GUARD: the arrow picks a different clip for every direction',
+    new Set(['none', 'L', 'R', 'U', 'D'].map(k => guards[k] && guards[k].clip)).size === 5,
+    JSON.stringify(Object.fromEntries(Object.entries(guards).map(([k, v]) => [k, v && v.clip]))));
+  check('GUARD: a right arrow drives the hands right ACROSS THE SCREEN, a left arrow left',
+    G('R').right > G('L').right && G('L').left < G('R').left && G('R').right > 0.06,
+    JSON.stringify({ R: [G('R').left, G('R').right], L: [G('L').left, G('L').right] })
+      + ' — clip-space x travel; mirroring gave both of them +0.065');
+  check('GUARD: an up arrow gets under the blow and a down arrow drops below it',
+    G('U').up > G('none').up && G('D').up < G('U').up,
+    JSON.stringify({ U: G('U').up, D: G('D').up, none: G('none').up }) + ' m of lift');
 
   // ═══ N · THE PATH EVERY PLAYER TAKES ═══
   //
