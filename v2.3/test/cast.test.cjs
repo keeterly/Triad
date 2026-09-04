@@ -1893,15 +1893,20 @@ const { boot } = require('./harness.cjs');
     const mul = (m, v) => { const e = m.elements, o = [];
       for (let r = 0; r < 4; r++) o[r] = e[r] * v[0] + e[4 + r] * v[1] + e[8 + r] * v[2] + e[12 + r] * v[3];
       return o; };
+    const wp = (n) => { const b = f.bones[n]; b.updateWorldMatrix(true, false);
+                        const e = b.matrixWorld.elements; return [e[12], e[13], e[14]]; };
     const guard = () => {
-      const g = ['LeftHand', 'RightHand'].map(n => {
-        const b = f.bones[n]; b.updateWorldMatrix(true, false);
-        const e = b.matrixWorld.elements; return [e[12], e[13], e[14]];
-      });
+      const g = ['LeftHand', 'RightHand'].map(wp);
       const m = [0, 1, 2].map(i => (g[0][i] + g[1][i]) / 2);
       parts.cam.updateMatrixWorld();
       const v = mul(parts.cam.projectionMatrix, mul(parts.cam.matrixWorldInverse, [...m, 1]));
-      return { x: v[3] ? v[0] / v[3] : 0, y: m[1] };
+      // …AND THE BODY'S OWN HEIGHT, which is the thing an up or down arrow is
+      // really about. Rotating the legs moves the FEET, not the body: the hips
+      // are the root of that chain, so Build 137's ninety-degree knee bend
+      // moved Ash's head eight MILLIMETRES and read as a man lifting his feet.
+      let low = 9;
+      for (const n of Object.keys(f.bones)) low = Math.min(low, wp(n)[1]);
+      return { x: v[3] ? v[0] / v[3] : 0, y: m[1], head: wp('Head')[1], low };
     };
     const out = {};
     for (const dir of [null, 'L', 'R', 'U', 'D']) {
@@ -1912,20 +1917,24 @@ const { boot } = require('./harness.cjs');
       if (f.idle) f.idle.setEffectiveWeight(0);
       a.reset(); a.setEffectiveWeight(1); a.play(); a.paused = true;
       const dur = a.getClip().duration;
-      let x0 = 0, y0 = 0, lo = 0, hi = 0, top = 0, bot = 0, far = 0;
+      let x0 = 0, y0 = 0, h0 = 0, lo = 0, hi = 0, top = 0, bot = 0, far = 0;
+      let hUp = 0, hDn = 0, floor = 9;
       for (let i = 0; i <= 20; i++) {
         a.time = dur * (i / 20);
         f.mixer.update(0);
         f.root.updateMatrixWorld(true);
         const g = guard();
-        if (i === 0) { x0 = g.x; y0 = g.y; }
+        if (i === 0) { x0 = g.x; y0 = g.y; h0 = g.head; }
         lo = Math.min(lo, g.x - x0); hi = Math.max(hi, g.x - x0);
         bot = Math.min(bot, g.y - y0); top = Math.max(top, g.y - y0);
         far = Math.max(far, Math.abs(g.y - y0));
+        hUp = Math.max(hUp, g.head - h0); hDn = Math.min(hDn, g.head - h0);
+        floor = Math.min(floor, g.low);
       }
       for (const k of Object.keys(f.actions)) { f.actions[k].setEffectiveWeight(0); f.actions[k].stop(); }
       out[dir || 'none'] = { clip, right: +hi.toFixed(4), left: +lo.toFixed(4),
-                             up: +top.toFixed(3), down: +bot.toFixed(3), reach: +far.toFixed(3) };
+                             up: +top.toFixed(3), down: +bot.toFixed(3), reach: +far.toFixed(3),
+                             head: +(hUp + hDn).toFixed(3), floor: +floor.toFixed(3) };
     }
     if (f.idle) f.idle.setEffectiveWeight(0.55);
     C3.play('ash', 'idle');
@@ -1944,8 +1953,21 @@ const { boot } = require('./harness.cjs');
     JSON.stringify({ R: [G('R').left, G('R').right], L: [G('L').left, G('L').right] })
       + ' — clip-space x travel; mirroring gave both of them +0.065');
   check('GUARD: an up arrow gets under the blow and a down arrow drops below it',
-    G('U').up > G('none').up && G('D').up < G('U').up,
+    G('U').up > G('none').up && G('D').up < G('none').up,
     JSON.stringify({ U: G('U').up, D: G('D').up, none: G('none').up }) + ' m of lift');
+  // …AND THE BODY MOVES, NOT JUST THE ARMS. This is the one the first cut of
+  // the guards failed silently: a deep knee bend rotates the legs about the
+  // pelvis and leaves everything above it exactly where it was, so both
+  // vertical guards moved Ash's head by under a centimetre. The height now
+  // comes from the hips, where it has to.
+  check('GUARD: …and it is the BODY that rises and drops, not only the hands',
+    G('U').head > 0.02 && G('D').head < -0.1,
+    JSON.stringify({ U: G('U').head, D: G('D').head, none: G('none').head })
+      + ' m the head moves — rotating the legs alone gave 0.003 and -0.008');
+  check('GUARD: …without anybody sinking into the paving',
+    ['none', 'L', 'R', 'U', 'D'].every(k => guards[k] && guards[k].floor > -0.05),
+    JSON.stringify(Object.fromEntries(Object.entries(guards).map(([k, v]) => [k, v && v.floor])))
+      + ' m — the lowest joint at its lowest; an 18cm crouch was 24 and buried the toes');
 
   // ═══ M12 · TWO OF THEM, AND THREE ═══
   //
@@ -2010,6 +2032,39 @@ const { boot } = require('./harness.cjs');
   check('TRIO: …and the camera is still on them when the blows land',
     shotsIn(trio).includes('alloutland'),
     JSON.stringify(shotsIn(trio)) + ' — home used to be asked for BEFORE the damage');
+  // ── …AND THEY CROSS THE FLOOR, EACH SAYING THEIR OWN WORD ──
+  //
+  // Build 138 gave the all-out three bodies and all three swung a sword on the
+  // spot. A swing carries the root about four centimetres — the clip's own step
+  // — and "the three of them cross the floor at once" is not four centimetres.
+  const charge = await J(async () => {
+    const C3 = window.Cast3D;
+    const who = ['ash', 'elin', 'mira'];
+    const home = {}, far = {}, verbs = {};
+    for (const id of who) { const f = C3._figure(id);
+      home[id] = [f.root.position.x, f.root.position.z]; far[id] = 0;
+      verbs[id] = C3.verbFor(id); }
+    let stop = false;
+    const tick = () => {
+      for (const id of who) { const f = C3._figure(id);
+        far[id] = Math.max(far[id], Math.hypot(f.root.position.x - home[id][0],
+                                               f.root.position.z - home[id][1])); }
+      if (!stop) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    window.K.state().kizuna = 100;
+    await window.K.allOut();
+    await new Promise(r => setTimeout(r, 2600));
+    stop = true;
+    for (const id of who) far[id] = +far[id].toFixed(3);
+    return { far, verbs };
+  });
+  check('TRIO: every one of them actually crosses the floor',
+    ['ash', 'elin', 'mira'].every(id => charge.far[id] > 0.5),
+    JSON.stringify(charge.far) + ' m from where they started — a swing alone carries 0.04');
+  check('TRIO: …and the party mage casts rather than swinging her staff like a club',
+    charge.verbs.elin === 'cast' && charge.verbs.ash === 'slash' && charge.verbs.mira === 'slash',
+    JSON.stringify(charge.verbs));
 
   // ── A PHASE MUST NOT STEAL THE FRAME FROM A BEAT ──
   //

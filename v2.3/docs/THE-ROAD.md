@@ -5175,6 +5175,110 @@ stance — acting clips turn the body on purpose — so it settles first now.
 flow 257/257 · road 94/94 · bond 76/76 · slice 85/85 · line 32/32 ·
 camp 48/48 · music 22/22 · beat 10/10 · **cast 28/28** — no page errors.
 
+## Build 139 — the open items, and a syntax gate that could not fail
+
+Build 138 closed with three things named as still open. Two are fixed, one is
+not, and finding out which was which cost more than fixing them.
+
+### The all-out crosses the floor now, and each of them says their own word
+
+All three swung a sword on the spot. Two separate errors.
+
+**A swing carries the root about four centimetres** — the clip's own step,
+lifted off the hips in Build 135 — and "the three of them cross the floor at
+once" is not four centimetres. `Cast3D.lunge` moves the MARK the slot ease is
+already walking toward, so the body goes out under the same rule that brings it
+home: fast on the way (the ease at 6.5) and back at the slack 1.1 an acting
+figure already had. It is not a second animation system, and the recovery is the
+one that was already there.
+
+**And everybody swung a sword.** `castPlay(id, 'slash')` resolves per character
+— Ash's longsword, Mira's daggers — but Elin is the party's mage and it gave her
+a staff to club with. `Cast3D.verbFor` asks the layer which of the fight's four
+words a person throws when nothing else is being asked; Elin's tone says `cast`.
+The fight keeps speaking its four verbs and does not have to know who anybody is.
+
+Measured through a real all-out: ash 1.05 m, elin 1.05 m, mira 1.05 m from where
+they started, verbs `slash` / `cast` / `slash`.
+
+### Two probes that measured themselves
+
+The first reading said Ash charged **nowhere at all** while Elin crossed a full
+metre. Not a bug in the charge: the probe waited for the party to load and not
+for the creature, and the bestiary loads behind the party. `aimPoint` answers an
+unknown subject with the BOARD — which is where the front rank is already
+standing — so Ash was inside the keep-out of a target that was really the middle
+of the floor. The probe now waits for the foe, and a `foeN` key means the foe
+line whether or not anything is standing in it yet.
+
+The second: a charge is a thing that happens, not a period during which it may
+happen. A 520ms wall-clock window can be stepped straight over on a browser
+drawing at 1.5fps, and Ash's was — set and cleared between two frames. It now
+holds until it has been drawn at least once, however long that takes.
+
+### Rotating a leg does not lower anybody
+
+The high and low guards read weakly, and the reason was not subtlety. **The hips
+are the root of the leg chain**, so bending a knee swings the shin and the foot
+about the pelvis and leaves the pelvis — and the spine, and the head — exactly
+where they were. Measured on Build 137's clips, a ninety-degree knee bend moved
+Ash's head by **eight millimetres**. The low guard was a man standing still
+lifting his feet, which is exactly how it read.
+
+Height has to come from the hips, and `retarget` already carries a
+`Hips.position` track through untouched — it is how the library's own clips squat
+and fall. The authoring tool takes a `lift` in the source rig's centimetres now:
+
+| | head moves | hands, on screen | lowest joint |
+|---|---|---|---|
+| `parryU` | **+4.8 cm** | +0.31 | −0.013 |
+| `parry` | −5.7 cm | +0.18 | −0.014 |
+| `parryD` | **−20.3 cm** | −0.10 | −0.021 |
+
+The first pass at the crouch used 24 cm and put the toe joints 3.7 cm under the
+paving; 18 reads the same and stays on the floor.
+
+### The foot lock: built, measured, reverted
+
+The knock-down and the flinch still skate about a metre, and Build 137 said that
+wants foot IK. This build tried the cheaper thing first — measure a planted
+foot's residual drift each frame and subtract it from the root — and it is not in
+the shipped build.
+
+It worked once. A/B'd on the same clips it cut the strike slide 23% and 50%, and
+barely touched the flinch, which was the expected shape: a stagger has both feet
+near the ground moving in opposite directions, so averaging two planted feet
+cancels most of the correction. Then the same A/B inside the suite reported 3%
+and 4%. Same code, same clips, an order of magnitude apart — which makes it
+noise, not an improvement, and a mechanism whose benefit cannot be reproduced is
+not one to ship. It came out along with the check that could not decide.
+
+**The one real finding it left behind** is that the decomposition matters: the
+first cut read "how far did something else move this body" at the END of `step`,
+which swallowed the hip transfer as well, and the correction cancelled itself out
+exactly. That is why the first measurement showed nothing at all.
+
+### A gate that could not fail
+
+While reverting, `class Figure` lost its closing brace. `node --check
+cast3d.js` passed.
+
+It parses a `.js` file as CommonJS, and `cast3d.js` is an ES module — its
+`import` on line 35 should have failed it outright. **Every syntax check run
+against the 3D layer this session proved nothing.** `tools/check.sh` copies it to
+`.mjs` first, which is how the browser reads it, and the same file now fails in
+one line.
+
+### Still open
+
+Foot IK, for real this time: the flinch and the knock-down remain the cases where
+both feet bear weight and a root correction cannot help. And `slice` is
+genuinely non-deterministic — 85, 89/90, 80, 85 across four runs of one
+unchanged tree — which is task #78 and worth fixing before it hides something.
+
+cast 103/103 · flow 258/258 · road 94/94 · bond 76/76 · camp 48/48 ·
+line 32/32 · music 22/22 · beat 10/10 · slice 85/85 (drifts) — no page errors.
+
 ## Build 138 — a duo was one person, and the camera was never allowed to answer
 
 Two of them and three of them are the two moments this deck is named for. Twelve

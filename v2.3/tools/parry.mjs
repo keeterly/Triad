@@ -108,6 +108,9 @@ function localsFor(pose) {
 // reading as five linear ramps bolted together.
 const FPS = 30;
 const ease = (u) => u * u * (3 - 2 * u);
+// where the source rig's pelvis rests, in its own centimetres — the anchor a
+// `lift` is measured from
+const HIP_REST = off.Hips.clone();
 function buildClip(name, keys, beat) {
   const dur = keys[keys.length - 1][0];
   const n = Math.max(2, Math.round(dur * FPS) + 1);
@@ -138,12 +141,38 @@ function buildClip(name, keys, beat) {
       track[b].push(...qo.toArray().map(v => +v.toFixed(5)));
     }
   }
+  // ── AND THE BODY'S OWN HEIGHT (Build 139) ────────────────────────────────
+  //
+  // Rotating the legs does not raise or lower anybody. The hips are the ROOT of
+  // that chain, so bending a knee swings the shin and the foot about the pelvis
+  // and leaves the pelvis — and the spine, and the head — exactly where they
+  // were. Measured on the finished clips, the high guard and the low guard moved
+  // Ash's head by three and eight MILLIMETRES: a ninety-degree knee bend that
+  // read as a man lifting his feet rather than a man dropping his weight.
+  //
+  // The height has to come from the hips, and `retarget` already carries a
+  // `Hips.position` track through untouched — it is how the library's own clips
+  // squat and fall. `lift` is centimetres in the source rig's units, off its
+  // rest hips, positive up.
+  const lifts = keys.map(k => (k[1].Hips && k[1].Hips.lift) || 0);
+  const tracks = [...need].map(b => ({
+    name: b + '.quaternion', type: 'quaternion', times, values: track[b],
+  }));
+  if (lifts.some(v => v !== 0)) {
+    const vals = [];
+    for (let i = 0; i < n; i++) {
+      const t = times[i];
+      let j = 0;
+      while (j < keys.length - 2 && keys[j + 1][0] < t) j++;
+      const u = ease(Math.min(1, Math.max(0, (t - keys[j][0]) / Math.max(1e-6, keys[j + 1][0] - keys[j][0]))));
+      const lift = lifts[j] + (lifts[j + 1] - lifts[j]) * u;
+      vals.push(+HIP_REST.x.toFixed(4), +(HIP_REST.y + lift).toFixed(4), +HIP_REST.z.toFixed(4));
+    }
+    tracks.unshift({ name: 'Hips.position', type: 'vector', times, values: vals });
+  }
   return {
     name, duration: +dur.toFixed(4), uuid: 'authored-' + name, blendMode: 2500,
-    window: [0, +dur.toFixed(4)], beat,
-    tracks: [...need].map(b => ({
-      name: b + '.quaternion', type: 'quaternion', times, values: track[b],
-    })),
+    window: [0, +dur.toFixed(4)], beat, tracks,
   };
 }
 
@@ -167,7 +196,7 @@ const scale = (pose, k) => Object.fromEntries(Object.entries(pose).map(
 // bladed, chin tucked. On its own it is a flinch; what makes it a PARRY is the
 // arms, and what makes it answer the note is where they go.
 const BRACE = {
-  Hips:      { right: 7, up: -5 },
+  Hips:      { right: 7, up: -5, lift: -5 },
   Spine:     { right: 6, up: -5 },
   Spine01:   { right: 7, up: -7 },
   Spine02:   { right: 6, up: -7 },
@@ -259,12 +288,16 @@ const HIGH_PAST = over(HIGH, {
   RightArm: { right: 152, fwd: -14 }, LeftArm: { right: 152, fwd: 14 },
   RightForeArm: { right: 18, fwd: -26 }, LeftForeArm: { right: 18, fwd: 26 },
 });
+// …and it RISES. The first cut bent both knees fifty degrees to "get under" the
+// blow, which lowers nothing — it only lifts the feet — while the deep bend
+// fought the arms going up. A high guard drives off the floor: the legs come
+// close to straight and the pelvis goes UP.
 const BRACE_HIGH = over(BRACE, {
-  Hips: { right: -3, up: 0 }, Spine: { right: -5, up: 0 },
+  Hips: { right: -3, up: 0, lift: 5 }, Spine: { right: -5, up: 0 },
   Spine01: { right: -7, up: 0 }, Spine02: { right: -6, up: 0 },
   neck: { right: 16, up: 0 }, Head: { right: 24, up: 0 },
-  LeftUpLeg: { right: 30, up: 4 }, LeftLeg: { right: -54 }, LeftFoot: { right: 22 },
-  RightUpLeg: { right: 28, up: -4 }, RightLeg: { right: -52 }, RightFoot: { right: 20 },
+  LeftUpLeg: { right: 12, up: 4 }, LeftLeg: { right: -16 }, LeftFoot: { right: 8 },
+  RightUpLeg: { right: 10, up: -4 }, RightLeg: { right: -14 }, RightFoot: { right: 7 },
 });
 // LOW GUARD. Down onto the knee, both hands sweeping across the shins. The
 // hips stay under the shoulders — an early cut leaned them twenty-six degrees
@@ -277,12 +310,18 @@ const LOW = {
 const LOW_PAST = over(scale(LOW, 1.15), {
   RightArm: { right: 14, fwd: -34 }, LeftArm: { right: 10, fwd: 48 },
 });
+// …and the low guard DROPS. Same correction the other way: the knee bend is what
+// makes the shape, the pelvis coming down is what makes it a crouch, and
+// without the second one a ninety-degree bend was a man standing still lifting
+// his feet. Eighteen centimetres rather than the twenty-four the first pass
+// tried: at twenty-four the toe joints went 3.7cm under the floor, which is a
+// crouch a player reads as a body sinking into the paving.
 const BRACE_LOW = over(BRACE, {
-  Hips: { right: 12, up: -6 }, Spine: { right: 10, up: -5 },
+  Hips: { right: 12, up: -6, lift: -18 }, Spine: { right: 10, up: -5 },
   Spine01: { right: 9, up: -6 }, Spine02: { right: 8, up: -6 },
   neck: { right: -10 }, Head: { right: -14 },
-  LeftUpLeg: { right: 54, up: 8 }, LeftLeg: { right: -92 }, LeftFoot: { right: 38 },
-  RightUpLeg: { right: 26, up: -8 }, RightLeg: { right: -72 }, RightFoot: { right: 30 },
+  LeftUpLeg: { right: 46, up: 8 }, LeftLeg: { right: -78 }, LeftFoot: { right: 34 },
+  RightUpLeg: { right: 22, up: -8 }, RightLeg: { right: -62 }, RightFoot: { right: 26 },
 });
 // STRAIGHT DOWN THE MIDDLE, for a note with no arrow: a short shove, both
 // hands out at chest height.

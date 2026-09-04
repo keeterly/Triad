@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 138;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 139;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -4778,6 +4778,16 @@ function castCut(list) {
   const C3 = window.Cast3D;
   if (C3 && C3.sequence) C3.sequence(list);
 }
+// …and the two the all-out needs: somebody crossing the floor, and which word
+// they say when they get there.
+function castLunge(id, toward, metres, ms) {
+  const C3 = window.Cast3D;
+  if (C3 && C3.lunge) C3.lunge(id, toward, metres, ms);
+}
+function castVerbFor(id) {
+  const C3 = window.Cast3D;
+  return (C3 && C3.verbFor && C3.verbFor(id)) || 'slash';
+}
 // How long after the first of a pair commits the second one answers. Not zero:
 // two bodies playing one clip on one frame reads as a duplicated sprite, and
 // the whole point of a duo is that there is an order to it.
@@ -5729,8 +5739,11 @@ async function fxAllOut(living) {
     setTimeout(() => {
       if (h) { h.classList.remove('k-charging'); void h.offsetWidth; h.classList.add('k-charging');
                setTimeout(() => h.classList.remove('k-charging'), 620); }
-      // …and the body itself, which is the half that was missing
-      castPlay(id, 'slash');
+      // …and the body itself, which is the half that was missing — throwing
+      // ITS OWN verb rather than everybody swinging a sword, and actually
+      // crossing the floor at the thing it is crossing the floor at.
+      castPlay(id, castVerbFor(id));
+      castLunge(id, 'foe' + ((C && C.aim) || 0), 1.05, 520);
     }, i * ALLOUT_STEP);
   });
   await sleep(ALLOUT_STEP * living.length + 300);

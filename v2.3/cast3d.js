@@ -74,9 +74,14 @@ const CAST = {
   ash:  { model: 'ash.glb',  sel: '.k-hero[data-hero="ash"]',
           paper: 0xf7efe2, shadow: 0x9a7f6e, ink: 0x3d2f28,
           turn: 26, tall: 1.00, strike: 'sword' },
+  // `verb` is which of the fight's four words this person throws when nothing
+  // in particular is being asked of them — an all-out, say. Ash and Mira answer
+  // with the weapon in their hands and do not need to say so; Elin is the one
+  // who casts, and a finisher where the party's mage swings her staff like a
+  // club is a finisher that has forgotten who she is.
   elin: { model: 'elin.glb', sel: '.k-hero[data-hero="elin"]',
           paper: 0xf2f4f7, shadow: 0x8d9ab4, ink: 0x343b4a,
-          turn: 34, tall: 0.97, strike: 'staff' },
+          turn: 34, tall: 0.97, strike: 'staff', verb: 'cast' },
   mira: { model: 'mira.glb', sel: '.k-hero[data-hero="mira"]',
           paper: 0xeef2ea, shadow: 0x76907c, ink: 0x2b352e,
           turn: 22, tall: 0.98, strike: 'daggers' },
@@ -2836,6 +2841,9 @@ const Cast3D = (() => {
   // switched off, short enough that it is over before the reckoning wants the
   // camera. The `fell` shot is 1900ms; this finishes inside it.
   const BURN_SECONDS = 1.45;
+  // how much room a charge leaves between itself and what it is charging, in
+  // metres. The front rank stands about 2.1 from the foe line.
+  const LUNGE_KEEP = 1.15;
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // AZIMUTH TAKES THE SHORT WAY ROUND. Easing 350 degrees to 10 by subtracting
@@ -3096,9 +3104,41 @@ const Cast3D = (() => {
         // …AND IT GIVES A LUNGE ROOM TO HAPPEN. Pulling at 5.5 while an action
         // is driving the body forward damps the step into a twitch; the same
         // ease brings it home once the swing is over, which is the recovery.
-        const k = Math.min(1, dt * (f.acting ? 1.1 : 5.5));
-        f.root.position.x += (slot[0] - f.ctrOff - f.root.position.x) * k;
-        f.root.position.z += (slot[1] - f.root.position.z) * k;
+        let tx = slot[0] - f.ctrOff, tz = slot[1];
+        let k = Math.min(1, dt * (f.acting ? 1.1 : 5.5));
+        // ── …AND A FINISHER ACTUALLY CROSSES IT (Build 139) ─────────────────
+        //
+        // Build 138 gave the all-out three bodies and they swung on the spot.
+        // Measured, a swing carries the root about four centimetres — the clip's
+        // own step, transferred off the hips in Build 135 — which is a lunge,
+        // not a charge, and "the three of them cross the floor at once" is a
+        // charge.
+        //
+        // A lunge here is not a second animation system. It moves the MARK the
+        // slot ease is already walking toward, so the body goes out under the
+        // same rule that brings it home — fast on the way (the ease at 6.5),
+        // and back at the slack 1.1 the previous build gave an acting figure,
+        // which is a recovery rather than a rewind.
+        // `frame(now)` shadows the `now()` helper with the rAF timestamp, which
+        // is the same clock `lunge` stamped `until` from — so this compares the
+        // number, not a call.
+        //
+        // AND IT NEVER EXPIRES UNSPENT. A wall-clock window shorter than a
+        // frame is a window that can be stepped straight over: measured on the
+        // suite's browser, which draws at about 1.5fps, Ash's 520ms charge was
+        // set and cleared between two frames and he did not move a millimetre
+        // while Elin crossed her whole metre. A charge is a thing that happens,
+        // not a period during which it may happen, so it holds until it has
+        // been drawn at least once however long that takes.
+        if (f.lunge) {
+          if (now < f.lunge.until || !f.lunge.seen) {
+            tx += f.lunge.x; tz += f.lunge.z;
+            k = Math.min(1, dt * 6.5);
+            f.lunge.seen = true;
+          } else f.lunge = null;
+        }
+        f.root.position.x += (tx - f.root.position.x) * k;
+        f.root.position.z += (tz - f.root.position.z) * k;
       }
       const mat = f.root.userData.mat;
       if (mat && mat.userData.depth) {
@@ -3662,6 +3702,44 @@ const Cast3D = (() => {
     },
     // …and a way to say "stop cutting" without asking for a frame
     uncut: () => cutStop(),
+    // ── SOMEBODY CROSSING THE FLOOR ────────────────────────────────────────
+    //
+    // `toward` is whatever `at` accepts: a name, a list of names, a side, or a
+    // point. The distance is capped so nobody ends up standing inside the thing
+    // they are hitting — a charge that overshoots reads as a collision, and the
+    // party's front rank starts about two and a half metres from the foe line.
+    lunge(id, toward, metres, ms) {
+      const f = figs[id];
+      if (!on || !f || !f.root.visible) return false;
+      // A SLOT THAT IS NOT WEARING ANYBODY YET IS STILL A DIRECTION. The
+      // bestiary loads behind the party, so an all-out thrown in the first
+      // second of a fight names a creature whose model has not arrived — and
+      // `aimPoint` answers an unknown subject with the BOARD, which is where
+      // the front rank is already standing. Measured, Ash charged nowhere at
+      // all while Elin crossed a full metre, because Ash was inside the
+      // keep-out of a target that was really the middle of the floor. A `foeN`
+      // key means the foe line whether or not anything is standing in it.
+      let subject = toward;
+      if (typeof toward === 'string' && !figs[toward])
+        subject = /^foe/.test(toward) ? 'foe' : /^(party|foe|board)$/.test(toward) ? toward : 'party';
+      else if (typeof toward === 'string') subject = [toward];
+      const p = aimPoint(subject);
+      const dx = p[0] - (f.root.position.x + (f.ctrOff || 0));
+      const dz = p[2] - f.root.position.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 0.05) return false;
+      const m = Math.max(0, Math.min(metres == null ? 0.9 : metres, d - LUNGE_KEEP));
+      if (m <= 0) return false;
+      f.lunge = { x: dx / d * m, z: dz / d * m, until: now() + (ms || 460) };
+      return true;
+    },
+    // WHICH OF THE FIGHT'S FOUR WORDS THIS PERSON THROWS when nothing else is
+    // being asked. The fight knows its verbs; it does not know that Elin is the
+    // one who casts, and it should not have to.
+    verbFor: (id) => {
+      const t = (figs[id] && figs[id].tone) || CAST[id];
+      return (t && t.verb) || 'slash';
+    },
     shot(name, opts) {
       if (name == null) return { asked: { ...SHOT }, base: { ...BASE },
                                  holding: holdUntil ? Math.max(0, Math.round(holdUntil - now())) : 0,
