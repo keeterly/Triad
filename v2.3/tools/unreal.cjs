@@ -1,0 +1,334 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// THE UNREAL IMPORTER — bring a Mannequin animation onto this game's rig
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//   node v2.3/tools/unreal.cjs <manifest.json> <clips.json>
+//
+// The manifest names the file and, optionally, which clip inside it:
+//
+//   { "parryU": { "file": "packs/combat/Block_High.fbx" },
+//     "hurt":   { "file": "packs/hits/Reactions.fbx", "clip": "Hit_Front" } }
+//
+// It reads FBX (what Unreal exports) and GLB alike, converts, and MERGES into
+// an existing clips.json. Run `rewindow.cjs` afterwards, exactly as the Meshy
+// mill's output is run through it, so an imported clip gets the same beat and
+// the same window rule as everything already in the library.
+//
+// ── WHY THIS IS SMALL ──────────────────────────────────────────────────────
+//
+// Because the runtime retargeter is already general. `retarget` in cast3d.js
+// does not compare skeletons; it computes each bone's DEPARTURE from a rest
+// pose and replays that departure on the target's own rest:
+//
+//     D(b)  = A_s(b) · G_s(b)⁻¹
+//     A_t(b) = D(b) · G_t(b)
+//
+// which is orientation-agnostic. It does not care that Unreal's upper arm
+// points down a different axis than Meshy's. What it cannot do is guess two
+// things a foreign skeleton does not come with: WHICH BONE IS WHICH, and what
+// the source skeleton's rest pose was.
+//
+// So this tool supplies both, offline, and re-expresses the animation against
+// the rest pose the library already carries — `__rest` — so an imported clip
+// enters as a peer of the ones milled from Meshy. Nothing at runtime changes,
+// nothing about the existing clips changes, and the library stays homogeneous.
+// A per-clip rest would have been the other way to do it and it would have made
+// every consumer of `__rest` ask which one it meant.
+//
+// ── THE SPINE IS NAMED BACKWARDS AND THAT IS THE TRAP ──────────────────────
+//
+// Meshy's rig calls the LOWEST vertebra `Spine02` and the highest `Spine` —
+// `__parent` reads Spine02 → Spine01 → Spine going up. Unreal counts the other
+// way, spine_01 at the bottom. Mapped by number rather than by position, every
+// imported torso would be inverted: a bow would arch backwards, and it would
+// look like a bad retarget rather than a bad table.
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const http = require('http');
+
+const MANIFEST = process.argv[2], OUT = process.argv[3];
+if (!MANIFEST || !OUT) {
+  console.error('usage: node unreal.cjs <manifest.json> <clips.json>');
+  process.exit(2);
+}
+
+// ── UNREAL MANNEQUIN → THIS GAME'S 24 JOINTS ───────────────────────────────
+//
+// Everything not in this table is dropped on purpose. `root` is handled
+// separately (see the root-motion note). The twist bones — upperarm_twist_01,
+// thigh_twist_01 and their kin — have no home on a 24-joint rig, and dropping
+// them flattens forearm roll: a sword that rotates in the hand mid-swing will
+// arrive rotating at the elbow instead. That is a real loss and it is the price
+// of the rig we have. The IK bones (ik_hand_gun, ik_foot_root) and any weapon
+// sockets are drivers, not anatomy, and belong nowhere.
+const MAP = {
+  pelvis: 'Hips',
+  spine_01: 'Spine02', spine_02: 'Spine01', spine_03: 'Spine',
+  // UE5 added a fourth and fifth on the new Mannequin; fold them onto the three
+  // we have rather than dropping the chest entirely
+  spine_04: 'Spine', spine_05: 'Spine',
+  neck_01: 'neck', neck_02: 'neck', head: 'Head',
+  clavicle_l: 'LeftShoulder', upperarm_l: 'LeftArm',
+  lowerarm_l: 'LeftForeArm', hand_l: 'LeftHand',
+  clavicle_r: 'RightShoulder', upperarm_r: 'RightArm',
+  lowerarm_r: 'RightForeArm', hand_r: 'RightHand',
+  thigh_l: 'LeftUpLeg', calf_l: 'LeftLeg', foot_l: 'LeftFoot', ball_l: 'LeftToeBase',
+  thigh_r: 'RightUpLeg', calf_r: 'RightLeg', foot_r: 'RightFoot', ball_r: 'RightToeBase',
+};
+// …and the same rig under Mixamo's names, because a pack bought for Unreal is
+// as likely to have been authored on one as the other, and the cost of knowing
+// both is a second table.
+const MIXAMO = {
+  Hips: 'Hips', Spine: 'Spine02', Spine1: 'Spine01', Spine2: 'Spine',
+  Neck: 'neck', Head: 'Head',
+  LeftShoulder: 'LeftShoulder', LeftArm: 'LeftArm',
+  LeftForeArm: 'LeftForeArm', LeftHand: 'LeftHand',
+  RightShoulder: 'RightShoulder', RightArm: 'RightArm',
+  RightForeArm: 'RightForeArm', RightHand: 'RightHand',
+  LeftUpLeg: 'LeftUpLeg', LeftLeg: 'LeftLeg', LeftFoot: 'LeftFoot', LeftToeBase: 'LeftToeBase',
+  RightUpLeg: 'RightUpLeg', RightLeg: 'RightLeg', RightFoot: 'RightFoot', RightToeBase: 'RightToeBase',
+};
+// a bone this rig already speaks, passed straight through
+const OURS = {};
+for (const v of Object.values(MAP)) OURS[v] = v;
+
+const jobs = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
+const lib = fs.existsSync(OUT) ? JSON.parse(fs.readFileSync(OUT, 'utf8')) : {};
+if (!lib.__rest || !lib.__parent) {
+  console.error(OUT + ' has no __rest/__parent — import into an existing library,'
+    + ' because that rest pose is what an imported clip is re-expressed against.');
+  process.exit(2);
+}
+
+function requirePlaywright() {
+  try { return require('playwright'); } catch (_) {}
+  return require('/opt/node22/lib/node_modules/playwright');
+}
+function findChromium() {
+  for (const p of ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome']) {
+    try { fs.accessSync(p); return p; } catch (_) {}
+  }
+  return null;
+}
+
+const ROOT = path.resolve(__dirname, '../..');
+const PORT = 8098;
+function serve() {
+  const TYPES = { '.js': 'text/javascript', '.mjs': 'text/javascript',
+                  '.json': 'application/json', '.glb': 'model/gltf-binary',
+                  '.fbx': 'application/octet-stream', '.html': 'text/html' };
+  return http.createServer((req, res) => {
+    const f = path.join(ROOT, decodeURIComponent(req.url.split('?')[0]));
+    fs.readFile(f, (e, b) => {
+      if (e) { res.writeHead(404); return res.end('no'); }
+      res.writeHead(200, { 'content-type': TYPES[path.extname(f)] || 'application/octet-stream',
+                           'access-control-allow-origin': '*' });
+      res.end(b);
+    });
+  }).listen(PORT);
+}
+
+const DP = 4;
+const round = (v) => +v.toFixed(DP);
+
+(async () => {
+  const server = serve();
+  const { chromium } = requirePlaywright();
+  const exe = findChromium();
+  const browser = await chromium.launch(exe ? { executablePath: exe } : {});
+  const page = await browser.newPage();
+  page.on('console', m => { if (m.type() === 'error') console.log('  page:', m.text()); });
+  page.on('pageerror', e => console.log('  PAGE ERROR:', e.message));
+  await page.goto(`http://127.0.0.1:${PORT}/v2.3/index.html?test=1&cast=2d`,
+                  { waitUntil: 'domcontentloaded' });
+
+  const report = [];
+  for (const [verb, spec] of Object.entries(jobs)) {
+    const url = '/' + path.relative(ROOT, path.resolve(spec.file)).split(path.sep).join('/');
+    const got = await page.evaluate(async (arg) => {
+      const THREE = await import('/v2.3/lib/three.module.min.js');
+      const load = async () => {
+        if (/\.fbx$/i.test(arg.url)) {
+          const { FBXLoader } = await import('/v2.3/tools/lib/FBXLoader.js');
+          return { root: await new FBXLoader().loadAsync(arg.url), clips: null };
+        }
+        const { GLTFLoader } = await import('/v2.3/lib/GLTFLoader.js');
+        const g = await new GLTFLoader().loadAsync(arg.url);
+        return { root: g.scene, clips: g.animations };
+      };
+      const { root, clips: gclips } = await load();
+      const clips = gclips || root.animations || [];
+      if (!clips.length) return { err: 'no animation in ' + arg.url };
+      const clip = arg.clip ? clips.find(c => c.name === arg.clip) : clips[0];
+      if (!clip) return { err: 'no clip "' + arg.clip + '" — has ' + clips.map(c => c.name).join(', ') };
+
+      // ── WHICH NAMING IS THIS, AND WHICH BONES ARE THERE ──
+      const bones = {};
+      root.traverse(o => { if (o.isBone || o.type === 'Bone') bones[o.name] = o; });
+      const strip = (n) => n.replace(/^mixamorig[:_]?/i, '');
+      const tables = [arg.MAP, arg.MIXAMO, arg.OURS];
+      let map = null, hits = -1;
+      for (const t of tables) {
+        const n = Object.keys(bones).filter(b => t[strip(b)]).length;
+        if (n > hits) { hits = n; map = t; }
+      }
+      const mine = {};                     // our name -> source bone
+      for (const b of Object.keys(bones)) {
+        const to = map[strip(b)];
+        // spine_04/_05 both fold onto Spine; keep the HIGHEST one, which is the
+        // one whose motion the chest actually reads as
+        if (to && !mine[to]) mine[to] = bones[b];
+      }
+      const missing = Object.values(arg.MAP).filter((v, i, a) => a.indexOf(v) === i)
+                            .filter(v => !mine[v]);
+
+      // ── THE SOURCE'S REST POSE ──
+      // Read before anything is animated: a loaded skeleton is sitting in its
+      // bind pose, and that is the frame every departure is measured from.
+      const restQ = {}, restP = {};
+      for (const k of Object.keys(mine)) {
+        restQ[k] = mine[k].quaternion.clone();
+        restP[k] = mine[k].position.clone();
+      }
+      const parentOf = {};
+      for (const k of Object.keys(mine)) {
+        let p = mine[k].parent;
+        while (p && !Object.keys(mine).some(x => mine[x] === p)) p = p.parent;
+        parentOf[k] = p ? Object.keys(mine).find(x => mine[x] === p) : null;
+      }
+      // parents first
+      const order = [], seen = {};
+      const visit = (n) => { if (seen[n]) return; seen[n] = 1;
+                             if (parentOf[n]) visit(parentOf[n]); order.push(n); };
+      Object.keys(mine).forEach(visit);
+
+      const Q = () => new THREE.Quaternion();
+      const round = (v) => +v.toFixed(4);
+      const gOf = (rest, par) => {
+        const G = {};
+        for (const n of order) {
+          const p = par[n];
+          G[n] = (p && G[p] ? G[p].clone() : Q()).multiply(rest[n]).normalize();
+        }
+        return G;
+      };
+      const Gsrc = gOf(restQ, parentOf);
+
+      // the library's rest — what an imported clip must end up expressed against
+      const tgtQ = {}, tgtPar = arg.lib.__parent;
+      for (const k of Object.keys(arg.lib.__rest)) tgtQ[k] = Q().fromArray(arg.lib.__rest[k]).normalize();
+      const tOrder = [], tSeen = {};
+      const tVisit = (n) => { if (tSeen[n] || !tgtQ[n]) return; tSeen[n] = 1;
+                              if (tgtPar[n]) tVisit(tgtPar[n]); tOrder.push(n); };
+      Object.keys(tgtQ).forEach(tVisit);
+      const Gtgt = {};
+      for (const n of tOrder) {
+        const p = tgtPar[n];
+        Gtgt[n] = (p && Gtgt[p] ? Gtgt[p].clone() : Q()).multiply(tgtQ[n]).normalize();
+      }
+
+      // ── SAMPLE THE SOURCE AND RE-EXPRESS IT ──
+      const mixer = new THREE.AnimationMixer(root);
+      const action = mixer.clipAction(clip);
+      action.play();
+      const FPS = 30;
+      const n = Math.max(2, Math.round(clip.duration * FPS) + 1);
+      const times = [], out = {}, hip = [];
+      for (const k of order) if (Gtgt[k]) out[k] = [];
+
+      // HOW A STRIDE AUTHORED FOR SOMEBODY ELSE'S LEGS LANDS ON OURS. The
+      // Mannequin is not our proportions, so a step measured in its centimetres
+      // is the wrong number of ours. Hip height is the honest ratio: it is what
+      // sets how far a leg can reach, and normalising by it means a stride
+      // arrives as the same FRACTION of a stride rather than the same distance.
+      const srcHipY = mine.Hips ? mine.Hips.getWorldPosition(new THREE.Vector3()).y : 1;
+      const tgtHip = arg.lib.__hipRest || null;
+      const hipRest = tgtHip || [0, 0, 0];
+      let scale = 1;
+      if (srcHipY > 1e-6 && hipRest[1]) scale = hipRest[1] / srcHipY;
+
+      const d = Q(), tmp = Q();
+      for (let i = 0; i < n; i++) {
+        const t = (i / (n - 1)) * clip.duration;
+        mixer.setTime(t);
+        root.updateMatrixWorld(true);
+        times.push(+t.toFixed(4));
+        // the source's global orientation this frame, parents first
+        const A = {};
+        for (const b of order) {
+          const p = parentOf[b];
+          A[b] = (p && A[p] ? A[p].clone() : Q()).multiply(mine[b].quaternion).normalize();
+        }
+        // the same DEPARTURE from rest, carried onto our rest pose
+        const At = {};
+        for (const b of order) {
+          if (!Gtgt[b]) continue;                       // a bone our rig does not have
+          d.copy(A[b]).multiply(tmp.copy(Gsrc[b]).invert()).normalize();
+          At[b] = d.clone().multiply(Gtgt[b]).normalize();
+        }
+        // …and back to a LOCAL rotation, against OUR hierarchy rather than the
+        // source's — which is the whole reason a spine named backwards matters
+        for (const b of tOrder) {
+          if (!At[b]) continue;
+          const p = tgtPar[b];
+          const local = (p && At[p] ? tmp.copy(At[p]).invert().multiply(At[b])
+                                    : At[b].clone()).normalize();
+          out[b].push(round(local.x), round(local.y), round(local.z), round(local.w));
+        }
+        // ROOT MOTION LIVES IN THE HIPS HERE. Unreal keeps it on a `root` bone
+        // this rig does not have, and Build 135 already reads the hips' travel
+        // and gives it to the figure's root — so folding one into the other is
+        // both the only place it can go and the place the layer expects it.
+        if (mine.Hips) {
+          const w = mine.Hips.getWorldPosition(new THREE.Vector3());
+          hip.push(round(hipRest[0] + w.x * scale),
+                   round(hipRest[1] + (w.y - srcHipY) * scale),
+                   round(hipRest[2] + w.z * scale));
+        }
+      }
+      const tracks = [];
+      if (hip.length) tracks.push({ name: 'Hips.position', type: 'vector', times, values: hip });
+      for (const b of tOrder) if (out[b] && out[b].length)
+        tracks.push({ name: b + '.quaternion', type: 'quaternion', times, values: out[b] });
+      return {
+        clip: { name: arg.verb, duration: +clip.duration.toFixed(4),
+                uuid: 'unreal-' + arg.verb, blendMode: 2500,
+                window: [0, +clip.duration.toFixed(4)], tracks },
+        naming: map === arg.MAP ? 'unreal' : map === arg.MIXAMO ? 'mixamo' : 'native',
+        mapped: Object.keys(mine).length, missing, scale: +scale.toFixed(3),
+        source: clip.name, frames: n, dur: +clip.duration.toFixed(2),
+        others: clips.map(c => c.name).slice(0, 12),
+      };
+    }, { url, clip: spec.clip || null, verb, MAP, MIXAMO, OURS,
+         lib: { __rest: lib.__rest, __parent: lib.__parent,
+                __hipRest: hipRestOf(lib) } });
+
+    if (got.err) { console.error('  ' + verb + ': ' + got.err); continue; }
+    lib[verb] = got.clip;
+    if (spec.beat) lib[verb].beat = spec.beat;
+    if (spec.loop) lib[verb].loop = true;
+    report.push({ verb, ...got, clip: undefined });
+    console.log(`  ${verb.padEnd(10)} ${got.naming.padEnd(7)} ${got.mapped} bones`
+      + `  ${got.dur}s/${got.frames}f  scale ${got.scale}`
+      + (got.missing.length ? '  MISSING ' + got.missing.join(',') : '')
+      + `  <- ${got.source}`);
+  }
+  await browser.close();
+  server.close();
+  fs.writeFileSync(OUT, JSON.stringify(lib));
+  console.log('wrote ' + OUT + '  ' + (fs.statSync(OUT).size / 1024).toFixed(0) + 'kB');
+  console.log('now run:  node v2.3/tools/rewindow.cjs ' + OUT);
+})().catch(e => { console.error('FATAL', e); process.exit(1); });
+
+// The library's own hips rest, read off frame 0 of any clip that carries one —
+// the same anchor `tools/parry.mjs` uses, and the thing an imported stride is
+// rescaled into.
+function hipRestOf(lib) {
+  for (const k of Object.keys(lib)) {
+    if (k.startsWith('__') || !lib[k].tracks) continue;
+    const t = lib[k].tracks.find(x => x.name === 'Hips.position');
+    if (t) return [t.values[0], t.values[1], t.values[2]];
+  }
+  return null;
+}
