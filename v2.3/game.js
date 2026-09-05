@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 162;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 163;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -4755,6 +4755,21 @@ function fxStrikeBoss(n, why, F) {
   const ix = F ? F.ix : (C ? C.aim : 0);
   const b = foeBox(ix) || document.getElementById('k-boss-art');
   if (b) { b.classList.remove('k-recoil'); void b.offsetWidth; b.classList.add('k-recoil'); }
+  // ── AND TIME CATCHES ON IT ─────────────────────────────────────────────
+  //
+  // The world has been able to dilate since Build 136 and the only thing that
+  // ever asked it to was the parry bar. A blow landing is the other moment
+  // that wants it — arguably the one that wants it most, since it is over in
+  // three frames otherwise and the arc, the sparks and the number all arrive
+  // inside those frames and are gone.
+  //
+  // Scaled by the size of the hit, because a hit-stop that is the same length
+  // for a 4 and for a 22 flattens the difference the numbers are making: a
+  // graze catches for a tenth of a second, a heavy blow for a fifth. And only
+  // for a real blow — a bleed tick is not a moment, and stopping time for one
+  // would spend the effect on the least important thing in the fight.
+  if (why === 'hit' && typeof castHitStop === 'function')
+    castHitStop(0.22, 95 + Math.min(115, n * 6));
   foeAnimReact('hit', 340, ix);      // the window k-recoil runs for
   foeCast(ix, 'hurt');
   // THE SOUND SAYS WHAT THREW IT, the same way the visual effect does: steel
@@ -4892,6 +4907,12 @@ function fxSlash(node, i, heavy) {
 // costs one property read and does nothing at all.
 // how long the clip a verb resolves to will be on screen, in ms — 0 on the
 // painted stage, where there is no clip and no camera to hold
+// HOW LONG THE WORLD HOLDS ITS BREATH WHEN SOMETHING LANDS. The layer owns the
+// clock and the easing; this is only the fight asking for a moment.
+function castHitStop(depth, ms) {
+  const C3 = window.Cast3D;
+  return !!(C3 && C3.hitStop && C3.hitStop(depth, ms));
+}
 function castBeatMs(id, verb, dir) {
   return (window.Cast3D && window.Cast3D.beatMs) ? window.Cast3D.beatMs(id, verb, dir) : 0;
 }

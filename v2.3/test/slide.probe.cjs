@@ -90,7 +90,11 @@ const { boot } = require('./harness.cjs');
         held.push(!!(f._legs && f._legs.some(g => g.w > 0.5)));
         hip.push(wp(H)); lf.push(wp(L)); rf.push(wp(R));
       }
-      f.floorY = undefined;      // each clip is its own ground, not the last one's
+      // NO PER-CLIP GROUND RESET ANY MORE. This used to clear `floorY` between
+      // clips because the solver derived its floor from the feet and so had to
+      // be told to forget the last clip's. It derives it from the idle now, so
+      // the ground belongs to the FIGURE and is the same for every clip it
+      // plays — which is what let a swing release a foot at all.
       const d = (p, q) => Math.hypot(p.x - q.x, p.z - q.z);
       // ROOT DRIFT: where the hips end relative to where they began, on the
       // floor plane. Net, not total — a body that steps out and steps back has
@@ -168,8 +172,15 @@ const { boot } = require('./harness.cjs');
   console.log('=== figure ' + rows.who + '  ·  first ' + Math.round(END * 100)
     + '% of each clip  ·  metres, ' + SAMPLES + ' samples ===');
   console.log('');
+  // THE HEADER USED TO NAME A COLUMN THE BODY DID NOT PRINT. It ended
+  // `airborne   pinned` while the row printed `floor` and `rise`, so the pin
+  // percentage — the one reading that tells a solver which never engages from
+  // one that engages and loses ground — was measured, carried all the way out
+  // of the page, and then silently dropped on the floor two lines from being
+  // read. Every column is named here and printed below in the same order.
   console.log('  ' + 'clip'.padEnd(14) + 'dur'.padStart(6) + 'drift'.padStart(8)
-    + 'reach'.padStart(8) + '   glide m' + '  peak m/s' + '  airborne' + '   pinned');
+    + 'reach'.padStart(8) + '   glide m' + '  peak m/s' + '  airborne'
+    + '   floor' + '    rise' + '  pinned');
   const bad = [];
   for (const r of rows.out.sort((a, b) => b.drift - a.drift)) {
     const flag = r.drift > 0.15 ? '  <-- DRIFTS' : '';
@@ -178,7 +189,8 @@ const { boot } = require('./harness.cjs');
       + r.drift.toFixed(3).padStart(8) + r.reach.toFixed(3).padStart(8)
       + r.glide.toFixed(3).padStart(10) + r.peak.toFixed(2).padStart(10)
       + (r.air + '%').padStart(10)
-      + r.floor.toFixed(3).padStart(8) + r.rise.toFixed(3).padStart(8) + flag);
+      + r.floor.toFixed(3).padStart(8) + r.rise.toFixed(3).padStart(8)
+      + (r.pin + '%').padStart(8) + flag);
   }
   console.log('');
   console.log(bad.length

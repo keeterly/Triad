@@ -2457,7 +2457,7 @@ class Figure {
       // SPEED IS DERIVED, not chosen: the window is the length the beat can
       // afford, so the division lands just over 1 rather than at three.
       const beat = meta[name] && meta[name].beat;
-      a.timeScale = (loops || !beat) ? 1 : (rt.duration / beat);
+      a.timeScale = ((loops || !beat) ? 1 : (rt.duration / beat)) * CLIP_RATE;
       // ── THE POSE HOLDS UNTIL SOMETHING BLENDS IT AWAY (Build 125) ────────
       //
       // This is what "sloppy and jittery" was, and it was one line.
@@ -2933,6 +2933,16 @@ const _ikI = new THREE.Quaternion();
 // how near the measured floor an ankle has to be to count as bearing weight,
 // and how far it has to rise to stop counting. The gap is what stops a foot
 // resting on the threshold from chattering in and out of contact.
+// ── EVERYTHING PLAYS A SHADE UNDER SPEED ────────────────────────────────────
+//
+// The strikes read as hurried: a sword judgment is over in about a second and
+// the eye never gets to the middle of it. This slows every non-looping clip by
+// the same fraction, and it is applied to `timeScale` rather than to the beat
+// so that the rest of the layer follows for free — `beatMs` and `contactMs`
+// are both derived from the scaled duration, so the camera holds stretch with
+// the swing and the damage number still lands on the frame the weapon arrives.
+const CLIP_RATE = 0.86;
+
 const FOOT_ON = 0.075, FOOT_OFF = 0.135;
 const FOOT_RAMP = 0.09;               // seconds to fade a pin in or out
 const SETTLE_N = 26;                  // frames sampled to find a clip's lowest foot
@@ -4414,7 +4424,7 @@ const Cast3D = (() => {
   // a third of its speed between two frames is a stutter, and time sliding into
   // a third of its speed is the effect the game has been claiming for a hundred
   // builds.
-  let slowLevel = 1, slowWant = 1;
+  let slowLevel = 1, slowWant = 1, _stopT = 0;
   let focusLevel = 1, focusWant = 1;
   const focusOn = {};
   const _spot = { light: null };
@@ -5402,6 +5412,24 @@ const Cast3D = (() => {
     // it and the player can see both.
     slow(factor) {
       slowWant = Math.max(0.05, Math.min(1, factor == null ? 1 : factor));
+      if (_stopT) { clearTimeout(_stopT); _stopT = 0; }
+      return true;
+    },
+    // ── THE MOMENT THE BLOW LANDS ──────────────────────────────────────────
+    //
+    // `slow` is a STATE: something sets it and something else has to remember
+    // to put it back. A hit is not a state, it is an event with a length, so
+    // this is the one that takes a duration and restores itself — nothing that
+    // fires it can leave the world running slow by forgetting to.
+    //
+    // It is deliberately a dip and not a freeze. Stopping dead reads as a
+    // dropped frame; running at a quarter speed for a tenth of a second reads
+    // as weight, and lets the sparks and the ribbon keep moving through it,
+    // which is the part that makes it look like force rather than a stutter.
+    hitStop(depth, ms) {
+      if (_stopT) clearTimeout(_stopT);
+      slowWant = Math.max(0.05, Math.min(1, depth == null ? 0.25 : depth));
+      _stopT = setTimeout(() => { _stopT = 0; slowWant = 1; }, Math.max(30, ms || 110));
       return true;
     },
     focus(keys) {

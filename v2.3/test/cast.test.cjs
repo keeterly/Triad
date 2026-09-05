@@ -1861,16 +1861,99 @@ const { boot } = require('./harness.cjs');
   check('FEET: the body carries its own travel, so the feet do not have to',
     travelled.length === 3 && travelled.every(([, v]) => v.body > 0.04),
     JSON.stringify(Object.fromEntries(travelled)) + ' — body travel in metres during a swing');
-  check('FEET: …and no planted foot skates further than the stride that moved it',
-    Object.values(feet).every(v => v.slide < 1.2),
-    JSON.stringify(Object.fromEntries(Object.entries(feet).map(([k, v]) => [k, v.slide])))
-      + ' m — pinning alone gave 1.159 / 1.157 / 1.154');
-  // AND THIS CHECK USED TO PASS FOR THE WRONG REASON. Its plant test is an
-  // absolute height, and until Build 156 the sword clips held their feet at
-  // 0.257m — above the threshold for their whole length — so no frame ever
-  // counted as planted and the slide came out near zero. It was reporting a
-  // hovering clip as a clean one. Standing the clips on the floor is what let
-  // the real number through, and the foot solver is what brings it down.
+  // ── AND THE SKATE CHECK MEASURED THE WRONG THING, TWICE OVER ────────────
+  //
+  // It summed how far a foot moved while below an absolute height, over a
+  // FIXED NUMBER OF FRAMES. Both halves are wrong, and Build 163 is what made
+  // that visible: slowing the clips by 14% moved ash's slash from 0.93 to 2.06
+  // without touching the solver at all, because the window is wall-clock and a
+  // slower clip puts a different amount of motion — and a different number of
+  // anchor retakes — inside the same 70 frames. A reading that changes when
+  // playback speed changes is not measuring the feet.
+  //
+  // The metric is the second fault. A foot near the ground that the ANIMATION
+  // is moving is a low step, which is most of what an attack does; a foot the
+  // solver is dragging is skate. Summing movement-while-low counts both, so it
+  // rewards welding a foot to the floor and penalises stepping — and it duly
+  // "improved" when a foot was pinned that should not have been, and "got
+  // worse" when the pin was correctly released.
+  //
+  // ── SO IT ASKS THE DIFFERENTIAL, WHICH IS THE ACTUAL CLAIM ──────────────
+  //
+  // The glide here is the support-foot reading the slide probe already uses:
+  // at every step take the SLOWER of the two feet, because a body on its feet
+  // always has one of them still, so a large number means BOTH feet are moving
+  // over the ground and that is exactly and only what gliding is. A swinging
+  // foot cannot inflate it and a welded foot cannot flatter it.
+  //
+  // And it is measured with the solver off and then on, in the same page, on
+  // the same clips, stepped by the clip's own time so no playback rate can
+  // reach it. The property is the one the layer claims: THE SOLVER TAKES THE
+  // SOURCE SKATE OUT. Measured, it removes 56-80% (sword 1.78->0.43, daggers
+  // 1.54->0.67, staff 0.57->0.11, swordHeavy 3.43->1.27, daggersHeavy
+  // 2.47->1.04), so the bar is set at half. That bar cannot be met by doing
+  // nothing — with the solver off the two readings are equal and it fails.
+  const skate = await J(async () => {
+    const C3 = window.Cast3D;
+    const was = C3._state().on, ik0 = C3._footIK();
+    C3.disable();
+    const f = C3._figure('ash');
+    const V = f.root.position.constructor;
+    const wp = (b) => f.bones[b].getWorldPosition(new V());
+    const N = 48;
+    // the clips that travel: a parry or a cast has no stride to skate on
+    const CLIPS = ['sword', 'daggers', 'staff', 'swordHeavy', 'daggersHeavy'];
+    const run = (ik) => {
+      C3._footIK(ik);
+      const out = {};
+      for (const name of CLIPS) {
+        const a = f.actions[name];
+        if (!a) continue;
+        for (const k of Object.keys(f.actions)) {
+          f.actions[k].setEffectiveWeight(0); f.actions[k].stop();
+        }
+        if (f.idle) f.idle.setEffectiveWeight(0);
+        a.reset(); a.setEffectiveWeight(1); a.play(); a.paused = true;
+        f.restY = undefined; f.floorY = undefined;
+        const dur = a.getClip().duration, dt = dur / (N - 1);
+        const L = [], R = [];
+        for (let i = 0; i < N; i++) {
+          // stepped at the CLIP'S own time, so `timeScale` — and every dial
+          // that scales it — is out of the measurement entirely
+          a.time = i * dt;
+          f.mixer.update(0);
+          f.root.updateMatrixWorld(true);
+          if (ik) f.footLock(dt);
+          f.root.updateMatrixWorld(true);
+          L.push(wp('LeftFoot')); R.push(wp('RightFoot'));
+        }
+        const d = (p, q) => Math.hypot(p.x - q.x, p.z - q.z);
+        const floor = Math.min(...L.map(p => p.y), ...R.map(p => p.y));
+        let glide = 0;
+        for (let i = 1; i < N; i++) {
+          // a figure with both feet off the ground owes nobody a planted one
+          if (Math.min(L[i].y, R[i].y) - floor > 0.12) continue;
+          glide += Math.min(d(L[i], L[i - 1]), d(R[i], R[i - 1]));
+        }
+        out[name] = +glide.toFixed(3);
+      }
+      return out;
+    };
+    const off = run(false), on = run(true);
+    f.clear();
+    C3._footIK(ik0);
+    if (was) await C3.enable();
+    const cut = {};
+    for (const k of Object.keys(off))
+      cut[k] = off[k] > 0.01 ? +(1 - on[k] / off[k]).toFixed(2) : null;
+    return { off, on, cut };
+  });
+  const cuts = Object.values(skate.cut).filter(v => v !== null);
+  check('FEET: the foot solver takes the skate out of the clips that have it',
+    cuts.length === 5 && cuts.every(v => v >= 0.5),
+    JSON.stringify(skate.cut) + ' — fraction of the source glide removed, per clip; raw '
+      + JSON.stringify(skate.off) + ' m becomes ' + JSON.stringify(skate.on)
+      + ' — with the solver off these two are the same and the check fails');
 
   // ═══ M10 · TIME DILATES WHERE THE FIGHT IS ═══
   //
