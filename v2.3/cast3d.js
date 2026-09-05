@@ -1212,6 +1212,115 @@ const _fxA = new THREE.Vector3(), _fxB = new THREE.Vector3();
 // is acting, which clip it is playing, and where the other side is standing.
 // Nothing in game.js has to describe an effect — it says "slash" the way it
 // always has, and the air does the rest.
+// ── WHAT EACH OF THEM IS HOLDING ──────────────────────────────────────────
+//
+// The hands were empty. Every clip in the library is a sword swing, a pair of
+// daggers or a staff cast, and the figure performing it was miming.
+//
+// THE GRIP IS DERIVED FROM THE RIG, NOT GUESSED AT. The one axis a hand bone
+// reliably gives you is the line out from the elbow through the wrist, and the
+// effects rig has used exactly that since it was written — "out along the
+// forearm, away from the elbow, where a blade would be". A weapon built along
+// its own +Y is turned to lie on that line, in the hand's LOCAL frame, so it
+// travels with the wrist through every clip without knowing anything about the
+// clip. Using the same axis as the trail also means the two agree, which they
+// did not when the trail came off the right hand for a staff Elin swings left.
+//
+// THE SIZE IS IN METRES AND THE BONE IS NOT. `fit` scales each figure to the
+// height the fight needs, so a blade parented to a hand inherits that scale;
+// the group divides it back out so a sword is the length it says it is
+// whatever size the model arrived at.
+const WEAPON_HAND = { sword: ['RightHand'], daggers: ['RightHand', 'LeftHand'],
+                      staff: ['LeftHand'] };
+const STEEL = { colour: 0xb9c2cc, grip: 0x2a2320, gold: 0x8a6f3c };
+
+function bladeMesh(len, wide, thick, colour) {
+  // a blade is not a box: it tapers to a point and carries a central ridge, so
+  // the two faces catch the light at different angles as it turns over
+  const g = new THREE.BufferGeometry();
+  const w = wide / 2, t = thick / 2, ric = len * 0.06;
+  const v = [
+    0, ric, 0,  -w, ric, 0,  0, ric, -t,   w, ric, 0,  0, ric, t,
+    0, len, 0,
+    -w * 0.35, len * 0.72, 0, w * 0.35, len * 0.72, 0,
+  ];
+  const f = [
+    1, 2, 6,  2, 3, 7,  3, 4, 7,  4, 1, 6,
+    6, 2, 5,  2, 7, 5,  7, 3, 5,  3, 6, 5,
+    1, 0, 2,  2, 0, 3,  3, 0, 4,  4, 0, 1,
+  ];
+  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+  g.setIndex(f);
+  g.computeVertexNormals();
+  return new THREE.Mesh(g, new THREE.MeshStandardMaterial({
+    color: colour, metalness: 0.85, roughness: 0.28, flatShading: true }));
+}
+function wrap(r, len, colour, rough) {
+  return new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.92, len, 8),
+    new THREE.MeshStandardMaterial({ color: colour, metalness: 0.15, roughness: rough || 0.8 }));
+}
+function weaponMesh(kind) {
+  const g = new THREE.Group();
+  if (kind === 'staff') {
+    // Shorter than a real quarterstaff on purpose: gripped low with a metre
+    // and a bit above the hand, a full-length one swung a two-metre pole
+    // across the whole frame every time she raised her arm to cast.
+    const shaft = wrap(0.022, 1.34, 0x4a3a2a, 0.85);
+    shaft.position.y = 0.42;
+    const head = new THREE.Mesh(new THREE.TorusGeometry(0.085, 0.016, 6, 14),
+      new THREE.MeshStandardMaterial({ color: STEEL.gold, metalness: 0.9, roughness: 0.3 }));
+    head.position.y = 1.10;
+    const stone = new THREE.Mesh(new THREE.OctahedronGeometry(0.045, 0),
+      new THREE.MeshStandardMaterial({ color: 0x9fd8ff, emissive: 0x2b6d9e,
+        emissiveIntensity: 1.4, metalness: 0.2, roughness: 0.15 }));
+    stone.position.y = 1.10;
+    g.add(shaft, head, stone);
+    return g;
+  }
+  const dagger = kind === 'daggers';
+  const len = dagger ? 0.34 : 0.86;
+  const grip = wrap(dagger ? 0.014 : 0.017, dagger ? 0.10 : 0.20, STEEL.grip);
+  grip.position.y = dagger ? -0.05 : -0.10;
+  const guard = new THREE.Mesh(
+    new THREE.BoxGeometry(dagger ? 0.10 : 0.20, 0.026, 0.038),
+    new THREE.MeshStandardMaterial({ color: STEEL.gold, metalness: 0.9, roughness: 0.34 }));
+  const pommel = new THREE.Mesh(new THREE.SphereGeometry(dagger ? 0.019 : 0.026, 8, 6),
+    new THREE.MeshStandardMaterial({ color: STEEL.gold, metalness: 0.9, roughness: 0.34 }));
+  pommel.position.y = dagger ? -0.105 : -0.21;
+  const blade = bladeMesh(len, dagger ? 0.036 : 0.055, dagger ? 0.010 : 0.016, STEEL.colour);
+  g.add(grip, guard, pommel, blade);
+  return g;
+}
+// put it in the hand, on the forearm's own axis
+function armFigure(f) {
+  const kinds = WEAPON_HAND[f.tone.strike];
+  if (!kinds || f.tone.foe) return;
+  f.weapons = [];
+  for (const hand of kinds) {
+    const h = f.bones[hand];
+    const fore = f.bones[hand === 'LeftHand' ? 'LeftForeArm' : 'RightForeArm'];
+    if (!h || !fore) continue;
+    h.updateWorldMatrix(true, false); fore.updateWorldMatrix(true, false);
+    const a = h.getWorldPosition(new THREE.Vector3());
+    const b = fore.getWorldPosition(new THREE.Vector3());
+    const dir = a.clone().sub(b).normalize();
+    const inv = h.getWorldQuaternion(new THREE.Quaternion()).invert();
+    const local = dir.applyQuaternion(inv).normalize();
+    // A STAFF RUNS AGAINST THE FOREARM, AND IT IS THE ONLY ONE THAT DOES. A
+    // sword extends the arm — a hanging hand points its blade at the floor,
+    // which is where a sheathed-length blade belongs. A staff is gripped low
+    // with the head UP, so the same axis puts the stone in the paving: shipped
+    // once that way and Elin dragged her staff along the ground by its head.
+    if (f.tone.strike === 'staff') local.negate();
+    const g = weaponMesh(f.tone.strike);
+    g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), local);
+    const sc = h.getWorldScale(new THREE.Vector3());
+    g.scale.setScalar(1 / Math.max(1e-4, (sc.x + sc.y + sc.z) / 3));
+    h.add(g);
+    f.weapons.push(g);
+  }
+}
+
 class Effects {
   constructor(scene) {
     this.sparks = new Sparks(moteTexture());
@@ -1239,7 +1348,7 @@ class Effects {
     const spec = FX_VERB[f.fxVerb];
     const swinging = f.acting && spec && spec.trail;
     if (swinging) {
-      const arm = f.tone.strike === 'daggers' ? 'LeftHand' : 'RightHand';
+      const arm = (WEAPON_HAND[f.tone.strike] || ['RightHand'])[0];
       const wrist = f.bones[arm] || f.bones.RightHand;
       const fore = f.bones[arm === 'LeftHand' ? 'LeftForeArm' : 'RightForeArm'];
       if (wrist) {
@@ -2582,6 +2691,7 @@ const Cast3D = (() => {
     wearing[key] = castId;
     const f = figs[key] = new Figure(root, tone, clips, restSrc, parentOf, windows, meta);
     f.cast = castId;
+    armFigure(f);                        // a sword clip wants a sword in it
     // one frame of the idle, so the measurement sees a standing figure rather
     // than whatever the bind pose happens to be
     f.step(0.016);
@@ -3768,7 +3878,7 @@ const Cast3D = (() => {
           // a spell gathers before it goes anywhere
           const spec = FX_VERB[verb];
           if (spec && spec.charge) {
-            const arm = f.tone.strike === 'daggers' ? 'LeftHand' : 'RightHand';
+            const arm = (WEAPON_HAND[f.tone.strike] || ['RightHand'])[0];
             const h = f.bones[arm] || f.bones.RightHand;
             if (h) fx.charge(h.getWorldPosition(new THREE.Vector3()), verb);
           }

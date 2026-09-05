@@ -2213,6 +2213,67 @@ const { boot } = require('./harness.cjs');
     JSON.stringify({ hero: lens.hero, foe: lens.foe })
       + ' — aiming at the foe alone put the hero at 0.12 and the other two off the picture');
 
+  // ═══ N · THEY ARE HOLDING SOMETHING ═══
+  //
+  // Every clip in the library is a sword swing, a pair of daggers or a staff
+  // cast, and until now the figure performing it had empty hands.
+  //
+  // The grip is derived from the rig rather than posed by hand: the line out
+  // from the elbow through the wrist is the one axis a hand bone reliably
+  // gives you, and it is the same axis the effects rig has used for the trail
+  // since it was written. So the checks are about PARENTAGE and SCALE — that
+  // the thing is a child of the hand that swings it, and that a sword is a
+  // sword's length once the figure's own fitting scale is divided back out.
+  console.log('\n── they are holding something ──');
+  const arms = await J(() => {
+    const C3 = window.Cast3D, out = {};
+    for (const id of ['ash', 'elin', 'mira']) {
+      const f = C3._figure(id);
+      if (!f) continue;
+      const w = f.weapons || [];
+      out[id] = { kind: f.tone.strike, n: w.length, inHand: 0, metres: 0 };
+      for (const g of w) {
+        // is it parented to a hand?
+        for (let o = g.parent; o; o = o.parent)
+          if (o.isBone && /Hand$/.test(o.name)) { out[id].inHand++; break; }
+        // THREE is not a global in this page, so the box is walked by hand:
+        // every mesh's own bounding box, its eight corners pushed through that
+        // mesh's world matrix, and the extent of the union
+        g.updateWorldMatrix(true, true);
+        let mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
+        g.traverse(o => {
+          if (!o.isMesh || !o.geometry) return;
+          if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+          const bb = o.geometry.boundingBox, e = o.matrixWorld.elements;
+          for (let i = 0; i < 8; i++) {
+            const x = (i & 1) ? bb.max.x : bb.min.x;
+            const y = (i & 2) ? bb.max.y : bb.min.y;
+            const z = (i & 4) ? bb.max.z : bb.min.z;
+            const p = [e[0]*x + e[4]*y + e[8]*z  + e[12],
+                       e[1]*x + e[5]*y + e[9]*z  + e[13],
+                       e[2]*x + e[6]*y + e[10]*z + e[14]];
+            for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], p[k]); mx[k] = Math.max(mx[k], p[k]); }
+          }
+        });
+        out[id].metres = Math.max(out[id].metres,
+          +Math.max(mx[0]-mn[0], mx[1]-mn[1], mx[2]-mn[2]).toFixed(2));
+      }
+    }
+    return out;
+  });
+  const want = { ash: 1, elin: 1, mira: 2 };
+  check('ARMS: every hero is holding the weapon their clips swing',
+    Object.entries(want).every(([k, n]) => arms[k] && arms[k].n === n && arms[k].inHand === n),
+    JSON.stringify(arms) + ' — a dagger pair is two, and each one has to be a'
+      + ' child of the hand that swings it');
+  // …AND AT THE SIZE IT SAYS IT IS. A blade parented to a bone inherits the
+  // scale `fit` gave the figure, which is not 1 on any of these models.
+  check('ARMS: …and a sword is a sword long, not the model scale it inherited',
+    arms.ash && arms.ash.metres > 0.7 && arms.ash.metres < 1.4
+    && arms.mira && arms.mira.metres > 0.2 && arms.mira.metres < 0.6,
+    JSON.stringify({ sword: arms.ash && arms.ash.metres, dagger: arms.mira && arms.mira.metres,
+                     staff: arms.elin && arms.elin.metres }) + ' metres, longest edge');
+
   // ═══ N · HOLDING A CARD WINDS UP; LETTING GO SWINGS ═══
   //
   // The hold mark was a constant per verb — 0.34 of the clip for a slash —
