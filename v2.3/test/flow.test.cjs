@@ -2288,9 +2288,26 @@ const { boot } = require('./harness.cjs');
       return window.K.endTurn({ grades: g });
     });
     const first = mixed.hits[0];
+    // …AND THE SHARE IS READ FROM THE LADDER, NOT WRITTEN DOWN HERE. This
+    // asserted 0.45, which is great(0.9) over two notes — true only while a
+    // great was worth 0.9. Build 162 swept the partial curve to bring the
+    // half-parry band inside its gate (0.9/0.6 -> 0.72/0.10) and this went red
+    // reporting 0.36, which is the correct answer to the question it was
+    // supposed to be asking.
+    //
+    // That is the same fault as the one described just above, in the same
+    // check: a literal standing in for a value the engine owns agrees with it
+    // only until somebody tunes it. What the check is FOR is the rule — a
+    // great pays its weight, a miss pays nothing, and the string's mitigation
+    // is their mean — so the rule is what it now states, in the ladder's own
+    // terms.
+    const pw = await J(() => window.K._parryWeights());
+    const want = pw.great / 2;                       // one great, one miss
     check('PARTIAL: each note turned aside negates its share, weighted by grade',
-      Math.abs(first.mit - 0.45) < 0.001 && first.taken === Math.round(raw * 0.55) && !first.turned,
-      JSON.stringify({ raw, mit: first.mit, taken: first.taken }));
+      Math.abs(first.mit - want) < 0.001 && first.taken === Math.round(raw * (1 - want))
+      && !first.turned,
+      JSON.stringify({ raw, mit: first.mit, taken: first.taken,
+                       want: +want.toFixed(3), great: pw.great }));
   }
   // ── the grading windows themselves ──
   {

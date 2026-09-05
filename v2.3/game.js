@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 161;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 162;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -955,7 +955,48 @@ function parryGrade(off) {
 // WEIGHTED, not counted. A note is not caught-or-not: a perfect turns its whole
 // share, a great turns most of it, a late-but-read one turns half. Counting
 // notes equally is what made "all caught" and "all perfect" the same outcome.
-const PARRY_WEIGHT = { perfect: 1, great: 0.9, good: 0.6, late: 0, miss: 0 };
+// ── AND WHAT PARTIAL PLAY IS WORTH (Build 162) ──────────────────────────────
+//
+// `good` was 0.6 — a note that was late but read paid three fifths of a
+// perfect — and it put the shipped half-parry band 24 points over its own gate.
+// The arithmetic: at p=0.5 a note comes back 15% perfect, 35% great, 25% good,
+// 25% miss. A string TURNS only if every note is GREAT or better, so at two
+// notes a quarter of strings are negated outright — and the other three
+// quarters still averaged 0.615, so the player was negating two thirds of
+// everything the Regent threw. 73-79% winrate against a gate of 25-55%.
+//
+// TURNED is not the thing to touch. A whole string read clean negating the
+// blow is the deck's most deliberate decision, and every tier above the middle
+// is built on it. What was wrong is that FAILING was nearly as good.
+//
+// Swept rather than guessed — same fights, same seeds, one curve at a time,
+// all three gates required to hold at once (test/parry.sweep.cjs):
+//
+// AND SWEPT AT THE SAMPLE THE GATE USES, which took two goes. The first sweep
+// ran 220-run bands at 90 runs and picked 0.80/0.25 on a reading of 41.1%; the
+// gate measured that same curve at 55.9% and failed it by a point. The 90 are
+// the FIRST 90 of the 220 — a strict subset — and every curve read 15-17 points
+// low on them. At n=90 the standard error near a coin flip is 5.3 points while
+// the gate's edges are 25 and 55, so the sweep was resolving less finely than
+// the choice it was making.
+//
+//   great good |  half at n=90  |  half at n=220
+//   0.90 0.60  |     73.3%      |      —          shipped, far over
+//   0.85 0.40  |     60.0%      |      —
+//   0.80 0.25  |     41.1%      |     55.9%       over the ceiling
+//   0.78 0.20  |      —         |     53.2%       holds, 1.8 from failing
+//   0.75 0.15  |     31.1%      |     47.7%       holds
+//   0.72 0.10  |      —         |     44.5%       taken — nearest the middle
+//
+// Chosen for being closest to the band's CENTRE rather than for passing: a
+// number sitting a point inside a boundary is one resample from failing, and
+// this gate had already caught that once.
+//
+// The top tier does not move: at p=0.92 more than four strings in five are
+// turned outright, so re-pricing partial credit is invisible to a player who
+// is not relying on it. That is the property that makes this the right lever —
+// it reaches the middle band and nothing else.
+const PARRY_WEIGHT = { perfect: 1, great: 0.72, good: 0.10, late: 0, miss: 0 };
 // One grade down. A gesture that was ON THE BEAT but read the note wrong is a
 // timing success and a reading failure; paying it nothing made a misread arrow
 // cost the same as no hand on the screen at all.

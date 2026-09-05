@@ -76,13 +76,18 @@ const { boot } = require('./harness.cjs');
       // it obeys the same ?foot=off switch so before and after are one session.
       const step = dur * END / (SAMPLES - 1);
       const ik = window.Cast3D._footIK();
-      const hip = [], lf = [], rf = [];
+      const hip = [], lf = [], rf = [], held = [];
       for (let i = 0; i < SAMPLES; i++) {
         a.time = (i / (SAMPLES - 1)) * dur * END;
         f.mixer.update(0);
         f.root.updateMatrixWorld(true);
         if (ik) f.footLock(step);
         f.root.updateMatrixWorld(true);
+        // …and whether the solver was actually holding either foot on this
+        // frame, which is the difference between "it ran and lost ground" and
+        // "it never engaged" — two faults that look identical from outside and
+        // want opposite work
+        held.push(!!(f._legs && f._legs.some(g => g.w > 0.5)));
         hip.push(wp(H)); lf.push(wp(L)); rf.push(wp(R));
       }
       f.floorY = undefined;      // each clip is its own ground, not the last one's
