@@ -1155,6 +1155,13 @@ const TRAIL = 22;                     // samples kept — about a third of a sec
 // corners stop being findable on a fast swing at this camera distance; the
 // cost is 105 verts instead of 22, which is nothing.
 const RIB_SUB = 5;
+// …AND HOW FAR PAST THE BLADE THE STRIP REACHES. The arc used to end exactly
+// at the tip's curve, which is the one place it must NOT end: that curve is
+// the cutting edge, and an edge with nothing outside it cannot glow. It can
+// only stop. Flaring the outer rail a third past the tip gives the light
+// somewhere to fall off into, and costs nothing but a wider quad — the edge
+// itself stays exactly where the steel was, at `1/RIB_FLARE` across the band.
+const RIB_FLARE = 1.34;
 // ── CENTRIPETAL CATMULL-ROM ────────────────────────────────────────────────
 //
 // Uniform Catmull-Rom — the textbook one, with the 2/-5/4/-1 coefficients —
@@ -1300,7 +1307,7 @@ class Ribbon {
     //          at the grip so the crescent has a silhouette rather than
     //          dissolving, and frayed by a little turbulence as it ages.
     const SHAPE = `
-      uniform float uFade, uTime, uGain;
+      uniform float uFade, uTime, uGain, uTip;
       varying vec2 vUv;
       varying vec4 vClip;
       float hash(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
@@ -1311,28 +1318,40 @@ class Ribbon {
                    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
       }
       // 0 at the oldest sample, 1 at the blade right now
-      float lifeOf() { return pow(clamp(vUv.x, 0.0, 1.0), 1.6); }
-      // how far inboard of the tip's curve this pixel sits
-      float inOf() { return 1.0 - clamp(vUv.y, 0.0, 1.0); }
+      float lifeOf() { return pow(clamp(vUv.x, 0.0, 1.0), 1.5); }
+      // signed across the band: 0 ON the cutting edge, positive OUTSIDE it in
+      // the flare, negative inboard through the body toward the grip
+      float offOf() { return clamp(vUv.y, 0.0, 1.0) - uTip; }
       float edgeOf(float life) {
-        float d = inOf();
         // never thinner than the pixel, so the line antialiases instead of
         // breaking into dashes when the arc is far away or nearly edge-on
-        float w = max(fwidth(vUv.y) * 1.6, mix(0.085, 0.028, life));
-        return 1.0 - smoothstep(0.0, w, d);
+        float w = max(fwidth(vUv.y) * 1.6, mix(0.070, 0.022, life));
+        return 1.0 - smoothstep(0.0, w, abs(offOf()));
       }
       float bodyOf(float life) {
-        float b = exp(-inOf() * 2.6) * smoothstep(0.0, 0.05, clamp(vUv.y, 0.0, 1.0));
+        float d = max(-offOf(), 0.0);              // inboard only
+        float b = exp(-d * 3.0) * smoothstep(0.0, 0.05, clamp(vUv.y, 0.0, 1.0));
         // the tail frays; the head is clean because it was just cut — and the
         // fray never touches the edge, which has to stay a line
         float turb = noise(vec2(vUv.x * 11.0 - uTime * 2.6, vUv.y * 3.5 + uTime * 0.7));
         return b * mix(0.45 + 0.55 * turb, 1.0, life);
+      }
+      // THE HALO, which is the whole reason the strip runs past the steel. Wide
+      // and symmetric about the edge, so the cut sits in its own light instead
+      // of being a bright line pasted on the world.
+      float bloomOf(float life) {
+        return exp(-abs(offOf()) * 5.4) * (0.30 + 0.70 * life);
       }`;
 
     const common = {
       uFade: { value: 0 }, uTime: { value: 0 }, uGain: { value: 1 },
-      uHot:  { value: new THREE.Color(0xfff6ea) },
-      uCool: { value: new THREE.Color(0x6f9ad4) },
+      uTip:  { value: 1 / RIB_FLARE },
+      uHot:  { value: new THREE.Color(0xfffdf6) },
+      // …AND A WARM STOP BETWEEN THE TWO. Two colours can only ramp; three can
+      // COOL, which is what a struck arc does — white at the steel, gold just
+      // behind it, and the blue of the air by the time the tail has gone.
+      uWarm: { value: new THREE.Color(0xffcf87) },
+      uCool: { value: new THREE.Color(0x5f86c8) },
     };
     // ── PASS ONE: THE AIR ────────────────────────────────────────────────────
     // Normal blending, so it can REPLACE the pixel with a displaced sample of
@@ -1349,11 +1368,12 @@ class Ribbon {
         uniform float uAmt;
         void main() {
           float life = lifeOf();
-          float body = bodyOf(life);
+          float body = max(bodyOf(life), bloomOf(life) * 0.55);
           vec2 uv = (vClip.xy / vClip.w) * 0.5 + 0.5;
           // outward from the cut, strongest just behind the edge and at the
-          // young end of the arc, gone by the time the tail has cooled
-          float lens = (clamp(vUv.y, 0.0, 1.0) - 0.5) * 2.0;
+          // young end of the arc, gone by the time the tail has cooled — and
+          // it reverses across the edge, which is what a lens does
+          float lens = offOf() * 2.4;
           float k = uAmt * uFade * body * (0.35 + 0.65 * life);
           vec2 off = vec2(lens, lens * 0.35) * k;
           vec3 c;
@@ -1374,26 +1394,31 @@ class Ribbon {
       vertexShader: CHUNK,
       fragmentShader: SHAPE + `
         uniform sampler2D uMap;
-        uniform vec3 uHot, uCool;
+        uniform vec3 uHot, uWarm, uCool;
         void main() {
           float life = lifeOf();
           float body = bodyOf(life);
           float edge = edgeOf(life);
+          float halo = bloomOf(life);
           // the ink of the swing still shapes the wide part; it never touches
           // the edge, which is geometry rather than texture
           float ink = 0.40 + 0.60 * texture2D(uMap, vUv).a;
           float glow = body * ink * life * uFade;
           float cut  = edge * life * uFade;
-          // ── AND IT HAS TO OUTSHINE THE WEATHER ─────────────────────────
-          // Additive light only reads as light if it beats what is already
-          // there, and this plaza is bright grey fog at better than half
-          // white. The cut deliberately overshoots 1.0: there is no tone
-          // mapping here, so it clips to white, which is what a hot edge does
-          // — and clipping is what makes it read as a hard line rather than a
-          // bright smudge.
-          vec3 col = (mix(uCool, uHot, pow(life, 1.5)) * glow * 2.20
-                   + uHot * cut * 7.00) * uGain;
-          gl_FragColor = vec4(col, clamp((glow * 0.50 + cut) * uGain, 0.0, 1.0));
+          float air  = halo * uFade * 0.85;
+          // ── IT COOLS AS IT AGES ────────────────────────────────────────
+          // White where the steel is, gold just behind it, the blue of the air
+          // by the tail. Two stops could only fade; three can cool, and cooling
+          // is what makes a struck arc read as something that HAPPENED rather
+          // than something that is being drawn.
+          vec3 c = mix(uCool, uWarm, smoothstep(0.0, 0.55, life));
+          c = mix(c, uHot, smoothstep(0.50, 1.0, life));
+          // …and the cut deliberately overshoots 1.0. There is no tone mapping
+          // here, so it clips to white — and clipping is exactly what makes it
+          // read as a hard edge rather than a bright smudge.
+          vec3 col = (c * glow * 2.60 + c * air * 1.05 + uHot * cut * 11.50) * uGain;
+          gl_FragColor = vec4(col,
+            clamp((glow * 0.45 + air * 0.30 + cut) * uGain, 0.0, 1.0));
         }`,
     });
     // ONE GEOMETRY, TWO DRAWS. The air goes down first so the light lands on
@@ -1447,7 +1472,10 @@ class Ribbon {
     // THE TAIL DIES ON ITS OWN. A trail that is simply switched off at the end
     // of the swing pops; one that keeps drawing while its opacity falls reads
     // as the air closing behind the blade.
-    this.fade = Math.max(0, this.fade - dt * 3.6);
+    // …AND IT LINGERS A BEAT LONGER. At 3.6 the arc was gone almost as the blade
+    // finished, which is tidy and reads as a UI flourish; a struck arc should
+    // still be closing while the body recovers.
+    this.fade = Math.max(0, this.fade - dt * 2.9);
     const f = this.fade * this.fade * 0.95;
     this.mat.uniforms.uFade.value = f;
     this.refMat.uniforms.uFade.value = f;
@@ -1474,6 +1502,10 @@ class Ribbon {
       const o = i * 6;
       cr(p0.a, p1.a, p2.a, p3.a, t, this.pos, o);
       cr(p0.b, p1.b, p2.b, p3.b, t, this.pos, o + 3);
+      // …and the outer rail runs on past the steel, so the glow has room
+      for (let c = 0; c < 3; c++)
+        this.pos[o + 3 + c] = this.pos[o + c]
+          + (this.pos[o + 3 + c] - this.pos[o + c]) * RIB_FLARE;
     }
     this.geo.attributes.position.needsUpdate = true;
   }
