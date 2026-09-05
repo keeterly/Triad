@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=151" />
+  <link rel="stylesheet" href="styles.css?v=152" />
 </head>
 <body>
   <div id="k-scale">
@@ -63,8 +63,13 @@
           <img src="../art/kai-face.webp" alt="">
           <div class="k-pt-info">
             <span class="k-pt-name">Ash</span>
-            <span class="k-pt-hp"><b>42</b> / 42</span>
-            <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
+            <!-- BAR THEN NUMBER, ON ONE LINE — the same shape the foe
+                 plate uses, so a player reads both sides of the fight the
+                 same way instead of learning two layouts. -->
+            <div class="k-pt-row">
+              <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
+              <span class="k-pt-hp"><b>42</b> / 42</span>
+            </div>
           </div>
         </div>
         <div class="k-pt-hero" data-hero="elin">
@@ -74,8 +79,13 @@
           <img src="../art/elin-face.webp" alt="">
           <div class="k-pt-info">
             <span class="k-pt-name">Elin</span>
-            <span class="k-pt-hp"><b>36</b> / 36</span>
-            <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
+            <!-- BAR THEN NUMBER, ON ONE LINE — the same shape the foe
+                 plate uses, so a player reads both sides of the fight the
+                 same way instead of learning two layouts. -->
+            <div class="k-pt-row">
+              <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
+              <span class="k-pt-hp"><b>36</b> / 36</span>
+            </div>
           </div>
         </div>
         <div class="k-pt-hero" data-hero="mira">
@@ -85,8 +95,13 @@
           <img src="../art/mira-face.webp" alt="">
           <div class="k-pt-info">
             <span class="k-pt-name">Mira</span>
-            <span class="k-pt-hp"><b>34</b> / 34</span>
-            <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
+            <!-- BAR THEN NUMBER, ON ONE LINE — the same shape the foe
+                 plate uses, so a player reads both sides of the fight the
+                 same way instead of learning two layouts. -->
+            <div class="k-pt-row">
+              <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
+              <span class="k-pt-hp"><b>34</b> / 34</span>
+            </div>
           </div>
         </div>
         <div class="k-pt-shared">
@@ -518,13 +533,13 @@
     setTimeout(check, 2500);
   })();
   </script>
-  <script src="run.js?v=151"></script>
-  <script src="game.js?v=151"></script>
+  <script src="run.js?v=152"></script>
+  <script src="game.js?v=152"></script>
   <!-- THE CAST IN THREE DIMENSIONS — a module, and inert unless ?cast=3d.
        It draws one canvas under the DOM heroes and paints a rigged figure
        into each hero's box; everything above it (rows, drag, aim, popups,
        the party HUD) is untouched. -->
-  <script type="module" src="cast3d.js?v=151"></script>
+  <script type="module" src="cast3d.js?v=152"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

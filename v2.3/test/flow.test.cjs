@@ -822,66 +822,37 @@ const { boot } = require('./harness.cjs');
       }
       return { n, bad, W: Math.round(document.getElementById('k-stage').getBoundingClientRect().width) };
     });
-    // THE ROW AND THE CHIP MUST NOT DISAGREE. The incoming badge exists so the
-    // threat sits beside the health bar it will empty — and a first pass folded
-    // the dirge into one total, so Ash's row read a flat 12 while the telegraph
-    // beside it read `9 ASH` and `3 all`. Two authoritative numbers for one
-    // event is worse than the journey across the screen the badge removed. And
-    // the AIMED outline has to mean aimed: every foe carries a dirge and the
-    // dirge reaches everybody, so keying it on total incoming lit all three
-    // rows on every turn of every fight, which is chrome.
+    // THE PARTY IS LAID OUT LIKE THE FOES. Both sides of the same fight used
+    // to read differently — the roster stacked name / numbers / bar, the foe
+    // plate ran bar-then-numbers on one line — so learning one taught nothing
+    // about the other. And the roster carried a red chip reading the turn's
+    // incoming damage pinned to each bar, which put four numbers in one corner
+    // with nothing to say which to act on. The chip is gone; what is left is
+    // the outline, which still means somebody is aimed at.
     const rows = await J(async () => {
       window.K.startCombat({ seed: 7 });
       window.K.forceIntent('hymn');           // ash twice, elin once, mira not at all
       await new Promise(r => setTimeout(r, 60));
       const by = {};
       window.K.intentByTarget().forEach(r2 => { by[r2.who] = r2.total; });
-      const dg = window.K.dirgeAmount();
-      const read = {};
-      ['ash', 'elin', 'mira'].forEach(id => {
-        const e = document.querySelector('.k-pt-hero[data-hero="' + id + '"] .k-pt-inc');
-        read[id] = e ? e.textContent.replace(/[^0-9+]/g, '') : null;
+      const geom = ['ash', 'elin', 'mira'].map(id => {
+        const row = document.querySelector('.k-pt-hero[data-hero="' + id + '"]');
+        if (!row) return null;
+        const bar = row.querySelector('.k-bar'), num = row.querySelector('.k-pt-hp');
+        if (!bar || !num) return null;
+        const b = bar.getBoundingClientRect(), n = num.getBoundingClientRect();
+        return { id, right: Math.round(n.left - b.right),
+                 mid: Math.round(Math.abs((n.top + n.bottom) / 2 - (b.top + b.bottom) / 2)) };
       });
-      return { by, dg, read,
+      return { by, geom,
+               chips: document.querySelectorAll('#k-party-hud .k-pt-inc').length,
                aimed: [...document.querySelectorAll('.k-pt-hero.k-pt-aimed')].map(e => e.dataset.hero) };
     });
-    const want = (id) => (rows.by[id] ? rows.by[id] + '+' + rows.dg : String(rows.dg));
-    check('HUD: each hero’s badge shows the same two numbers the telegraph does — aimed, then shared',
-      ['ash', 'elin', 'mira'].every(id => rows.read[id] === want(id)),
-      JSON.stringify({ read: rows.read, aimed: rows.by, dirge: rows.dg }));
-    // A GLYPH THAT MEANS WHAT IT SHOWS. The badge wore ✦ — a sparkle, which
-    // every game in the genre uses for something you WANT — so a red box saying
-    // "✦7+2" beside a health bar was a riddle rather than a warning, and a
-    // playtester asked outright what it was. It is an arrow pointing DOWN into
-    // the bar it is about to empty, a skull when the emptying is fatal, and it
-    // carries the sentence it is shorthand for.
-    const glyph = await J(() => {
-      const read = () => ['ash', 'elin', 'mira'].map(id => {
-        const e = document.querySelector('.k-pt-hero[data-hero="' + id + '"] .k-pt-inc');
-        return e ? { g: (e.textContent || '')[0], title: e.title || '' } : null;
-      }).filter(Boolean);
-      const live = read();
-      const c = window.K.state();
-      const was = {};
-      ['ash', 'elin', 'mira'].forEach(id => {
-        was[id] = [c.heroes[id].hp, c.heroes[id].guard];
-        c.heroes[id].hp = 1; c.heroes[id].guard = 0;
-      });
-      window.K.render();
-      const lethal = read();
-      // …and put the fight back exactly as it was: everything below this reads
-      // the same combat, and three heroes left on 1 health is not it.
-      ['ash', 'elin', 'mira'].forEach(id => {
-        c.heroes[id].hp = was[id][0]; c.heroes[id].guard = was[id][1];
-      });
-      window.K.render();
-      return { live, lethal };
-    });
-    check('HUD: the incoming badge is an arrow into the bar, a skull when it kills, and says so in words',
-      glyph.live.length === 3 && glyph.live.every(r => r.g === '\u25be')
-      && glyph.lethal.every(r => r.g === '\u2620')
-      && glyph.live.every(r => /Incoming this turn/.test(r.title) && /\d/.test(r.title)),
-      JSON.stringify(glyph));
+    check('HUD: the telegraph chips are off the party health bars',
+      rows.chips === 0, 'chips on party rows: ' + rows.chips);
+    check('HUD: each hero reads bar-then-number on one line, the way every foe plate does',
+      rows.geom.length === 3 && rows.geom.every(g => g && g.right >= 0 && g.right <= 14 && g.mid <= 4),
+      JSON.stringify(rows.geom));
 
     check('HUD: the aimed outline means AIMED — not merely alive under a dirge that reaches everyone',
       rows.aimed.length === Object.keys(rows.by).length

@@ -157,7 +157,12 @@ const LOOK = {
   lift:  0.36,  // watercolour has no true black; the paper shows through
   edge:  0.78,  // pigment pooling at the silhouette — the signature move
   grain: 0.16,  // the paper's tooth, in screen space
-  air:   0.78,  // how hard the row ladder washes out the back ranks
+  // THE LADDER SEPARATES RANKS; IT DOES NOT FOG THEM. At 0.78 the back rank
+  // reached air 0.53 — 22% of its colour gone to grey and a tenth of it mixed
+  // into the paper — so Mira read as weather and Elin as half-weather while
+  // Ash, one rank forward, read as a person. The three ranks are still three
+  // distances; the distance is just no longer the loudest thing about them.
+  air:   0.42,  // how hard the row ladder washes out the back ranks
   // THE GROUND (Build 119). The floor is not scenery — the plaza is already
   // painted — so it has exactly two settings: how dark a real contact shadow
   // lands on that painting, and how much painted ground shows under the party.
@@ -534,11 +539,16 @@ function watercolour(map, tone) {
           // THE LADDER IS NOT PART OF THE TREATMENT. Back ranks lose saturation
           // and sit down in value whatever the paint is doing, because
           // FRONT/MID/BACK is a thing the player has to read, not a mood.
+          // …and the three things it does are not equally worth doing. Losing
+          // saturation with distance is aerial perspective and it reads as
+          // depth. Mixing the body into the PAPER is what reads as haze — it
+          // is the same move the fog makes, done twice — so it is now the
+          // smallest of the three rather than the equal of them.
           float g = dot(c, vec3(0.299, 0.587, 0.114));
           float air = (1.0 - uDepth) * uAir;
-          c = mix(c, vec3(g), air * 0.42);
-          c *= 1.0 - air * 0.18;
-          c = mix(c, uPaper * 0.92, air * 0.20);
+          c = mix(c, vec3(g), air * 0.34);
+          c *= 1.0 - air * 0.12;
+          c = mix(c, uPaper * 0.92, air * 0.10);
           // …and if the world has been taken down for a moment that is not
           // about this body, take this body down with it. The lights do the
           // scene; this does the figures, because a dimmed key still leaves a

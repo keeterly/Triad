@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 151;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 152;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -5714,16 +5714,6 @@ function setBar(bar, pct) {
   ghost.classList.remove('k-bar-hit'); void ghost.offsetWidth; ghost.classList.add('k-bar-hit');
   ghost._t = setTimeout(() => { ghost.style.width = pct + '%'; }, 190);
 }
-// THE BADGE IS SHORTHAND; THIS IS THE SENTENCE. A number in a red box is only
-// legible to a player who already knows what the box means, so the box says it
-// in words on hover — and the words name the two sources separately, the same
-// split the chip row telegraphs.
-function incTitle(id, aimed, shared) {
-  const parts = [];
-  if (aimed[id]) parts.push(fmtN(aimed[id]) + ' aimed at ' + HEROES23[id].name);
-  if (shared[id]) parts.push(fmtN(shared[id]) + ' from the dirge, on everyone');
-  return 'Incoming this turn — ' + parts.join(' \u00b7 ');
-}
 function renderPartyHud() {
   // what this turn is about to do to each of them, read from the same function
   // the chip row reads — one source, so the two can never disagree
@@ -5755,25 +5745,20 @@ function renderPartyHud() {
     if (!row) continue;
     row.classList.toggle('k-downed', !!h.downed);
     setBar(row.querySelector('.k-bar'), h.hp / h.max * 100);
+    // THE NUMBERS AND NOTHING ELSE. The row carried a red chip reading
+    // "\u25be9+3" — the turn's incoming damage, split into its aimed and shared
+    // parts — pinned to the health bar it was about to empty. It was read as
+    // clutter rather than as a warning: a small boxed figure beside another
+    // figure, in a corner already carrying a name, a bar and a fraction, with
+    // no room left to say which of the four numbers to act on. The threat is
+    // still told, twice: the chip row above the board says what the turn does,
+    // and the bar itself outlines when somebody is actually being aimed at.
     row.querySelector('.k-pt-hp').innerHTML = '<b>' + fmtN(h.hp) + '</b> / ' + fmtN(h.max)
-      + (h.guard > 0 ? ' <span class="k-pt-guard">⛨' + fmtN(h.guard) + '</span>' : '')
-      + (incoming[id] ? ' <span class="k-pt-inc" title="' + incTitle(id, aimed, shared) + '">'
-          // A GLYPH THAT MEANS WHAT IT SHOWS. The badge wore \u2726 — a sparkle,
-          // which every game in the genre uses for something you WANT — so a red
-          // box saying "\u27267" beside a health bar was a riddle rather than a
-          // warning. It is an arrow pointing down into the bar it is about to
-          // empty, and a skull when that emptying is fatal.
-          + (incoming[id] >= h.hp + h.guard && !h.downed ? '\u2620' : '\u25be')
-          // a hero nobody is aiming at reads the shared number alone, not "0+3"
-          + (aimed[id] ? fmtN(aimed[id]) + (shared[id] ? '<s>+' + fmtN(shared[id]) + '</s>' : '')
-                       : fmtN(shared[id] || 0))
-          + '</span>' : '');
-    // THE THREAT BELONGS BESIDE THE BAR IT WILL EMPTY. The telegraph lived
-    // seven hundred pixels away in the top-right corner, so reading "who takes
-    // 13 twice" and reading "who is at 4 health" were two separate journeys
-    // across the screen, and the player had to hold one of them in their head.
-    // The same number is now in both places: the chip row says what the turn
-    // does, each hero's own row says what it does TO THEM.
+      + (h.guard > 0 ? ' <span class="k-pt-guard">⛨' + fmtN(h.guard) + '</span>' : '');
+    // THE OUTLINE IS WHAT IS LEFT OF THE TELEGRAPH, and it is the half that
+    // needed no reading: the bar of whoever is about to be hit gets a rim, and
+    // the name goes red when the blow would finish them. No number, because
+    // the number is already on the chip row above the board.
     // AND THE OUTLINE MEANS AIMED, NOT MERELY PRESENT. Every foe in the
     // bestiary carries a dirge and the dirge reaches everyone, so keying this
     // on `incoming` lit all three rows on every turn of every fight — a
