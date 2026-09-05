@@ -1009,9 +1009,51 @@ class Ribbon {
     g.setAttribute('uv', new THREE.BufferAttribute(this.uv, 2));
     g.setIndex(idx);
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 60);
-    this.mat = new THREE.MeshBasicMaterial({
-      map, transparent: true, depthWrite: false, side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending, opacity: 0,
+    // ── THE ARC IS SHADED, NOT STAMPED ────────────────────────────────────
+    //
+    // It was one additive quad wearing a texture, at a flat opacity, with a
+    // hard edge everywhere: the same brightness at the tail as at the blade,
+    // the same across the width, and a border where the geometry stopped. That
+    // is what reads as cheap — nothing in it says which end is moving.
+    //
+    // Now the two directions do different work. ALONG the arc (u) the head is
+    // a hot near-white edge falling away through the trail's own colour to
+    // nothing at the tail, on a curve rather than a ramp so the leading edge
+    // stays tight while the tail goes soft. ACROSS it (v) the alpha falls off
+    // toward both the grip and the tip, so the band has no border — it is
+    // brightest along the blade's own line.
+    this.mat = new THREE.ShaderMaterial({
+      uniforms: { uMap: { value: map }, uFade: { value: 0 },
+                  uHot: { value: new THREE.Color(0xfff4e2) },
+                  uCool: { value: new THREE.Color(0x7fa8d8) } },
+      transparent: true, depthWrite: false, depthTest: true,
+      side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D uMap;
+        uniform float uFade;
+        uniform vec3 uHot, uCool;
+        varying vec2 vUv;
+        void main() {
+          // along the arc: 0 is the oldest sample, 1 is the blade right now
+          float head = pow(clamp(vUv.x, 0.0, 1.0), 2.2);
+          // across it: no border, brightest down the middle of the swept band
+          float band = sin(clamp(vUv.y, 0.0, 1.0) * 3.14159265);
+          band = pow(band, 0.65);
+          float a = head * band * uFade;
+          // the ink of the swing itself, so a stamped texture still shapes it
+          a *= 0.35 + 0.65 * texture2D(uMap, vUv).a;
+          // and the leading edge burns out toward white while the tail cools
+          vec3 col = mix(uCool, uHot, pow(head, 1.6));
+          gl_FragColor = vec4(col * (0.55 + 1.45 * head), a);
+        }
+      `,
     });
     this.mesh = new THREE.Mesh(g, this.mat);
     this.mesh.frustumCulled = false;
@@ -1022,12 +1064,17 @@ class Ribbon {
     this.pts = [];
     for (let i = 0; i < TRAIL; i++) this.pts.push({ a: new THREE.Vector3(), b: new THREE.Vector3() });
   }
-  // one sample: the wrist, and a point `reach` metres out along the forearm's
-  // own direction — which is where a blade would be
+  // ONE SAMPLE IS THE BLADE ITSELF. `out` used to be a direction and `reach` a
+  // guess at how far along it a weapon would reach, because there was no
+  // weapon: the arc was a segment hung off the wrist. There are real blades in
+  // these hands now, so `a` and `b` are the weapon's own base and tip and the
+  // ribbon is the surface the edge actually swept. `reach` survives only for
+  // the figures that still have nothing to hold.
   push(wrist, out, reach) {
     const p = this.pts[this.head];
     p.a.copy(wrist);
-    p.b.copy(out).sub(wrist).normalize().multiplyScalar(reach).add(wrist);
+    if (reach > 0) p.b.copy(out).sub(wrist).normalize().multiplyScalar(reach).add(wrist);
+    else p.b.copy(out);
     this.head = (this.head + 1) % TRAIL;
     if (this.filled < TRAIL) this.filled++;
     this.fade = 1;
@@ -1038,7 +1085,7 @@ class Ribbon {
     // of the swing pops; one that keeps drawing while its opacity falls reads
     // as the air closing behind the blade.
     this.fade = Math.max(0, this.fade - dt * 3.6);
-    this.mat.opacity = this.fade * this.fade * 0.95;
+    this.mat.uniforms.uFade.value = this.fade * this.fade * 0.95;
     // TWO SAMPLES IS A QUAD, AND A QUAD IS A SLASH. Requiring three meant a
     // frame rate low enough to take fewer than three samples during a swing
     // drew no arc at all — which is not a state anybody should ship to, since
@@ -1275,6 +1322,7 @@ function weaponMesh(kind) {
         emissiveIntensity: 1.4, metalness: 0.2, roughness: 0.15 }));
     stone.position.y = 1.10;
     g.add(shaft, head, stone);
+    g.userData.edge = [0.55, 1.10];      // a staff draws from its head, not its length
     return g;
   }
   const dagger = kind === 'daggers';
@@ -1289,6 +1337,9 @@ function weaponMesh(kind) {
   pommel.position.y = dagger ? -0.105 : -0.21;
   const blade = bladeMesh(len, dagger ? 0.036 : 0.055, dagger ? 0.010 : 0.016, STEEL.colour);
   g.add(grip, guard, pommel, blade);
+  // where the edge starts and ends, so the trail can be the blade rather than
+  // a guess hung off the wrist
+  g.userData.edge = [0, len];
   return g;
 }
 // put it in the hand, on the forearm's own axis
@@ -1334,6 +1385,48 @@ class Effects {
     for (const it of this.cuts.items) scene.add(it.mesh);
     this.scene = scene;
   }
+  // ── AND THE EDGE THROWS OFF LIGHT WHEN IT MOVES ───────────────────────
+  //
+  // A swing that only draws a band is a decal. Steel travelling fast enough
+  // sheds motes from the point, and because the tip's own speed decides it,
+  // the shower is dense exactly where the swing is quickest and stops without
+  // being told when the follow-through slows down. No new pool: these are the
+  // same sparks the impact uses, thrown small, short-lived and nearly weightless
+  // so they hang in the arc rather than raining out of it.
+  shed(id, tip, dt) {
+    const last = (this.tips || (this.tips = {}))[id];
+    if (!last) { this.tips[id] = tip.clone(); return; }
+    const move = tip.distanceTo(last);
+    const speed = move / Math.max(1e-4, dt);
+    last.copy(tip);
+    // ── THE THRESHOLD IS THE BLADE'S OWN SPEED, MEASURED ──
+    //
+    // Metres per second of screen time, sampled along each clip at the weapon's
+    // tip rather than guessed:
+    //
+    //     clip           peak   median   p75    frames over 14 m/s
+    //     sword          61.8      6.7  12.1          19 of 79
+    //     swordHeavy     69.0      5.3  10.5          18
+    //     daggers        69.3      8.2  14.2          21
+    //     cast           12.6      1.7   5.9           0
+    //
+    // 14 is above the median swing and above EVERYTHING the spell does, which
+    // is the line that matters: a staff gathering light should not throw steel.
+    // The first cut used 5, which two thirds of every clip clears — including
+    // a third of the cast — and would have shed through the whole library.
+    if (speed < 14) return;
+    // …spread along the path travelled this frame, so a fast swing does not
+    // stack every mote on one point, and more of them the harder it is moving
+    const n = Math.min(4, Math.ceil((speed - 14) / 14));
+    for (let k = 0; k < n; k++) {
+      _fxV.copy(tip).lerp(last, Math.random());
+      _fxD.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5);
+      this.sparks.emit(_fxV, _fxD, 1, { speed: 0.8 + Math.random() * 1.4, spread: 1.6,
+                                        life: 0.20 + Math.random() * 0.16,
+                                        size: 0.018 + Math.random() * 0.016,
+                                        grav: -0.6, drag: 3.4 });
+    }
+  }
   ribbonFor(id) {
     if (!this.ribbons[id]) {
       const r = new Ribbon(this.slashMap);
@@ -1351,7 +1444,20 @@ class Effects {
       const arm = (WEAPON_HAND[f.tone.strike] || ['RightHand'])[0];
       const wrist = f.bones[arm] || f.bones.RightHand;
       const fore = f.bones[arm === 'LeftHand' ? 'LeftForeArm' : 'RightForeArm'];
-      if (wrist) {
+      // THE ARC IS THE BLADE'S, WHEN THERE IS A BLADE. The weapon group runs
+      // along its own +Y, so its `edge` says where the steel starts and stops;
+      // pushing those two points is the surface the edge really swept. Without
+      // one — a foe, or a figure holding nothing — it falls back to the old
+      // guess along the forearm.
+      const w = (f.weapons || [])[0];
+      if (w && w.userData.edge) {
+        w.updateWorldMatrix(true, false);
+        const e = w.userData.edge;
+        _fxA.set(0, e[0], 0).applyMatrix4(w.matrixWorld);
+        _fxB.set(0, e[1], 0).applyMatrix4(w.matrixWorld);
+        this.ribbonFor(id).push(_fxA, _fxB, 0);
+        this.shed(id, _fxB, dt);
+      } else if (wrist) {
         wrist.getWorldPosition(_fxA);
         if (fore) fore.getWorldPosition(_fxB); else _fxB.copy(_fxA).add(_fxD.set(0, 1, 0));
         // out along the forearm, away from the elbow — where a blade would be
