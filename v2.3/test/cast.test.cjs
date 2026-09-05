@@ -2543,6 +2543,49 @@ const { boot } = require('./harness.cjs');
   check('ARC: a swing draws both halves of the trail — the air it bends and the light it throws',
     !arc.err && arc.light === true && arc.air === true && arc.filled >= 20,
     JSON.stringify(arc));
+  // ── AND IT IS A CURVE, NOT A CHAIN OF SAMPLES ───────────────────────────
+  //
+  // "Jaggedy" is a corner, and a corner is a turn between two consecutive
+  // segments of the strip — so walk the tip's own edge and take the angle at
+  // every joint. One sample per frame and one quad per sample turned hard at
+  // every joint, and the faster the blade moved the worse it got, which is to
+  // say it was jaggiest exactly when it was most looked at.
+  //
+  // The control is in the same frame rather than in a second run: `worstRaw`
+  // walks only the control points, which IS the strip the old geometry drew.
+  // A spline has to turn less at its worst joint than the polygon it was drawn
+  // to smooth — and the first attempt did not. Uniform Catmull-Rom assumes
+  // evenly spaced points, a blade's are anything but, and it overshot to 64°
+  // against the chain's 52°. Centripetal spacing is the member of the family
+  // that provably cannot overshoot; it reads 44° against 48°.
+  const arcTurn = await J(() => {
+    const r = window.Cast3D._fx().ribbons.ash;
+    const p = r.geo.attributes.position.array, N = p.length / 6;
+    const tip = (i) => [p[i * 6 + 3], p[i * 6 + 4], p[i * 6 + 5]];
+    const walk = (stride) => {
+      const out = [];
+      for (let i = stride; i < N - stride; i += stride) {
+        const a = tip(i - stride), b = tip(i), c = tip(i + stride);
+        const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+        const w = [c[0] - b[0], c[1] - b[1], c[2] - b[2]];
+        const lu = Math.hypot(u[0], u[1], u[2]), lw = Math.hypot(w[0], w[1], w[2]);
+        if (lu < 1e-6 || lw < 1e-6) continue;
+        const d = (u[0] * w[0] + u[1] * w[1] + u[2] * w[2]) / (lu * lw);
+        out.push(Math.acos(Math.max(-1, Math.min(1, d))) * 180 / Math.PI);
+      }
+      return out.sort((x, y) => y - x);
+    };
+    const fine = walk(1), raw = walk(5);
+    return { verts: N, worst: +(fine[0] || 0).toFixed(1),
+             p95: +(fine[Math.floor(fine.length * 0.05)] || 0).toFixed(1),
+             worstRaw: +(raw[0] || 0).toFixed(1) };
+  });
+  check('ARC: the strip is a curve through the samples, and turns less than they do',
+    arcTurn.verts > 100 && arcTurn.worst > 0 && arcTurn.worst < arcTurn.worstRaw
+    && arcTurn.p95 < 20,
+    JSON.stringify(arcTurn) + ' — degrees per joint; uniform Catmull-Rom overshot'
+      + ' to 64 against the chain\'s 52 before centripetal spacing');
+
   check('ARC: the refraction pass has a frame of world to bend, and is not reading its own',
     !arc.err && arc.behind === true && arc.order[0] < arc.order[1],
     JSON.stringify(arc) + ' — the world alternates between two targets; sampling'

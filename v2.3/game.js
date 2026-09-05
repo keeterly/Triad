@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 154;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 155;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big

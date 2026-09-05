@@ -1141,20 +1141,85 @@ class Sparks {
 // sixty times a second by an animation the fight chose, so the arc is
 // automatically the arc that character makes with that weapon. Ash's longsword
 // and Mira's daggers do not need separate art; they have separate arms.
-const TRAIL = 22;                     // segments kept — about a third of a second
+const TRAIL = 22;                     // samples kept — about a third of a second
+// …and how many vertices are drawn between two of them. Five is where the
+// corners stop being findable on a fast swing at this camera distance; the
+// cost is 105 verts instead of 22, which is nothing.
+const RIB_SUB = 5;
+// ── CENTRIPETAL CATMULL-ROM ────────────────────────────────────────────────
+//
+// Uniform Catmull-Rom — the textbook one, with the 2/-5/4/-1 coefficients —
+// assumes its control points are evenly spaced. A blade's are not: the tip
+// crawls through the wind-up and covers half a metre in a frame at the peak of
+// the stroke, so the parameterisation is wildly uneven and the curve OVERSHOOTS
+// at every sharp joint, bulging outside the points it is supposed to smooth.
+// Measured on a sword swing: the uniform spline's worst joint turned 64°, worse
+// than the 52° of the raw sample chain it was drawn to smooth. A spline that
+// turns harder than the polygon is not smoothing anything.
+//
+// Spacing the knots by the square root of the distance between points — the
+// centripetal parameterisation, alpha = 0.5 — is the one choice in the family
+// that provably cannot overshoot or form a cusp, whatever the points do. It
+// costs three square roots per segment and nothing else.
+//
+// Written straight into the output array: this runs for every vertex of every
+// arc every frame, and allocating a Vector3 here would be the most expensive
+// thing the effects layer does.
+function knot(t, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+  return t + Math.sqrt(Math.sqrt(dx * dx + dy * dy + dz * dz)) || t + 1e-4;
+}
+function cr(p0, p1, p2, p3, u, out, o) {
+  const t0 = 0, t1 = knot(t0, p0, p1), t2 = knot(t1, p1, p2), t3 = knot(t2, p2, p3);
+  // a run of coincident points leaves a zero-length knot span; fall back to the
+  // segment's own endpoints rather than dividing by it
+  if (!(t1 > t0) || !(t2 > t1) || !(t3 > t2)) {
+    out[o] = p1.x + (p2.x - p1.x) * u;
+    out[o + 1] = p1.y + (p2.y - p1.y) * u;
+    out[o + 2] = p1.z + (p2.z - p1.z) * u;
+    return;
+  }
+  const t = t1 + u * (t2 - t1);
+  // Barry-Goldman: three levels of linear interpolation, per component
+  const one = (c) => {
+    const a1 = ((t1 - t) * p0[c] + (t - t0) * p1[c]) / (t1 - t0);
+    const a2 = ((t2 - t) * p1[c] + (t - t1) * p2[c]) / (t2 - t1);
+    const a3 = ((t3 - t) * p2[c] + (t - t2) * p3[c]) / (t3 - t2);
+    const b1 = ((t2 - t) * a1 + (t - t0) * a2) / (t2 - t0);
+    const b2 = ((t3 - t) * a2 + (t - t1) * a3) / (t3 - t1);
+    return ((t2 - t) * b1 + (t - t1) * b2) / (t2 - t1);
+  };
+  out[o] = one('x'); out[o + 1] = one('y'); out[o + 2] = one('z');
+}
+
 class Ribbon {
   constructor(map) {
+    // ── THE ARC IS A CURVE, NOT THE SAMPLES ──────────────────────────────
+    //
+    // One sample per frame, one quad per sample, was a chain of straight
+    // segments with a visible corner at every joint — and the faster the blade
+    // moved the further apart the samples were and the more the corners
+    // showed. A swing is exactly when the blade is fastest, so the arc was
+    // jaggiest precisely when it was most looked at, and no amount of shading
+    // hides a polygon corner.
+    //
+    // The samples are control points now and the strip is a Catmull-Rom spline
+    // through them, resampled at RIB_SUB times the density. Catmull-Rom rather
+    // than a Bezier because it PASSES THROUGH its control points: the arc still
+    // goes exactly where the blade went, and only the space between frames is
+    // invented.
     this.n = TRAIL;
+    this.segs = (TRAIL - 1) * RIB_SUB + 1;    // vertices along the arc
     const g = new THREE.BufferGeometry();
-    this.pos = new Float32Array(TRAIL * 2 * 3);
-    this.uv = new Float32Array(TRAIL * 2 * 2);
+    this.pos = new Float32Array(this.segs * 2 * 3);
+    this.uv = new Float32Array(this.segs * 2 * 2);
     const idx = [];
-    for (let i = 0; i < TRAIL - 1; i++) {
+    for (let i = 0; i < this.segs - 1; i++) {
       const a = i * 2;
       idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
     }
-    for (let i = 0; i < TRAIL; i++) {
-      const u = i / (TRAIL - 1);
+    for (let i = 0; i < this.segs; i++) {
+      const u = i / (this.segs - 1);
       this.uv[i * 4] = u; this.uv[i * 4 + 1] = 0;
       this.uv[i * 4 + 2] = u; this.uv[i * 4 + 3] = 1;
     }
@@ -1203,8 +1268,28 @@ class Ribbon {
         vClip = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         gl_Position = vClip;
       }`;
-    // the shared shape of the thing, so the two passes cannot disagree about
-    // where the arc is — only about what to do there
+    // ── THE SHAPE: A CUTTING EDGE WITH A BODY BEHIND IT ──────────────────
+    //
+    // Shared by both passes so they cannot disagree about where the arc is —
+    // only about what to do there.
+    //
+    // The first cut spread the light across the whole swept sheet with a sine
+    // falloff either side, which photographs as a soft white blob: bright in
+    // the middle, hazy at both boundaries, no line anywhere. A slash does not
+    // read from its middle. It reads from ITS EDGE — the curve the tip drew,
+    // which is the outer boundary of the crescent — and everything inboard of
+    // that is the body of displaced air behind the cut.
+    //
+    // So `v` runs 0 at the grip's path to 1 at the TIP's path, and the two
+    // pieces are built from the distance inward from the tip:
+    //
+    //   edge · a thin hard line on the tip's curve, tightening as it gets
+    //          younger, and no thinner than the pixel it is drawn on, so it
+    //          stays a clean line at any distance instead of aliasing into
+    //          dashes when the camera pulls back.
+    //   body · an exponential falloff inward from that edge, clipped crisply
+    //          at the grip so the crescent has a silhouette rather than
+    //          dissolving, and frayed by a little turbulence as it ages.
     const SHAPE = `
       uniform float uFade, uTime;
       varying vec2 vUv;
@@ -1216,19 +1301,23 @@ class Ribbon {
         return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
                    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
       }
-      // along the arc: 0 is the oldest sample, 1 is the blade right now
-      float headOf() { return pow(clamp(vUv.x, 0.0, 1.0), 2.2); }
-      // across it: no border, and the spine tightens toward the leading edge
-      float coreOf(float head) {
-        float w = mix(0.22, 0.060, head);
-        float d = (clamp(vUv.y, 0.0, 1.0) - 0.5) / w;
-        return exp(-d * d);
+      // 0 at the oldest sample, 1 at the blade right now
+      float lifeOf() { return pow(clamp(vUv.x, 0.0, 1.0), 1.6); }
+      // how far inboard of the tip's curve this pixel sits
+      float inOf() { return 1.0 - clamp(vUv.y, 0.0, 1.0); }
+      float edgeOf(float life) {
+        float d = inOf();
+        // never thinner than the pixel, so the line antialiases instead of
+        // breaking into dashes when the arc is far away or nearly edge-on
+        float w = max(fwidth(vUv.y) * 1.6, mix(0.085, 0.028, life));
+        return 1.0 - smoothstep(0.0, w, d);
       }
-      float bandOf(float head, float t) {
-        float b = pow(sin(clamp(vUv.y, 0.0, 1.0) * 3.14159265), 1.05);
-        // the tail frays; the head is clean because it was just cut
-        float turb = noise(vec2(vUv.x * 11.0 - t * 2.6, vUv.y * 3.5 + t * 0.7));
-        return b * mix(0.45 + 0.55 * turb, 1.0, head);
+      float bodyOf(float life) {
+        float b = exp(-inOf() * 2.6) * smoothstep(0.0, 0.05, clamp(vUv.y, 0.0, 1.0));
+        // the tail frays; the head is clean because it was just cut — and the
+        // fray never touches the edge, which has to stay a line
+        float turb = noise(vec2(vUv.x * 11.0 - uTime * 2.6, vUv.y * 3.5 + uTime * 0.7));
+        return b * mix(0.45 + 0.55 * turb, 1.0, life);
       }`;
 
     const common = {
@@ -1250,22 +1339,22 @@ class Ribbon {
         uniform sampler2D uScene;
         uniform float uAmt;
         void main() {
-          float head = headOf();
-          float band = bandOf(head, uTime);
-          float core = coreOf(head);
+          float life = lifeOf();
+          float body = bodyOf(life);
           vec2 uv = (vClip.xy / vClip.w) * 0.5 + 0.5;
-          // outward from the spine, strongest at the edges of the band and at
-          // the young end of the arc, and gone by the time the tail has cooled
+          // outward from the cut, strongest just behind the edge and at the
+          // young end of the arc, gone by the time the tail has cooled
           float lens = (clamp(vUv.y, 0.0, 1.0) - 0.5) * 2.0;
-          float k = uAmt * uFade * band * (0.35 + 0.65 * head);
+          float k = uAmt * uFade * body * (0.35 + 0.65 * life);
           vec2 off = vec2(lens, lens * 0.35) * k;
           vec3 c;
           c.r = texture2D(uScene, uv + off * 1.06).r;
           c.g = texture2D(uScene, uv + off).g;
           c.b = texture2D(uScene, uv + off * 0.94).b;
-          // …and the air is not perfectly clear: the core scatters a little
-          float a = clamp(band * uFade * (0.55 + 0.45 * head), 0.0, 1.0);
-          gl_FragColor = vec4(c, a * (1.0 - 0.25 * core));
+          // THE AIR IS THE BODY ALONE. Letting the haze reach the edge is what
+          // made the whole arc read soft: a displaced, slightly milky sample
+          // sitting on top of the one line that is supposed to be sharp.
+          gl_FragColor = vec4(c, clamp(body * uFade * 0.55, 0.0, 1.0));
         }`,
     });
     // ── PASS TWO: THE LIGHT ──────────────────────────────────────────────────
@@ -1278,26 +1367,24 @@ class Ribbon {
         uniform sampler2D uMap;
         uniform vec3 uHot, uCool;
         void main() {
-          float head = headOf();
-          float band = bandOf(head, uTime);
-          float core = coreOf(head);
-          // the ink of the swing itself still shapes the wide part
-          float ink = 0.35 + 0.65 * texture2D(uMap, vUv).a;
-          float bloom = band * ink * uFade * (0.30 + 0.70 * head);
-          float spine = core * uFade * pow(head, 1.35);
-          // the bloom carries the trail's colour; the spine is nearly white and
-          // is what the eye reads as the edge
+          float life = lifeOf();
+          float body = bodyOf(life);
+          float edge = edgeOf(life);
+          // the ink of the swing still shapes the wide part; it never touches
+          // the edge, which is geometry rather than texture
+          float ink = 0.40 + 0.60 * texture2D(uMap, vUv).a;
+          float glow = body * ink * life * uFade;
+          float cut  = edge * life * uFade;
           // ── AND IT HAS TO OUTSHINE THE WEATHER ─────────────────────────
           // Additive light only reads as light if it beats what is already
           // there, and this plaza is bright grey fog at better than half
-          // white. Photographed against it, the arc at 1.3/2.1 was invisible
-          // — the same frame with the palette forced to pure red showed the
-          // arc exactly where it belonged, so the shape was never the fault.
-          // The spine deliberately overshoots 1.0: there is no tone mapping
-          // here, so it clips to white, which is what a hot core does.
-          vec3 col = mix(uCool, uHot, pow(head, 1.6)) * bloom * 3.00
-                   + uHot * spine * 6.50;
-          gl_FragColor = vec4(col, clamp(bloom * 0.85 + spine, 0.0, 1.0));
+          // white. The cut deliberately overshoots 1.0: there is no tone
+          // mapping here, so it clips to white, which is what a hot edge does
+          // — and clipping is what makes it read as a hard line rather than a
+          // bright smudge.
+          vec3 col = mix(uCool, uHot, pow(life, 1.5)) * glow * 2.20
+                   + uHot * cut * 7.00;
+          gl_FragColor = vec4(col, clamp(glow * 0.50 + cut, 0.0, 1.0));
         }`,
     });
     // ONE GEOMETRY, TWO DRAWS. The air goes down first so the light lands on
@@ -1327,6 +1414,18 @@ class Ribbon {
     p.a.copy(wrist);
     if (reach > 0) p.b.copy(out).sub(wrist).normalize().multiplyScalar(reach).add(wrist);
     else p.b.copy(out);
+    // ── A SAMPLE IS A PLACE THE BLADE WENT, NOT A FRAME THAT ELAPSED ──────
+    //
+    // Recording one every frame regardless meant a blade that is not moving
+    // filled the ring with the same point over and over — which happens for
+    // as long as a card is HELD, because the wind-up is still an action and
+    // still asks for a trail. A run of identical control points is not just
+    // wasted: a Catmull-Rom through them has no direction to follow and
+    // overshoots, and the measured worst turn in the strip was a full 180°
+    // reversal. Under a metre of blade travel per frame this changes nothing;
+    // it only refuses to record standing still.
+    const last = this.pts[(this.head - 1 + TRAIL) % TRAIL];
+    if (this.filled > 0 && last.b.distanceToSquared(p.b) < 4e-4) { this.fade = 1; return; }
     this.head = (this.head + 1) % TRAIL;
     if (this.filled < TRAIL) this.filled++;
     this.fade = 1;
@@ -1353,12 +1452,18 @@ class Ribbon {
     // transparent black sheet over the fight.
     this.air.visible = this.mesh.visible && !!this.refMat.uniforms.uScene.value;
     if (!this.mesh.visible) return;
-    for (let i = 0; i < TRAIL; i++) {
-      // oldest first, so u=0 is the tail and u=1 is the leading edge
-      const src = this.pts[(this.head + i) % TRAIL];
+    // the samples in order, oldest first, so u=0 is the tail and u=1 the blade
+    const n = this.filled, ring = this.pts, first = (this.head - n + TRAIL * 2) % TRAIL;
+    const at = (k) => ring[(first + Math.max(0, Math.min(n - 1, k))) % TRAIL];
+    const N = this.segs;
+    for (let i = 0; i < N; i++) {
+      // where this vertex falls among the control points
+      const x = (i / (N - 1)) * (n - 1);
+      const k = Math.min(n - 2, Math.floor(x)), t = n > 1 ? x - k : 0;
+      const p0 = at(k - 1), p1 = at(k), p2 = at(k + 1), p3 = at(k + 2);
       const o = i * 6;
-      this.pos[o] = src.a.x; this.pos[o + 1] = src.a.y; this.pos[o + 2] = src.a.z;
-      this.pos[o + 3] = src.b.x; this.pos[o + 4] = src.b.y; this.pos[o + 5] = src.b.z;
+      cr(p0.a, p1.a, p2.a, p3.a, t, this.pos, o);
+      cr(p0.b, p1.b, p2.b, p3.b, t, this.pos, o + 3);
     }
     this.geo.attributes.position.needsUpdate = true;
   }
