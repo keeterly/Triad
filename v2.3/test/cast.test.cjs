@@ -2793,6 +2793,80 @@ const { boot } = require('./harness.cjs');
     JSON.stringify(drawn) + ' — the figure material emitting a colour nothing else '
       + 'draws; an invalid program leaves this at 0 and throws nothing');
 
+  // ── THE LENS: THE CITY GOES SOFT AND THE PARTY DOES NOT ─────────────────
+  //
+  // Half of this is trivially satisfiable and the other half is the effect. A
+  // blur that softens the whole frame would pass any "is the background
+  // blurrier" reading, so both are measured on one frame and the one that
+  // must NOT move is the subject.
+  //
+  // AND IT IS MEASURED THROUGH THE FIGURES' OWN MASK, not their boxes. A
+  // hero's box is mostly plaza, and plaza is exactly what this softens — read
+  // over boxes the party's sharpness fell 22% and read as a focus fault, when
+  // the circle of confusion on the figures themselves is 0.04 against 0.44
+  // everywhere else. The rectangle averaged a success together with a
+  // requirement and reported the mean as a failure.
+  console.log('\n── the lens ──');
+  const glass = await J(async () => {
+    const C3 = window.Cast3D;
+    const was = C3.look();
+    const grab = async () => {
+      await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => requestAnimationFrame(r));
+      await C3._snapshot();
+      const c = window.__castShot;
+      return { w: c.width, h: c.height,
+               d: c.getContext('2d').getImageData(0, 0, c.width, c.height).data };
+    };
+    C3.look({ pl: -2 });
+    const mk = await grab();
+    const fig = new Uint8Array(mk.w * mk.h);
+    let figN = 0;
+    for (let i = 0, j = 0; i < mk.d.length; i += 4, j++)
+      if (mk.d[i] > 140 && mk.d[i + 1] < 100 && mk.d[i + 2] > 140) { fig[j] = 1; figN++; }
+    C3.look(was);
+    const sharp = async () => {
+      const g = await grab(), w = g.w, h = g.h, d = g.d;
+      const L = new Float32Array(w * h);
+      for (let i = 0, j = 0; i < d.length; i += 4, j++)
+        L[j] = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) / 255;
+      let ps = 0, pn = 0, fs = 0, fn = 0, hi = [];
+      for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+        const i = y * w + x;
+        const lap = Math.abs(4 * L[i] - L[i - 1] - L[i + 1] - L[i - w] - L[i + w]);
+        hi.push(L[i]);
+        if (fig[i]) { ps += lap; pn++; }
+        else if (y < h / 3) { fs += lap; fn++; }
+      }
+      hi.sort((a, z) => a - z);
+      return { party: ps / Math.max(1, pn), plaza: fs / Math.max(1, fn),
+               p99: hi[Math.floor(hi.length * 0.99)] };
+    };
+    C3.look({ dof: 0, bloom: 0 });
+    const off = await sharp();
+    C3.look(was);
+    const on = await sharp();
+    return {
+      figN,
+      party: +(on.party / Math.max(1e-6, off.party)).toFixed(2),
+      plaza: +(on.plaza / Math.max(1e-6, off.plaza)).toFixed(2),
+      glow:  +(on.p99 / Math.max(1e-6, off.p99)).toFixed(3),
+      onByDefault: was.dof > 0.002,
+    };
+  });
+  check('LENS: the city falls out of focus behind the fight',
+    glass.figN > 500 && glass.plaza < 0.75,
+    JSON.stringify(glass) + ' — sharpness with the lens over sharpness without, '
+      + 'as a ratio; the far plaza has to lose a quarter of its detail');
+  check('LENS: …and the party it is focused on stays sharp',
+    glass.figN > 500 && glass.party > 0.9,
+    JSON.stringify(glass) + ' — measured through the figures own mask; over their '
+      + 'boxes this reads 0.78 and the boxes are mostly plaza');
+  check('LENS: light gets into the air without fogging the picture',
+    glass.glow > 1.005,
+    JSON.stringify(glass) + ' — the brightest percentile lifts; a glow that raised '
+      + 'the whole frame would be a fog, and the mean does not move');
+
   console.log('\n── the drawn look ──');
   const ink = await J(async () => {
     const C3 = window.Cast3D;

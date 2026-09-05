@@ -286,6 +286,26 @@ const LOOK = {
   linew: 0.9,    // how wide, in pixels of the drawing buffer — thin on purpose
   bite:  0.16,   // how far a surface must jump, as a fraction of its distance
   reach: 14.0,   // …and how far out the ink carries, in metres
+  // ── THE LENS (Build 165) ────────────────────────────────────────────────
+  //
+  // Build 164 made the figures read as illustration and left the plaza reading
+  // as geometry, so the cast still sat in the same plane as the city. What
+  // separates the two people talking from the street behind them in the
+  // reference is not shading, it is that the street is out of focus and the
+  // lights in it have become soft shapes.
+  //
+  // `focus` is deliberately absent: the focal plane is the distance from the
+  // camera to its own aim point, which the tripod computes every frame, so
+  // every push-in and every parry framing refocuses without a table to keep.
+  dof:    0.85,  // how much the out-of-focus world actually softens
+  frange: 5.5,   // metres either side of the subject before it is fully soft
+  bloom:  0.55,  // how much light gets into the air
+  // MEASURED OFF THE FRAME, not picked. The buffer this thresholds holds
+  // LINEAR light, where the whole picture's 99th percentile is about 0.41 —
+  // so the first setting, 0.62, was above every pixel in the game and the
+  // glow buffer came back empty and black at every bloom strength. Read it
+  // again with ?look=bloom:-1, which shows the glow alone.
+  glowT:  0.33,  // …and how bright a thing has to be to put it there, LINEAR
   flat:  0.0,    // the band ladder stays off; it flattened the art it sat on
   steps: 6,
   tooth: 0.0,    // and so does the paper, which read as noise at this size
@@ -301,6 +321,10 @@ const LOOK_HELP = {
   rim:   ['counter-light', 0, 2, 0.01, 'the cold edge along the turning-away side'],
   rimp:  ['rim tightness', 1, 6, 0.05, 'how close it hugs the silhouette'],
   chroma: ['chroma', 0.5, 2.2, 0.01, 'how rich the colour runs — 1 is untouched'],
+  dof:    ['depth of field', 0, 1, 0.01, 'how far the world falls out of focus behind the fight'],
+  frange: ['focal depth', 1, 20, 0.25, 'metres either side of the subject that stay sharp'],
+  bloom:  ['bloom', 0, 2, 0.01, 'how much light spills into the air'],
+  glowT:  ['glow floor', 0, 3, 0.01, 'how bright a thing must be to bloom — linear, not screen'],
   line:  ['ink line', 0, 1, 0.01, 'the contour drawn where two surfaces meet'],
   linew: ['line width', 0.5, 3, 0.05, 'how wide that contour is, in buffer pixels'],
   bite:  ['line bite', 0.01, 0.4, 0.005, 'how big a depth jump earns a line, as a fraction of its distance'],
@@ -4740,11 +4764,106 @@ const Cast3D = (() => {
   // one: last frame's world, a sixtieth of a second stale, which at the speed
   // an arc moves is a fraction of one of its twenty-two segments.
   let postB = null, postWarm = false;
+  // ── AND THE SMALL BUFFERS THE LENS NEEDS ────────────────────────────────
+  //
+  // Depth of field and bloom are the same problem twice: both are a blur, and
+  // a blur wide enough to read cannot be taps in the composite pass — a 40px
+  // radius is 5000 samples per pixel at full resolution. So the frame is
+  // stepped down and blurred separably, which is the same picture for a
+  // fiftieth of the work, and the composite reads the small buffers back.
+  //
+  // TWO CHAINS, NOT ONE, because they want different things. The lens blur is
+  // of the WHOLE frame, at half, and the focal plane picks how much of it any
+  // pixel gets. The glow is of the BRIGHT PART ONLY, at a quarter, and wider —
+  // a bloom that is not much wider than the thing making it reads as a soft
+  // edge rather than as light in the air.
+  let dofA = null, dofB = null, glowA = null, glowB = null;
+  let cutMat = null, blurMat = null, postQuad = null;
+  function smallTarget(t, w, h) {
+    if (t && t.width === w && t.height === h) return t;
+    if (t) t.dispose();
+    // half-float for the same reason the main target is: this holds linear
+    // light, and eight bits of linear bands the darks, which is most of this
+    // game. No depth texture — nothing here is ever depth-tested.
+    const n = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType });
+    n.texture.minFilter = THREE.LinearFilter;
+    n.texture.magFilter = THREE.LinearFilter;
+    // CLAMPED, and that is not a detail: a blur samples past the edge, and a
+    // wrapped sample brings the far side of the screen in as a bright smear
+    // down the opposite border.
+    n.texture.wrapS = n.texture.wrapT = THREE.ClampToEdgeWrapping;
+    n.texture.colorSpace = THREE.LinearSRGBColorSpace;
+    return n;
+  }
+  function lensPass() {
+    if (cutMat) return;
+    const VS = 'varying vec2 vUv;\nvoid main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+    // step down, and optionally keep only what is brighter than a threshold.
+    // The four taps are a box filter on the way down — sampling one texel in
+    // four aliases every thin bright thing into a flicker as the camera moves,
+    // and a blade arc is exactly a thin bright thing.
+    cutMat = new THREE.ShaderMaterial({
+      uniforms: { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() },
+                  uThresh: { value: -1 } },
+      vertexShader: VS,
+      fragmentShader: `
+        uniform sampler2D tSrc; uniform vec2 uTexel; uniform float uThresh;
+        varying vec2 vUv;
+        void main() {
+          vec2 o = uTexel * 0.5;
+          vec3 c = texture2D(tSrc, vUv + vec2( o.x,  o.y)).rgb
+                 + texture2D(tSrc, vUv + vec2(-o.x,  o.y)).rgb
+                 + texture2D(tSrc, vUv + vec2( o.x, -o.y)).rgb
+                 + texture2D(tSrc, vUv + vec2(-o.x, -o.y)).rgb;
+          c *= 0.25;
+          if (uThresh >= 0.0) {
+            // A SOFT KNEE, NOT A CUT. A hard threshold makes bloom pop on and
+            // off as a highlight crosses it, which on a moving blade reads as
+            // flicker. Keeping the OVERSHOOT scaled by how far over it is
+            // means a light entering the range fades in.
+            float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+            c *= max(0.0, l - uThresh) / max(l, 0.0001);
+          }
+          gl_FragColor = vec4(c, 1.0);
+        }
+      `,
+    });
+    blurMat = new THREE.ShaderMaterial({
+      uniforms: { tSrc: { value: null }, uDir: { value: new THREE.Vector2() } },
+      vertexShader: VS,
+      fragmentShader: `
+        uniform sampler2D tSrc; uniform vec2 uDir;
+        varying vec2 vUv;
+        void main() {
+          // NINE TAPS ON THE LINEAR SAMPLER IS AN EIGHTEEN-TAP GAUSSIAN. The
+          // offsets sit BETWEEN texels, so each fetch is already the average
+          // of two, which is the standard trick and the reason this is cheap
+          // enough to run twice per axis per chain.
+          vec3 c = texture2D(tSrc, vUv).rgb * 0.2270270;
+          c += (texture2D(tSrc, vUv + uDir * 1.3846154).rgb
+              + texture2D(tSrc, vUv - uDir * 1.3846154).rgb) * 0.3162162;
+          c += (texture2D(tSrc, vUv + uDir * 3.2307692).rgb
+              + texture2D(tSrc, vUv - uDir * 3.2307692).rgb) * 0.0702703;
+          gl_FragColor = vec4(c, 1.0);
+        }
+      `,
+    });
+  }
+  function blit(mat, to) {
+    postQuad.material = mat;
+    renderer.setRenderTarget(to);
+    renderer.render(postScene, postCam);
+    renderer.setRenderTarget(null);
+  }
+  function lensWanted() {
+    return Math.abs(LOOK.dof) > 0.002 || Math.abs(LOOK.bloom) > 0.002;
+  }
   function inkWanted() {
     // ABS, because the debug views drive the line dial NEGATIVE and a gate
     // that reads `> 0.002` skips the pass entirely — which showed the plain
     // render and made two different debug modes produce identical histograms.
-    return Math.abs(LOOK.line) > 0.002 || LOOK.flat > 0.002 || LOOK.tooth > 0.002;
+    return Math.abs(LOOK.line) > 0.002 || LOOK.flat > 0.002 || LOOK.tooth > 0.002
+      || lensWanted();
   }
   // the one the arcs may read: whichever the world was drawn into LAST time,
   // and nothing at all until a frame has actually been put in it
@@ -4816,6 +4935,9 @@ const Cast3D = (() => {
         uSteps: { value: 6 }, uTooth: { value: 0 },
         uBite: { value: 0.07 }, uReach: { value: 11 },
         uNear: { value: 0.1 }, uFar: { value: 100 },
+        tBlur: { value: null }, tGlow: { value: null },
+        uDof: { value: 0 }, uFocus: { value: 8 }, uFRange: { value: 6 },
+        uBloom: { value: 0 },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -4827,6 +4949,8 @@ const Cast3D = (() => {
         uniform vec2 uTexel;
         uniform float uLine, uLineW, uFlat, uSteps, uTooth, uNear, uFar;
         uniform float uBite, uReach;
+        uniform sampler2D tBlur, tGlow;
+        uniform float uDof, uFocus, uFRange, uBloom;
         varying vec2 vUv;
 
         // the depth buffer is not linear; a difference in it means something
@@ -4858,6 +4982,37 @@ const Cast3D = (() => {
           if (uLine < -5.5) { gl_FragColor = vec4(src.rgb * src.a, src.a); return; }
           if (uLine < -4.5) { gl_FragColor = src; return; }
           vec3 col = src.rgb;
+
+          // ══ THE LENS ══════════════════════════════════════════════════════
+          //
+          // The figures were made to read as illustration in Build 164 and the
+          // PLAZA was not, so the cast still sat in the same plane as the city
+          // behind it. That is a lens problem rather than a shading one: what
+          // separates the two people talking from the street in the reference
+          // is that the street is not in focus.
+          //
+          // The focal plane is not a dial. It is the distance from the camera
+          // to what the camera is aiming at, which the tripod already computes
+          // every frame — so a push-in, a parry framing and an all-out all
+          // refocus for free, and there is no number to keep in step with the
+          // shot list.
+          float zc = lin(vUv);
+          float coc = clamp(abs(zc - uFocus) / max(0.35, uFRange), 0.0, 1.0);
+          // THE NEAR SIDE BLURS LESS THAN THE FAR SIDE. Optically they are
+          // symmetric; pictorially they are not. Anything between the camera
+          // and the party is a shoulder or a weapon belonging to someone the
+          // player is reading, and softening those costs legibility to buy
+          // nothing — the depth cue is the CITY going soft.
+          if (zc < uFocus) coc *= 0.45;
+          // …and squared, so the focal plane holds a real pocket of sharpness
+          // instead of everything being slightly soft.
+          coc *= coc;
+          col = mix(col, texture2D(tBlur, vUv).rgb, clamp(coc * uDof, 0.0, 1.0));
+          // A NEGATIVE DOF DIAL SHOWS HOW MUCH BLUR EACH PIXEL IS GETTING,
+          // because "the background is softer" and "the subject is softer" are
+          // the same reading taken in two places and only one of them is the
+          // effect working.
+          if (uDof < -0.5) { gl_FragColor = vec4(vec3(clamp(coc, 0.0, 1.0)), 1.0); return; }
           vec2 o = uTexel * uLineW;
 
           // ── THE CONTOUR ──
@@ -4939,6 +5094,20 @@ const Cast3D = (() => {
           // the ink is a constant, not a swatch anybody will pick
           col = mix(col, vec3(0.169, 0.149, 0.133), clamp(line, 0.0, 1.0));
 
+          // ── AND THE LIGHT IN THE AIR, LAST ──────────────────────────────
+          //
+          // After the contour and not before it, because glow is in FRONT of
+          // everything: a blade arc bright enough to bloom washes over its own
+          // outline, which is what a hot thing does to a drawn line and not a
+          // fault in either.
+          col += texture2D(tGlow, vUv).rgb * max(0.0, uBloom);
+          // A NEGATIVE BLOOM DIAL SHOWS WHAT IS ACTUALLY GLOWING, which is the
+          // only way to set a threshold: the buffer holds LINEAR light, so what
+          // counts as bright in here is not what looks bright on the screen,
+          // and the terminator in the figure shader was placed twice on a
+          // distribution nobody had looked at before it was measured.
+          if (uBloom < -0.5) { gl_FragColor = vec4(texture2D(tGlow, vUv).rgb, 1.0); return; }
+
           // A NEGATIVE LINE DIAL SHOWS THE DEPTH INSTEAD. Tuning a threshold
           // against an input nobody has looked at is how the first two cuts of
           // this detector went: one fired on shading, one on something else,
@@ -4978,11 +5147,62 @@ const Cast3D = (() => {
     });
     postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     postScene = new THREE.Scene();
-    postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMat));
+    postQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMat);
+    postScene.add(postQuad);
     return postMat;
+  }
+  // ── THE TWO BLURS, BUILT BEFORE THE FRAME IS COMPOSITED ─────────────────
+  //
+  // Both chains are step-down then blur-across then blur-down, which is a
+  // separable gaussian and costs two passes instead of the square of one. The
+  // glow chain runs off the ALREADY HALVED buffer rather than off the full
+  // frame, so its quarter-res blur is twice as wide in screen terms for the
+  // same nine taps — a bloom has to reach much further than a lens blur or it
+  // reads as a fringe rather than as light in the air.
+  function buildLens(t) {
+    lensPass();
+    const w = Math.max(2, t.width >> 1), h = Math.max(2, t.height >> 1);
+    const qw = Math.max(2, w >> 1), qh = Math.max(2, h >> 1);
+    dofA = smallTarget(dofA, w, h);   dofB = smallTarget(dofB, w, h);
+    glowA = smallTarget(glowA, qw, qh); glowB = smallTarget(glowB, qw, qh);
+    const blurInto = (src, mid, dst, sw, sh) => {
+      blurMat.uniforms.tSrc.value = src.texture;
+      blurMat.uniforms.uDir.value.set(1 / sw, 0);
+      blit(blurMat, mid);
+      blurMat.uniforms.tSrc.value = mid.texture;
+      blurMat.uniforms.uDir.value.set(0, 1 / sh);
+      blit(blurMat, dst);
+    };
+    // the lens blur: the whole frame, halved
+    cutMat.uniforms.tSrc.value = t.texture;
+    cutMat.uniforms.uTexel.value.set(1 / t.width, 1 / t.height);
+    cutMat.uniforms.uThresh.value = -1;
+    blit(cutMat, dofA);
+    blurInto(dofA, dofB, dofA, w, h);
+    // the glow: only what is over the knee, quartered, off the halved copy —
+    // which is why this is taken from dofA and not from the frame
+    cutMat.uniforms.tSrc.value = dofA.texture;
+    cutMat.uniforms.uTexel.value.set(1 / w, 1 / h);
+    cutMat.uniforms.uThresh.value = Math.max(0, LOOK.glowT);
+    blit(cutMat, glowA);
+    blurInto(glowA, glowB, glowA, qw, qh);
+    // …and the composite is the quad's material again, or the next frame
+    // draws the blur shader over the whole screen
+    postQuad.material = postMat;
   }
   function drawInk(t) {
     const m = postPass();
+    if (lensWanted()) buildLens(t);
+    m.uniforms.tBlur.value = (lensWanted() && dofA) ? dofA.texture : t.texture;
+    m.uniforms.tGlow.value = (lensWanted() && glowA) ? glowA.texture : null;
+    m.uniforms.uDof.value = lensWanted() ? LOOK.dof : 0;
+    m.uniforms.uBloom.value = lensWanted() ? LOOK.bloom : 0;
+    // THE FOCAL PLANE IS WHERE THE CAMERA IS LOOKING, measured rather than
+    // set: the tripod already eases an eye and an aim point every frame, so
+    // the distance between them is the shot's own subject distance and every
+    // move the camera makes refocuses without anybody maintaining a table.
+    m.uniforms.uFocus.value = _eye.distanceTo(_look);
+    m.uniforms.uFRange.value = Math.max(0.35, LOOK.frange);
     m.uniforms.tDiffuse.value = t.texture;
     m.uniforms.tDepth.value = t.depthTexture;
     m.uniforms.uTexel.value.set(1 / t.width, 1 / t.height);
