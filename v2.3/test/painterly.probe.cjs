@@ -71,7 +71,7 @@ const OFF = { pl: 0 };
       const gx = lum[i + 1] - lum[i - 1], gy = lum[i + w] - lum[i - w];
       grad.push(Math.hypot(gx, gy));
       const k = i * 4;
-      px.push([d[k], d[k + 1], d[k + 2], lum[i]]);
+      px.push([d[k], d[k + 1], d[k + 2], lum[i], i]);
     }
     grad.sort((a, z) => a - z);
     px.sort((a, z) => a[3] - z[3]);
@@ -82,8 +82,22 @@ const OFF = { pl: 0 };
     // blue-minus-red, signed: the sign of the warm/cool split, which a
     // saturation number alone cannot show
     const bmr = (p) => (p[2] - p[0]) / 255;
-    const q = Math.max(1, Math.floor(px.length / 4));
-    const dark = px.slice(0, q), lite = px.slice(-q);
+    // ── LIT AND SHADOW ARE NOT BRIGHT AND DARK ──────────────────────────
+    //
+    // This grouped the pixels into quartiles of their own FINAL luminance and
+    // called the top one lit. It is not: Elin is bone-white, so her shadow
+    // side is brighter than Mira's lit side, and Mira is violet under black.
+    // Sorting by luminance sorts by ALBEDO at least as much as by light, so
+    // the two groups each held a mixture of both and the split came back
+    // inverted — the shadows reading warmer than the light, which the tint
+    // cannot do and which sent two tuning passes the wrong way.
+    //
+    // The shader already knows which is which: window.__lit is its own
+    // lighting term, captured through the pl:-1 view, thresholded at the same
+    // place the terminator sits. Grouped by that, lit means lit.
+    const litMask = window.__lit;
+    const dark = [], lite = [];
+    for (const p of px) (litMask && litMask[p[4]] ? lite : dark).push(p);
     const mean = (a, f) => a.reduce((s, p) => s + f(p), 0) / Math.max(1, a.length);
     return {
       n: detN,
@@ -103,6 +117,26 @@ const OFF = { pl: 0 };
   });
 
   const on = await J(() => window.Cast3D.look());
+  // the shader's own lighting term, so "lit" means what the terminator means
+  await J(async (term) => {
+    const C3 = window.Cast3D, was = C3.look();
+    C3.look({ pl: -1 });
+    await new Promise(r => requestAnimationFrame(r));
+    await new Promise(r => requestAnimationFrame(r));
+    await C3._snapshot();
+    const c = window.__castShot;
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const m = new Uint8Array(c.width * c.height);
+    for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+      // the debug write goes out through three's sRGB encode, so the byte is
+      // the TRANSFER of the number and has to be decoded before it is compared
+      const v = d[i] / 255;
+      const lin = v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      m[j] = (lin * 4.0) > term ? 1 : 0;
+    }
+    window.__lit = m;
+    C3.look(was);
+  }, on.term);
   await J(l => window.Cast3D.look(l), OFF);
   await sleep(400); await shot('paint-off');
   const off = await read();

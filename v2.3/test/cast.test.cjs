@@ -2806,6 +2806,57 @@ const { boot } = require('./harness.cjs');
   // the circle of confusion on the figures themselves is 0.04 against 0.44
   // everywhere else. The rectangle averaged a success together with a
   // requirement and reported the mean as a failure.
+  // ── WARM LIGHT AGAINST COOL SHADOW, AND NOT A BLUE CAST ─────────────────
+  //
+  // The painted light shipped tinting the whole picture blue. Two things did
+  // it: the terminator sat on the MEDIAN of the lighting, so half of every
+  // body counted as shadow and took the cool, and the counter-light was a
+  // saturated blue added on top of that. What was wanted is a disagreement
+  // between the two halves; what shipped was agreement at a bluer value.
+  //
+  // So the property is the SIGN of the split, not the amount of colour: the
+  // lit half must run warm and the shadow half must run cooler than it. A
+  // cast fails this however pretty it is, because both halves move together.
+  //
+  // AND THE TWO HALVES ARE SPLIT BY THE SHADER'S OWN LIGHTING TERM, not by
+  // how bright the pixels came out. Elin is bone-white and Mira is violet
+  // under black, so her shadow is brighter than Mira's key — grouping by
+  // luminance groups by ALBEDO, put a mixture in both buckets, and reported
+  // the split inverted, which cost two tuning passes in the wrong direction.
+  console.log('\n── warm against cool ──');
+  const hue = await J(async () => {
+    const C3 = window.Cast3D;
+    const was = C3.look();
+    const grab = async () => {
+      await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => requestAnimationFrame(r));
+      await C3._snapshot();
+      const c = window.__castShot;
+      return { w: c.width, h: c.height,
+               d: c.getContext('2d').getImageData(0, 0, c.width, c.height).data };
+    };
+    const dec = (v) => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    C3.look({ pl: -2 });
+    const mk = await grab();
+    C3.look({ pl: -1 });
+    const li = await grab();
+    C3.look(was);
+    const px = await grab();
+    let dn = 0, ds = 0, ln = 0, ls = 0;
+    for (let i = 0, j = 0; i < mk.d.length; i += 4, j++) {
+      if (!(mk.d[i] > 140 && mk.d[i + 1] < 100 && mk.d[i + 2] > 140)) continue;
+      const lv = dec(li.d[i] / 255) * 4.0;
+      const bmr = (px.d[i + 2] - px.d[i]) / 255;
+      if (lv > was.term) { ls += bmr; ln++; } else { ds += bmr; dn++; }
+    }
+    return { lit: +(ls / Math.max(1, ln)).toFixed(4), shadow: +(ds / Math.max(1, dn)).toFixed(4),
+             litN: ln, shadowN: dn };
+  });
+  check('HUE: the light runs warm and the shadow runs cool — a split, not a cast',
+    hue.litN > 500 && hue.shadowN > 500 && hue.lit < 0 && hue.shadow > hue.lit,
+    JSON.stringify(hue) + ' — blue minus red, on figure pixels, grouped by the '
+      + 'shader own lighting term; a blue cast moves both together and fails');
+
   console.log('\n── the lens ──');
   const glass = await J(async () => {
     const C3 = window.Cast3D;
@@ -2953,6 +3004,72 @@ const { boot } = require('./harness.cjs');
   // `?cast=2d` is the route the other eight suites take; if it ever stopped
   // meaning the painted stage, they would all silently start measuring
   // something else.
+  // ── A BLOW IS THROWN AT SOMETHING, SO THE BODY GOES TO IT ───────────────
+  //
+  // `lunge` had existed since Build 139 and one thing called it: the all-out.
+  // Every ordinary attack was swung on the spot, so three people stood in a
+  // line and waved weapons at something two and a half metres away.
+  //
+  // Two halves, and the second is the one that can fail for the right reason.
+  // A swing crosses ground and comes home; a HEAL does not cross at all,
+  // because otherwise this is not a step, it is a figure that moves whenever
+  // anything happens.
+  //
+  // THE HAND IS FORCED AND THE FIGHT RESTARTED PER CASE. A first cut played
+  // both into one turn: the second found no AP, did not play, and reported
+  // "the heal did not step" — true, and no evidence at all. Whether the card
+  // played is part of the reading now, so a case that never ran cannot pass
+  // by staying still.
+  //
+  // AND THE STEP IS READ WHERE IT IS SET. At two frames a second the slot ease
+  // snaps to its mark in one frame, so a sampled position catches the travel
+  // wherever the sampler and the renderer line up — a 0.62m step read as
+  // 0.222. The lunge vector is what the ease walks toward, without the frame
+  // rate in it. The RETURN is still sampled, because that is a thing that
+  // happens over time, and it is only asked to arrive eventually.
+  console.log('\n── the step into the blow ──');
+  const step = {};
+  for (const c of [{ card: 'serrate', who: 'mira', verb: 'slash' },
+                   { card: 'mend', who: 'elin', verb: 'heal' }]) {
+    await J(() => startCombat({ foes: ['husk'] }));
+    for (let i = 0; i < 40 && !(await J((w) => !!(window.Cast3D && window.Cast3D._figure(w)), c.who)); i++)
+      await sleep(250);
+    await sleep(600);
+    const r = await J(({ card, who }) => {
+      const f = window.Cast3D._figure(who);
+      if (!f) return { err: 'no figure' };
+      window.__home = [f.root.position.x, f.root.position.z];
+      if (window.K.forceHand) window.K.forceHand([card, 'cleave', 'serrate', 'qthrow', 'frostbind']);
+      const ap0 = window.K.state().ap;
+      try { window.K.playCard(card); } catch (e) { return { err: e.message }; }
+      const L = f.lunge;
+      return { played: window.K.state().ap !== ap0,
+               step: L ? +Math.hypot(L.x, L.z).toFixed(3) : 0 };
+    }, c);
+    let back = 9;
+    for (let i = 0; i < 20 && !r.err; i++) {
+      await sleep(160);
+      back = await J((w) => {
+        const f = window.Cast3D._figure(w), h = window.__home;
+        return +Math.hypot(f.root.position.x - h[0], f.root.position.z - h[1]).toFixed(3);
+      }, c.who);
+      if (back < 0.05) break;
+    }
+    step[c.verb] = { ...r, back };
+  }
+  check('STEP: a swing crosses the floor at the thing it is swung at',
+    step.slash.played === true && step.slash.step > 0.3,
+    JSON.stringify(step.slash) + ' — metres, set at play time and timed so the '
+      + 'body is still driving forward on the contact frame');
+  check('STEP: …and comes back to its own mark afterwards',
+    step.slash.played === true && step.slash.back < 0.05,
+    JSON.stringify(step.slash) + ' — a step that does not return is a party '
+      + 'migrating into the enemy line over a fight');
+  check('STEP: …and a heal does not charge the enemy',
+    step.heal.played === true && step.heal.step === 0,
+    JSON.stringify(step.heal) + ' — the card has to have actually played, or '
+      + 'this passes by nothing happening');
+
   console.log('\n── the path every player takes ──');
   const stages = {};
   for (const [name, q] of [['default', ''], ['opt-out', '&cast=2d']]) {

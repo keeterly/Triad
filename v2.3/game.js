@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 165;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 166;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -4936,6 +4936,32 @@ function castLunge(id, toward, metres, ms) {
   const C3 = window.Cast3D;
   if (C3 && C3.lunge) C3.lunge(id, toward, metres, ms);
 }
+// ── A BLOW IS THROWN AT SOMETHING, SO THE BODY GOES TO IT ──────────────────
+//
+// `lunge` has existed since Build 139 and exactly one thing called it: the
+// all-out finisher. Every ordinary attack in the game was swung on the spot,
+// carrying the four centimetres the clip's own footwork moves the root — so
+// three people stood in a line and waved weapons at something two and a half
+// metres away, and the blow and the body it came from were in different places.
+//
+// THE STEP PEAKS ON THE CONTACT FRAME, which is the whole reason this is
+// timed off `castContactMs` rather than given a duration of its own. The
+// layer already knows which frame of which clip the weapon actually arrives
+// on; a step that is still building at that moment reads as driving THROUGH
+// the blow, and one that has already stopped reads as a stumble followed by a
+// swing. The hold past contact is what stops the recovery starting on the same
+// frame the hit lands.
+//
+// It is only for a swing. A ward is a brace and a heal is a hand held out —
+// neither of them crosses the floor, and a party that charges the enemy to
+// mend itself is a party with one animation.
+const STEP_IN = 0.62;      // metres a single attack crosses, before the keep-out
+const STEP_HOLD = 170;     // …and how long it stays out there after contact
+function castStep(heroId, kind, flavour) {
+  if (kind !== 'slash') return;
+  const ms = castContactMs(heroId, kind, flavour) || 240;
+  castLunge(heroId, 'foe' + ((C && C.aim) || 0), STEP_IN, Math.max(240, ms + STEP_HOLD));
+}
 function castVerbFor(id) {
   const C3 = window.Cast3D;
   return (C3 && C3.verbFor && C3.verbFor(id)) || 'slash';
@@ -5095,6 +5121,7 @@ function fxPlayCard(cardId, ev) {
   // the third word is the parry's arrow elsewhere; for a slash it is the swing
   const flavour = kind === 'slash' ? attackFlavour(ev.resolvedEffects) : '';
   castPlay(heroId, kind, flavour);
+  castStep(heroId, kind, flavour);
   // …and from here the blow is on a clock: the weapon arrives this many
   // milliseconds from now, and everything that shows it landing waits for
   // that. Armed here rather than beside the camera, because a pair card takes
@@ -5119,6 +5146,7 @@ function fxPlayCard(cardId, ev) {
     setTimeout(() => {
       if (h2) { h2.classList.remove('k-acts'); void h2.offsetWidth; h2.classList.add('k-acts'); }
       castPlay(second, kind, flavour);
+      castStep(second, kind, flavour);
     }, DUO_RELAY);
   }
   // ── THE CAMERA ANSWERS THE ACTION, NOT JUST THE PHASE (Build 122) ─────────

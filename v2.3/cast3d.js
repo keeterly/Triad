@@ -175,13 +175,17 @@ const LOOK = {
   // read back raw gave 1.48 for a median that is really 0.61, and a
   // terminator placed on it sat above the entire distribution and cooled the
   // whole figure instead of splitting it.
-  term:  0.55,   // where the light stops, in the lighting's own luminance
+  // AND IT SITS BELOW THE MEDIAN, NOT ON IT. On the median, half of every
+  // body is shadow and takes the cool — which is how a warm/cool split turns
+  // into an overall blue cast. A lit form should be mostly lit; the shadow is
+  // the shape that describes it, not half the picture.
+  term:  0.42,   // where the light stops, in the lighting's own luminance
   soft:  0.13,   // …and how much of a decision that is. Wide is just Lambert.
   fold:  0.72,   // how far the shadow side collapses toward one value
-  cross: 0.72,   // warm light against cool shadow, in hue
-  rim:   0.26,   // the cold counter-light along the shadow edge
-  rimp:  3.0,    // how tight it hugs the silhouette
-  chroma: 1.45,  // …and the colour gets richer, which nothing else here does
+  cross: 0.55,   // warm light against cool shadow, in hue
+  rim:   0.30,   // the cold counter-light along the shadow edge
+  rimp:  2.6,    // how tight it hugs the silhouette
+  chroma: 1.28,  // …and the colour gets richer, which nothing else here does
   paint: 0.0,
   bands: 5.0,   // how many washes the tone is stepped into
   wash:  0.55,  // …and how much of the real painting survives the stepping
@@ -563,9 +567,16 @@ function watercolour(map, tone) {
         // the colour of the light in this plaza — the sky in the shadows, the
         // low sun on the lit side, the cold counter off the water — so they
         // are one decision for the whole cast, made here.
-        const vec3 PL_COOL = vec3(0.62, 0.70, 1.06);
-        const vec3 PL_WARM = vec3(1.12, 1.01, 0.84);
-        const vec3 PL_RIM  = vec3(0.42, 0.62, 0.95);
+        // A SPLIT, NOT A CAST. The first set was a saturated blue against a
+        // barely-warm light, and with the terminator sitting on the median it
+        // was applied to half of every figure — so the picture did not read as
+        // warm light and cool shadow, it read as blue. The shadow is a slate
+        // that leans violet rather than a blue, the light is pushed further
+        // warm so the two actually disagree, and the counter-light is dropped
+        // toward the same slate so it stops tinting everything it grazes.
+        const vec3 PL_COOL = vec3(0.78, 0.80, 1.00);
+        const vec3 PL_WARM = vec3(1.18, 1.02, 0.78);
+        const vec3 PL_RIM  = vec3(0.58, 0.72, 0.96);
         uniform float uBurn;
         uniform float uLit;
         uniform vec3 uPaper, uShadow, uInk;
@@ -679,7 +690,20 @@ function watercolour(map, tone) {
           // light arriving at the eye, not a property of the cloth: a black
           // cloak catches a rim, and one that only shows on pale fabric is a
           // gradient, not a lamp.
-          float plRf = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), uRimp);
+          // ── THE RIM IS A BAND JUST INSIDE THE EDGE, NOT THE EDGE ────────
+          //
+          // A fresnel raised to a power peaks exactly AT the silhouette, which
+          // is precisely where the contour pass draws its dark line. The two
+          // land on the same pixels and the figure ends up with a bright fringe
+          // and a dark one side by side — which does not read as a lit edge and
+          // a drawn edge, it reads as an outline that does not fit the shape.
+          //
+          // Carving the outermost pixels back out leaves the silhouette itself
+          // to the ink and puts the light just inside it, which is where a
+          // painter puts it and where a counter-light physically falls: the
+          // grazing angle is the DARKEST part of a lit edge, not the brightest.
+          float plFres = 1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0);
+          float plRf = pow(plFres, uRimp) * (1.0 - pow(plFres, 9.0));
           // ON THE SHADOW SIDE ONLY, AND NOWHERE ELSE. Leaving 18% of the rim
           // on fully-lit pixels was not a softening, it was a blue wash over
           // the entire figure: PL_RIM is a saturated cold, uRim was 0.5, and
@@ -5068,7 +5092,19 @@ const Cast3D = (() => {
           // picture is still wrong: a correct contour on every distant railing
           // reads as clutter, not as drawing.
           float near = 1.0 - smoothstep(uReach, uReach * 1.6, c);
-          line *= solid * near * uLine;
+          // ── AND AN OUT-OF-FOCUS EDGE HAS NO CRISP LINE ──────────────────
+          //
+          // The contour is found in DEPTH, which the lens does not touch, so
+          // once Build 165 started blurring the picture the ink went on
+          // drawing a hard black line at the exact silhouette of a shape whose
+          // colour had gone soft underneath it. That is the outline not
+          // matching: a sharp edge floating over a blurred one. An artist
+          // stops drawing the line at the same rate the form stops being
+          // legible, so the ink fades with the same circle of confusion that
+          // softened it.
+          float lineMask = line * solid * near
+                         * (1.0 - clamp(coc * uDof, 0.0, 1.0) * 0.92);
+          line = lineMask * uLine;
 
           // ── THE TONE, ON A LADDER ──
           // Stepped by LUMINANCE and reapplied as a ratio, so a red sash steps
@@ -5113,7 +5149,18 @@ const Cast3D = (() => {
           // this detector went: one fired on shading, one on something else,
           // and both were tuned rather than diagnosed.
           if (uLine < -3.5) col = vec3(lap);
-          else if (uLine < -2.5) col = vec3(smoothstep(bite, bite * 2.0, lap) * solid * near);
+          // THE MASK VIEW HAS TO SHOW THE LINE THAT SHIPS. It rebuilt the
+          // expression by hand and so did not carry the focus fade, which
+          // means the suite would have gone on measuring a contour the
+          // picture no longer draws — a check reading one thing while the
+          // player sees another is the failure this file keeps finding.
+          // THE MASK VIEW SHOWS THE LINE THAT SHIPS, focus fade and all. It
+          // used to rebuild the expression by hand, which meant it could not
+          // carry anything added downstream of it — and the suite would have
+          // gone on measuring a contour the picture no longer draws. It reads
+          // the same variable the composite does, before the strength dial,
+          // because in this mode that dial is negative.
+          else if (uLine < -2.5) col = vec3(lineMask);
           else if (uLine < -1.5) col = vec3(texture2D(tDepth, vUv).x);
           // a clean ramp over the stage's own depth range, so a capture of it
           // can be composited offline at a readable precision
