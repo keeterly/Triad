@@ -72,14 +72,48 @@ const SKIP = /^(idle|hurt|down|get_up|parry)/;
         return Math.hypot(mx[0]-mn[0], mx[1]-mn[1], mx[2]-mn[2]); };
       // whichever hand travels further is the one holding the weapon
       const H = span(R) >= span(L) ? R : L;
-      let at = 0, best = -1;
+      const v = [];
       for (let i = 1; i < N; i++) {
         const p = [H[i-1][0]-hip[i-1][0], H[i-1][1]-hip[i-1][1], H[i-1][2]-hip[i-1][2]];
         const q = [H[i][0]-hip[i][0],     H[i][1]-hip[i][1],     H[i][2]-hip[i][2]];
-        const s = Math.hypot(q[0]-p[0], q[1]-p[1], q[2]-p[2]);
-        if (s > best) { best = s; at = i / (N - 1); }
+        v.push(Math.hypot(q[0]-p[0], q[1]-p[1], q[2]-p[2]));
       }
-      res[clip] = { at: +at.toFixed(3), speed: +best.toFixed(3), travel: +span(H).toFixed(2) };
+      let hi = 0, best = -1;
+      for (let i = 0; i < v.length; i++) if (v[i] > best) { best = v[i]; hi = i; }
+      // ── AND WHERE A HELD CARD WAITS ──
+      //
+      // Holding a card should stop the body at the wind-up and releasing it
+      // should play the blow. The constant that did this was 0.34 of the clip
+      // for every swing, and on these clips that is PAST the contact frame at
+      // 0.14 — so the attack had already landed while the player was still
+      // deciding whether to throw it. That is the bug.
+      //
+      // THE MARK IS THE TOP OF THE BACKSWING: the calmest moment before the
+      // blow, when the body has gathered and not yet committed.
+      //
+      // On a spell that is a real place — cast gathers until 0.34 and staff
+      // until 0.44 — and holding there is a mage holding a charged spell.
+      // On the sword and dagger clips it comes out at or near ZERO, because
+      // these are Unreal combat attacks that open in the ready stance and
+      // commit immediately: there is no drawn-back gather in them at all.
+      // That is a fact about the pack, not a measurement failure, and the
+      // right answer for those is to hold on the OPENING POSE — a fighting
+      // stance, which against a relaxed idle reads as exactly the wind-up it
+      // is — and let the whole swing play on release.
+      //
+      // 85% of the way to contact was tried first and is wrong for the same
+      // reason 0.34 was: it puts the hold 1ms before the sword lands, so the
+      // held pose is a body most of the way through its own swing.
+      let lo = 0, calm = 1e9;
+      for (let i = 0; i <= hi; i++) if (v[i] <= calm) { calm = v[i]; lo = i; }
+      const hitAt = (hi + 1) / (N - 1);
+      res[clip] = { at: +hitAt.toFixed(3), speed: +best.toFixed(3),
+                    // a hair in when there is no gather, so the pose is the
+                    // clip's opening stance and `holdFrac` is still truthy
+                    wind: +Math.min(lo / (N - 1) > 0.02 ? lo / (N - 1) : 0.03,
+                                    hitAt * 0.9).toFixed(3),
+                    backswing: +(lo / (N - 1)).toFixed(3),
+                    travel: +span(H).toFixed(2) };
     }
     for (const k of Object.keys(f.actions)) { f.actions[k].paused = false; f.actions[k].setEffectiveWeight(0); f.actions[k].stop(); }
     f.acting = null; if (f.idle) f.idle.setEffectiveWeight(1);
@@ -88,13 +122,14 @@ const SKIP = /^(idle|hurt|down|get_up|parry)/;
   await browser.close();
 
   const lib = JSON.parse(fs.readFileSync(FILE, 'utf8'));
-  console.log('clip           travel   hit@   speed   action?');
+  console.log('clip           travel  hold@   hit@   speed  (backswing)  action?');
   let wrote = 0;
   for (const [k, v] of Object.entries(out)) {
     const act = !SKIP.test(k);
-    console.log(k.padEnd(14) + String(v.travel).padStart(6) + String(v.at).padStart(8)
-      + String(v.speed).padStart(8) + (act ? '   yes' : '   —'));
-    if (WRITE && act && lib[k]) { lib[k].hit = v.at; wrote++; }
+    console.log(k.padEnd(14) + String(v.travel).padStart(6) + String(v.wind).padStart(7)
+      + String(v.at).padStart(7) + String(v.speed).padStart(7)
+      + String(v.backswing).padStart(12) + (act ? '   yes' : '   —'));
+    if (WRITE && act && lib[k]) { lib[k].hit = v.at; lib[k].wind = v.wind; wrote++; }
   }
   if (WRITE) {
     fs.writeFileSync(FILE, JSON.stringify(lib));

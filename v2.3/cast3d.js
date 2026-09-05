@@ -2697,7 +2697,8 @@ const Cast3D = (() => {
       if (name === '__rest' || name === '__parent') continue;
       clips[name] = THREE.AnimationClip.parse(lib[name]);
       if (lib[name].window) windows[name] = lib[name].window;
-      meta[name] = { beat: lib[name].beat, loop: !!lib[name].loop, hit: lib[name].hit };
+      meta[name] = { beat: lib[name].beat, loop: !!lib[name].loop,
+                     hit: lib[name].hit, wind: lib[name].wind };
     }
     clipNames = Object.keys(clips);
 
@@ -3843,7 +3844,18 @@ const Cast3D = (() => {
       const pick = VERB[verb];
       const name = pick ? clipFor(f, verb, dir) : verb;
       if (!f.actions[name]) return false;
-      if (!f.ready(name, READY_AT[verb] === undefined ? 0.34 : READY_AT[verb])) return false;
+      // ── WHERE THE WIND-UP STOPS IS THE CLIP'S OWN BUSINESS ──
+      //
+      // This was a constant per verb — 0.34 of the clip for a slash — chosen
+      // against procedural clips several seconds long. On the Unreal pack the
+      // blow lands at 0.14, so holding a card froze the body a THIRD of the way
+      // in, which is well past the moment the blade arrives: the attack was
+      // already over before the player let go. `tools/contact.cjs` writes each
+      // clip's own mark, always before its own contact frame.
+      const m = f.meta && f.meta[name];
+      const at = (m && m.wind > 0) ? m.wind
+               : (READY_AT[verb] === undefined ? 0.34 : READY_AT[verb]);
+      if (!f.ready(name, at)) return false;
       f.fxVerb = verb;
       const r = fx && fx.ribbons[heroId];
       if (r) r.clear();

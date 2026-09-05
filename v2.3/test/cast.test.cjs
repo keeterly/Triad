@@ -1561,9 +1561,14 @@ const { boot } = require('./harness.cjs');
   await J(() => window.Cast3D.ready('ash', 'slash'));
   await sleep(1500);
   const wound = await snapR();
-  check('READY: aiming winds the hero up and stops them a third into the swing',
-    wound.acting && wound.held && wound.paused
-    && Math.abs(wound.time - wound.dur * 0.34) < 0.09,
+  // THE MARK IS THE CLIP'S, NOT A CONSTANT. This asserted a third of the way
+  // in, which was the old rule and is the bug: on the Unreal pack the blow
+  // lands at 0.136, so a third of the way in is well past it and the attack was
+  // over before the player let go. `holdFrac` reports where this clip says to
+  // stop, and the property worth checking is that the body got there.
+  check('READY: aiming winds the hero up and stops the body where the clip says',
+    wound.acting && wound.held && wound.paused && wound.holdFrac > 0
+    && Math.abs(wound.time - wound.dur * wound.holdFrac) < 0.09,
     JSON.stringify(wound));
 
   // …AND IT BREATHES. A wind-up perfectly still for four seconds while the
@@ -1588,18 +1593,25 @@ const { boot } = require('./harness.cjs');
   const beforeR = await snapR();
   await J(() => window.Cast3D.ready('ash', 'slash'));
   const afterR = await snapR();
+  // AND IT CANNOT BE CHECKED ON THE CLOCK ANY MORE. The mark used to be a third
+  // of the way into a long clip, so a restart showed up as the time falling a
+  // long way. It is now about forty milliseconds in — inside the breath the
+  // hold deliberately adds — so time alone can no longer tell a restart from
+  // the wind-up straining. What the guard actually promises is that a second
+  // `ready` for the same verb is a no-op: same clip, same mark, still held.
   check('READY: dragging across a second target does not restart the wind-up',
-    afterR.acting && afterR.time > beforeR.dur * 0.34 - 0.1,
+    afterR.acting && afterR.held && afterR.holdFrac === beforeR.holdFrac
+    && afterR.verb === beforeR.verb,
     JSON.stringify({ before: beforeR.time, after: afterR.time,
-                     mark: +(beforeR.dur * 0.34).toFixed(3) }));
+                     holdFrac: afterR.holdFrac, stillHeld: afterR.held }));
 
   // and the drop finishes THAT swing rather than starting another
   await J(() => window.Cast3D.play('ash', 'slash'));
   const rel = await snapR();
   check('READY: letting go finishes the same swing, from where it stopped',
     rel.acting && !rel.paused && rel.holdFrac === 0
-    && rel.time > beforeR.dur * 0.30,
-    JSON.stringify(rel));
+    && rel.time > beforeR.dur * beforeR.holdFrac,
+    JSON.stringify(Object.assign({ stoppedAt: +(beforeR.dur * beforeR.holdFrac).toFixed(3) }, rel)));
 
   await sleep(1800);
   await J(() => window.Cast3D.ready('ash', 'slash'));
@@ -2200,6 +2212,51 @@ const { boot } = require('./harness.cjs');
     lens.hero != null && lens.hero > 0.15 && lens.hero < 0.85,
     JSON.stringify({ hero: lens.hero, foe: lens.foe })
       + ' — aiming at the foe alone put the hero at 0.12 and the other two off the picture');
+
+  // ═══ N · HOLDING A CARD WINDS UP; LETTING GO SWINGS ═══
+  //
+  // The hold mark was a constant per verb — 0.34 of the clip for a slash —
+  // chosen against procedural clips several seconds long. On the Unreal pack
+  // the blow lands at 0.136, so holding a card froze the body a THIRD of the
+  // way in: well past the moment the blade arrives. The attack was over before
+  // the player let go of the card, which is exactly what was reported.
+  //
+  // Each clip now carries its own mark, measured by tools/contact.cjs as the
+  // calmest moment before the blow. On the spells that is a real gather — cast
+  // holds at 0.339 of 0.898 — and on the swings it comes out at the opening
+  // pose, because these clips begin in a fighting stance and commit at once
+  // with no backswing in them. Against a relaxed idle that stance IS the
+  // wind-up, and the whole swing plays on release.
+  console.log('\n── holding winds up, letting go swings ──');
+  const wind = await J(async () => {
+    const C3 = window.Cast3D, out = {};
+    for (const [who, verb] of [['ash', 'slash'], ['mira', 'slash'], ['elin', 'cast']]) {
+      C3.unready(who);
+      if (!C3.ready(who, verb)) { out[who] = { err: 'refused' }; continue; }
+      const f = C3._figure(who);
+      for (let i = 0; i < 90 && !f.held; i++) await new Promise(r => requestAnimationFrame(r));
+      const a = f.acting;
+      out[who] = {
+        clip: a && a.getClip().name,
+        held: !!f.held,
+        stopped: a ? Math.round(1000 * a.time / (a.timeScale || 1)) : -1,
+        contact: C3.contactMs(who, verb),
+      };
+      C3.unready(who);
+    }
+    return out;
+  });
+  const early = Object.entries(wind).every(([, v]) =>
+    v.held && v.contact > 0 && v.stopped >= 0 && v.stopped < v.contact);
+  check('WIND: a held card stops the body BEFORE the blow, not after it',
+    early, JSON.stringify(wind) + ' ms — a constant 0.34 of the clip stopped'
+      + ' the sword at 391ms against a contact frame at 156');
+  // …AND THERE IS STILL AN ACTION LEFT TO THROW. A wind-up that has consumed
+  // the whole swing leaves releasing the card with nothing to show.
+  const left = Object.entries(wind).every(([, v]) => v.contact - v.stopped > 40);
+  check('WIND: …and the blow is still to come when the card is let go',
+    left, JSON.stringify(Object.fromEntries(Object.entries(wind)
+      .map(([k, v]) => [k, (v.contact - v.stopped) + 'ms of swing left']))));
 
   // ═══ N · THE BLOW WAITS FOR THE SWING ═══
   //
