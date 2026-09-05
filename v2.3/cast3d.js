@@ -954,18 +954,28 @@ function clashTexture() {
       x.closePath(); x.fill();
       x.restore();
     };
-    // gathered into the plane of the cut: angles cluster around 0 and pi, with
-    // enough scatter that it is a burst and not a pair of wings
-    for (let i = 0; i < 26; i++) {
-      const side = i % 2 ? 0 : Math.PI;
-      const ang = side + (Math.random() - 0.5) * 1.30;
-      const len = s * (0.10 + Math.pow(Math.random(), 1.7) * 0.40);
-      sliver(ang, len, s * (0.006 + Math.random() * 0.012), 0.55 + Math.random() * 0.45);
+    // ── A CROSS, AND THEN EVERYTHING ELSE ────────────────────────────────
+    //
+    // The first cut of this gathered every sliver into a ±37° band about one
+    // axis. That was an overcorrection: the fault being fixed was the EVEN
+    // eight-spike symmetry of a lens flare, and squashing the burst onto a
+    // single axis trades one wrong shape for another — it reads as a fan.
+    //
+    // What the reference actually does is keep the spray radial and earn its
+    // direction from two DOMINANT crossed beams: one long down the line of the
+    // blow, one shorter across it. The cross says which way; the forty fine
+    // slivers around it say how hard. Neither can do the other's job.
+    for (let i = 0; i < 40; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      // lengths on a long tail — mostly short, a few reaching right out
+      const len = s * (0.055 + Math.pow(Math.random(), 2.6) * 0.40);
+      sliver(ang, len, s * (0.004 + Math.random() * 0.009), 0.4 + Math.random() * 0.5);
     }
-    // two long ones down the line of the blow, which is the shape the eye reads
-    // first and the thing that says which way the force went
-    sliver(0, s * 0.47, s * 0.016, 0.95);
-    sliver(Math.PI, s * 0.40, s * 0.014, 0.85);
+    // the long axis, doubled either side of centre, and the short one across it
+    sliver(0, s * 0.50, s * 0.017, 1.0);
+    sliver(Math.PI, s * 0.44, s * 0.015, 0.92);
+    sliver(Math.PI / 2, s * 0.26, s * 0.012, 0.80);
+    sliver(-Math.PI / 2, s * 0.23, s * 0.011, 0.74);
   });
 }
 
@@ -1810,14 +1820,24 @@ class Clash {
           'varying vec2 vUv;',
           'void main(){',
           '  float u = clamp(vUv.x,0.0,1.0), v = clamp(vUv.y,0.0,1.0);',
-          // thickest in the middle of the crescent, gone at both points
-          '  float span = pow(sin(u * 3.14159265), 0.55);',
-          // a hard bright spine down the centre with a soft shoulder either side
+          // ── POINTED AT BOTH ENDS ───────────────────────────────────
+          // The taper was pow(.., 0.55), and an exponent BELOW one is what
+          // makes a shape fat through the middle and blunt at the tips —
+          // exactly backwards for a blade. Above one it comes to a point,
+          // which is the silhouette every good slash FX has and the thing
+          // that separates a crescent from a sausage.
+          '  float span = pow(sin(u * 3.14159265), 1.7);',
+          // ── AND IT IS A HAIRLINE, NOT A GLOW ───────────────────────
+          // A core at 0.16 of the half-width with the body falling off at
+          // 2.6 is a wide soft band with no line in it. The reference is a
+          // bright filament with a shoulder: the core tightens to 0.06 and
+          // the body falls twice as fast, so what carries the shape is the
+          // SPINE and the glow is only what sits around it.
           '  float d = abs(v - 0.5) * 2.0;',
-          '  float core = exp(-pow(d / 0.16, 2.0));',
-          '  float body = exp(-d * 2.6);',
-          '  float a = span * (body * 0.5 + core) * uFade;',
-          '  vec3 c = uWarm * body * 1.4 + uHot * core * 4.2;',
+          '  float core = exp(-pow(d / 0.06, 2.0));',
+          '  float body = exp(-d * 5.2);',
+          '  float a = span * (body * 0.32 + core) * uFade;',
+          '  vec3 c = uWarm * body * 1.1 + uHot * core * 6.5;',
           '  gl_FragColor = vec4(c * span, clamp(a, 0.0, 1.0));',
           '}',
         ].join('\n'),
@@ -2265,8 +2285,15 @@ class Effects {
         onPath(u, _hitP);
         // off the edge, plus a share along the blade — the ends spill forward,
         // which is what makes a sweep out of a spray
-        offPath(u, _hitD).multiplyScalar(Math.random() < 0.5 ? 1 : -0.55)
-          .addScaledVector(out, 0.55).addScaledVector(along, u * 0.9)
+        // ── AND THE ENDS THROW FORWARD ────────────────────────────────
+        // A spray that leaves perpendicular everywhere is a line of jets. The
+        // tips of a real arc keep the blade's own momentum, so the share of
+        // velocity taken from the tangent rises with |u| — nothing at the
+        // middle of the stroke where the steel bit straight in, most of it at
+        // the points where the edge was already leaving.
+        _hitD.copy(offPath(u, _hitD)).multiplyScalar(Math.random() < 0.5 ? 1 : -0.55)
+          .addScaledVector(out, 0.55)
+          .addScaledVector(along, u * (0.9 + 1.9 * u * u))
           .addScaledVector(side, (Math.random() - 0.5) * 0.35).normalize();
       } else {
         const bow = (1 - u * u) * span * 0.16;
@@ -2348,7 +2375,7 @@ class Effects {
     if (h.cut) {
       // the crescent when the swing left a trail to draw it from; the flat mark
       // only when there is none — a spell, or a creature with no blade
-      if (arcPts && eye) this.clash.fire(arcPts, eye, span * h.cut * 0.16, 0.17);
+      if (arcPts && eye) this.clash.fire(arcPts, eye, span * h.cut * 0.30, 0.17);
       else this.cuts.fire(at, along, span * h.cut * 0.72, 0.19);
     }
     if (h.ring) this.shocks.fire(at, h.ring * k, verb === 'heal' ? 0.7 : 0.42);
