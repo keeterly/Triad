@@ -2029,8 +2029,26 @@ class Figure {
           this.acting.paused = true;
         }
         if (this.held) {
+          // ── AND IT STRAINS FORWARD, NEVER BACKWARD ────────────────────────
+          //
+          // The breath was `mark + sin(t) * 0.042`, clamped at zero. That was
+          // written when the mark sat a third of the way into a long procedural
+          // clip and had 400ms of room either side of it. The Unreal clips open
+          // in a ready stance and commit immediately, so every one of their
+          // wind marks is around 0.03 — sword's is 40ms into a 1.17s swing, and
+          // the breath is 42. The hold was therefore swinging BELOW the mark
+          // for half of every cycle and clamping at 0: the held pose flickered
+          // back to the clip's first frame and out again, about three times a
+          // second, on every attack in the game.
+          //
+          // A wind-up strains toward the blow, not away from it. Raised cosine
+          // rather than sine, so the travel is [mark, mark + amp] and the mark
+          // is the floor rather than the middle — and the amplitude takes
+          // whatever room the clip actually left, so a wind mark 40ms in gets a
+          // small strain and one half a second in gets the full one.
           this.wob += dt;
-          this.acting.time = Math.max(0, mark + Math.sin(this.wob * 2.3) * 0.042);
+          const amp = Math.min(0.042, mark * 0.55 + 0.004);
+          this.acting.time = mark + (1 - Math.cos(this.wob * 2.3)) * 0.5 * amp;
         }
       }
     }

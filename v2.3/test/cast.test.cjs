@@ -1585,6 +1585,23 @@ const { boot } = require('./harness.cjs');
   check('READY: …and the held pose breathes rather than freezing',
     breath > 2 && breath < 400, breath.toFixed(1) + ' mm at the wrist over half a second');
 
+  // …AND IT NEVER STRAINS BACKWARDS. Sampling the held clip's own time across
+  // a full breath: every sample must sit at or above the mark. Below it the
+  // pose is unwinding toward the clip's first frame, which is what the old
+  // sine did on every Unreal attack — their wind marks are all about 0.03,
+  // and the breath was wider than the mark was deep.
+  const breathe = await J(async () => {
+    const f = window.Cast3D._figure('ash');
+    const mark = f.acting ? f.acting.getClip().duration * f.holdFrac : 0;
+    const seen = [];
+    for (let i = 0; i < 40; i++) { f.step(0.035); seen.push(f.acting ? f.acting.time : 0); }
+    return { mark: +mark.toFixed(4), lo: +Math.min(...seen).toFixed(4),
+             hi: +Math.max(...seen).toFixed(4) };
+  });
+  check('READY: the held pose strains toward the blow and never back past the mark',
+    breathe.mark > 0 && breathe.lo >= breathe.mark - 1e-4 && breathe.hi > breathe.mark,
+    JSON.stringify(breathe) + ' — sword marks at 0.040 and the old breath was ±0.042');
+
   // A RESTART IS A TRIP TO ZERO, NOT A WOBBLE. Comparing two samples of a
   // breathing hold cannot detect one: the tension moves the clip's time by
   // ±42ms, so any threshold small enough to catch a restart is smaller than the
@@ -1608,9 +1625,18 @@ const { boot } = require('./harness.cjs');
   // and the drop finishes THAT swing rather than starting another
   await J(() => window.Cast3D.play('ash', 'slash'));
   const rel = await snapR();
+  // AND THE MARK IS THE FLOOR OF THE HOLD, WHICH IT WAS NOT. This read
+  // `time > mark` and went red about half the time, which was the code telling
+  // the truth: the breath was `mark + sin(t) * 0.042` and sword's mark is 40ms
+  // into the clip, so for half of every cycle the held time was BELOW the mark
+  // and clamped at zero — the pose flicking back to the clip's first frame
+  // three times a second on every attack. The strain is a raised cosine now,
+  // travelling [mark, mark + amp] with the amplitude taking whatever room the
+  // clip left, so the mark is a floor and `time >= mark` is a property the
+  // hold actually has. Which makes this check honest rather than lucky.
   check('READY: letting go finishes the same swing, from where it stopped',
-    rel.acting && !rel.paused && rel.holdFrac === 0
-    && rel.time > beforeR.dur * beforeR.holdFrac,
+    rel.acting && !rel.paused && rel.holdFrac === 0 && rel.verb === beforeR.verb
+    && rel.time >= beforeR.dur * beforeR.holdFrac - 1e-3,
     JSON.stringify(Object.assign({ stoppedAt: +(beforeR.dur * beforeR.holdFrac).toFixed(3) }, rel)));
 
   await sleep(1800);
