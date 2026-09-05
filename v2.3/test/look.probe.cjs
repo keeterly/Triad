@@ -6,14 +6,9 @@
 const { boot } = require('./harness.cjs');
 const LOOKS = {
   off:   { line: 0, flat: 0, tooth: 0 },
-  raw:   { line: -5, flat: 0, tooth: 0 },
-  enc:   { line: -7, flat: 0, tooth: 0 },
-  mask:  { line: -3, linew: 1.15, bite: 0.03, reach: 14, flat: 0, tooth: 0 },
-  ink:   { line: 0.72, linew: 1.15, bite: 0.03, reach: 14, flat: 0, tooth: 0 },
-  band:  { line: 0, flat: 0.34, steps: 6, tooth: 0.05 },
-  drawn: { line: 0.72, linew: 1.15, bite: 0.03, reach: 14, flat: 0.34, steps: 6, tooth: 0.05 },
-  soft:  { line: 0.72, linew: 1.15, bite: 0.03, reach: 14, flat: 0.22, steps: 5, tooth: 0.03 },
-  hard:  { line: 0.9,  linew: 1.3,  bite: 0.03, reach: 14, flat: 0.5,  steps: 5, tooth: 0.06 },
+  ink:   { line: 0.85, linew: 1.15, bite: 0.03, reach: 14, flat: 0, tooth: 0 },
+  drawn: { line: 0.85, linew: 1.15, bite: 0.03, reach: 14, flat: 0.30, steps: 6, tooth: 0.04 },
+  bold:  { line: 1.0,  linew: 1.35, bite: 0.025, reach: 16, flat: 0.45, steps: 5, tooth: 0.06 },
 };
 (async () => {
   const { J, sleep, browser, shot, page } = await boot({ query: 'cast=3d' });

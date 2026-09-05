@@ -472,8 +472,27 @@ function watercolour(map, tone) {
           return a*0.65 + b*0.35;
         }
         void main() {`)
-      .replace('#include <dithering_fragment>', `
-        #include <dithering_fragment>
+      // ── THE PAINT GOES ON BEFORE THE ENCODE, NOT AFTER IT ────────────────
+      //
+      // This spliced in at `dithering_fragment`, which three runs AFTER
+      // `colorspace_fragment`. So every line below operated on whatever the
+      // output space happened to be — sRGB when drawing to the canvas, and
+      // LINEAR when drawing to a render target, because three forces a target
+      // to LinearSRGB and the encode chunk becomes a no-op there.
+      //
+      // That is why the post pass could never be made transparent. It was not
+      // a missing conversion on the way out: the scene was SHADED DIFFERENTLY
+      // in the two paths, and no single transform reconciles two different
+      // treatments. Four candidate encodes were measured and the readings came
+      // out symmetric about the truth — the frame too dark by 0.124 with no
+      // conversion and too bright by 0.124 with a full one — which is the
+      // signature of a difference that is not a gamma at all.
+      //
+      // Spliced before the encode, the treatment always runs in linear light
+      // and exactly one conversion happens at the end: three's, on the canvas;
+      // the pass's, when the pass is on. The round trip is then free by
+      // construction rather than by a fitted exponent.
+      .replace('#include <colorspace_fragment>', `
         {
           // the model's own colour, lit — this is what ships
           vec3 base = gl_FragColor.rgb;
@@ -549,7 +568,17 @@ function watercolour(map, tone) {
                                     glow * 0.94 );
             gl_FragColor.rgb += vec3( 1.0, 0.78, 0.42 ) * pow( glow, 3.0 ) * 1.5;
           }
-        }`);
+        }`)
+      // ── AND THE ENCODE GOES LAST, AFTER THE FOG ──
+      //
+      // three runs `fog_fragment` AFTER `colorspace_fragment`, so the haze is
+      // mixed into sRGB on the canvas and into linear light on a render target,
+      // where the encode chunk is a no-op. This plaza is mostly haze, and that
+      // alone left the pass 0.040 out after the paint had been moved. Moving
+      // the one conversion behind the fog puts every path in the same order:
+      // light, paint, haze, encode.
+      .replace('#include <fog_fragment>',
+               '#include <fog_fragment>\n#include <colorspace_fragment>');
     // the height of this fragment up the body, and where it sits in the model,
     // both in the figure's own space — so the tear is the same shape at any
     // scale and travels with the animation rather than with the world
@@ -1277,6 +1306,11 @@ const _fxA = new THREE.Vector3(), _fxB = new THREE.Vector3();
 // height the fight needs, so a blade parented to a hand inherits that scale;
 // the group divides it back out so a sword is the length it says it is
 // whatever size the model arrived at.
+// A global multiplier on every light, so the whole scene can be graded from one
+// place. It lives out here because `look()` drives the key light too and a
+// constant hidden inside the scene builder is a ReferenceError waiting for the
+// first person to touch the shade dial — which is exactly what it was.
+const EXPOSURE = 1.0;
 const WEAPON_HAND = { sword: ['RightHand'], daggers: ['RightHand', 'LeftHand'],
                       staff: ['LeftHand'] };
 const STEEL = { colour: 0xb9c2cc, grip: 0x2a2320, gold: 0x8a6f3c };
@@ -2163,8 +2197,18 @@ const Cast3D = (() => {
   // `tools/horizon.cjs` splits `bg23-plaza-pano.png` at its measured horizon
   // and writes the halves out. Nothing here decides anything about them; it
   // loads them and puts them where the measurement says they go.
+  // ── A COLOUR TEXTURE HAS TO SAY IT IS ONE ────────────────────────────────
+  //
+  // three treats a texture as LINEAR unless told otherwise, and every one of
+  // these is a painting: authored in sRGB, saved in sRGB. Loaded without the
+  // tag they are never decoded, so the encode at the end of the shader lifts
+  // them a second time and the whole plaza comes up washed. It went unnoticed
+  // while the painterly treatment ran after the encode and hid it.
   function loadTex(url) {
-    return new Promise((res, rej) => new THREE.TextureLoader().load(url, res, undefined, rej));
+    return new Promise((res, rej) => new THREE.TextureLoader().load(url, (t) => {
+      t.colorSpace = THREE.SRGBColorSpace;
+      res(t);
+    }, undefined, rej));
   }
 
   // ── AND THE WEATHER, WHICH IS NOT PAINTED AT ALL ───────────────────────────
@@ -2274,10 +2318,21 @@ const Cast3D = (() => {
     // shape and too little of it, so the modelling arrived and the figures went
     // muddy against a bright painted backdrop. The plate behind them is lit
     // daylight; the bodies in front of it have to live in the same exposure.
-    const hemi = new THREE.HemisphereLight(0xc3d4ea, 0x4b3f34, 0.62);
+    // ── EXPOSURE, AND WHY IT IS NOT 1 ────────────────────────────────────
+    //
+    // The painterly treatment used to run AFTER three's encode, so its output
+    // went to the screen unconverted. Moving it before the encode — which is
+    // what made the post pass reconcilable at all — means the same light now
+    // gets the sRGB lift applied to it, and the plaza came up 43% brighter than
+    // the look it was authored at (mean luminance 0.391 against 0.274).
+    //
+    // These lights are linear and the transfer is not, so the correction is not
+    // 0.70: it is 0.70 raised to 2.2. Measured back to the frame it was, rather
+    // than assumed.
+    const hemi = new THREE.HemisphereLight(0xc3d4ea, 0x4b3f34, 0.62 * EXPOSURE);
     scene.add(hemi);
     scene.userData.hemi = hemi;
-    const k = new THREE.DirectionalLight(0xffe3b8, 2.75);
+    const k = new THREE.DirectionalLight(0xffe3b8, 2.75 * EXPOSURE);
     // LOW AND ALONG THE STREET, not overhead. At (4.5, 7.5, 5.0) the sun was
     // almost straight above the party, which throws a puddle of shadow under
     // each figure and models nothing. Dropped to a raking angle, the same light
@@ -2296,11 +2351,11 @@ const Cast3D = (() => {
     k.shadow.normalBias = 0.02;
     // the cool counter, from behind and low, so a body has an edge against the
     // mist rather than dissolving into it
-    const r = new THREE.DirectionalLight(0x8ba6cf, 1.25);
+    const r = new THREE.DirectionalLight(0x8ba6cf, 1.25 * EXPOSURE);
     r.position.set(-6, 2.4, -5);
     // …and a dim warm bounce up off the water, which is the one light this
     // scene has a physical reason to expect and did not have
-    const b = new THREE.DirectionalLight(0xd8a06a, 0.48);
+    const b = new THREE.DirectionalLight(0xd8a06a, 0.48 * EXPOSURE);
     b.position.set(1.5, -3, 4);
     scene.add(k, r, b);
     scene.userData.key = k;
@@ -2373,7 +2428,12 @@ const Cast3D = (() => {
       sh.uniforms.uReflMat = { value: new THREE.Matrix4() };
       floorMat.userData.mat = sh.uniforms.uReflMat;
       sh.fragmentShader = 'uniform sampler2D uRefl;\nuniform float uWet;\nvarying vec4 vRefl;\n'
-        + sh.fragmentShader.replace('#include <dithering_fragment>', `
+        // …and the same rule as the figures: the water goes on BEFORE the
+        // encode. It matters twice here, because `uRefl` is itself a render
+        // target and three forces those to linear — so blending a linear
+        // reflection into an already-encoded floor was mixing two different
+        // spaces every frame, on top of making the whole pass unreconcilable.
+        + sh.fragmentShader.replace('#include <colorspace_fragment>', `
         // THE WATER IS NOT EVERYWHERE, AND NOT EVENLY. A mirror-flat plaza is
         // an ice rink; what a soaked stone floor does is hold water in the low
         // places. The floor's own texture says where those are — the darker it
@@ -2397,8 +2457,9 @@ const Cast3D = (() => {
         // the water is DARKER than what it reflects — it is a puddle on a black
         // street, not a looking glass, and this is most of the difference
         // between a drowned plaza and a hotel lobby
-        gl_FragColor.rgb = mix( gl_FragColor.rgb, mirrored * 0.72, k );
-        #include <dithering_fragment>`);
+        gl_FragColor.rgb = mix( gl_FragColor.rgb, mirrored * 0.72, k );`)
+        .replace('#include <fog_fragment>',
+                 '#include <fog_fragment>\n#include <colorspace_fragment>');
     };
     ground = new THREE.Mesh(new THREE.PlaneGeometry(FLOOR_SPAN, FLOOR_SPAN), floorMat);
     ground.rotation.x = -Math.PI / 2;
@@ -2443,6 +2504,7 @@ const Cast3D = (() => {
     // THE WEATHER BEHIND IT. A hair further out so it never z-fights the panel,
     // and tall enough that no orbit finds its lip.
     const fogTex = new THREE.CanvasTexture(fogBand());
+    fogTex.colorSpace = THREE.SRGBColorSpace;
     fogTex.colorSpace = THREE.SRGBColorSpace;
     const haze = new THREE.Mesh(
       new THREE.CylinderGeometry(SKY_R + 3, SKY_R + 3, (top + bot) * 1.9, 64, 1, true),
@@ -2539,6 +2601,7 @@ const Cast3D = (() => {
     // between the party and the arcade, which is the difference between a
     // painting with fog in it and a place with fog in it.
     const mistTex = new THREE.CanvasTexture(mistPuff());
+    mistTex.colorSpace = THREE.SRGBColorSpace;
     const mist = new THREE.Group();
     for (let i = 0; i < 3; i++) {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(26, 9),
@@ -3307,7 +3370,15 @@ const Cast3D = (() => {
     const h = Math.max(2, Math.round(sized.h * sized.dpr));
     if (post && post.width === w && post.height === h) return post;
     if (post) { post.dispose(); if (post.depthTexture) post.depthTexture.dispose(); }
-    post = new THREE.WebGLRenderTarget(w, h);
+    // ── AND THE TARGET HOLDS LINEAR LIGHT, SO IT CANNOT BE EIGHT BITS ──
+    //
+    // three forces a render target to LinearSRGB, so what lands here is linear
+    // and the encode happens on the way out. Eight bits of LINEAR is the one
+    // combination that does not work: the transfer spends most of its
+    // precision on the highlights, so the darks — which is most of this game —
+    // arrive quantised to a handful of levels and come back banded and lifted.
+    // Half-float costs memory and nothing else.
+    post = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType });
     post.texture.minFilter = THREE.LinearFilter;
     post.texture.magFilter = THREE.LinearFilter;
     // ── THE TARGET ENCODES THE WAY THE CANVAS DOES ─────────────────────────
@@ -4508,7 +4579,7 @@ const Cast3D = (() => {
         // the floor is real geometry now, so its dials are its own: how dark a
         // contact shadow lands, and how bright the painted stone reads
         if (next.shade != null && scene.userData.key)
-          scene.userData.key.intensity = 1.45 * (1 - next.shade) + 0.45;
+          scene.userData.key.intensity = (1.45 * (1 - next.shade) + 0.45) * EXPOSURE;
         if (next.floor != null)
           ground.material.color.setScalar(0.5 + next.floor * 1.6);
       }
