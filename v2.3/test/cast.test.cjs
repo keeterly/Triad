@@ -2148,16 +2148,16 @@ const { boot } = require('./harness.cjs');
   // being horizontal is the entire point. Everything else is a person on their
   // feet, whatever else they are doing.
   console.log('\n── the body is still a body ──');
-  const folds = await J(async () => {
+  let folds = await J(async () => {
     const C3 = window.Cast3D, f = C3._figure('ash');
     const B = {};
     f.root.traverse(o => { if (o.isBone) B[o.name] = o; });
     const wp = (n) => { const o = B[n]; if (!o) return null;
       const m = o.matrixWorld.elements; return [m[12], m[13], m[14]]; };
-    const worst = {};
+    const worst = {}, off = {};
     for (const clip of Object.keys(f.actions)) {
       const a = f.actions[clip], dur = a.getClip().duration;
-      let mx = 0;
+      let mx = 0, air = 0;
       for (let i = 0; i < 8; i++) {
         for (const k of Object.keys(f.actions)) { f.actions[k].setEffectiveWeight(0); f.actions[k].stop(); }
         if (f.idle) f.idle.setEffectiveWeight(0);
@@ -2165,18 +2165,21 @@ const { boot } = require('./harness.cjs');
         a.time = dur * (i / 7) * 0.999;
         f.mixer.update(0);
         f.root.updateMatrixWorld(true);
-        const h = wp('Hips'), hd = wp('Head');
+        const h = wp('Hips'), hd = wp('Head'), lf = wp('LeftFoot'), rf = wp('RightFoot');
         if (!h || !hd) continue;
         const v = [hd[0] - h[0], hd[1] - h[1], hd[2] - h[2]];
         const L = Math.hypot(v[0], v[1], v[2]) || 1;
         mx = Math.max(mx, Math.acos(Math.max(-1, Math.min(1, v[1] / L))) * 180 / Math.PI);
+        if (lf && rf) air = Math.max(air, Math.min(lf[1], rf[1]));
       }
       worst[clip] = +mx.toFixed(0);
+      off[clip] = +air.toFixed(2);
     }
     for (const k of Object.keys(f.actions)) { f.actions[k].paused = false; f.actions[k].setEffectiveWeight(0); f.actions[k].stop(); }
     f.acting = null; if (f.idle) f.idle.setEffectiveWeight(1);
-    return worst;
+    return { worst, off };
   });
+  const feetUp = folds.off; folds = folds.worst;
   const upright = Object.entries(folds).filter(([k]) => k !== 'down');
   const bent = upright.filter(([, v]) => v >= 90).map(([k, v]) => k + ' ' + v + '°');
   check('BODY: nobody folds past horizontal — the knock-down is the one that may',
@@ -2190,6 +2193,23 @@ const { boot } = require('./harness.cjs');
     folds.idle != null && folds.idle < 32,
     JSON.stringify({ idle: folds.idle }) + '° off vertical at its worst — the'
       + ' hand-authored guards read 14 and the Build 140 import read 37');
+
+  // …AND NOBODY HANGS IN THE AIR. The trunk angle is only half of what a
+  // player calls "the rotation is off": the other half is a figure a metre off
+  // the paving, floating over the plaza while the next card is being lined up.
+  // `sword` did exactly that — its own root motion raised the hips 70cm, where
+  // every other action in the library moves 2 to 10, and both feet went 1.03m
+  // up. tools/ground.mjs rescales the UPWARD hip travel of a clip and leaves
+  // the downward alone, so a crouch and a fall still work; sword came back to
+  // 0.41 and the Build 140 import's swordHeavy read 0.70.
+  //
+  // The knock-down is exempt from this one too, for the same reason: it is
+  // supposed to leave its feet.
+  const floating = Object.entries(feetUp).filter(([k, v]) => k !== 'down' && v > 0.5);
+  check('BODY: …and nobody hangs in the air while the fight waits for them',
+    floating.length === 0,
+    JSON.stringify(feetUp) + ' m — the highest the LOWER foot gets; sword was 1.03'
+      + ' before tools/ground.mjs and the Build 140 import read 0.70');
 
   // ═══ N · THE DRAWN LOOK ═══
   //
