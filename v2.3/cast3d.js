@@ -1790,9 +1790,15 @@ const Cast3D = (() => {
     // the move is long, continuous and slow enough to be furniture rather than
     // an event. Dynamism here means the frame is alive, not that it is hard to
     // read.
-    parry:     { az: -36, dist: 4.40, height: 0.98, aimY: 1.62, roll: -6, fov: 58,
+    // AND IT HAS TO CONTAIN THE THING BEING PARRIED. `at: 'party'` framed the
+    // three of them beautifully and left whatever was swinging at them off the
+    // edge: the player was asked to answer a blow they could not see. The
+    // caller passes the defender and the body aiming at them, so the lens sits
+    // between the two and the exchange is in one frame — pulled back a little
+    // and widened, because two ranks need more room than one.
+    parry:     { az: -36, dist: 5.20, height: 0.98, aimY: 1.62, roll: -6, fov: 60,
                  at: 'party',
-                 to: { az: -14, dist: 3.85, height: 1.36, aimY: 1.56, roll: 1.5, fov: 61 },
+                 to: { az: -14, dist: 4.55, height: 1.36, aimY: 1.56, roll: 1.5, fov: 63 },
                  over: 3200 },
     // AFTER THE KILL, stand back up and take the room in — as a slow crane
     // rather than a cut to a wide. The whole point of the reckoning is that the
@@ -1811,9 +1817,23 @@ const Cast3D = (() => {
     // still by the time the blade did anything. Now it drifts across the line
     // and closes half a metre over the length of the swing, so the frame is
     // travelling when the hit lands. Short, because the beat is short.
-    strike:    { az: -18, dist: 5.60, height: 1.44, aimY: 1.56, roll: -2.5, fov: 54,
+    // ── A STRIKE IS TWO PEOPLE ──────────────────────────────────────────
+    //
+    // This was `at: 'foe'`: the lens aimed at what was being hit and held there
+    // for the whole beat. Measured, that put the swinging hero at 0.02 of the
+    // frame's width — hard against the left edge — and the other two off it
+    // entirely. The player watched the enemy while their own hero swung out of
+    // shot. The blow landing is half of what a strike is; who threw it is the
+    // other half.
+    //
+    // The caller passes both names and `aimPoint` averages them, so the lens
+    // sits between attacker and target and the swing travels ACROSS the frame
+    // into the thing it hits. That needs more room than one figure did — hence
+    // further back and wider — and it stays a push-in, because a strike should
+    // still close on the moment of contact.
+    strike:    { az: -18, dist: 6.40, height: 1.44, aimY: 1.52, roll: -2.5, fov: 58,
                  at: 'foe',
-                 to: { az: -7, dist: 4.95, height: 1.30, roll: 1, fov: 57 },
+                 to: { az: -7, dist: 5.70, height: 1.30, roll: 1, fov: 60 },
                  over: 900 },
     // …and mercy is the opposite shot in every respect — further back, higher,
     // on the party rather than on what it is hitting, because a heal is not an
@@ -4111,6 +4131,20 @@ const Cast3D = (() => {
     // WHICH OF THE FIGHT'S FOUR WORDS THIS PERSON THROWS when nothing else is
     // being asked. The fight knows its verbs; it does not know that Elin is the
     // one who casts, and it should not have to.
+    // HOW LONG THIS ACTION IS ACTUALLY ON SCREEN, in milliseconds.
+    //
+    // A camera beat used to be a constant — `for: 760` — chosen when the sword
+    // clip was a 4.4s procedural one windowed down to 1.15. The Unreal clips
+    // are their own lengths and the constant no longer matches any of them, so
+    // the lens handed the frame back with a third of the swing still to play.
+    // The layer already knows: playback is scaled so a clip lasts exactly its
+    // beat, and a clip without one lasts as long as it was authored.
+    beatMs: (id, verb, dir) => {
+      const f = figs[id]; if (!f) return 0;
+      const a = f.actions[clipFor(f, verb, dir)];
+      if (!a) return 0;
+      return Math.round(1000 * a.getClip().duration / (a.timeScale || 1));
+    },
     verbFor: (id) => {
       const t = (figs[id] && figs[id].tone) || CAST[id];
       return (t && t.verb) || 'slash';

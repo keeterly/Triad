@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 144;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 145;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -4196,7 +4196,14 @@ async function runVolleyRhythm(hits, answerers, sub) {
   const stage = el('k-stage');
   if (!stage || !kinds.length) return kinds.map(() => 'miss');
   parryFocus(true);
-  camParryOpen();      // one composition, held for the whole bar
+  // the defenders this volley asks to answer, and the bodies aiming at them
+  const _between = [];
+  for (const who of answerers) if (who != null && _between.indexOf(who) < 0) _between.push(who);
+  for (const who of _between.slice()) {
+    const f = 'foe' + srcAt(who);
+    if (_between.indexOf(f) < 0) _between.push(f);
+  }
+  camParryOpen(_between);   // one composition, held for the whole bar
   camHold(true);
   // THE RINGS RIDE THE LENS. They live on the stage, outside the field, so a
   // camera move would slide them off the heroes they belong to. Re-anchoring
@@ -4550,12 +4557,19 @@ function camPush(tier, node) {
 // the bar, leans in a touch, and does not move again until the bar is over.
 // The per-note feedback belongs to the flash, the shock and the stop.
 const CAM_POSE_PARRY = { x: 6, y: 2, dz: 62, r: 0, yaw: 0, pitch: 1.2 };
-function camParryOpen() {
+function camParryOpen(between) {
   if (camReduced()) return;
   cam(Object.assign({}, CAM_POSE_PARRY, { ms: 380, ease: CAM_SETTLE, force: true }));
   // …and in three dimensions the same intent is a stance: in close on the
   // defender and slightly under, so the blow reads as coming down at you.
-  castShot('parry', { speed: 1.5 });
+  //
+  // WITH WHATEVER IS SWINGING IN THE SAME FRAME. This framed the party alone,
+  // which composed the three of them nicely and put the attacker off the edge —
+  // the player was asked to read a blow they could not see. The volley already
+  // knows which body is aiming at which hero; naming both ends of that puts the
+  // exchange in one picture.
+  castShot('parry', Object.assign({ speed: 1.5 },
+    between && between.length ? { at: between } : null));
 }
 function camHold(on) {
   _camHeld = on ? 1 : 0;
@@ -4797,6 +4811,11 @@ function fxSlash(node, i, heavy) {
 // THE FIGHT NAMES A SHOT THE WAY A DIRECTOR DOES, and the 3D layer walks the
 // camera there. Guarded like every other cast call: with the painted stage this
 // costs one property read and does nothing at all.
+// how long the clip a verb resolves to will be on screen, in ms — 0 on the
+// painted stage, where there is no clip and no camera to hold
+function castBeatMs(id, verb, dir) {
+  return (window.Cast3D && window.Cast3D.beatMs) ? window.Cast3D.beatMs(id, verb, dir) : 0;
+}
 function castShot(name, opts) {
   const C3 = window.Cast3D;
   if (C3 && C3.shot) C3.shot(name, opts);
@@ -5016,9 +5035,26 @@ function fxPlayCard(cardId, ev) {
       { shot: 'together', opts: { for: 1100, speed: 1.9, at: both.slice() } },
     ]);
   } else if (SHOT_FOR[kind]) {
-    castShot(SHOT_FOR[kind],
-      combo ? { for: 1250, speed: 2.2, dist: kind === 'heal' || kind === 'ward' ? 5.8 : 4.9 }
-            : { for: 760, speed: 2.9 });
+    // ── THE LENS HOLDS FOR AS LONG AS THE ACTION TAKES ────────────────────
+    //
+    // `for: 760` was chosen when a sword swing was a 4.4s procedural clip
+    // windowed down to 1.15s on screen. The Unreal clips are their own lengths
+    // and none of them is 760ms, so the camera handed the frame back with a
+    // third of the swing still to play — which is exactly "we do not see our
+    // heroes perform their full action". The layer knows how long the clip it
+    // just started will be on screen, so ask it rather than guess, and leave a
+    // short tail so the recovery is not cut off either.
+    const ms = castBeatMs(heroId, kind, flavour);
+    // …AND A STRIKE IS TWO PEOPLE. Framing only the target meant watching the
+    // enemy while the hero swung at the edge of frame. Naming both puts the
+    // lens between them, so the blow travels across the picture into the thing
+    // it lands on. A heal is not an exchange and keeps the party framing.
+    const hit = 'foe' + ((C && C.aim) || 0);
+    const pair = (kind === 'heal' || kind === 'ward') ? null : [heroId, hit];
+    castShot(SHOT_FOR[kind], Object.assign(
+      { for: Math.max(760, ms + 420), speed: combo ? 2.2 : 2.9 },
+      combo ? { dist: kind === 'heal' || kind === 'ward' ? 5.8 : 5.6 } : null,
+      pair ? { at: pair } : null));
   }
   if (ev.condActive && ev.card.cond) fxComboCall(ev.card.cond.type, h);
 }

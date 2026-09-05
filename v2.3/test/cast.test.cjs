@@ -2150,6 +2150,57 @@ const { boot } = require('./harness.cjs');
     JSON.stringify(about) + ' — the lens ends up nearer Ash than the foe line does');
   await J(() => { window.Cast3D.uncut(); window.Cast3D.shot('home'); });
 
+  // ═══ N · THE CAMERA STAYS FOR THE WHOLE ACTION, AND FRAMES BOTH OF THEM ═══
+  //
+  // Two faults, reported from a playtest as "the camera frames the enemy when
+  // the attack goes off and we don't see our heroes perform their full action".
+  //
+  // THE HOLD WAS A CONSTANT. `for: 760` was chosen when a sword swing was a
+  // 4.4s procedural clip windowed down to 1.15s on screen. The Unreal clips are
+  // their own lengths — measured, slash 1150ms, heavy 1183, cast 1200 — so the
+  // lens handed the frame back with better than a third of every action still
+  // to play. The layer knows how long a clip will be on screen; the camera asks
+  // it now instead of guessing.
+  //
+  // AND THE FRAME HELD ONE END OF THE EXCHANGE. `strike` was `at: 'foe'`:
+  // measured, that put the swinging hero at 0.12 of the frame's width and the
+  // other two at -0.13 and -0.02 — off the picture. Naming the attacker AND the
+  // target puts the lens between them, and the swing travels across the frame
+  // into the thing it lands on: 0.35 for the hero, 0.69 for the foe.
+  console.log('\n── the camera stays for the whole action ──');
+  const lens = await J(async () => {
+    const C3 = window.Cast3D;
+    const b = document.getElementById('k-cast').getBoundingClientRect();
+    const seen = (id) => {
+      const e = document.querySelector('.k-hero[data-hero="' + id + '"]')
+        || document.querySelector('#k-cast .k-foe-art[data-ix="' + String(id).replace('foe', '') + '"]');
+      if (!e) return null;
+      const q = e.getBoundingClientRect();
+      return +(((q.left + q.width / 2) - b.left) / b.width).toFixed(2);
+    };
+    const foe = 'foe' + ((window.C && window.C.aim) || 0);
+    const target = document.querySelector('#k-cast .k-foe-art') ? foe : null;
+    const ms = C3.beatMs('ash', 'slash');
+    C3.uncut();
+    C3.shot('strike', { for: Math.max(760, ms + 420), speed: 2.9, at: ['ash', foe] });
+    // READ THE HOLD NOW. A hold is a deadline in real time, and headless runs at
+    // about two frames a second — waiting forty frames to look at it measures
+    // the harness's frame rate and reports an expired hold as a missing one.
+    const held = C3.shot().holding;
+    for (let i = 0; i < 12; i++) await new Promise(r => requestAnimationFrame(r));
+    return { ms, held, hero: seen('ash'), foe: seen(foe), target };
+  });
+  check('LENS: the camera holds for as long as the action is on screen',
+    lens.ms > 0 && lens.held + 40 >= lens.ms,
+    JSON.stringify(lens) + ' ms — the hold was a flat 760 against actions of 1150 to 1200');
+  // …AND BOTH ENDS OF IT ARE IN THE PICTURE. A fraction of the frame's width:
+  // 0 is the left edge and 1 the right, so anything outside 0..1 is off screen
+  // and anything under about 0.1 is jammed against the edge.
+  check('LENS: …and the hero throwing the blow is in the frame, not on its edge',
+    lens.hero != null && lens.hero > 0.15 && lens.hero < 0.85,
+    JSON.stringify({ hero: lens.hero, foe: lens.foe })
+      + ' — aiming at the foe alone put the hero at 0.12 and the other two off the picture');
+
   // ═══ N · THE BODY IS STILL A BODY ═══
   //
   // An imported clip can be wrong in a way every other check in this file
