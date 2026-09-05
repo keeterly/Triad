@@ -755,6 +755,103 @@ function retarget(clip, restSrc, parentOf, bones, window) {
   return new THREE.AnimationClip(clip.name, dur, tracks);
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// THE LUNGE COMES HOME ON ITS OWN FEET
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Unreal keeps a clip's travel on a `root` bone and lets a capsule carry it;
+// the importer folds it into the Hips because that is the only place it can go
+// here. So an attack clip really does walk the body across the floor, and
+// nothing in this layer ever walked it back — the slot ease simply dragged the
+// figure home at dt*5.5 once the swing was over. From 1.45m that is 13cm on
+// the first frame at 60Hz: about EIGHT METRES PER SECOND, backwards, under an
+// idle, with both feet perfectly still. That is what "characters are sliding
+// around a lot" is, and it is not the animation — it is the return.
+//
+// ── THE INSTRUMENT, WHICH TOOK THREE TRIES ────────────────────────────────
+//
+// Sliding is a foot moving over ground it is supposed to be holding, so the
+// first metric called a foot planted when it sat within 3cm of its own lowest
+// point and summed how far it travelled while it did. That is too loose: in a
+// fast lunge a foot lifts, swings and lands between two samples with both of
+// them low, and the whole STEP is counted as slide — it reported 17.5 m/s on a
+// sword swing, which is a foot walking, sampled coarsely.
+//
+// What a body on its feet actually guarantees is that ONE of them is still. So
+// take the slower of the two at every instant: during a real step that is the
+// support foot and it reads near zero, and it is only large when both feet are
+// crossing the ground at once, which is what gliding is. No plant test, no
+// threshold. Except that it called FLIGHT a fault — swordHeavy leaves the
+// ground — so a frame counts only while the lower foot is within 12cm of the
+// lowest either foot reaches. `test/slide.probe.cjs` is that instrument, and
+// it steps the mixer by hand because this browser draws at about 2fps.
+//
+// ── AND TWO FIXES IT THREW OUT ────────────────────────────────────────────
+//
+// Cancelling the drift outright, across the whole clip, took sword from 1.45m
+// to 0.04m and pushed its foot slide the WRONG WAY — 0.59m up to 1.81m at the
+// time, measured with the loose metric. The legs are not passengers: the
+// stride is matched to the travel, and removing the travel leaves the feet
+// sweeping backwards through the floor with nothing to walk against.
+//
+// Trimming the window so the walk is never played fails too. Sampling prefixes
+// showed most of the travel is in the FIRST 30% — swordHeavy 1.62m of its 2.09
+// by then, daggers its whole 1.09 — while contact lands at 14-20%. The travel
+// IS the attack. These are charging blows; the actor runs into them.
+//
+// ── SO: THE APPROACH IS UNTOUCHED, THE FOLLOW-THROUGH PAYS IT BACK ────────
+//
+// Every centimetre up to the contact frame is exactly as authored, footwork
+// and all. Only the tail is asked to bring the body home, on a smoothstep, so
+// it eases out of the blow rather than reversing on a frame. Measured, in
+// metres of glide inside the clip against metres of snap removed after it:
+//
+//   clip          drift    glide before -> after    snap removed (at ~8 m/s)
+//   sword          1.45      0.59  ->  1.81               1.45
+//   swordHeavy     2.09      1.79  ->  3.31               2.09
+//   daggers        0.91      0.79  ->  1.54               0.91
+//   daggersHeavy   0.89      1.53  ->  2.25               0.89
+//   staff          0.50      0.12  ->  0.58               0.50
+//   down           1.07      0.34  ->  0.34               1.07
+//
+// The clip gives up less ground than the snap gave up, in every row, and it
+// gives it up slower — sword peaks at 3.14 m/s where the snap was eight — and
+// under legs that are moving rather than a standing idle. `down` is free: it
+// is airborne for a third of its length, so there was nothing to add.
+//
+// WHAT THIS DOES NOT FIX, said plainly because the number is there: these
+// clips slide on their own, before anything here touches them. swordHeavy
+// gives up 1.79m at a 14.35 m/s peak and daggersHeavy 1.53m at 10.59, against
+// 0.03-0.07m and under 0.6 m/s for cast, heal, ward, parry and idle. That is
+// mocap foot skate in the source and only foot IK will take it out.
+//
+const MIN_DRIFT = 10;    // rig units, about 10cm — under this nobody sees it
+function homeward(clip, hitFrac) {
+  const t = clip.tracks.find(x => x.name === 'Hips.position');
+  if (!t || t.times.length < 3) return clip;
+  const v = t.values, n = t.times.length;
+  const t0 = t.times[0], t1 = t.times[n - 1];
+  if (!(t1 - t0 > 0)) return clip;
+  const dx = v[(n - 1) * 3] - v[0], dz = v[(n - 1) * 3 + 2] - v[2];
+  if (Math.hypot(dx, dz) < MIN_DRIFT) return clip;
+  // …and it starts at the blow, wherever the blow is. A clip with no contact
+  // mark — the knockdown — gets the back third, which is its own settle.
+  const f = (hitFrac > 0 && hitFrac < 0.9) ? hitFrac : 0.66;
+  const from = t0 + (t1 - t0) * f;
+  const run = Math.max(1e-4, t1 - from);
+  for (let i = 0; i < n; i++) {
+    const u = (t.times[i] - from) / run;
+    const w = u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u);
+    v[i * 3] -= dx * w;
+    v[i * 3 + 2] -= dz * w;
+  }
+  homed[clip.name] = Math.round(Math.hypot(dx, dz));
+  return clip;
+}
+const homed = {};   // test-only: which clips were brought home, and from how
+                    // far — in rig units, the hundredths of a metre the tracks
+                    // are written in, so sword's 140 is that 1.45 m
+
 // three's interpolants allocate; this is called a few thousand times at load,
 // so the sampling is done by hand with a slerp between the bracketing keys
 function sampleQuat(track, t, into) {
@@ -1065,52 +1162,151 @@ class Ribbon {
     g.setAttribute('uv', new THREE.BufferAttribute(this.uv, 2));
     g.setIndex(idx);
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 60);
-    // ── THE ARC IS SHADED, NOT STAMPED ────────────────────────────────────
+    // ── THE ARC IS THREE THINGS, NOT ONE QUAD ─────────────────────────────
     //
-    // It was one additive quad wearing a texture, at a flat opacity, with a
-    // hard edge everywhere: the same brightness at the tail as at the blade,
-    // the same across the width, and a border where the geometry stopped. That
-    // is what reads as cheap — nothing in it says which end is moving.
+    // It began as a single additive quad wearing a texture at a flat opacity:
+    // the same brightness at the tail as at the blade, the same across the
+    // width, a hard border where the geometry stopped. Shading it along and
+    // across (Build 148) fixed the border and gave it a head, and it still
+    // read cheap, because a bright shape drawn OVER the world is a decal. The
+    // things that make an arc feel like it costs something are the things that
+    // say it is IN the world and made of energy:
     //
-    // Now the two directions do different work. ALONG the arc (u) the head is
-    // a hot near-white edge falling away through the trail's own colour to
-    // nothing at the tail, on a curve rather than a ramp so the leading edge
-    // stays tight while the tail goes soft. ACROSS it (v) the alpha falls off
-    // toward both the grip and the tip, so the band has no border — it is
-    // brightest along the blade's own line.
+    //   1 · IT BENDS WHAT IS BEHIND IT. Superheated air is a lens. This is the
+    //       half that cannot be faked with brightness, and it is why the same
+    //       geometry is drawn twice: once with normal blending, sampling the
+    //       frame the world was just rendered into and offsetting the sample
+    //       ACROSS the band, and once additively for the light. Additive alone
+    //       cannot refract — adding the background to itself only doubles it.
+    //
+    //   2 · IT HAS A CORE, and the core is not the band. A blade trail is a
+    //       thin white-hot spine with a wide soft bloom around it, and the
+    //       spine tightens toward the leading edge. One falloff across the
+    //       whole width gives a fat glowing ribbon; two — a narrow gaussian
+    //       for the core, a wide sine for the bloom — give a blade.
+    //
+    //   3 · IT FRAYS AS IT DIES. The head is clean because it was just cut;
+    //       the tail has had time to come apart. A little turbulence weighted
+    //       by age does that, and it is what stops the shape reading as a
+    //       stamped swoosh played back at different opacities.
+    //
+    // The refraction samples the target the WORLD pass writes, which this
+    // frame is a frame behind — the arc is drawn inside the scene so it keeps
+    // its depth test, and a pass cannot read the target it is writing. At a
+    // sixtieth of a second the lag is a fraction of one segment of the trail
+    // and there is nothing on screen to compare it against.
+    const CHUNK = `
+      varying vec2 vUv;
+      varying vec4 vClip;
+      void main() {
+        vUv = uv;
+        vClip = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        gl_Position = vClip;
+      }`;
+    // the shared shape of the thing, so the two passes cannot disagree about
+    // where the arc is — only about what to do there
+    const SHAPE = `
+      uniform float uFade, uTime;
+      varying vec2 vUv;
+      varying vec4 vClip;
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+                   mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+      }
+      // along the arc: 0 is the oldest sample, 1 is the blade right now
+      float headOf() { return pow(clamp(vUv.x, 0.0, 1.0), 2.2); }
+      // across it: no border, and the spine tightens toward the leading edge
+      float coreOf(float head) {
+        float w = mix(0.22, 0.060, head);
+        float d = (clamp(vUv.y, 0.0, 1.0) - 0.5) / w;
+        return exp(-d * d);
+      }
+      float bandOf(float head, float t) {
+        float b = pow(sin(clamp(vUv.y, 0.0, 1.0) * 3.14159265), 1.05);
+        // the tail frays; the head is clean because it was just cut
+        float turb = noise(vec2(vUv.x * 11.0 - t * 2.6, vUv.y * 3.5 + t * 0.7));
+        return b * mix(0.45 + 0.55 * turb, 1.0, head);
+      }`;
+
+    const common = {
+      uFade: { value: 0 }, uTime: { value: 0 },
+      uHot:  { value: new THREE.Color(0xfff6ea) },
+      uCool: { value: new THREE.Color(0x6f9ad4) },
+    };
+    // ── PASS ONE: THE AIR ────────────────────────────────────────────────────
+    // Normal blending, so it can REPLACE the pixel with a displaced sample of
+    // the world instead of adding to it. The offset runs across the band and
+    // reverses either side of the spine, which is what a lens does; the three
+    // channels are pulled apart very slightly, which is what glass does.
+    this.refMat = new THREE.ShaderMaterial({
+      uniforms: Object.assign({ uScene: { value: null }, uAmt: { value: 0.022 } }, common),
+      transparent: true, depthWrite: false, depthTest: true,
+      side: THREE.DoubleSide, blending: THREE.NormalBlending,
+      vertexShader: CHUNK,
+      fragmentShader: SHAPE + `
+        uniform sampler2D uScene;
+        uniform float uAmt;
+        void main() {
+          float head = headOf();
+          float band = bandOf(head, uTime);
+          float core = coreOf(head);
+          vec2 uv = (vClip.xy / vClip.w) * 0.5 + 0.5;
+          // outward from the spine, strongest at the edges of the band and at
+          // the young end of the arc, and gone by the time the tail has cooled
+          float lens = (clamp(vUv.y, 0.0, 1.0) - 0.5) * 2.0;
+          float k = uAmt * uFade * band * (0.35 + 0.65 * head);
+          vec2 off = vec2(lens, lens * 0.35) * k;
+          vec3 c;
+          c.r = texture2D(uScene, uv + off * 1.06).r;
+          c.g = texture2D(uScene, uv + off).g;
+          c.b = texture2D(uScene, uv + off * 0.94).b;
+          // …and the air is not perfectly clear: the core scatters a little
+          float a = clamp(band * uFade * (0.55 + 0.45 * head), 0.0, 1.0);
+          gl_FragColor = vec4(c, a * (1.0 - 0.25 * core));
+        }`,
+    });
+    // ── PASS TWO: THE LIGHT ──────────────────────────────────────────────────
     this.mat = new THREE.ShaderMaterial({
-      uniforms: { uMap: { value: map }, uFade: { value: 0 },
-                  uHot: { value: new THREE.Color(0xfff4e2) },
-                  uCool: { value: new THREE.Color(0x7fa8d8) } },
+      uniforms: Object.assign({ uMap: { value: map } }, common),
       transparent: true, depthWrite: false, depthTest: true,
       side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
-      vertexShader: `
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
+      vertexShader: CHUNK,
+      fragmentShader: SHAPE + `
         uniform sampler2D uMap;
-        uniform float uFade;
         uniform vec3 uHot, uCool;
-        varying vec2 vUv;
         void main() {
-          // along the arc: 0 is the oldest sample, 1 is the blade right now
-          float head = pow(clamp(vUv.x, 0.0, 1.0), 2.2);
-          // across it: no border, brightest down the middle of the swept band
-          float band = sin(clamp(vUv.y, 0.0, 1.0) * 3.14159265);
-          band = pow(band, 0.65);
-          float a = head * band * uFade;
-          // the ink of the swing itself, so a stamped texture still shapes it
-          a *= 0.35 + 0.65 * texture2D(uMap, vUv).a;
-          // and the leading edge burns out toward white while the tail cools
-          vec3 col = mix(uCool, uHot, pow(head, 1.6));
-          gl_FragColor = vec4(col * (0.55 + 1.45 * head), a);
-        }
-      `,
+          float head = headOf();
+          float band = bandOf(head, uTime);
+          float core = coreOf(head);
+          // the ink of the swing itself still shapes the wide part
+          float ink = 0.35 + 0.65 * texture2D(uMap, vUv).a;
+          float bloom = band * ink * uFade * (0.30 + 0.70 * head);
+          float spine = core * uFade * pow(head, 1.35);
+          // the bloom carries the trail's colour; the spine is nearly white and
+          // is what the eye reads as the edge
+          // ── AND IT HAS TO OUTSHINE THE WEATHER ─────────────────────────
+          // Additive light only reads as light if it beats what is already
+          // there, and this plaza is bright grey fog at better than half
+          // white. Photographed against it, the arc at 1.3/2.1 was invisible
+          // — the same frame with the palette forced to pure red showed the
+          // arc exactly where it belonged, so the shape was never the fault.
+          // The spine deliberately overshoots 1.0: there is no tone mapping
+          // here, so it clips to white, which is what a hot core does.
+          vec3 col = mix(uCool, uHot, pow(head, 1.6)) * bloom * 3.00
+                   + uHot * spine * 6.50;
+          gl_FragColor = vec4(col, clamp(bloom * 0.85 + spine, 0.0, 1.0));
+        }`,
     });
+    // ONE GEOMETRY, TWO DRAWS. The air goes down first so the light lands on
+    // top of what it bent, and both read the same buffer — a second copy of
+    // twenty-two quads would be a second chance for them to disagree.
+    this.air = new THREE.Mesh(g, this.refMat);
+    this.air.frustumCulled = false;
+    this.air.renderOrder = 4;
+    this.air.visible = false;
     this.mesh = new THREE.Mesh(g, this.mat);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 5;
@@ -1136,18 +1332,26 @@ class Ribbon {
     this.fade = 1;
   }
   step(dt) {
-    if (this.fade <= 0) { this.mesh.visible = false; return; }
+    this.t = (this.t || 0) + dt;
+    this.mat.uniforms.uTime.value = this.refMat.uniforms.uTime.value = this.t;
+    if (this.fade <= 0) { this.mesh.visible = this.air.visible = false; return; }
     // THE TAIL DIES ON ITS OWN. A trail that is simply switched off at the end
     // of the swing pops; one that keeps drawing while its opacity falls reads
     // as the air closing behind the blade.
     this.fade = Math.max(0, this.fade - dt * 3.6);
-    this.mat.uniforms.uFade.value = this.fade * this.fade * 0.95;
+    const f = this.fade * this.fade * 0.95;
+    this.mat.uniforms.uFade.value = f;
+    this.refMat.uniforms.uFade.value = f;
     // TWO SAMPLES IS A QUAD, AND A QUAD IS A SLASH. Requiring three meant a
     // frame rate low enough to take fewer than three samples during a swing
     // drew no arc at all — which is not a state anybody should ship to, since
     // the machines that draw slowest are exactly the ones already struggling
     // to sell the hit.
     this.mesh.visible = this.filled >= 2;
+    // …and the air only when there is a frame of world for it to bend. With no
+    // target allocated the refraction pass would sample nothing and lay a
+    // transparent black sheet over the fight.
+    this.air.visible = this.mesh.visible && !!this.refMat.uniforms.uScene.value;
     if (!this.mesh.visible) return;
     for (let i = 0; i < TRAIL; i++) {
       // oldest first, so u=0 is the tail and u=1 is the leading edge
@@ -1158,7 +1362,9 @@ class Ribbon {
     }
     this.geo.attributes.position.needsUpdate = true;
   }
-  clear() { this.filled = 0; this.fade = 0; this.mesh.visible = false; }
+  clear() { this.filled = 0; this.fade = 0; this.mesh.visible = this.air.visible = false; }
+  // the world as it was drawn a frame ago, which is what the air bends
+  behind(tex) { this.refMat.uniforms.uScene.value = tex; }
 }
 
 // ── THE SHOCKWAVE, WHICH IS NOW A RING IN THE WORLD ────────────────────────
@@ -1488,9 +1694,13 @@ class Effects {
                                         grav: -0.6, drag: 3.4 });
     }
   }
+  // the world as it was last drawn, passed down to every arc that exists
+  behind(tex) { for (const id in this.ribbons) this.ribbons[id].behind(tex); this._behind = tex; }
   ribbonFor(id) {
     if (!this.ribbons[id]) {
       const r = new Ribbon(this.slashMap);
+      r.behind(this._behind || null);
+      this.scene.add(r.air);
       this.scene.add(r.mesh);
       this.ribbons[id] = r;
     }
@@ -1614,6 +1824,7 @@ class Figure {
       const loops = !!(meta[name] && meta[name].loop);
       const rt = retarget(clips[name], restSrc, parentOf, this.bones,
                           loops ? null : windows[name]);
+      if (!/homeward=off/.test(location.search)) homeward(rt, meta[name] && meta[name].hit);
       const a = this.mixer.clipAction(rt);
       a.setEffectiveWeight(0);
       // SPEED IS DERIVED, not chosen: the window is the length the beat can
@@ -3401,16 +3612,35 @@ const Cast3D = (() => {
   // A pass that wrote opaque black into those pixels would put a box over the
   // hand of cards.
   let post = null, postScene = null, postCam = null, postMat = null;
+  // ── TWO TARGETS, BECAUSE ONE CANNOT BE READ WHILE IT IS WRITTEN ──────────
+  //
+  // The blade arcs refract by sampling the frame the world is drawn into, and
+  // they are drawn INSIDE that world so they keep their depth test. Handing
+  // them the target currently bound is a feedback loop, and the driver does
+  // not quietly do something approximate — it drops the draw and says
+  // "Feedback loop formed between Framebuffer and active Texture", which is
+  // exactly what the first cut of this did on every frame of every swing.
+  // So the world alternates between two targets and the arcs read the other
+  // one: last frame's world, a sixtieth of a second stale, which at the speed
+  // an arc moves is a fraction of one of its twenty-two segments.
+  let postB = null, postWarm = false;
   function inkWanted() {
     // ABS, because the debug views drive the line dial NEGATIVE and a gate
     // that reads `> 0.002` skips the pass entirely — which showed the plain
     // render and made two different debug modes produce identical histograms.
     return Math.abs(LOOK.line) > 0.002 || LOOK.flat > 0.002 || LOOK.tooth > 0.002;
   }
+  // the one the arcs may read: whichever the world was drawn into LAST time,
+  // and nothing at all until a frame has actually been put in it
+  function postPrev() { return postWarm ? postB : null; }
   function postTarget() {
     const w = Math.max(2, Math.round(sized.w * sized.dpr));
     const h = Math.max(2, Math.round(sized.h * sized.dpr));
+    // …and the pair swaps before the size check, so a resize throws away the
+    // stale one rather than handing the arcs a target of the wrong shape
+    const t = post; post = postB; postB = t;
     if (post && post.width === w && post.height === h) return post;
+    postWarm = false;
     if (post) { post.dispose(); if (post.depthTexture) post.depthTexture.dispose(); }
     // ── AND THE TARGET HOLDS LINEAR LIGHT, SO IT CANNOT BE EIGHT BITS ──
     //
@@ -3970,12 +4200,24 @@ const Cast3D = (() => {
     // the canvas it has always been, and the target is never even allocated.
     if (inkWanted()) {
       const t = postTarget();
+      // ── AND THE ARCS ARE HANDED THE WORLD TO BEND ────────────────────────
+      //
+      // The blade trail's refraction pass reads the target the world is drawn
+      // into. It is given LAST frame's, because it is drawn inside the scene —
+      // that is what keeps its depth test, so a swing behind a pillar stays
+      // behind the pillar — and a pass cannot sample the buffer it is writing.
+      // At a sixtieth of a second the arc has moved a fraction of one of its
+      // twenty-two segments, and there is nothing on screen to compare it to.
+      fx.behind(postPrev() && postPrev().texture);
       renderer.setRenderTarget(t);
       renderer.clear();
       renderer.render(scene, cam);
       renderer.setRenderTarget(null);
+      postWarm = true;
       drawInk(t);
     } else {
+      // no target, no frame to bend — the arcs are light alone, as before
+      fx.behind(null);
       renderer.render(scene, cam);
     }
 
@@ -4572,6 +4814,7 @@ const Cast3D = (() => {
     // rather than at whatever the software rasteriser manages
     _fx: () => fx,
     _scene: () => scene,        // test-only: the fog and the lights live here
+    _homed: () => ({ ...homed }),     // test-only: the returns baked into clips
     // ── test-only: HOW MUCH OF THIS BODY IS ACTUALLY DRAWN ─────────────────
     //
     // Screenshotting the creature's rectangle and weighing the PNG cannot

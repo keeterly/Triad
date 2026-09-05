@@ -2446,6 +2446,82 @@ const { boot } = require('./harness.cjs');
     JSON.stringify(feetUp) + ' m — the highest the LOWER foot gets; sword was 1.03'
       + ' before tools/ground.mjs and the Build 140 import read 0.70');
 
+  // ═══ N · NOBODY SLIDES HOME ═══
+  //
+  // An Unreal attack clip carries its travel on a root bone; the importer folds
+  // it into the Hips because that is the only place it can go here. So a swing
+  // really does walk the body a metre or two across the floor, and for several
+  // builds nothing walked it back — the slot ease dragged the figure home at
+  // dt*5.5, which from 1.45m is about eight metres per second, backwards, with
+  // both feet still. `homeward` gives the follow-through the job instead.
+  //
+  // The check is on the CLIP, not on a frame of the fight: where the hips end
+  // relative to where they began. A clip that ends where it started needs no
+  // drag, and no drag is the whole point. `test/slide.probe.cjs` is the fuller
+  // instrument — it also reads how far a support foot gives up while it is the
+  // one holding the body — and its numbers are in the comment on `homeward`.
+  const rootTravel = await J(() => {
+    const C3 = window.Cast3D, f = C3._figure('ash');
+    const out = {};
+    for (const name of Object.keys(f.actions)) {
+      const t = f.actions[name].getClip().tracks.find(x => x.name === 'Hips.position');
+      if (!t) continue;
+      const n = t.times.length, v = t.values;
+      // in rig units — hundredths of a metre — the same units the tracks carry
+      out[name] = Math.round(Math.hypot(v[(n - 1) * 3] - v[0], v[(n - 1) * 3 + 2] - v[2]));
+    }
+    return { out, homed: C3._homed ? C3._homed() : {} };
+  });
+  const wander = Object.entries(rootTravel.out).filter(([, v]) => v > 15);
+  check('SLIDE: every clip ends where it began, so nothing has to be dragged back',
+    wander.length === 0,
+    JSON.stringify(rootTravel.out) + ' — rig units, ~100 to the metre; brought home: '
+      + JSON.stringify(rootTravel.homed));
+  check('SLIDE: …and the clips that needed it are the ones that were walking',
+    Object.keys(rootTravel.homed).length >= 4,
+    JSON.stringify(rootTravel.homed) + ' — sword drifted 140 of these, swordHeavy 202');
+
+  // ═══ N · THE ARC IS MADE OF LIGHT, NOT STUCK ON ═══
+  //
+  // The blade trail draws twice over one buffer: once with normal blending to
+  // BEND the frame behind it, once additively for the light. The refraction
+  // half is the one that can fail silently — three.js reports a shader that
+  // will not compile on the console and carries on, and sampling the target it
+  // is being drawn into is a feedback loop the driver answers by dropping the
+  // draw. Both of those shipped for a few minutes each; both are here now.
+  const arc = await J(async () => {
+    const C3 = window.Cast3D, fx = C3._fx(), f = C3._figure('ash');
+    const r = fx.ribbonFor('ash');
+    const a = f.actions.sword; if (!a) return { err: 'no sword clip' };
+    for (const k of Object.keys(f.actions)) { f.actions[k].setEffectiveWeight(0); f.actions[k].stop(); }
+    if (f.idle) f.idle.setEffectiveWeight(0);
+    a.reset(); a.setEffectiveWeight(1); a.play(); a.paused = true;
+    f.acting = a; f.holdFrac = 0; f.fxVerb = 'slash';
+    r.clear();
+    const dur = a.getClip().duration;
+    for (let i = 0; i < 20; i++) {
+      a.time = dur * (0.10 + 0.32 * (i / 19));
+      f.mixer.update(0); f.root.updateMatrixWorld(true);
+      fx.trail('ash', f, 1 / 60);
+    }
+    r.fade = 1; r.step(0);
+    const p = r.geo.attributes.position.array;
+    let lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+    for (let i = 0; i < p.length; i += 3)
+      for (let c = 0; c < 3; c++) { lo[c] = Math.min(lo[c], p[i + c]); hi[c] = Math.max(hi[c], p[i + c]); }
+    return { filled: r.filled, light: r.mesh.visible, air: r.air.visible,
+             behind: !!r.refMat.uniforms.uScene.value,
+             span: +Math.max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]).toFixed(2),
+             order: [r.air.renderOrder, r.mesh.renderOrder] };
+  });
+  check('ARC: a swing draws both halves of the trail — the air it bends and the light it throws',
+    !arc.err && arc.light === true && arc.air === true && arc.filled >= 20,
+    JSON.stringify(arc));
+  check('ARC: the refraction pass has a frame of world to bend, and is not reading its own',
+    !arc.err && arc.behind === true && arc.order[0] < arc.order[1],
+    JSON.stringify(arc) + ' — the world alternates between two targets; sampling'
+      + ' the bound one is a feedback loop and the driver drops the draw');
+
   // ═══ N · THE DRAWN LOOK ═══
   //
   // The post pass exists to make a rendered scene read as a painted one, and
