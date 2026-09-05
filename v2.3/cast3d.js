@@ -915,6 +915,60 @@ function fxCanvas(size, draw) {
   return t;
 }
 
+// THE MOMENT OF CONTACT, WHICH IS A CLASH AND NOT A CAMERA ARTEFACT.
+//
+// The first cut of this drew a star: a soft warm core with four long spikes and
+// four short ones at even angles. That is a LENS FLARE — what a bright light
+// does to glass — and glass is not in the fiction. It read as something magical
+// happening at the point of contact rather than as two hard things meeting, and
+// symmetry was most of the reason: nothing about a sword landing is the same in
+// every direction.
+//
+// Steel on steel throws SLIVERS. Uneven lengths, uneven angles, hard ends, and
+// gathered into the plane of the blow rather than sprayed evenly around it —
+// which is why the angles here are biased into a band and the whole stamp is
+// turned to the blow's own direction when it is fired. The core is small, white
+// and cold; there is no warm halo, because the halo was doing the lens's job.
+function clashTexture() {
+  return fxCanvas(128, (x, s) => {
+    const c = s / 2;
+    // a small hard core — the point where the two things actually touched
+    const g = x.createRadialGradient(c, c, 0, c, c, s * 0.085);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.55, 'rgba(238,246,255,0.7)');
+    g.addColorStop(1, 'rgba(210,230,255,0)');
+    x.fillStyle = g;
+    x.fillRect(0, 0, s, s);
+    x.globalCompositeOperation = 'lighter';
+    // …and the metal that came off it. A sliver is a triangle with a POINT at
+    // the far end and its width at the core, so it reads as something thrown
+    // from here rather than a line drawn through here.
+    const sliver = (ang, len, wide, a) => {
+      x.save(); x.translate(c, c); x.rotate(ang);
+      const gg = x.createLinearGradient(0, 0, len, 0);
+      gg.addColorStop(0, 'rgba(255,255,255,' + a + ')');
+      gg.addColorStop(0.5, 'rgba(226,240,255,' + (a * 0.42) + ')');
+      gg.addColorStop(1, 'rgba(200,225,255,0)');
+      x.fillStyle = gg;
+      x.beginPath(); x.moveTo(0, -wide); x.lineTo(len, 0); x.lineTo(0, wide);
+      x.closePath(); x.fill();
+      x.restore();
+    };
+    // gathered into the plane of the cut: angles cluster around 0 and pi, with
+    // enough scatter that it is a burst and not a pair of wings
+    for (let i = 0; i < 26; i++) {
+      const side = i % 2 ? 0 : Math.PI;
+      const ang = side + (Math.random() - 0.5) * 1.30;
+      const len = s * (0.10 + Math.pow(Math.random(), 1.7) * 0.40);
+      sliver(ang, len, s * (0.006 + Math.random() * 0.012), 0.55 + Math.random() * 0.45);
+    }
+    // two long ones down the line of the blow, which is the shape the eye reads
+    // first and the thing that says which way the force went
+    sliver(0, s * 0.47, s * 0.016, 0.95);
+    sliver(Math.PI, s * 0.40, s * 0.014, 0.85);
+  });
+}
+
 // a mote: soft, round, and slightly eaten at the edge so it reads as ash
 // rather than as a lens dot
 function moteTexture() {
@@ -1015,65 +1069,112 @@ class Sparks {
     this.drag = new Float32Array(SPARKS);
     this.grav = new Float32Array(SPARKS);
     this.next = 0;
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
-    g.setAttribute('aLife', new THREE.BufferAttribute(this.life, 1));
-    g.setAttribute('aMax', new THREE.BufferAttribute(this.max, 1));
-    g.setAttribute('aScale', new THREE.BufferAttribute(this.scale, 1));
-    g.setAttribute('aSeed', new THREE.BufferAttribute(this.seed, 1));
-    g.setDrawRange(0, SPARKS);
+    // ── A SPARK IS A STREAK, NOT A DOT ────────────────────────────────────
+    //
+    // These were `THREE.Points`, and a point is a SQUARE facing the lens whose
+    // only freedom is how big it is. That is the ceiling on how good they could
+    // ever look: a real spark thrown at eight metres a second crosses most of
+    // its own length inside one frame, so the eye expects a smear along the way
+    // it is going. Drawing it as a round dot instead is the single thing that
+    // reads as "particle system" rather than as metal coming off a strike, and
+    // no amount of colour or count fixes it, because the fault is the shape.
+    //
+    // So each spark is an instanced QUAD, stretched along its own velocity as
+    // that velocity appears ON SCREEN, and only as much as it is actually
+    // moving — fast ones are long, slow ones relax back to round embers as they
+    // fall. One draw call, four vertices, the same arrays as before.
+    const g = new THREE.InstancedBufferGeometry();
+    // the unit quad every spark is drawn from: x runs along the streak, y across
+    g.setAttribute('aCorner', new THREE.BufferAttribute(new Float32Array([
+      -0.5, -0.5,   0.5, -0.5,   -0.5, 0.5,   0.5, 0.5]), 2));
+    g.setIndex([0, 1, 2, 2, 1, 3]);
+    g.setAttribute('iPos', new THREE.InstancedBufferAttribute(this.pos, 3));
+    g.setAttribute('iVel', new THREE.InstancedBufferAttribute(this.vel, 3));
+    g.setAttribute('aLife', new THREE.InstancedBufferAttribute(this.life, 1));
+    g.setAttribute('aMax', new THREE.InstancedBufferAttribute(this.max, 1));
+    g.setAttribute('aScale', new THREE.InstancedBufferAttribute(this.scale, 1));
+    g.setAttribute('aSeed', new THREE.InstancedBufferAttribute(this.seed, 1));
+    g.instanceCount = SPARKS;
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 60);
     const m = new THREE.ShaderMaterial({
       uniforms: {
         uMap: { value: map },
         uHot: { value: FX_HOT }, uGold: { value: FX_GOLD }, uAsh: { value: FX_ASH },
         uPx: { value: 1 },
+        // how many metres of streak a metre-per-second of speed is worth. This
+        // is a shutter time: 1/48s is a film camera's, and it is why the number
+        // looks small and should not be tuned by eye.
+        // …AND A CEILING ON IT. Shutter alone is not enough: the debris burst
+        // leaves at up to 27 m/s, which at a 48th of a second is more than half
+        // a metre of streak — photographed, they were white spears the length
+        // of the foe, and eighty of them additively overlapped into a sheet.
+        // A spark may not draw longer than nine times its own width, whatever
+        // the arithmetic says, because past that it stops reading as a spark.
+        uStretch: { value: 1 / 110 },
+        uMaxLen: { value: 16.0 },
       },
       transparent: true, depthWrite: false, depthTest: true,
       blending: THREE.AdditiveBlending,
       vertexShader: `
+        attribute vec2 aCorner;
+        attribute vec3 iPos; attribute vec3 iVel;
         attribute float aLife; attribute float aMax;
         attribute float aScale; attribute float aSeed;
-        uniform float uPx;
-        varying float vAge; varying float vSeed;
+        uniform float uStretch, uMaxLen;
+        varying float vAge; varying float vSeed; varying vec2 vC;
         void main() {
           vSeed = aSeed;
+          vC = aCorner;
           vAge = aMax > 0.0 ? 1.0 - aLife / aMax : 1.0;
-          vec4 mv = modelViewMatrix * vec4( position, 1.0 );
-          // ── A SPARK IS A SIZE IN METRES, NOT A NUMBER (Build 132) ───────
-          //
-          // uPx is the pixels a one-metre sphere covers at one metre, so this
-          // is the real projection: size / distance, exactly like everything
-          // else in the frame. A spark thrown at the lens grows because it is
-          // nearer, and one thrown away shrinks, and both do it by the right
-          // amount.
-          //
-          // What shipped in 127 was aScale * (height * dpr * 0.5) / dist,
-          // (this is GLSL inside a template literal — no backticks in here)
-          // with aScale around 30 — a factor invented rather than derived. On a
-          // 430-pixel stage that is 30 * 537 / 7 = 2300 PIXELS per ember: every
-          // spark five times taller than the screen, every impact a white
-          // circle with the fight behind it.
-          gl_PointSize = clamp( aScale * uPx / max( 0.35, -mv.z ), 1.0, 96.0 );
+          vec4 mv = modelViewMatrix * vec4( iPos, 1.0 );
+          // the velocity as the LENS sees it. A spark flying straight at the
+          // camera has no screen-space direction at all and must stay round —
+          // which falls out of this for free, because its xy goes to zero.
+          vec3 vv = ( modelViewMatrix * vec4( iVel, 0.0 ) ).xyz;
+          // ── AND A SPARK IS THIN ──────────────────────────────────────
+          // aScale is the size every other effect in this layer means by it:
+          // a mote's diameter. A spark is not a mote — it is a filament, a few
+          // pixels across at this camera distance however long it is — so it
+          // takes a third of that width and puts the rest into length. At full
+          // width the streaks photographed as white lozenges: the right shape
+          // for a tumbling ember and the wrong one for metal leaving a strike.
+          float wide = aScale * 0.34 * ( 1.0 - 0.45 * vAge );
+          float len = min( wide + length( vv.xy ) * uStretch, wide * uMaxLen );
+          vec2 dir = length( vv.xy ) > 1e-4 ? normalize( vv.xy ) : vec2( 0.0, 1.0 );
+          vec2 per = vec2( -dir.y, dir.x );
+          mv.xy += dir * ( aCorner.x * len ) + per * ( aCorner.y * wide );
           gl_Position = projectionMatrix * mv;
           if ( aLife <= 0.0 ) gl_Position = vec4( 2.0, 2.0, 2.0, 1.0 );  // parked offscreen
         }`,
       fragmentShader: `
-        uniform sampler2D uMap;
         uniform vec3 uHot; uniform vec3 uGold; uniform vec3 uAsh;
-        varying float vAge; varying float vSeed;
+        varying float vAge; varying float vSeed; varying vec2 vC;
         void main() {
-          vec4 t = texture2D( uMap, gl_PointCoord );
-          // white-hot, then gold, then ash — a spark COOLS, it does not just fade
-          vec3 c = mix( uHot, uGold, smoothstep( 0.0, 0.42, vAge ) );
-          c = mix( c, uAsh, smoothstep( 0.5, 1.0, vAge ) );
+          // a capsule rather than a sprite: round across, tapered along, and
+          // BRIGHTEST AT THE LEADING END, because that is where the metal is —
+          // the rest of the streak is where it has been.
+          // a tight gaussian across, so the filament has a hard bright spine
+          // and a soft shoulder rather than a uniform slab
+          float across = exp( -pow( vC.y / 0.21, 2.0 ) );
+          float head = smoothstep( -0.5, 0.5, vC.x );
+          float along = mix( 0.25, 1.0, head );
+          float core = exp( -pow( vC.y / 0.085, 2.0 ) ) * head;
+          // white-hot, then gold, then ash — a spark COOLS, it does not just
+          // fade. AND NOT ALL AT THE SAME RATE: a burst where every piece
+          // changes colour together is one object flickering, not forty. The
+          // seed moves each spark's ramp, so at any instant some are still
+          // white and others have already gone to ash.
+          float cool = vAge * ( 0.62 + fract( vSeed * 91.7 ) * 0.85 );
+          vec3 c = mix( uHot, uGold, smoothstep( 0.0, 0.42, cool ) );
+          c = mix( c, uAsh, smoothstep( 0.5, 1.0, cool ) );
           // and it flickers, because an ember tumbling in the air does
           float flick = 0.78 + 0.22 * sin( vSeed * 40.0 + vAge * 34.0 );
-          float a = t.a * ( 1.0 - vAge ) * flick;
-          gl_FragColor = vec4( c * ( 1.0 + ( 1.0 - vAge ) * 1.6 ), a );
+          float a = across * along * ( 1.0 - vAge ) * flick;
+          gl_FragColor = vec4( c * ( 1.0 + ( 1.0 - vAge ) * 0.9 ) + uHot * core * 0.45,
+                               clamp( a * 0.85, 0.0, 1.0 ) );
         }`,
     });
-    this.points = new THREE.Points(g, m);
+    this.points = new THREE.Mesh(g, m);
     this.points.frustumCulled = false;
     this.points.renderOrder = 6;
     this.geo = g;
@@ -1104,9 +1205,17 @@ class Sparks {
       this.vel[i * 3 + 2] = _fxV.z * s;
       const L = life * (0.6 + Math.random() * 0.8);
       this.life[i] = L; this.max[i] = L;
-      this.scale[i] = size * (0.55 + Math.random() * 0.9);
+      // ── MOST OF THEM ARE SMALL ─────────────────────────────────────────
+      // A uniform roll gives a burst where every piece is roughly the same
+      // weight, which is the look of a particle system rather than of something
+      // breaking. Real debris is mostly fines with a few big pieces, so the
+      // roll is raised to a power: the median lands near a third of the stated
+      // size and the tail still reaches well past it.
+      this.scale[i] = size * (0.30 + Math.pow(Math.random(), 2.3) * 1.85);
       this.seed[i] = Math.random();
-      this.drag[i] = drag; this.grav[i] = grav;
+      // …and they do not all slow at the same rate either, which is what
+      // stops the fan from staying a fan
+      this.drag[i] = drag * (0.7 + Math.random() * 0.8); this.grav[i] = grav;
     }
   }
 
@@ -1127,7 +1236,8 @@ class Sparks {
     }
     this.live = live;
     if (live || this._wasLive) {
-      this.geo.attributes.position.needsUpdate = true;
+      this.geo.attributes.iPos.needsUpdate = true;
+      this.geo.attributes.iVel.needsUpdate = true;
       this.geo.attributes.aLife.needsUpdate = true;
       this.geo.attributes.aMax.needsUpdate = true;
       this.geo.attributes.aScale.needsUpdate = true;
@@ -1521,6 +1631,79 @@ class Ribbon {
 // expanding in METRES — so it is the right size for how far away the hit was
 // without anybody computing that, it is occluded by whatever is in front of it,
 // and it lands in the water with everything else.
+// ── THE FLASH ─────────────────────────────────────────────────────────────
+//
+// A ring says how big the blow was; a flash says WHEN it was. It arrives at
+// full brightness on the frame of contact and is gone in a sixth of a second,
+// which is the whole point — anything that fades in has already missed the
+// moment it exists to mark.
+const FLASHES = 4;
+const _flashV = new THREE.Vector3(), _flashQ = new THREE.Quaternion();
+class Flashes {
+  constructor(map) {
+    this.fired = 0;
+    this.items = [];
+    const g = new THREE.PlaneGeometry(1, 1);
+    for (let i = 0; i < FLASHES; i++) {
+      const m = new THREE.MeshBasicMaterial({
+        map, color: 0xffffff, transparent: true, opacity: 0, depthWrite: false,
+        depthTest: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(g, m);
+      mesh.visible = false; mesh.renderOrder = 7; mesh.frustumCulled = false;
+      this.items.push({ mesh, mat: m, t: 0, dur: 1, size: 1, spin: 0, long: 1.6,
+                        dir: new THREE.Vector3() });
+    }
+  }
+  // `toward` is the direction the blow was travelling. A clash is not the same
+  // in every direction and must not be drawn as though it were.
+  fire(at, size, dur, toward, along, span) {
+    this.fired++;
+    const it = this.items.find(i => i.t <= 0) || this.items[0];
+    it.mesh.position.copy(at);
+    it.t = it.dur = dur || 0.14;
+    it.size = size;
+    it.dir = along ? it.dir.copy(along).normalize()
+           : (toward ? it.dir.copy(toward).normalize() : null);
+    // HOW LONG THE CUT WAS, in the flash's own width. A blow that drew a metre
+    // of steel across a body and one that tapped it are not the same picture,
+    // and a round stamp cannot tell them apart.
+    it.long = span ? Math.max(1.4, Math.min(4.2, span / Math.max(0.2, size) * 1.5)) : 1.6;
+    // a little scatter on top, so two blows along the same line are not the
+    // same picture twice — but only a little, or the direction stops reading
+    it.spin = (Math.random() - 0.5) * 0.5;
+    it.mesh.visible = true;
+    return it;
+  }
+  step(dt, cam) {
+    for (const it of this.items) {
+      if (it.t <= 0) continue;
+      it.t -= dt;
+      if (it.t <= 0) { it.t = 0; it.mesh.visible = false; continue; }
+      const k = it.t / it.dur;                 // 1 at contact, 0 as it dies
+      // BIGGEST AT THE START. A flash that grows is an explosion; a flash that
+      // is already there and shrinking is an impact.
+      const sc = it.size * (0.55 + 0.85 * k);
+      // long along the cut, thin across it — the flash is the slash's own shape
+      it.mesh.scale.set(sc * it.long, sc * (0.62 + 0.25 * k), sc);
+      // squared, so it is bright for an instant and then genuinely gone rather
+      // than lingering at a quarter strength for the rest of the beat
+      it.mat.opacity = k * k;
+      if (cam) {
+        // face the lens, then TURN IN THE PLANE OF THE SCREEN so the long
+        // slivers lie along the blow. Projecting the world direction into the
+        // camera's own axes and taking its angle is the whole of it — no
+        // matrix work, and it stays right while the camera moves.
+        it.mesh.quaternion.copy(cam.quaternion);
+        if (it.dir) {
+          _flashV.copy(it.dir).applyQuaternion(_flashQ.copy(cam.quaternion).invert());
+          it.mesh.rotateZ(Math.atan2(_flashV.y, _flashV.x) + it.spin);
+        } else it.mesh.rotateZ(it.spin);
+      }
+    }
+  }
+}
+
 const SHOCKS = 5;
 class Shocks {
   constructor() {
@@ -1642,24 +1825,32 @@ const FX_VERB = {
   // follows the blade instead of puffing — fewer sparks, faster, shorter-lived,
   // and a cut mark rather than a shockwave.
   slash: { trail: true, reach: 0.92,
-           hit: { n: 26, speed: 8.4, spread: 0.42, life: 0.36, size: 0.055, cut: 1.25 } },
+           hit: { n: 78, speed: 8.4, spread: 0.42, life: 0.36, size: 0.05, cut: 1.25,
+                  shard: 20, ember: 12, arc: 1.15, flash: 1.15, flashMs: 0.13 } },
   // A SPELL, which really is radial: this is the one that has earned its ring.
   cast:  { trail: true, reach: 0.34, charge: true,
-           hit: { n: 64, speed: 4.4, spread: 1.9, life: 0.9, size: 0.07, ring: 2.2, grav: -0.7 } },
+           hit: { n: 64, speed: 4.4, spread: 1.9, life: 0.9, size: 0.07, ring: 2.2, grav: -0.7,
+                  flash: 1.5, flashMs: 0.24 } },
   heal:  { trail: false, charge: true,
            hit: { n: 40, speed: 1.5, spread: 1.6, life: 1.5, size: 0.06, ring: 0.9, grav: 1.5, drag: 1.1 } },
   ward:  { trail: false, charge: true,
            hit: { n: 34, speed: 2.2, spread: 2.4, life: 0.8, size: 0.055, ring: 1.7, grav: -0.4 } },
   // A DEFLECTION is steel on steel: almost no spray, one short bright mark
   // across the line of the blow that was turned aside.
+  // A DEFLECTION throws the most metal of anything in the game — it is two
+  // edges meeting — but it throws no light: the flash belongs to the blow that
+  // lands, and a parry is the blow that did not.
   parry: { trail: false,
-           hit: { n: 16, speed: 6.6, spread: 0.34, life: 0.26, size: 0.045, cut: 0.85 } },
+           hit: { n: 46, speed: 6.6, spread: 0.34, life: 0.26, size: 0.042, cut: 0.85,
+                  shard: 16, ember: 8, arc: 0.62, flash: 0.7, flashMs: 0.12 } },
 };
 
 const _fxV = new THREE.Vector3(), _fxD = new THREE.Vector3();
 const _travel = new THREE.Vector3();
 const _fxQ = new THREE.Quaternion();
 const _fxA = new THREE.Vector3(), _fxB = new THREE.Vector3();
+const _hitU = new THREE.Vector3(), _hitW = new THREE.Vector3(), _hitS = new THREE.Vector3();
+const _hitP = new THREE.Vector3(), _hitD = new THREE.Vector3();
 
 // ── THE DIRECTOR ───────────────────────────────────────────────────────────
 //
@@ -1794,6 +1985,8 @@ class Effects {
     this.ribbons = {};
     this.slashMap = slashTexture();
     this.cuts = new Cuts(this.slashMap);
+    this.flashes = new Flashes(clashTexture());
+    for (const f of this.flashes.items) scene.add(f.mesh);
     scene.add(this.sparks.points);
     for (const it of this.shocks.items) scene.add(it.mesh);
     for (const it of this.cuts.items) scene.add(it.mesh);
@@ -1891,15 +2084,110 @@ class Effects {
     if (r) r.step(dt);
   }
   // the blow lands. `at` is where, `toward` is which way the energy goes.
-  hit(at, toward, verb, power) {
+  // ── THE BLOW LANDS ALONG A LINE, NOT AT A POINT ──────────────────────────
+  //
+  // Every burst here used to start from one place and spray outward, which is
+  // what a bullet does. A sword does not hit a point — it DRAWS one, across the
+  // target, and everything that comes off it comes off that line. Emitting from
+  // a single spot and hoping the cone reads as a cut is why the impact looked
+  // stamped on: a symmetric puff cannot say which way the steel went, however
+  // many particles are in it.
+  //
+  // `cut` is the direction the blade's tip was actually travelling when it
+  // arrived — the arc's own tangent, read off the trail the ribbon has been
+  // recording all swing. Particles are laid ALONG it, bowed slightly so the
+  // line is a curve rather than a rod, and thrown outward from it. The ends of
+  // the arc spill along their own direction, which is the thing that reads as a
+  // sweep instead of a spray.
+  hit(at, toward, verb, power, cut) {
     const spec = FX_VERB[verb] || FX_VERB.slash;
     const h = spec.hit;
     const k = Math.max(0.55, Math.min(1.9, power || 1));
-    this.sparks.emit(at, toward, Math.round(h.n * k), {
-      speed: h.speed, spread: h.spread, life: h.life, size: h.size,
-      grav: h.grav, drag: h.drag,
-    });
-    if (h.cut) this.cuts.fire(at, toward, h.cut * (0.8 + k * 0.4), 0.19);
+    // the cut's own axes: along the arc, and the two ways off it
+    const along = _hitU.copy(cut && cut.lengthSq() > 1e-6 ? cut : _hitU.set(0, 1, 0.35))
+      .normalize();
+    const out = _hitW.copy(toward).normalize();
+    // …and a true perpendicular, so the bow of the arc is in the cut's own
+    // plane rather than wherever the world's up happens to be
+    const side = _hitS.crossVectors(along, out);
+    if (side.lengthSq() < 1e-6) side.set(0, 1, 0); else side.normalize();
+    const span = (h.arc || 0.9) * (0.75 + k * 0.35);
+
+    // ── ONE · THE CUT ITSELF, which is most of the particles ───────────────
+    const n = Math.round((h.n || 30) * k);
+    for (let i = 0; i < n; i++) {
+      // biased toward the middle of the stroke, where the steel bit deepest
+      const u = (Math.random() + Math.random() - 1);
+      // the bow: the line sags away from the blow, so it is an arc
+      const bow = (1 - u * u) * span * 0.16;
+      _hitP.copy(at).addScaledVector(along, u * span * 0.5).addScaledVector(side, bow);
+      // outward from the line, with the ends throwing along their own direction
+      _hitD.copy(out).addScaledVector(along, u * 1.15)
+           .addScaledVector(side, (Math.random() - 0.5) * 0.5).normalize();
+      this.sparks.emit(_hitP, _hitD, 1, {
+        speed: h.speed * (0.55 + Math.random() * 0.9),
+        spread: h.spread,
+        life: h.life * (0.6 + Math.random() * 0.9),
+        size: h.size * (0.7 + Math.random() * 0.8),
+        grav: h.grav, drag: h.drag,
+      });
+    }
+
+    // ── TWO · WHAT ACTUALLY LEAVES ────────────────────────────────────────
+    //
+    // One emission can only have one character. The cut spray is many, tight
+    // and brief — it reads as the surface giving way. Debris is the opposite of
+    // all three: a handful, thrown wide, outliving the moment and falling. The
+    // spray makes it look like something happened to a texture; the pieces that
+    // fly off and arc down make it look like it happened to a thing.
+    if (h.shard) {
+      const m = Math.round(h.shard * k);
+      for (let i = 0; i < m; i++) {
+        const u = Math.random() * 2 - 1;
+        _hitP.copy(at).addScaledVector(along, u * span * 0.45);
+        _hitD.copy(out).addScaledVector(along, u * 1.6)
+             .addScaledVector(side, (Math.random() - 0.5) * 1.4).normalize();
+        this.sparks.emit(_hitP, _hitD, 1, {
+          speed: h.speed * (1.3 + Math.random() * 1.1), spread: 0.35,
+          life: h.life * (2.2 + Math.random() * 1.6),
+          size: h.size * (1.1 + Math.random() * 0.7),
+          grav: 5.6, drag: 0.45,
+        });
+      }
+    }
+
+    // ── THREE · AND A FEW THAT HANG ───────────────────────────────────────
+    // Slow, small and long-lived, drifting off the line after everything else
+    // has gone. Nothing in the fight depends on them; they are the difference
+    // between an effect that ENDS and one that settles.
+    if (h.ember) {
+      for (let i = 0; i < Math.round(h.ember * k); i++) {
+        const u = Math.random() * 2 - 1;
+        _hitP.copy(at).addScaledVector(along, u * span * 0.55);
+        _hitD.copy(side).multiplyScalar(Math.random() - 0.5)
+             .addScaledVector(out, 0.35).addScaledVector(along, u * 0.4).normalize();
+        this.sparks.emit(_hitP, _hitD, 1, {
+          speed: 0.5 + Math.random() * 0.9, spread: 0.8,
+          life: h.life * (4.0 + Math.random() * 3.0),
+          size: h.size * 0.55, grav: -0.35, drag: 1.9,
+        });
+      }
+    }
+
+    // …and the light, stretched along the cut rather than stamped across it
+    if (h.flash) this.flashes.fire(at, h.flash * (0.75 + k * 0.45), h.flashMs || 0.14,
+                                   toward, along, span);
+    // …AND THE MARK LIES ALONG THE CUT. It was laid along `toward` — the line
+    // from the attacker to the target — which is the direction the blow
+    // ARRIVED from, not the line the edge drew. A slash mark square across the
+    // stroke is the same fault the flash had, and it reads as a bar hung in
+    // front of the foe rather than as a wound.
+    // …AND IT IS THE SIZE OF THE WOUND, not of the swing. `h.cut` was a flat
+    // 1.25 scaled by power — 1.8 metres of mark for a sword, which is longer
+    // than the foe is tall and reads as a slab hung in the air. The mark
+    // belongs to the arc that made it, so it takes its length from the same
+    // span the particles were laid along.
+    if (h.cut) this.cuts.fire(at, along, span * h.cut * 0.72, 0.19);
     if (h.ring) this.shocks.fire(at, h.ring * k, verb === 'heal' ? 0.7 : 0.42);
   }
   // a spell gathering in the hand before it goes anywhere
@@ -1945,6 +2233,7 @@ class Effects {
     this.sparks.mat.uniforms.uPx.value = px;
     this.shocks.step(dt, cam);
     this.cuts.step(dt, cam);
+    this.flashes.step(dt, cam);
   }
 }
 
@@ -4851,7 +5140,21 @@ const Cast3D = (() => {
       } else {
         toward.set(t.tone.foe ? 1 : -1, 0.4, 0.2).normalize();
       }
-      fx.hit(at, toward, verb, power);
+      // ── WHICH WAY THE STEEL WENT, from the trail it just drew ───────────
+      //
+      // The ribbon has been recording the blade's tip every frame of the
+      // swing, so the arc's tangent at the moment of contact is simply the
+      // difference between its last two samples. Nothing has to be told about
+      // the clip, the weapon or the direction — the swing already said it, and
+      // this reads the record rather than guessing from the attacker's facing.
+      const cut = new THREE.Vector3();
+      const rib = src && fx.ribbons[fromId];
+      if (rib && rib.filled >= 3) {
+        const last = (rib.head - 1 + TRAIL) % TRAIL;
+        const back = (rib.head - 3 + TRAIL) % TRAIL;
+        cut.copy(rib.pts[last].b).sub(rib.pts[back].b);
+      }
+      fx.hit(at, toward, verb, power, cut);
       return true;
     },
     // ── THE LIGHT COMES OFF EVERYTHING EXCEPT THIS ─────────────────────────
@@ -5280,6 +5583,7 @@ const Cast3D = (() => {
     // test-only: the air itself, so a probe can drive it at a fixed timestep
     // rather than at whatever the software rasteriser manages
     _fx: () => fx,
+    _cam: () => cam,          // test-only: the effects billboard against it
     _scene: () => scene,        // test-only: the fog and the lights live here
     _homed: () => ({ ...homed }),     // test-only: the returns baked into clips
     _footIK: (v) => (v === undefined ? _footIK : (_footIK = !!v)),

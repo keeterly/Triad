@@ -13,6 +13,20 @@
 # broken by a stray backtick inside a shader comment, and the fault only
 # surfaced as a blank page four probes later. So: no arguments means check the
 # layer, and an argument that names nothing is a failure.
+#
+# ── AND PARSING IS NOT THE ONLY QUESTION ──────────────────────────────────
+#
+# A backtick inside a shader comment ends the template literal, and whether
+# that is a syntax error depends on whether the JavaScript left over happens
+# to parse. Sometimes it does — and then this script says ok and the page
+# throws at load. `shaderlint.cjs` asks the question parsing cannot.
+#
+# ── AND DO NOT PIPE THIS TO `tail` ────────────────────────────────────────
+#
+# `check.sh f | tail -1` reports TAIL's exit status, which is always 0. Every
+# gate in here is invisible through a pipe; the failure that prompted this
+# note was read as a pass for exactly that reason. Run it plainly, or use
+# `set -o pipefail`.
 set -e
 cd "$(dirname "$0")/.."
 [ "$#" -gt 0 ] || set -- cast3d.js game.js tools/unreal.cjs
@@ -22,6 +36,9 @@ for f in "$@"; do
   case "$f" in
     *cast3d.js|*.mjs) cp "$f" "$d/$(basename "$f" .js).mjs"; node --check "$d/$(basename "$f" .js).mjs" ;;
     *) node --check "$f" ;;
+  esac
+  case "$f" in
+    *cast3d.js) node tools/shaderlint.cjs "$f" ;;
   esac
   echo "ok  $f"
 done
