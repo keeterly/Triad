@@ -1757,6 +1757,122 @@ class Shocks {
 // bright, elongated mark, square to the lens and rotated to the direction the
 // blow was travelling, that stretches along its own length and is gone in a
 // fifth of a second. It reads as the cut rather than as the detonation.
+// ── THE CLASH IS THE BLADE'S OWN CURVE ─────────────────────────────────────
+//
+// The mark left by a blow was a flat quad wearing a streak texture, rolled to
+// lie along the blow. A quad is straight, and so however it is turned the hit
+// reads as a LINE drawn across the foe — which is not what a sword does. A
+// sword arrives on a curve, and the curve is the whole character of the thing:
+// it is what separates a cut from a stab, and a clash from a flash.
+//
+// Guessing a curve would be a second mistake. The ribbon has been recording the
+// blade's tip every frame of the swing, so the arc that actually arrived is
+// already known to the metre — the shape is READ, not invented, exactly like
+// the tangent the particles are laid along. What is drawn here is a short
+// crescent of that path, camera-facing, tapering to nothing at both ends, alive
+// for a sixth of a second.
+const CLASH_N = 16;            // vertices along the crescent
+const CLASHES = 3;
+const _clA = new THREE.Vector3(), _clB = new THREE.Vector3(), _clC = new THREE.Vector3();
+const _clT = new THREE.Vector3(), _clV = new THREE.Vector3(), _clNr = new THREE.Vector3();
+class Clash {
+  constructor() {
+    this.fired = 0;
+    this.items = [];
+    for (let i = 0; i < CLASHES; i++) {
+      const g = new THREE.BufferGeometry();
+      const pos = new Float32Array(CLASH_N * 2 * 3);
+      const uv = new Float32Array(CLASH_N * 2 * 2);
+      const idx = [];
+      for (let k = 0; k < CLASH_N - 1; k++) {
+        const a = k * 2;
+        idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+      }
+      for (let k = 0; k < CLASH_N; k++) {
+        const u = k / (CLASH_N - 1);
+        uv[k * 4] = u; uv[k * 4 + 1] = 0;
+        uv[k * 4 + 2] = u; uv[k * 4 + 3] = 1;
+      }
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+      g.setIndex(idx);
+      g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 60);
+      const m = new THREE.ShaderMaterial({
+        uniforms: { uFade: { value: 0 }, uHot: { value: new THREE.Color(0xfffdf4) },
+                    uWarm: { value: new THREE.Color(0xffd9a0) } },
+        transparent: true, depthWrite: false, depthTest: false,
+        side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+        vertexShader: 'varying vec2 vUv;\n'
+          + 'void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix'
+          + ' * vec4(position,1.0); }',
+        fragmentShader: [
+          'uniform float uFade; uniform vec3 uHot, uWarm;',
+          'varying vec2 vUv;',
+          'void main(){',
+          '  float u = clamp(vUv.x,0.0,1.0), v = clamp(vUv.y,0.0,1.0);',
+          // thickest in the middle of the crescent, gone at both points
+          '  float span = pow(sin(u * 3.14159265), 0.55);',
+          // a hard bright spine down the centre with a soft shoulder either side
+          '  float d = abs(v - 0.5) * 2.0;',
+          '  float core = exp(-pow(d / 0.16, 2.0));',
+          '  float body = exp(-d * 2.6);',
+          '  float a = span * (body * 0.5 + core) * uFade;',
+          '  vec3 c = uWarm * body * 1.4 + uHot * core * 4.2;',
+          '  gl_FragColor = vec4(c * span, clamp(a, 0.0, 1.0));',
+          '}',
+        ].join('\n'),
+      });
+      const mesh = new THREE.Mesh(g, m);
+      mesh.visible = false; mesh.renderOrder = 7; mesh.frustumCulled = false;
+      this.items.push({ mesh, mat: m, geo: g, pos, t: 0, dur: 1 });
+    }
+  }
+  // `pts` are world points along the blade's path, oldest first. `eye` is where
+  // the camera is, so the strip can be turned to face it — a ribbon in space
+  // seen edge-on is invisible, and an impact that vanishes at some angles is
+  // worse than one that never curved.
+  fire(pts, eye, width, dur) {
+    if (!pts || pts.length < 2) return null;
+    this.fired++;
+    const it = this.items.find(i => i.t <= 0) || this.items[0];
+    it.t = it.dur = dur || 0.17;
+    const n = pts.length;
+    for (let k = 0; k < CLASH_N; k++) {
+      // resample the path evenly across the crescent
+      const x = (k / (CLASH_N - 1)) * (n - 1);
+      const i0 = Math.min(n - 2, Math.floor(x)), f = x - i0;
+      _clA.copy(pts[i0]).lerp(pts[i0 + 1], f);
+      // the tangent, from the neighbours rather than one segment, so a single
+      // noisy sample cannot flip the strip
+      const j0 = Math.max(0, i0 - 1), j1 = Math.min(n - 1, i0 + 2);
+      _clT.copy(pts[j1]).sub(pts[j0]);
+      if (_clT.lengthSq() < 1e-8) _clT.set(0, 1, 0);
+      _clT.normalize();
+      _clV.copy(eye).sub(_clA).normalize();
+      _clNr.crossVectors(_clT, _clV);
+      if (_clNr.lengthSq() < 1e-8) _clNr.set(0, 1, 0); else _clNr.normalize();
+      const w = width * 0.5;
+      const o = k * 6;
+      _clB.copy(_clA).addScaledVector(_clNr, -w);
+      _clC.copy(_clA).addScaledVector(_clNr, w);
+      it.pos[o] = _clB.x; it.pos[o + 1] = _clB.y; it.pos[o + 2] = _clB.z;
+      it.pos[o + 3] = _clC.x; it.pos[o + 4] = _clC.y; it.pos[o + 5] = _clC.z;
+    }
+    it.geo.attributes.position.needsUpdate = true;
+    it.mesh.visible = true;
+    return it;
+  }
+  step(dt) {
+    for (const it of this.items) {
+      if (it.t <= 0) continue;
+      it.t -= dt;
+      if (it.t <= 0) { it.t = 0; it.mesh.visible = false; continue; }
+      const k = it.t / it.dur;
+      it.mat.uniforms.uFade.value = k * k;
+    }
+  }
+}
+
 const CUTS = 4;
 class Cuts {
   constructor(map) {
@@ -1851,6 +1967,7 @@ const _fxQ = new THREE.Quaternion();
 const _fxA = new THREE.Vector3(), _fxB = new THREE.Vector3();
 const _hitU = new THREE.Vector3(), _hitW = new THREE.Vector3(), _hitS = new THREE.Vector3();
 const _hitP = new THREE.Vector3(), _hitD = new THREE.Vector3();
+const _hitT = new THREE.Vector3();
 
 // ── THE DIRECTOR ───────────────────────────────────────────────────────────
 //
@@ -1987,6 +2104,8 @@ class Effects {
     this.cuts = new Cuts(this.slashMap);
     this.flashes = new Flashes(clashTexture());
     for (const f of this.flashes.items) scene.add(f.mesh);
+    this.clash = new Clash();
+    for (const c of this.clash.items) scene.add(c.mesh);
     scene.add(this.sparks.points);
     for (const it of this.shocks.items) scene.add(it.mesh);
     for (const it of this.cuts.items) scene.add(it.mesh);
@@ -2099,7 +2218,7 @@ class Effects {
   // line is a curve rather than a rod, and thrown outward from it. The ends of
   // the arc spill along their own direction, which is the thing that reads as a
   // sweep instead of a spray.
-  hit(at, toward, verb, power, cut) {
+  hit(at, toward, verb, power, cut, path, eye) {
     const spec = FX_VERB[verb] || FX_VERB.slash;
     const h = spec.hit;
     const k = Math.max(0.55, Math.min(1.9, power || 1));
@@ -2112,18 +2231,49 @@ class Effects {
     const side = _hitS.crossVectors(along, out);
     if (side.lengthSq() < 1e-6) side.set(0, 1, 0); else side.normalize();
     const span = (h.arc || 0.9) * (0.75 + k * 0.35);
+    // ── THE PATH THE BLADE REALLY TOOK ────────────────────────────────────
+    //
+    // When the swing has left a trail, everything below is laid on THAT rather
+    // than on a straight line through `at` with a bow added to it. A guessed
+    // 16%-of-span bow is still a line with a kink in it; the recorded path is
+    // the curve the blade actually drew, and it is already known.
+    const arcPts = (path && path.length >= 3) ? path : null;
+    // where along the recorded path a fraction u lands, u in [-1, 1]
+    const onPath = (u, into) => {
+      const x = (u * 0.5 + 0.5) * (arcPts.length - 1);
+      const i0 = Math.max(0, Math.min(arcPts.length - 2, Math.floor(x)));
+      return into.copy(arcPts[i0]).lerp(arcPts[i0 + 1], x - i0);
+    };
+    // …and which way is "off the blade" there — the tangent's perpendicular in
+    // the plane of the blow, so the spray leaves the edge rather than the point
+    const offPath = (u, into) => {
+      const x = (u * 0.5 + 0.5) * (arcPts.length - 1);
+      const i0 = Math.max(0, Math.min(arcPts.length - 2, Math.floor(x)));
+      const j0 = Math.max(0, i0 - 1), j1 = Math.min(arcPts.length - 1, i0 + 2);
+      _hitT.copy(arcPts[j1]).sub(arcPts[j0]);
+      if (_hitT.lengthSq() < 1e-8) return into.copy(out);
+      _hitT.normalize();
+      return into.crossVectors(_hitT, side).normalize();
+    };
 
     // ── ONE · THE CUT ITSELF, which is most of the particles ───────────────
     const n = Math.round((h.n || 30) * k);
     for (let i = 0; i < n; i++) {
       // biased toward the middle of the stroke, where the steel bit deepest
       const u = (Math.random() + Math.random() - 1);
-      // the bow: the line sags away from the blow, so it is an arc
-      const bow = (1 - u * u) * span * 0.16;
-      _hitP.copy(at).addScaledVector(along, u * span * 0.5).addScaledVector(side, bow);
-      // outward from the line, with the ends throwing along their own direction
-      _hitD.copy(out).addScaledVector(along, u * 1.15)
-           .addScaledVector(side, (Math.random() - 0.5) * 0.5).normalize();
+      if (arcPts) {
+        onPath(u, _hitP);
+        // off the edge, plus a share along the blade — the ends spill forward,
+        // which is what makes a sweep out of a spray
+        offPath(u, _hitD).multiplyScalar(Math.random() < 0.5 ? 1 : -0.55)
+          .addScaledVector(out, 0.55).addScaledVector(along, u * 0.9)
+          .addScaledVector(side, (Math.random() - 0.5) * 0.35).normalize();
+      } else {
+        const bow = (1 - u * u) * span * 0.16;
+        _hitP.copy(at).addScaledVector(along, u * span * 0.5).addScaledVector(side, bow);
+        _hitD.copy(out).addScaledVector(along, u * 1.15)
+             .addScaledVector(side, (Math.random() - 0.5) * 0.5).normalize();
+      }
       this.sparks.emit(_hitP, _hitD, 1, {
         speed: h.speed * (0.55 + Math.random() * 0.9),
         spread: h.spread,
@@ -2144,9 +2294,16 @@ class Effects {
       const m = Math.round(h.shard * k);
       for (let i = 0; i < m; i++) {
         const u = Math.random() * 2 - 1;
-        _hitP.copy(at).addScaledVector(along, u * span * 0.45);
-        _hitD.copy(out).addScaledVector(along, u * 1.6)
-             .addScaledVector(side, (Math.random() - 0.5) * 1.4).normalize();
+        if (arcPts) {
+          onPath(u * 0.9, _hitP);
+          offPath(u, _hitD).multiplyScalar(Math.random() < 0.5 ? 1.3 : -0.8)
+            .addScaledVector(out, 0.5).addScaledVector(along, u * 1.3)
+            .addScaledVector(side, (Math.random() - 0.5) * 1.1).normalize();
+        } else {
+          _hitP.copy(at).addScaledVector(along, u * span * 0.45);
+          _hitD.copy(out).addScaledVector(along, u * 1.6)
+               .addScaledVector(side, (Math.random() - 0.5) * 1.4).normalize();
+        }
         this.sparks.emit(_hitP, _hitD, 1, {
           speed: h.speed * (1.3 + Math.random() * 1.1), spread: 0.35,
           life: h.life * (2.2 + Math.random() * 1.6),
@@ -2163,7 +2320,8 @@ class Effects {
     if (h.ember) {
       for (let i = 0; i < Math.round(h.ember * k); i++) {
         const u = Math.random() * 2 - 1;
-        _hitP.copy(at).addScaledVector(along, u * span * 0.55);
+        if (arcPts) onPath(u, _hitP);
+        else _hitP.copy(at).addScaledVector(along, u * span * 0.55);
         _hitD.copy(side).multiplyScalar(Math.random() - 0.5)
              .addScaledVector(out, 0.35).addScaledVector(along, u * 0.4).normalize();
         this.sparks.emit(_hitP, _hitD, 1, {
@@ -2187,7 +2345,12 @@ class Effects {
     // than the foe is tall and reads as a slab hung in the air. The mark
     // belongs to the arc that made it, so it takes its length from the same
     // span the particles were laid along.
-    if (h.cut) this.cuts.fire(at, along, span * h.cut * 0.72, 0.19);
+    if (h.cut) {
+      // the crescent when the swing left a trail to draw it from; the flat mark
+      // only when there is none — a spell, or a creature with no blade
+      if (arcPts && eye) this.clash.fire(arcPts, eye, span * h.cut * 0.16, 0.17);
+      else this.cuts.fire(at, along, span * h.cut * 0.72, 0.19);
+    }
     if (h.ring) this.shocks.fire(at, h.ring * k, verb === 'heal' ? 0.7 : 0.42);
   }
   // a spell gathering in the hand before it goes anywhere
@@ -2234,6 +2397,7 @@ class Effects {
     this.shocks.step(dt, cam);
     this.cuts.step(dt, cam);
     this.flashes.step(dt, cam);
+    this.clash.step(dt);
   }
 }
 
@@ -5149,12 +5313,53 @@ const Cast3D = (() => {
       // this reads the record rather than guessing from the attacker's facing.
       const cut = new THREE.Vector3();
       const rib = src && fx.ribbons[fromId];
+      let path = null;
       if (rib && rib.filled >= 3) {
         const last = (rib.head - 1 + TRAIL) % TRAIL;
         const back = (rib.head - 3 + TRAIL) % TRAIL;
         cut.copy(rib.pts[last].b).sub(rib.pts[back].b);
+        // ── AND THE WHOLE CURVE, NOT JUST ITS DIRECTION ────────────────────
+        //
+        // The tangent said which way the steel went; the path says what SHAPE
+        // it went in, which is the difference between a line across the foe and
+        // a sword arriving. The last eight samples are about an eighth of a
+        // second of blade — the part of the stroke that actually met the body.
+        //
+        // Moved onto the target rather than used where it was recorded: the
+        // trail was drawn wherever the attacker's arm swung, and the blow lands
+        // on the creature. Re-centring keeps the shape and puts it where the
+        // hit is, which is the only part of it the player is looking at.
+        // ── AND ENOUGH OF IT TO BE A CURVE ────────────────────────────────
+        // Eight samples is about an eighth of a second of blade, and measured,
+        // its bow came out at 4% of its own chord: a short segment of a big
+        // circle is a straight line, and photographing it showed exactly that.
+        // Sixteen is a quarter-second — most of the committed part of a stroke
+        // — and it is the difference between a mark across the foe and a sword
+        // arriving on one.
+        const take = Math.min(16, rib.filled);
+        const raw = [];
+        for (let i = take - 1; i >= 0; i--)
+          raw.push(rib.pts[(rib.head - 1 - i + TRAIL * 2) % TRAIL].b.clone());
+        const mid = raw[Math.floor(raw.length / 2)];
+        const shift = new THREE.Vector3().copy(at).sub(mid);
+        raw.forEach(p2 => p2.add(shift));
+        // ── THE BLADE'S CURVE, AT THE BLOW'S SIZE ──────────────────────────
+        //
+        // A quarter-second of sword tip is metres of travel — photographed at
+        // full scale it swept clean past the foe and off the side of the
+        // frame. What is wanted from the recording is its SHAPE, not its
+        // extent: scaling about the contact point keeps the bow exactly (the
+        // sagitta and the chord shrink together) while sizing the mark to the
+        // thing it landed on.
+        const chord = raw[0].distanceTo(raw[raw.length - 1]);
+        const want = 1.5;                      // metres across, about a body
+        if (chord > want) {
+          const f = want / chord;
+          raw.forEach(p2 => p2.sub(at).multiplyScalar(f).add(at));
+        }
+        path = raw;
       }
-      fx.hit(at, toward, verb, power, cut);
+      fx.hit(at, toward, verb, power, cut, path, cam.position);
       return true;
     },
     // ── THE LIGHT COMES OFF EVERYTHING EXCEPT THIS ─────────────────────────
