@@ -1737,7 +1737,28 @@
   function enterFight(n) {
     const foe = window.K.FOES[n.foe] || window.K.FOES.wraith;
     screen('combat');
+    // ── A FIGHT THE SEED CAN REPRODUCE ────────────────────────────────────
+    //
+    // The road started every fight without a seed, and `startCombat` only
+    // reseeds when it is given one — so the fight inherited whatever the
+    // engine's generator happened to hold, and its initial value is
+    // `Date.now()`. The first thing a fight does with it is shuffle the deck.
+    // So the opening hand of the FIRST fight of a run came off the wall clock,
+    // and every offer, every reckoning and every fight after it inherited the
+    // divergence.
+    //
+    // Measured, three runs of the slice on seed 5013: the map was identical
+    // every time — it is built on the road's own cursor, which was always
+    // seeded — while stop 0 was won in 4 rounds, 3 and 3, the elite in 4, 4
+    // and 5, the boss in 6, 6 and 5, and the cards taken at nearly every
+    // junction differed. A seed named the road and nothing that happened on it.
+    //
+    // The stop is in the seed as well as the run, so two fights in one run do
+    // not share a shuffle, and `stop` rather than the node id because it is a
+    // number and the id is a name that could be reused across lanes.
+    const fightSeed = ((RUN.seed >>> 0) ^ (0x9E3779B9 + ((RUN.stop | 0) * 0x85EBCA6B))) >>> 0;
     window.K.startCombat({ foe, foes: n.foes || null, partyHp: RUN.hp, onEnd: onFightEnd, kizuna: RUN.kizuna || 0,
+                           seed: fightSeed,
                            roster: RUN.roster, upgrades: cardUps(), allout: alloutOf(),
                            sigils: RUN.sigils || {},
                            vigor: RUN.vigor || 0, apBonus: apBonusOf(),

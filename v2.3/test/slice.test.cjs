@@ -496,6 +496,54 @@ const MAX_TURNS = 30;
     check('SLICE: NEW RUN starts from nothing — no embers, no tree, no memories, no path',
       fresh.at === null && fresh.embers === 0 && fresh.nodes === 0 && fresh.tier === 1
       && !fresh.over && fresh.path === 0 && fresh.seen === 0, JSON.stringify(fresh));
+
+  // ── AND SO DOES THE FIGHT THE SEED LEADS TO ─────────────────────────
+  //
+  // The wake was seeded and the map was seeded and neither of them was where
+  // the seed stopped being honoured. `enterFight` started every fight with no
+  // seed at all, and `startCombat` only reseeds when it is handed one — so a
+  // fight inherited whatever the engine's generator held, whose initial value
+  // is `Date.now()`, and the first thing a fight does with it is SHUFFLE THE
+  // DECK. The opening hand of the first fight of a run came off the wall
+  // clock, and every offer and every fight after it inherited the divergence.
+  //
+  // It hid because the thing being watched was the check COUNT, and the count
+  // was stable: the bot wins every fight on this road whatever hand it is
+  // dealt, so the walk always reached the end and always ran the same number
+  // of checks. Three runs on seed 5013 came back 85/85, 85/85, 85/85 — and
+  // stop 0 was won in 4 rounds, 3 and 3, the elite in 4, 4 and 5, the boss in
+  // 6, 6 and 5, with different cards taken at nearly every junction. A green
+  // count over a run that was never the same run twice.
+  //
+  // So this asks the deck directly, which is the thing the clock was reaching:
+  // two fights entered at the same stop of the same seed deal the same cards.
+  const dealt = await J(async () => {
+    const K = window.K;
+    // …reached by WALKING THE ROAD, wake and all, because the seam that was
+    // broken is `enterFight`. Calling `startCombat` directly would step around
+    // the very line that was reading the clock and prove nothing.
+    const take = async () => {
+      window.R.newRun(5013);
+      const w = window.R.wakeOffer()[0];
+      if (w) window.R.takeWake(w.id);
+      // `reachable` hands back IDS, not nodes — the map is where the kind is
+      const open = window.R.reachable();
+      const byId = Object.fromEntries(window.R.map().map(n => [n.id, n]));
+      const fight = open.find(id => byId[id] && byId[id].kind === 'fight') || open[0];
+      if (!fight) return null;
+      window.R.travel(fight);
+      // the road enters a stop on its own clock, so wait for a board rather
+      // than assuming one exists the instant `travel` returns
+      for (let i = 0; i < 200 && !K.state(); i++) await new Promise(r => setTimeout(r, 25));
+      const st = K.state();
+      return st && st.hand ? st.hand.join(',') : null;
+    };
+    return { a: await take(), b: await take() };
+  });
+  check('SEED: the same seed deals the same opening hand — a fight is part of the run, not of the clock',
+    !!dealt.a && dealt.a === dealt.b,
+    JSON.stringify(dealt) + ' — the deck was shuffled off Date.now() until Build 157');
+
   }
 
   const r = report();
