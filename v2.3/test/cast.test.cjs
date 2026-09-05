@@ -2201,6 +2201,50 @@ const { boot } = require('./harness.cjs');
     JSON.stringify({ hero: lens.hero, foe: lens.foe })
       + ' — aiming at the foe alone put the hero at 0.12 and the other two off the picture');
 
+  // ═══ N · THE BLOW WAITS FOR THE SWING ═══
+  //
+  // `resolveEffects` ran BEFORE `fxPlayCard`, so the damage, the flash, the
+  // screen kick, the recoil and the number all fired before the hero had begun
+  // to move: the enemy was hit and THEN the sword came down. No camera work
+  // fixes that, and it is the whole of "it doesn't look like our character is
+  // performing the attack to hit the enemy".
+  //
+  // Checked at the instant the card resolves, which needs no timer and cannot
+  // race: the acting figure must already be swinging, and the damage number
+  // must not have been printed yet.
+  console.log('\n── the blow waits for the swing ──');
+  const order = await J(async () => {
+    const C3 = window.Cast3D;
+    const before = document.querySelectorAll('.k-pop').length;
+    if (typeof C === 'undefined' || !C || !C.hand) return { err: 'no fight in progress' };
+    // the sections above spend the hand; deal a fresh fight so there is
+    // certainly something to swing
+    if (!(C.hand || []).some(id => cardDef(id).target === 'enemy')) {
+      startCombat({ foes: ['husk'] });
+      for (let i = 0; i < 30; i++) await new Promise(r => requestAnimationFrame(r));
+    }
+    const card = (C.hand || []).find(id => cardDef(id).target === 'enemy');
+    if (!card) return { err: 'no attack card in hand', hand: (C.hand || []).length };
+    const who = primaryHero(cardDef(card));
+    C.aim = 0;
+    playCard(card);
+    // read on the very next line — nothing has had a chance to time out
+    return { who, playing: C3._state().playing[who],
+             popped: document.querySelectorAll('.k-pop').length - before,
+             contact: C3.contactMs(who, 'slash'), beat: C3.beatMs(who, 'slash') };
+  });
+  check('BLOW: the hero is already swinging when the card resolves',
+    !order.err && !!order.playing,
+    JSON.stringify(order) + ' — fxPlayCard used to run AFTER resolveEffects');
+  check('BLOW: …and the damage has not been printed yet',
+    !order.err && order.popped === 0,
+    JSON.stringify({ popped: order.popped, contactMs: order.contact })
+      + ' — the number now waits for the frame the weapon arrives on');
+  check('BLOW: …which is a real frame inside the action, not its start or its end',
+    !order.err && order.contact > 0 && order.contact < order.beat,
+    JSON.stringify({ contactMs: order.contact, onScreenMs: order.beat })
+      + ' — measured by tools/contact.cjs as the fastest frame of the weapon hand');
+
   // ═══ N · THE BODY IS STILL A BODY ═══
   //
   // An imported clip can be wrong in a way every other check in this file

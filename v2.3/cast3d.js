@@ -2697,7 +2697,7 @@ const Cast3D = (() => {
       if (name === '__rest' || name === '__parent') continue;
       clips[name] = THREE.AnimationClip.parse(lib[name]);
       if (lib[name].window) windows[name] = lib[name].window;
-      meta[name] = { beat: lib[name].beat, loop: !!lib[name].loop };
+      meta[name] = { beat: lib[name].beat, loop: !!lib[name].loop, hit: lib[name].hit };
     }
     clipNames = Object.keys(clips);
 
@@ -4144,6 +4144,19 @@ const Cast3D = (() => {
       const a = f.actions[clipFor(f, verb, dir)];
       if (!a) return 0;
       return Math.round(1000 * a.getClip().duration / (a.timeScale || 1));
+    },
+    // WHEN THE BLOW LANDS INSIDE THAT, in milliseconds from the clip starting.
+    //
+    // `tools/contact.cjs` measures it — the frame the weapon hand is moving
+    // fastest relative to the hips — and writes it into the library as `hit`.
+    // A clip with no contact frame (a stagger, a death, a guard) answers 0, and
+    // the caller then does what it always did.
+    contactMs: (id, verb, dir) => {
+      const f = figs[id]; if (!f) return 0;
+      const name = clipFor(f, verb, dir);
+      const a = f.actions[name], m = f.meta && f.meta[name];
+      if (!a || !m || !(m.hit > 0)) return 0;
+      return Math.round(1000 * m.hit * a.getClip().duration / (a.timeScale || 1));
     },
     verbFor: (id) => {
       const t = (figs[id] && figs[id].tone) || CAST[id];

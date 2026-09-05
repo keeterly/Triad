@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 145;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 146;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -2207,7 +2207,11 @@ function resolveEffects(effects, ownerId, allyId, selfId) {
   finally {
     if (outer) {
       const b = _dmgBatch; _dmgBatch = null;
-      if (b.n > 0) popDamage(b.n, b.why);
+      // …AND THE TOTAL WAITS FOR THE SWING TOO. A card's damage is batched and
+      // printed once at the end of the resolve, which is a separate path from
+      // `fxDamageBoss` and was still slamming the number up before the hero had
+      // moved. Same clock: the number is part of the blow landing.
+      if (b.n > 0) { const n = b.n, why = b.why; atImpact(() => popDamage(n, why)); }
     }
   }
 }
@@ -2369,15 +2373,18 @@ function playCard(cardId, allyId) {
     fxCast(primaryHero(ev.card), _act.tone,
            ev.card.target === 'enemy' ? (foeBox(C.aim) || document.getElementById('k-boss-art')) : null);
   }
+  // THE BODY MOVES FIRST. `fxPlayCard` starts the clip and says how long it is
+  // until the weapon arrives; the rules then resolve synchronously as they
+  // always have, and only the sight and sound of the blow waits for the swing.
+  fxPlayCard(cardId, ev);
   try { resolveEffects(ev.resolvedEffects, owner, allyId, selfHeroOf(ev.card)); }
-  finally { _act = null; }
+  finally { _act = null; _impactAt = 0; }
   C.turnState.actionsPlayed.push({ cardId, ownerId: owner, condActive: ev.condActive });
   // RALLY pays the bond. CHAIN needs no hand-off: it reads the turn
   // it is written after this card's own condition has already been read.
   if (ev.sigil === 'rally') kizunaGain(SIGIL_KZ);
   C.telemetry.plays.push({ t: C.turn, cardId, cost: ev.currentCost, cond: ev.condActive,
                            sigil: ev.sigil || null });
-  fxPlayCard(cardId, ev);
   if (C.phase !== 'VICTORY') setPhase('PLAYER_READY');
   renderAll();
   return true;
@@ -4614,6 +4621,25 @@ function actorOf(node) {
 // and read on the way out of it, so the sparks come off the body in the
 // direction the blow was travelling rather than puffing out symmetrically.
 let _fxFrom = null;
+// ── THE HIT WAITS FOR THE SWING ──────────────────────────────────────────
+//
+// `resolveEffects` ran BEFORE `fxPlayCard`, so the damage, the flash, the
+// screen kick, the recoil and the number all fired before the hero had begun
+// to move. The enemy was hit and then the sword came down. No amount of camera
+// work fixes that, and it is the whole of "it doesn't look like our character
+// is performing the attack to hit the enemy".
+//
+// The card still RESOLVES the instant it is played — every rule, every number
+// and every phase change is synchronous and untouched. Only the presentation
+// of the blow is held back, to the frame the weapon actually arrives.
+let _impactAt = 0;
+function armImpact(ms) { _impactAt = ms > 0 ? nowMs() + ms : 0; }
+function nowMs() { return typeof performance !== 'undefined' ? performance.now() : Date.now(); }
+// run something at the moment of contact, or now if nothing is swinging
+function atImpact(fn) {
+  const wait = _impactAt - nowMs();
+  if (wait > 16) setTimeout(fn, wait); else fn();
+}
 function castHit(node, power, verb) {
   const C3 = window.Cast3D;
   if (!C3 || !C3.hit) return false;
@@ -4716,7 +4742,11 @@ function popDamage(n, why, F) {
   popupOver(foeBox(F ? F.ix : (C ? C.aim : 0)) || document.getElementById('k-boss-art'), fmtN(n),
     (why === 'bleed' ? 'k-pop-bleed' : 'k-pop-dmg') + ' ' + POP_TIER(n) + tone);
 }
-function fxDamageBoss(n, why, F) { fxStrikeBoss(n, why, F); popDamage(n, why, F); }
+function fxDamageBoss(n, why, F) {
+  // the flash, the kick, the recoil, the sound and the number are one moment
+  // and they all belong on the contact frame
+  atImpact(() => { fxStrikeBoss(n, why, F); popDamage(n, why, F); });
+}
 function fxBreak() { const el = document.getElementById('k-break'); if (el) { el.classList.remove('k-flash'); void el.offsetWidth; el.classList.add('k-flash'); } }
 // ═════════════════════════════════════════════════════════════════════════════
 // WHAT KIND OF THING JUST HAPPENED.
@@ -4815,6 +4845,10 @@ function fxSlash(node, i, heavy) {
 // painted stage, where there is no clip and no camera to hold
 function castBeatMs(id, verb, dir) {
   return (window.Cast3D && window.Cast3D.beatMs) ? window.Cast3D.beatMs(id, verb, dir) : 0;
+}
+// how long after the clip starts the blow actually lands, in ms
+function castContactMs(id, verb, dir) {
+  return (window.Cast3D && window.Cast3D.contactMs) ? window.Cast3D.contactMs(id, verb, dir) : 0;
 }
 function castShot(name, opts) {
   const C3 = window.Cast3D;
@@ -4991,6 +5025,11 @@ function fxPlayCard(cardId, ev) {
   // the third word is the parry's arrow elsewhere; for a slash it is the swing
   const flavour = kind === 'slash' ? attackFlavour(ev.resolvedEffects) : '';
   castPlay(heroId, kind, flavour);
+  // …and from here the blow is on a clock: the weapon arrives this many
+  // milliseconds from now, and everything that shows it landing waits for
+  // that. Armed here rather than beside the camera, because a pair card takes
+  // a different branch below and its blow lands too.
+  armImpact(castContactMs(heroId, kind, flavour));
   // ── A DUO IS TWO BODIES (Build 138) ──────────────────────────────────────
   //
   // Twelve cards in this deck are owned by a PAIR — `ash|mira`, `elin|mira` —
