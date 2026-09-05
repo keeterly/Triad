@@ -2751,6 +2751,48 @@ const { boot } = require('./harness.cjs');
   // EVERYTHING uniformly is exactly as broken as one that inks 64%, only
   // quieter. What a drawn line looks like is a few per cent of the frame,
   // several times denser inside the figures than over the plaza behind them.
+  // ── IS THE CAST ACTUALLY ON SCREEN ──────────────────────────────────────
+  //
+  // A one-word GLSL collision — a float t the watercolour block twelve lines
+  // down already owned — left the figure program invalid, and this browser
+  // reports that as a WebGL warning and nothing else: no exception, no console
+  // error, nothing thrown. The plaza rendered, the weapons rendered because
+  // they are their own meshes, and the party was gone.
+  //
+  // THE SUITE DOES CATCH IT, and it is worth being exact about that rather
+  // than claiming a blind spot it does not have. Run against the broken
+  // shader, four checks go red: BURN counts no pixels, and GUARD, ARMS and
+  // GROUND all read nonsense because a figure's scale is measured off its
+  // rendered silhouette, so nothing drawn means nothing measured. What none of
+  // them says is WHY. A reviewer handed "a sword is 1.79m" and "the lowest
+  // joint is -0.30" has four unrelated geometry faults to chase and no reason
+  // to suspect the fragment shader.
+  //
+  // So this one names it. It is answered by the material itself — a colour
+  // nothing else in the world draws, emitted by the very shader whose
+  // compilation is in doubt — and it sits first, because if it is red the
+  // other four are its symptoms and not four more bugs.
+  console.log('\n── the cast is on screen ──');
+  const drawn = await J(async () => {
+    const C3 = window.Cast3D;
+    const was = C3.look();
+    C3.look({ pl: -2 });
+    await new Promise(r => requestAnimationFrame(r));
+    await new Promise(r => requestAnimationFrame(r));
+    await C3._snapshot();
+    const c = window.__castShot, w = c.width, h = c.height;
+    const d = c.getContext('2d').getImageData(0, 0, w, h).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4)
+      if (d[i] > 140 && d[i + 1] < 100 && d[i + 2] > 140) n++;
+    C3.look(was);
+    return { px: n, pct: +(100 * n / (w * h)).toFixed(2) };
+  });
+  check('CAST: the figures are actually drawn — the shader ran and wrote pixels',
+    drawn.px > 500,
+    JSON.stringify(drawn) + ' — the figure material emitting a colour nothing else '
+      + 'draws; an invalid program leaves this at 0 and throws nothing');
+
   console.log('\n── the drawn look ──');
   const ink = await J(async () => {
     const C3 = window.Cast3D;

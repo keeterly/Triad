@@ -151,6 +151,37 @@ const LOOK = {
   // It stays in, dialable from 0 to 1, because it is thirty lines and someone
   // may want it for a memory or a reckoning where the stage should look
   // remembered rather than lived in.
+  // ── THE PAINTED LIGHT (Build 164) ─────────────────────────────────────
+  //
+  // The one treatment in this file that is ON at strength, and it is on
+  // because it is the only one that does not touch the painting. Everything
+  // below `paint` operates on the finished pixel; this operates on the LIGHT,
+  // and hands the albedo back with every brush mark still in it.
+  //
+  // What it is doing, in the order the eye reads it: the terminator becomes a
+  // decision instead of a gradient, the shadow side goes quiet so it reads as
+  // a shape, the two sides are pulled apart in HUE rather than only in value,
+  // and a cold counter-light draws the turning-away edge off the background.
+  pl:    0.85,   // how much of the painted light is applied at all
+  // MEASURED, NOT GUESSED. This is a position in the lighting's own luminance
+  // — linear, with the exposure and four lamps folded in — and the first guess
+  // at it was 0.55, which is below the whole distribution: the terminator
+  // never fired once and the hard-edge reading did not move a thousandth.
+  // Rendered on ash, that quantity runs p5 0.18 · p25 0.31 · median 0.61 ·
+  // p75 0.86 · p95 1.47, so the split between light and shadow belongs just
+  // under the median. Read it again with `?look=pl:-1`, which outputs the
+  // number itself instead of the figure — and DECODE THE BYTE BEFORE
+  // BELIEVING IT: three's sRGB encode runs after the debug write, so a frame
+  // read back raw gave 1.48 for a median that is really 0.61, and a
+  // terminator placed on it sat above the entire distribution and cooled the
+  // whole figure instead of splitting it.
+  term:  0.55,   // where the light stops, in the lighting's own luminance
+  soft:  0.13,   // …and how much of a decision that is. Wide is just Lambert.
+  fold:  0.72,   // how far the shadow side collapses toward one value
+  cross: 0.72,   // warm light against cool shadow, in hue
+  rim:   0.26,   // the cold counter-light along the shadow edge
+  rimp:  3.0,    // how tight it hugs the silhouette
+  chroma: 1.45,  // …and the colour gets richer, which nothing else here does
   paint: 0.0,
   bands: 5.0,   // how many washes the tone is stepped into
   wash:  0.55,  // …and how much of the real painting survives the stepping
@@ -262,6 +293,14 @@ const LOOK = {
 // what each dial does, for the panel — and so the next person to open this
 // file does not have to read the shader to find out
 const LOOK_HELP = {
+  pl:    ['painted light', 0, 1, 0.01, 'how much the lighting is drawn rather than rendered'],
+  term:  ['terminator', 0.1, 1.4, 0.01, 'where the light stops on a form'],
+  soft:  ['softness', 0.01, 0.5, 0.005, 'how sharp that edge is — wide is ordinary shading'],
+  fold:  ['shadow fold', 0, 1, 0.01, 'how flat the shadow side goes'],
+  cross: ['warm/cool', 0, 1.4, 0.01, 'how far the two sides part in hue'],
+  rim:   ['counter-light', 0, 2, 0.01, 'the cold edge along the turning-away side'],
+  rimp:  ['rim tightness', 1, 6, 0.05, 'how close it hugs the silhouette'],
+  chroma: ['chroma', 0.5, 2.2, 0.01, 'how rich the colour runs — 1 is untouched'],
   line:  ['ink line', 0, 1, 0.01, 'the contour drawn where two surfaces meet'],
   linew: ['line width', 0.5, 3, 0.05, 'how wide that contour is, in buffer pixels'],
   bite:  ['line bite', 0.01, 0.4, 0.005, 'how big a depth jump earns a line, as a fraction of its distance'],
@@ -471,6 +510,11 @@ function watercolour(map, tone) {
   // arguing about it; holding them all on the material means a sweep is one
   // page load and the comparison is side by side.
   m.userData.u = {
+    uPl:    { value: LOOK.pl },    uTerm:  { value: LOOK.term },
+    uChroma: { value: LOOK.chroma },
+    uSoft:  { value: LOOK.soft },  uFold:  { value: LOOK.fold },
+    uCross: { value: LOOK.cross }, uRim:   { value: LOOK.rim },
+    uRimp:  { value: LOOK.rimp },
     uPaint: { value: LOOK.paint },
     uBands: { value: LOOK.bands }, uGrain: { value: LOOK.grain },
     uEdge:  { value: LOOK.edge },  uLift:  { value: LOOK.lift },
@@ -489,6 +533,15 @@ function watercolour(map, tone) {
     sh.fragmentShader = sh.fragmentShader
       .replace('void main() {', `
         uniform float uBands, uGrain, uEdge, uLift, uDepth, uWash, uAir, uPaint;
+        uniform float uPl, uTerm, uSoft, uFold, uCross, uRim, uRimp, uChroma;
+        // THE LIGHTING HUES ARE NOT PIGMENT AND NOT DIALS. uPaper/uShadow/uInk
+        // are the watercolour's pigments and belong to the figure; these are
+        // the colour of the light in this plaza — the sky in the shadows, the
+        // low sun on the lit side, the cold counter off the water — so they
+        // are one decision for the whole cast, made here.
+        const vec3 PL_COOL = vec3(0.62, 0.70, 1.06);
+        const vec3 PL_WARM = vec3(1.12, 1.01, 0.84);
+        const vec3 PL_RIM  = vec3(0.42, 0.62, 0.95);
         uniform float uBurn;
         uniform float uLit;
         uniform vec3 uPaper, uShadow, uInk;
@@ -525,6 +578,123 @@ function watercolour(map, tone) {
       // construction rather than by a fitted exponent.
       .replace('#include <colorspace_fragment>', `
         {
+          // ══ THE PAINTED LIGHT ═════════════════════════════════════════════
+          //
+          // What makes Arcane read as illustration is not a filter over the
+          // render, it is the LIGHT. The terminator is a decision rather than a
+          // gradient, the shadow side is a colour rather than an absence of
+          // one, and a counter-light draws the form off its background. All
+          // three are lighting; none of them is a treatment of the picture.
+          //
+          // THIS FILE HAS ALREADY MEASURED WHAT HAPPENS WHEN YOU FILTER THE
+          // PICTURE INSTEAD. The band ladder flattened the art it sat on and
+          // the paper grain read as noise, and both were switched back off —
+          // because these models are painted from the concept art and a wash
+          // over a painting is a filter on top of work that already works.
+          //
+          // So the treatment separates the two and only touches one of them.
+          // diffuseColor is the albedo — every brush mark the texture carries.
+          // gl_FragColor at this point is that albedo times the lighting. The
+          // quotient is the lighting ALONE, and it is the only thing shaped
+          // here; the albedo is multiplied back in untouched, so a hundred
+          // painted folds survive a treatment that gives the light three
+          // values. That is the difference between this and the band ladder,
+          // and it is the whole reason it can ship at a strength the ladder
+          // never could.
+          //
+          // The floor on the divisor matters: a specular hit on a near-black
+          // albedo sends the quotient to infinity, and one pixel of that is a
+          // white spark that survives every later stage.
+          // ── EVERY LOCAL IN HERE IS PREFIXED, AND THAT IS NOT STYLE ──────
+          //
+          // This block and the watercolour treatment below it are inside ONE
+          // pair of braces, so they share a scope. The first version of this
+          // declared a float t for the terminator and the watercolour already
+          // owns a t twelve lines down — a redeclaration, which is a compile
+          // error, which three logs nowhere this browser reports and then
+          // carries on with an invalid program. The figures simply stopped
+          // being drawn: no error, no exception, a plaza with weapons floating
+          // in it, and every reading still coming back with plausible numbers
+          // because the party's boxes were full of plaza.
+          vec3 plAlb = max(diffuseColor.rgb, vec3(0.045));
+          vec3 plLgt = clamp(gl_FragColor.rgb / plAlb, 0.0, 12.0);
+          float plLv = dot(plLgt, vec3(0.299, 0.587, 0.114));
+          // WHERE THE LIGHT STOPS. A smoothstep across a narrow band is the
+          // terminator; uSoft is how much of a decision it is. Wide, this is
+          // just Lambert again — the shading a renderer gives you for free and
+          // the thing that reads as 3D rather than as drawing.
+          float plT = smoothstep(uTerm - uSoft, uTerm + uSoft, plLv);
+          // …AND THE SHADOW SIDE GOES QUIET. Not dark — quiet. Collapsing the
+          // shadow's values toward one level is what lets an illustrator put
+          // detail where they want it instead of where the light happens to
+          // fall, and it is why a painted shadow reads as a shape while a
+          // rendered one reads as a gradient. The plLit side keeps every bit of
+          // its modelling, because that is where the drawing is.
+          // THE FOLDED SHADOW SITS WELL UNDER THE TERMINATOR, not just below
+          // it. At 0.62 of the threshold the target landed on the measured
+          // p25 — so the fold moved the shadow by a couple of per cent and the
+          // figure kept the same gentle Lambert falloff it had before.
+          float plLvq = mix(plLv, uTerm * 0.45, uFold);
+          float plLv2 = mix(plLvq, plLv, plT);
+          vec3 plL = plLgt * (plLv2 / max(plLv, 0.0015));
+          // WARM AGAINST COOL, WHICH IS THE OTHER HALF OF IT. Value contrast
+          // alone gives you grey shadows and a photograph. The shadow carries
+          // the sky and the bounce — blue going violet — and the light carries
+          // the sun, and the picture gets its depth from the two hues meeting
+          // rather than from one of them getting darker.
+          plL *= mix(PL_COOL, PL_WARM, plT) * uCross + (1.0 - uCross);
+          vec3 plLit = plAlb * plL;
+          // THE COUNTER-LIGHT, AND WHY IT IS NOT A HALO. A plain fresnel rims
+          // the whole silhouette evenly, which is the cheap version and reads
+          // as a sticker cut out of the background. Multiplying it by the
+          // SHADOW mask puts the edge exactly where a light behind the figure
+          // would put it — along the turning-away side — so it lands as a lamp
+          // in the scene rather than as an outline drawn round a body.
+          //
+          // It is added after the albedo, not before, because a rim light is
+          // light arriving at the eye, not a property of the cloth: a black
+          // cloak catches a rim, and one that only shows on pale fabric is a
+          // gradient, not a lamp.
+          float plRf = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), uRimp);
+          // ON THE SHADOW SIDE ONLY, AND NOWHERE ELSE. Leaving 18% of the rim
+          // on fully-lit pixels was not a softening, it was a blue wash over
+          // the entire figure: PL_RIM is a saturated cold, uRim was 0.5, and
+          // the lighting it is added to has a median of 0.61 — so it lifted
+          // every channel everywhere and took 35% of the saturation off BOTH
+          // sides while making the lit half read cooler than the shadow.
+          plLit += PL_RIM * (plRf * uRim * (1.0 - plT));
+          // ── AND THE COLOUR GETS RICHER, WHICH THE REST OF THIS DOES NOT ──
+          //
+          // Splitting the light warm against cool moves HUE and leaves chroma
+          // where it was; the rim, being added rather than multiplied, lifts
+          // every channel and actively costs some. Measured, the two together
+          // took a third of the saturation off the shadows and 42% off the
+          // lit side — and the thing being aimed at is a picture whose colour
+          // is its loudest quality. So the last step is chroma, explicitly,
+          // rather than hoping the tint delivers it as a side effect.
+          float plG = dot(plLit, vec3(0.299, 0.587, 0.114));
+          plLit = mix(vec3(plG), plLit, uChroma);
+          gl_FragColor.rgb = mix(gl_FragColor.rgb, plLit, uPl);
+          // ── AND A WAY TO SEE THE NUMBER THE TERMINATOR IS THRESHOLDING ───
+          //
+          // uTerm is a position in the lighting's luminance, and that quantity
+          // is in linear light with the exposure and four lamps folded into
+          // it: there is no reading it off the source. Set the dial negative
+          // and the figure outputs plLv itself, scaled to fit, so the threshold
+          // can be placed on the measured distribution rather than on a guess.
+          // The first guess was 0.55 and the terminator never fired once.
+          if (uPl < -0.5) gl_FragColor.rgb = vec3(plLv * 0.25);
+          // …AND A COLOUR NOTHING ELSE IN THE WORLD DRAWS. Not a debug
+          // leftover: it is how the suite asks whether the figures are on
+          // screen at all. A shader that fails to compile leaves an invalid
+          // program, and this browser reports that as a WebGL warning and
+          // nothing else — no exception, no console error, no failing check.
+          // The cast simply stops being drawn and the plaza carries on with
+          // weapons floating in it — which is exactly what happened here, for
+          // four captures and three rounds of tuning against numbers taken
+          // from a party that was not there.
+          if (uPl < -1.5) gl_FragColor.rgb = vec3(1.0, 0.0, 1.0);
+
           // the model's own colour, lit — this is what ships
           vec3 base = gl_FragColor.rgb;
           vec3 c = base;
