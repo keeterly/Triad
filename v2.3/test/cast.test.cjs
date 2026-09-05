@@ -2529,10 +2529,15 @@ const { boot } = require('./harness.cjs');
   // that fits is a number with no meaning. Until that is understood rather than
   // fitted, the defaults leave the target unallocated and the render path
   // byte-for-byte what it was before the pass existed.
-  check('LOOK: …and it does not ship until the round trip costs nothing',
-    ink.onByDefault === false,
-    JSON.stringify({ line: ink.onByDefault }) + ' — on by default is what made'
-      + ' Build 140 dark; ?look=line:0.72,flat:0.34,tooth:0.05 still turns it on');
+  // …AND NOW IT DOES SHIP, because the round trip finally costs nothing. Build
+  // 142 switched this off with the pass 0.124 out; the fault was that the
+  // painterly treatment ran AFTER three's encode, so the scene was shaded in
+  // two different colour spaces depending on which path it took. With the
+  // paint, the haze and the encode in one order everywhere the error is 0.008.
+  check('LOOK: the drawn outline is what you get for opening the game',
+    ink.onByDefault === true,
+    JSON.stringify({ line: ink.onByDefault }) + ' — a thin silhouette only:'
+      + ' the band ladder and the paper grain both fought the art and stay off');
 
   // ═══ N · THE PATH EVERY PLAYER TAKES ═══
   //
@@ -2572,7 +2577,12 @@ const { boot } = require('./harness.cjs');
     stages.default.wanted === true && stages.default.on === true
     && stages.default.body === true && !stages.default.failed,
     JSON.stringify(stages.default));
-  check('DEFAULT: and ?cast=2d is a real way back to the painted stage',
+  // …AND THE WAY BACK IS NOW A TEST ROUTE, NOT A PLAYER'S. `?cast=2d` answers
+  // only alongside `?test=1`, which is what keeps eight suites fast behind a
+  // software rasteriser while making sure nobody can reach a second renderer
+  // from the address bar. The harness always passes test=1, so this still
+  // exercises the painted stage — it just proves the flag is not dead.
+  check('DEFAULT: and ?cast=2d is still the painted stage for the suites',
     stages['opt-out'].wanted === false && stages['opt-out'].on === false
     && stages['opt-out'].body === false,
     JSON.stringify(stages['opt-out']));

@@ -221,13 +221,30 @@ const LOOK = {
   // target is never allocated and the render path is byte-for-byte the one
   // that shipped before any of this existed, and the pass waits for the round
   // trip to be understood rather than fitted.
-  line:  0.0,    // how black the contour is
-  linew: 1.15,   // how wide, in pixels of the drawing buffer
-  bite:  0.03,   // how far a surface must jump, as a fraction of its distance
+  // ── A THIN LINE, AND NOTHING ELSE ────────────────────────────────────────
+  //
+  // What makes a 3D figure read as its own 2D art is the SILHOUETTE, drawn.
+  // Not a posterised tone ladder and not paper grain — both were tried on top
+  // and both fight the painting the model already carries.
+  //
+  // The threshold is the whole difference between an outline and a mess. At
+  // 0.03 the detector catches every fold in a cloak and the figure arrives
+  // stippled; at 0.16 it keeps the silhouette and the few folds deep enough to
+  // read as drawing. Measured, as the share of each region it inks:
+  //
+  //     bite    frame   bodies   plaza
+  //     0.03     2.84     7.12    1.17    ..stipple
+  //     0.06     2.27     6.14    0.76
+  //     0.10     2.00     5.65    0.74
+  //     0.16     1.63     4.71    0.74    ..outline
+  //     0.24     1.31     3.81    0.73    ..breaking up
+  line:  0.9,    // how black the contour is
+  linew: 0.9,    // how wide, in pixels of the drawing buffer — thin on purpose
+  bite:  0.16,   // how far a surface must jump, as a fraction of its distance
   reach: 14.0,   // …and how far out the ink carries, in metres
-  flat:  0.0,    // how far the tone is pushed onto the band ladder
-  steps: 6,      // …and how many bands there are
-  tooth: 0.0,    // the grain of the sheet, over the whole frame
+  flat:  0.0,    // the band ladder stays off; it flattened the art it sat on
+  steps: 6,
+  tooth: 0.0,    // and so does the paper, which read as noise at this size
 };
 // what each dial does, for the panel — and so the next person to open this
 // file does not have to read the shader to find out
@@ -2628,7 +2645,22 @@ const Cast3D = (() => {
     // too thin to close it; this takes about seventy per cent of the floor's
     // contrast by the time it reaches the cyclorama and still leaves the party,
     // seven metres out, untouched at four.
-    scene.fog = new THREE.FogExp2(0x9aa0a6, 0.0285);
+    // ── HAZE, AND HOW MUCH OF IT THE PICTURE CAN AFFORD ──
+    //
+    // 0.0285 put a wall of pale grey between the camera and everything, and
+    // once the colour pipeline was corrected it read as a whiteout. What haze
+    // costs is not brightness, it is the BLACKS: measured over the drawing
+    // buffer, the 5th percentile sat at 0.237 — nothing in the frame was ever
+    // dark. Thinning it to 0.009 pulls that floor down to 0.184 and leaves the
+    // spread alone, which is clarity arriving without the depth going away.
+    //
+    //     density   mean    5th pct   95th pct
+    //     0.0285    0.365     0.237      0.605
+    //     0.0200    0.345     0.211      0.584
+    //     0.0140    0.333     0.194      0.565
+    //     0.0090    0.324     0.184      0.554
+    //     0.0050    0.319     0.177      0.553   ..and it stops paying here
+    scene.fog = new THREE.FogExp2(0x9aa0a6, 0.009);
 
     cam = new THREE.PerspectiveCamera(FOV, VIEW.w / FULL_H, 0.1, 90);
     cam.setViewOffset(VIEW.w, FULL_H, 0, OFF_Y, VIEW.w, VIEW.h);
@@ -3961,7 +3993,18 @@ const Cast3D = (() => {
     // `?cast=2d` is the way back, and it is a real route rather than a
     // courtesy: it is what the eight suites that measure the RULES boot with,
     // and it is the honest answer for a machine that cannot draw this.
-    wanted: () => !/(^|[?&])cast=2d(&|$)/.test(location.search),
+    // ── THE PAINTED STAGE IS NOT A PLACE A PLAYER CAN END UP ──────────────
+    //
+    // `?cast=2d` was the documented way back while the 3D layer was growing.
+    // It is not a feature any more: combat is the world, and a second renderer
+    // reachable from the address bar is a second thing to keep working.
+    //
+    // The suites keep it, because it is what makes them fast — eight of them
+    // check card costs, road topology and parry windows behind a software
+    // rasteriser, and none can tell which stage they are standing on. So the
+    // flag survives for `?test=1` and answers nobody else.
+    wanted: () => !(/(^|[?&])cast=2d(&|$)/.test(location.search)
+                    && /(^|[?&])test=1(&|$)/.test(location.search)),
     async enable() {
       if (on) return true;
       // ── SWITCHING BACK ON IS NOT STARTING OVER ─────────────────────────
@@ -4518,6 +4561,7 @@ const Cast3D = (() => {
     // test-only: the air itself, so a probe can drive it at a fixed timestep
     // rather than at whatever the software rasteriser manages
     _fx: () => fx,
+    _scene: () => scene,        // test-only: the fog and the lights live here
     // ── test-only: HOW MUCH OF THIS BODY IS ACTUALLY DRAWN ─────────────────
     //
     // Screenshotting the creature's rectangle and weighing the PNG cannot

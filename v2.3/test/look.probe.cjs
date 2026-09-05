@@ -5,10 +5,8 @@
 // of them together as they ship.
 const { boot } = require('./harness.cjs');
 const LOOKS = {
-  off:   { line: 0, flat: 0, tooth: 0 },
-  ink:   { line: 0.85, linew: 1.15, bite: 0.03, reach: 14, flat: 0, tooth: 0 },
-  drawn: { line: 0.85, linew: 1.15, bite: 0.03, reach: 14, flat: 0.30, steps: 6, tooth: 0.04 },
-  bold:  { line: 1.0,  linew: 1.35, bite: 0.025, reach: 16, flat: 0.45, steps: 5, tooth: 0.06 },
+  off:  { line: 0, flat: 0, tooth: 0 },
+  now:  { line: 0.9, linew: 0.9, bite: 0.16, reach: 14, flat: 0, tooth: 0 },
 };
 (async () => {
   const { J, sleep, browser, shot, page } = await boot({ query: 'cast=3d' });
