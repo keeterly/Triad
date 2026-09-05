@@ -163,6 +163,14 @@ const LOOK = {
   // Ash, one rank forward, read as a person. The three ranks are still three
   // distances; the distance is just no longer the loudest thing about them.
   air:   0.42,  // how hard the row ladder washes out the back ranks
+  // HOW BRIGHT THE BLADE ARC BURNS. This is the one thing about the trail that
+  // a headless render cannot settle: the suite's browser draws at about two
+  // frames a second, so by the time a screenshot lands the arc has faded to a
+  // per cent of itself, and every judgement about "is it hot enough" has to be
+  // made on a pinned frame that no player ever sees. So it is a dial rather
+  // than a constant — turn it on the tuning panel against a real fight at a
+  // real frame rate, which is the only place the answer lives.
+  arc:   1.0,
   // THE GROUND (Build 119). The floor is not scenery — the plaza is already
   // painted — so it has exactly two settings: how dark a real contact shadow
   // lands on that painting, and how much painted ground shows under the party.
@@ -268,6 +276,7 @@ const LOOK_HELP = {
   edge:  ['pooling', 0, 1.4, 0.01, 'pigment gathering at the silhouette'],
   grain: ['tooth', 0, 0.5, 0.01, 'the paper grain, in screen space'],
   air:   ['distance', 0, 1.6, 0.01, 'how hard the back ranks wash out'],
+  arc:   ['blade', 0, 3, 0.05, 'how hot the sword trail burns'],
   shade: ['shadow', 0, 0.9, 0.01, 'how dark the contact shadows land'],
   floor: ['ground', 0, 1, 0.01, 'how much painted floor shows under the party'],
   wet:   ['water', 0, 1, 0.01, 'how much of the city the flooded floor gives back'],
@@ -1291,7 +1300,7 @@ class Ribbon {
     //          at the grip so the crescent has a silhouette rather than
     //          dissolving, and frayed by a little turbulence as it ages.
     const SHAPE = `
-      uniform float uFade, uTime;
+      uniform float uFade, uTime, uGain;
       varying vec2 vUv;
       varying vec4 vClip;
       float hash(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
@@ -1321,7 +1330,7 @@ class Ribbon {
       }`;
 
     const common = {
-      uFade: { value: 0 }, uTime: { value: 0 },
+      uFade: { value: 0 }, uTime: { value: 0 }, uGain: { value: 1 },
       uHot:  { value: new THREE.Color(0xfff6ea) },
       uCool: { value: new THREE.Color(0x6f9ad4) },
     };
@@ -1382,9 +1391,9 @@ class Ribbon {
           // mapping here, so it clips to white, which is what a hot edge does
           // — and clipping is what makes it read as a hard line rather than a
           // bright smudge.
-          vec3 col = mix(uCool, uHot, pow(life, 1.5)) * glow * 2.20
-                   + uHot * cut * 7.00;
-          gl_FragColor = vec4(col, clamp(glow * 0.50 + cut, 0.0, 1.0));
+          vec3 col = (mix(uCool, uHot, pow(life, 1.5)) * glow * 2.20
+                   + uHot * cut * 7.00) * uGain;
+          gl_FragColor = vec4(col, clamp((glow * 0.50 + cut) * uGain, 0.0, 1.0));
         }`,
     });
     // ONE GEOMETRY, TWO DRAWS. The air goes down first so the light lands on
@@ -1433,6 +1442,7 @@ class Ribbon {
   step(dt) {
     this.t = (this.t || 0) + dt;
     this.mat.uniforms.uTime.value = this.refMat.uniforms.uTime.value = this.t;
+    this.mat.uniforms.uGain.value = this.refMat.uniforms.uGain.value = LOOK.arc;
     if (this.fade <= 0) { this.mesh.visible = this.air.visible = false; return; }
     // THE TAIL DIES ON ITS OWN. A trail that is simply switched off at the end
     // of the swing pops; one that keeps drawing while its opacity falls reads
@@ -2204,6 +2214,292 @@ class Figure {
       this.hips.position.z = this.hipRest.z;
     }
   }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // EVERY CLIP STANDS ON THE SAME FLOOR
+  // ══════════════════════════════════════════════════════════════════════
+  //
+  // Measured on Ash and Mira alike, the lowest either ankle gets over a whole
+  // clip:
+  //
+  //   idle        0.105 m        parry        0.105 m
+  //   sword       0.257 m        swordHeavy   0.259 m
+  //
+  // The sword clips never put a foot on the ground. Not once, over their whole
+  // length: their lowest ankle sits fifteen centimetres above the height a
+  // foot rests at, so the hero swings while hovering. That is most of what is
+  // left of "the characters slide" — a body whose feet never touch cannot look
+  // planted whatever the root does underneath it, and every attempt to fix the
+  // sliding by moving the root was working on the wrong end of the problem.
+  //
+  // It also slipped past the suite for a hundred builds because the check that
+  // watches foot height asks whether anybody SINKS INTO the paving. Nobody
+  // was. They were floating over it, and a one-sided test cannot see that.
+  //
+  // The rule is the one sentence that has to be true of every clip: THE LOWEST
+  // A FOOT GETS IS THE HEIGHT A FOOT RESTS AT. Measured off the idle, which is
+  // the pose the whole rig is built around, and applied as a constant shift to
+  // the clip's own hips track.
+  //
+  // A clip that genuinely leaves the ground needs no exception and gets none:
+  // a leap still touches down at takeoff and landing, so its lowest frame is
+  // already at rest height and its shift comes out at zero. Only a clip that
+  // never lands is moved, which is the definition of the fault.
+  settle() {
+    // THE LOWEST POINT OF THE FOOT, NOT THE ANKLE. Grounding on the ankle
+    // alone leaves a pointed toe below the paving — swordHeavy put one 1.6cm
+    // under — because how far the toe hangs below the ankle depends on the
+    // pose. Whichever of the four bones gets lowest is the one that has to
+    // touch.
+    const feet = ['LeftFoot', 'RightFoot', 'LeftToeBase', 'RightToeBase']
+      .map(n => this.bones[n]).filter(Boolean);
+    if (feet.length < 2 || !this.hips || !this.idle) return;
+    const low = (a) => {
+      const clip = a.getClip(), dur = clip.duration;
+      for (const k of Object.keys(this.actions)) {
+        this.actions[k].setEffectiveWeight(0); this.actions[k].stop();
+      }
+      a.reset(); a.setEffectiveWeight(1); a.play(); a.paused = true;
+      let y = Infinity;
+      for (let i = 0; i < SETTLE_N; i++) {
+        a.time = dur * i / (SETTLE_N - 1);
+        this.mixer.update(0);
+        this.root.updateMatrixWorld(true);
+        for (const b of feet) y = Math.min(y, b.matrixWorld.elements[13]);
+      }
+      a.setEffectiveWeight(0); a.stop(); a.paused = false;
+      return y;
+    };
+    const unit = this.unit;
+    if (!(unit > 0)) return;
+    const rest = low(this.idle);
+    if (!isFinite(rest)) return;
+    this.settled = {};
+    for (const name of Object.keys(this.actions)) {
+      if (name === 'idle') continue;
+      const a = this.actions[name];
+      const t = a.getClip().tracks.find(x => x.name === 'Hips.position');
+      if (!t) continue;
+      const y = low(a);
+      if (!isFinite(y)) continue;
+      const drop = y - rest;                       // metres of hover
+      if (Math.abs(drop) < 0.02) continue;         // 2cm is nobody's problem
+      const shift = drop / unit;                   // …into the track's own units
+      for (let i = 1; i < t.values.length; i += 3) t.values[i] -= shift;
+      this.settled[name] = +(drop * 100).toFixed(1);   // centimetres, for the suite
+    }
+    this.mixer.stopAllAction();
+    if (this.idle) { this.idle.reset(); this.idle.setEffectiveWeight(IDLE_WEIGHT); this.idle.play(); }
+  }
+
+  // ── AND THEN THE FEET ARE MADE HONEST ──────────────────────────────────
+  //
+  // Runs after the slot ease has put the root where it is finally going this
+  // frame, because a foot pinned to a world position is only pinned if the
+  // world position is the one that gets drawn.
+  //
+  // The plant test is deliberately about HEIGHT and nothing else. Testing
+  // speed would be circular — the whole point is that the foot is moving when
+  // it should not be — and testing the clip's own contact marks would need
+  // every clip annotated by hand. A foot near the floor is bearing weight; a
+  // foot in the air is not; and a figure that is entirely in the air, which
+  // swordHeavy genuinely is for part of its leap, owes nobody a planted foot.
+  footLock(dt) {
+    if (!this.bones.LeftFoot || !this.bones.RightFoot) return;
+    const legs = this._legs || (this._legs = [
+      { hip: this.bones.LeftUpLeg,  knee: this.bones.LeftLeg,  ankle: this.bones.LeftFoot,
+        w: 0, at: new THREE.Vector3(), down: false },
+      { hip: this.bones.RightUpLeg, knee: this.bones.RightLeg, ankle: this.bones.RightFoot,
+        w: 0, at: new THREE.Vector3(), down: false },
+    ]);
+    if (!legs[0].hip || !legs[0].knee || !legs[1].hip || !legs[1].knee) return;
+    this.root.updateMatrixWorld(true);
+
+    // WHERE THE FLOOR IS, MEASURED. The lowest either ankle has been lately,
+    // allowed to rise 12cm a second so it follows the ground rather than
+    // remembering the one frame a knock-down put an ankle on the paving.
+    let lowest = Infinity;
+    for (const g of legs) {
+      g.y = _ikA.setFromMatrixPosition(g.ankle.matrixWorld).y;
+      lowest = Math.min(lowest, g.y);
+    }
+    this.floorY = this.floorY === undefined ? lowest
+      : Math.min(lowest, this.floorY + dt * 0.12);
+
+    for (const g of legs) {
+      const h = g.y - this.floorY;
+      // hysteresis, so a foot resting exactly on the threshold does not
+      // chatter in and out of contact from one frame to the next
+      if (g.down ? h > FOOT_OFF : h < FOOT_ON) g.down = !g.down;
+      if (g.down && g.w <= 0) g.at.setFromMatrixPosition(g.ankle.matrixWorld);
+      const want = g.down ? 1 : 0;
+      g.w += Math.max(-1, Math.min(1, (want - g.w))) * Math.min(1, dt / FOOT_RAMP);
+      if (g.w <= 0.001) { g.w = 0; continue; }
+      // The pin is horizontal only: the height is the animation's to decide,
+      // and holding that too would stop a heel from lifting. And the pin's
+      // weight moves the TARGET rather than scaling the solve — see reachLeg.
+      _ikT.setFromMatrixPosition(g.ankle.matrixWorld);
+      _ikT.x += (g.at.x - _ikT.x) * g.w;
+      _ikT.z += (g.at.z - _ikT.z) * g.w;
+      if (!reachLeg(g.hip, g.knee, g.ankle, _ikT)) {
+        // ── OUT OF REACH: THE STRIDE HAS OUTRUN THE PLANT ─────────────────
+        //
+        // The anchor is retaken where the animation has the foot now, which is
+        // what a step is. Two more considered answers, both measured, both
+        // worse:
+        //
+        //   Releasing the plant and letting the pin fade out over its ramp
+        //   leaves the foot unpinned for the whole of a long stride, and the
+        //   glide simply comes back — sword 0.39m up to 0.83, swordHeavy 1.07
+        //   up to 2.74.
+        //
+        //   Crawling the anchor toward the foot at a walking pace, to avoid
+        //   the jump, broke a clip that had nothing wrong with it: heal went
+        //   from 0.03m of glide to 0.78 and its worst frame from 0.1 m/s to
+        //   13, because an anchor that is always chasing is never actually
+        //   holding anything.
+        //
+        // What this costs is honest and small: the retake is a jump, so two
+        // clips keep a single-frame spike higher than they have without the
+        // solver. Set against every clip in the game giving up between a third
+        // and all of its glide, that is the trade to take.
+        g.at.setFromMatrixPosition(g.ankle.matrixWorld);
+      }
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// THE FOOT THAT IS DOWN STAYS DOWN
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Build 153 took the loud half of the sliding out — the one-to-two metre yank
+// home after every swing, at about eight metres per second under a standing
+// idle. What it could not touch is the quiet half, and `slide.probe.cjs` has
+// been reporting it all along: these clips slide ON THEIR OWN, before anything
+// in this file touches them. Taking the slower of the two feet at each instant
+// — which is the support foot, and which a body on its feet keeps still —
+// swordHeavy gives up 1.79m of ground at a 14.35 m/s peak and daggersHeavy
+// 1.53m at 10.59, against 0.03-0.07m and under 0.6 m/s for cast, heal, ward,
+// parry and idle. That is mocap foot skate baked into the source, and no
+// amount of root-motion arithmetic reaches it: the travel is not wrong, the
+// FEET are, and the only thing that fixes a foot is moving the leg.
+//
+// So: while a foot is bearing weight its world position is pinned, and the leg
+// is solved to reach it. Two bones, closed form, no solver iteration.
+//
+// WHAT MAKES THIS SAFE RATHER THAN A NEW SOURCE OF WRONGNESS:
+//
+//   · The anchor GIVES. If the hips travel far enough that the leg would have
+//     to stretch past its own length to keep the foot, the plant is dropped
+//     and re-taken where the animation has the foot now. That is not a
+//     failure case bolted on the side — it is how a stride works, and it is
+//     what keeps the system from ever asking for a pose the skeleton cannot
+//     hold.
+//   · Nothing accumulates. Every frame solves from the animated pose fresh,
+//     so a bad frame is one bad frame and never a drift.
+//   · The floor is MEASURED, not declared. A hero is 1.78m and a creature is
+//     2.00m and their ankles rest at different heights, so a constant would be
+//     wrong for somebody. Each figure tracks the lowest its own ankles get and
+//     lets that estimate rise slowly, which follows the floor and recovers
+//     after a knock-down without ever needing to be told a number.
+const _ikA = new THREE.Vector3(), _ikB = new THREE.Vector3(), _ikC = new THREE.Vector3();
+const _ikT = new THREE.Vector3(), _ikU = new THREE.Vector3(), _ikV = new THREE.Vector3();
+const _ikN = new THREE.Vector3(), _ikF = new THREE.Vector3(), _ikG = new THREE.Vector3();
+// the target gets its own vector and is copied into it on entry. The first
+// cut used a shared scratch for both the target and the hip-to-target length,
+// so the very first line that measured the distance OVERWROTE the target with
+// (target - hip) and every step after it aimed at a point that did not exist.
+// It drove feet through the paving — daggers put an ankle 19cm underground —
+// and it read on the probe as a huge improvement, because the floor reference
+// is the lowest a foot gets and burying one drops it, which reclassifies
+// ordinary frames as flight and quietly drops them out of the average.
+const _ikTT = new THREE.Vector3();
+const _ikQ = new THREE.Quaternion(), _ikP = new THREE.Quaternion();
+const _ikW = new THREE.Quaternion(), _ikX = new THREE.Quaternion();
+const _ikI = new THREE.Quaternion();
+// how near the measured floor an ankle has to be to count as bearing weight,
+// and how far it has to rise to stop counting. The gap is what stops a foot
+// resting on the threshold from chattering in and out of contact.
+const FOOT_ON = 0.075, FOOT_OFF = 0.135;
+const FOOT_RAMP = 0.09;               // seconds to fade a pin in or out
+const SETTLE_N = 26;                  // frames sampled to find a clip's lowest foot
+
+// turn a rotation expressed in WORLD space into the bone's local quaternion.
+// A bone's rotation orients everything below it about the bone's own origin,
+// which is the joint — so this is the whole of "bend the knee" and "swing the
+// leg from the hip" once the right world rotation is known.
+function turnBone(bone, qWorld) {
+  bone.getWorldQuaternion(_ikW);
+  _ikW.premultiply(qWorld);
+  if (bone.parent) { bone.parent.getWorldQuaternion(_ikP); _ikP.invert(); }
+  else _ikP.identity();
+  bone.quaternion.copy(_ikP.multiply(_ikW)).normalize();
+  bone.updateMatrixWorld(true);
+}
+
+// hip -> knee -> ankle, solved so the ankle lands on `target`. Returns false if
+// the target is out of reach, which is the caller's cue to let the foot go.
+//
+// THE SOLVE IS ALWAYS EXACT AND THE BLEND LIVES IN THE TARGET. Fading a pin in
+// by scaling the two ROTATIONS looks equivalent and is not: at part weight the
+// knee no longer sets the exact length, so the aim — which only fixes the
+// direction — lands the ankle short of or PAST the target along the ray. Past
+// it is below the floor, because the target sits below and ahead of the hip,
+// and that is precisely what it did: daggers put a foot 16cm through the
+// paving and swordHeavy 14. Interpolating the target between where the
+// animation put the foot and where the pin wants it cannot overshoot anything,
+// because every target it is ever given is a place the foot could be.
+function reachLeg(hip, knee, ankle, target) {
+  _ikTT.copy(target);
+  hip.updateWorldMatrix(true, false);
+  _ikA.setFromMatrixPosition(hip.matrixWorld);
+  _ikB.setFromMatrixPosition(knee.matrixWorld);
+  _ikC.setFromMatrixPosition(ankle.matrixWorld);
+  const L1 = _ikA.distanceTo(_ikB), L2 = _ikB.distanceTo(_ikC);
+  if (!(L1 > 1e-4 && L2 > 1e-4)) return false;
+  const want = _ikG.copy(_ikTT).sub(_ikA).length();
+  // OUT OF REACH IS A STEP, NOT AN ERROR. Past 98% of the leg's own length the
+  // knee is locked straight and the ankle is as far away as it can get; asking
+  // for more would only pull the hips or tear the pose.
+  if (want > (L1 + L2) * 0.98 || want < Math.abs(L1 - L2) + 1e-3) return false;
+  // the foot's own orientation is the animation's business, not ours: whatever
+  // the leg does underneath it, the sole keeps pointing where it was pointing
+  ankle.getWorldQuaternion(_ikX);
+
+  // ── one · the knee bends until the chain spans the distance ──
+  const now = _ikC.distanceTo(_ikA);
+  const c1 = (L1 * L1 + L2 * L2 - want * want) / (2 * L1 * L2);
+  const c0 = (L1 * L1 + L2 * L2 - now * now) / (2 * L1 * L2);
+  const d = Math.acos(Math.max(-1, Math.min(1, c1)))
+          - Math.acos(Math.max(-1, Math.min(1, c0)));
+  if (Math.abs(d) > 1e-5) {
+    _ikU.copy(_ikA).sub(_ikB);
+    _ikV.copy(_ikC).sub(_ikB);
+    _ikN.crossVectors(_ikU, _ikV);
+    // a leg straight enough that its bend plane is undefined has no knee angle
+    // worth correcting either — leave it to the aim
+    if (_ikN.lengthSq() > 1e-8) {
+      _ikN.normalize();
+      _ikQ.setFromAxisAngle(_ikN, d);
+      turnBone(knee, _ikQ);
+      _ikC.setFromMatrixPosition(ankle.matrixWorld);
+    }
+  }
+
+  // ── two · the whole limb swings from the hip until the ankle is on it ──
+  _ikF.copy(_ikC).sub(_ikA);
+  _ikG.copy(_ikTT).sub(_ikA);
+  if (_ikF.lengthSq() > 1e-8 && _ikG.lengthSq() > 1e-8) {
+    _ikQ.setFromUnitVectors(_ikF.normalize(), _ikG.normalize());
+    turnBone(hip, _ikQ);
+  }
+
+  // …and put the sole back the way the animation had it
+  ankle.getWorldQuaternion(_ikW);
+  _ikQ.copy(_ikX).multiply(_ikW.invert());
+  turnBone(ankle, _ikQ);
+  return true;
 }
 
 // ── the layer ──────────────────────────────────────────────────────────────
@@ -3297,6 +3593,11 @@ const Cast3D = (() => {
     // has been rescaled to the height the fight wants.
     if (f.hips) f.unit = f.hips.getWorldScale(_travel).x;
     f.lastHip = null;
+    // …AND ONLY NOW CAN THE CLIPS BE STOOD ON THE FLOOR. `settle` measures how
+    // far a clip hovers in METRES and shifts its hips track in rig units, so it
+    // needs the conversion between them — which is not known until the figure
+    // has been scaled to the height this fight wants, three lines above.
+    f.settle();
   }
 
   // ── ASK FOR SOMEBODY ────────────────────────────────────────────────────
@@ -3756,6 +4057,11 @@ const Cast3D = (() => {
   // the one the arcs may read: whichever the world was drawn into LAST time,
   // and nothing at all until a frame has actually been put in it
   function postPrev() { return postWarm ? postB : null; }
+  // …and a switch for it, because a system that changes every pose in the game
+  // has to be measurable against its own absence. `?foot=off` is how the slide
+  // probe reads the before and the after in one session.
+  let _footIK = !/(^|[?&])foot=off(&|$)/.test(location.search);
+  function footIK() { return _footIK; }
   function postTarget() {
     const w = Math.max(2, Math.round(sized.w * sized.dpr));
     const h = Math.max(2, Math.round(sized.h * sized.dpr));
@@ -4199,6 +4505,12 @@ const Cast3D = (() => {
         f.root.position.x += (tx - f.root.position.x) * k;
         f.root.position.z += (tz - f.root.position.z) * k;
       }
+      // ── AND NOW THE FEET, once the root is where it is really going ──────
+      //
+      // After the slot ease, not before: a foot pinned to a world position is
+      // only pinned if that is the position which gets drawn. Called here
+      // rather than inside `step` for exactly that reason.
+      if (footIK()) f.footLock(dt);
       const mat = f.root.userData.mat;
       if (mat && mat.userData.depth) {
         // the air-and-warmth ladder, from real distance rather than a class
@@ -4938,6 +5250,7 @@ const Cast3D = (() => {
     _fx: () => fx,
     _scene: () => scene,        // test-only: the fog and the lights live here
     _homed: () => ({ ...homed }),     // test-only: the returns baked into clips
+    _footIK: (v) => (v === undefined ? _footIK : (_footIK = !!v)),
     // ── test-only: HOW MUCH OF THIS BODY IS ACTUALLY DRAWN ─────────────────
     //
     // Screenshotting the creature's rectangle and weighing the PNG cannot

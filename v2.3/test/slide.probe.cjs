@@ -68,13 +68,24 @@ const { boot } = require('./harness.cjs');
       // window this layer plays takes the lot. Sampling a prefix says where the
       // strike stops and the walking starts, which is the number a window wants.
       const END = +(window.__slideEnd || 1);
+      // …THROUGH THE SAME PATH THE FIGHT USES. Posing the mixer by hand and
+      // reading the bones measures the CLIP; the fight also runs a foot solver
+      // after the mixer every frame, and a probe that skips it would grade the
+      // animation while the game draws something else. It is called here with
+      // the sample interval as its dt, exactly as the frame loop calls it, and
+      // it obeys the same ?foot=off switch so before and after are one session.
+      const step = dur * END / (SAMPLES - 1);
+      const ik = window.Cast3D._footIK();
       const hip = [], lf = [], rf = [];
       for (let i = 0; i < SAMPLES; i++) {
         a.time = (i / (SAMPLES - 1)) * dur * END;
         f.mixer.update(0);
         f.root.updateMatrixWorld(true);
+        if (ik) f.footLock(step);
+        f.root.updateMatrixWorld(true);
         hip.push(wp(H)); lf.push(wp(L)); rf.push(wp(R));
       }
+      f.floorY = undefined;      // each clip is its own ground, not the last one's
       const d = (p, q) => Math.hypot(p.x - q.x, p.z - q.z);
       // ROOT DRIFT: where the hips end relative to where they began, on the
       // floor plane. Net, not total — a body that steps out and steps back has
@@ -121,8 +132,17 @@ const { boot } = require('./harness.cjs');
         const g = Math.min(sp(lf[i], lf[i - 1]), sp(rf[i], rf[i - 1]));
         glideSum += g * dt; glidePeak = Math.max(glidePeak, g);
       }
+      // THE FLOOR REFERENCE ITSELF, reported. `airborne` is measured against
+      // the lowest either foot reaches in this clip — so anything that moves a
+      // foot DOWN lowers that reference and reclassifies ordinary frames as
+      // flight, which would quietly drop them out of the glide sum and fake an
+      // improvement. Printing the reference is how that is told apart from a
+      // real one.
+      const lowY = Math.min(...lf.map(p => p.y), ...rf.map(p => p.y));
+      const hiY = Math.max(...lf.map(p => p.y), ...rf.map(p => p.y));
       out.push({ name, dur: +dur.toFixed(2), drift: +drift.toFixed(3), reach: +reach.toFixed(3),
                  glide: +glideSum.toFixed(3), peak: +glidePeak.toFixed(2),
+                 floor: +lowY.toFixed(3), rise: +(hiY - lowY).toFixed(3),
                  air: Math.round(100 * air / Math.max(1, air + ground)) });
     }
     return { who, out };
@@ -142,7 +162,8 @@ const { boot } = require('./harness.cjs');
     console.log('  ' + r.name.padEnd(14) + String(r.dur).padStart(6)
       + r.drift.toFixed(3).padStart(8) + r.reach.toFixed(3).padStart(8)
       + r.glide.toFixed(3).padStart(10) + r.peak.toFixed(2).padStart(10)
-      + (r.air + '%').padStart(10) + flag);
+      + (r.air + '%').padStart(10)
+      + r.floor.toFixed(3).padStart(8) + r.rise.toFixed(3).padStart(8) + flag);
   }
   console.log('');
   console.log(bad.length

@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 155;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 156;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1391,13 +1391,21 @@ function drawOpening() {
   // there draws its own opener, in line order, so a seed still replays exactly.
   C.foes.forEach(F => { F.intentIx = pickIntent(F); });
   for (let i = 0; i < 5; i++) drawOne();
+  // …AND A PAIR CARD COVERS BOTH OF ITS OWNERS. Keyed on the raw `owner` a
+  // bond card belongs to nobody — 'ash|mira' matches no hero — so a hand that
+  // opened with Shield the Blade counted as having neither an Ash card nor a
+  // Mira card, and this swapped one in over the top of a card that was already
+  // covering them both. Same for the surplus it swaps out: a pair card was in
+  // its own bucket of one and so could never be the spare.
+  const owns = (id, h) => ownerHeroes(cardDef(id)).indexOf(h) >= 0;
   for (const heroId of Object.keys(HEROES23)) {
-    if (C.hand.some(id => cardDef(id).owner === heroId)) continue;
-    const inDeck = C.deck.findIndex(id => cardDef(id).owner === heroId);
+    if (C.hand.some(id => owns(id, heroId))) continue;
+    const inDeck = C.deck.findIndex(id => owns(id, heroId));
     if (inDeck < 0) continue;
     const counts = {};
-    C.hand.forEach(id => { const o = cardDef(id).owner; counts[o] = (counts[o] || 0) + 1; });
-    const surplus = C.hand.findIndex(id => counts[cardDef(id).owner] > 1);
+    C.hand.forEach(id => ownerHeroes(cardDef(id)).forEach(o => { counts[o] = (counts[o] || 0) + 1; }));
+    const surplus = C.hand.findIndex(id =>
+      ownerHeroes(cardDef(id)).every(o => counts[o] > 1));
     if (surplus < 0) continue;
     const give = C.hand[surplus];
     C.hand[surplus] = C.deck[inDeck];
@@ -6796,7 +6804,14 @@ function dropCommit(id, drop) {
   if (drop.zone !== want) return false;
   // …and the body it was dropped on is the body it hits
   if (drop.foe != null) aimAt(drop.foe, true);   // quiet: playCard redraws
-  return playCard(id, drop.hero && drop.hero !== cardDef(id).owner ? drop.hero : undefined);
+  // AN ALLY IS SOMEBODY THE CARD DOES NOT ALREADY OWN, and `owner` is not a
+  // person: a pair card's is 'ash|mira'. Comparing a dropped-on hero against
+  // that string is never equal, so dropping Shield the Blade onto ASH handed
+  // Ash to it as the ally — and the card's own face says the guard goes to the
+  // other one. `defaultAlly` was fixed for exactly this in Build 68 and this
+  // path walks straight past it by passing an ally explicitly.
+  const mine = ownerHeroes(cardDef(id));
+  return playCard(id, drop.hero && mine.indexOf(drop.hero) < 0 ? drop.hero : undefined);
 }
 // ═════════════════════════════════════════════════════════════════════════════
 // THE AIM BEAM — restored from v2.2. A glowing energy ribbon (soft halo, bright
@@ -7444,7 +7459,9 @@ function openInspect(cardId) {
   _focus = cardId;
   const ev = evaluateCard(cardId);
   const f = el('k-focus');
-  f.innerHTML = inspectHTML(ev, inspectWho(ev.card, C.heroes[ev.card.owner] && C.heroes[ev.card.owner].row),
+  // the row belongs to the hero who acts, which for a pair card is one of two
+  const _who = C.heroes[primaryHero(ev.card)];
+  f.innerHTML = inspectHTML(ev, inspectWho(ev.card, _who && _who.row),
                             'release to close \u00b7 drag to play');
   f.classList.remove('k-hidden');
   el('k-stage').classList.add('k-inspecting');

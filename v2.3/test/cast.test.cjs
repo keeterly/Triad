@@ -1820,12 +1820,17 @@ const { boot } = require('./harness.cjs');
         if (!name) continue;
         f.clear(); f.play(name);
         const DT = 1 / 60;
-        for (let i = 0; i < 8; i++) f.step(DT);
+        // …THROUGH THE WHOLE PATH, not just the mixer. `step` is half of what a
+        // frame does to a figure; the other half is the foot solver, which runs
+        // after the slot ease. A check that calls one and not the other grades
+        // an animation the game never draws.
+        const tick = () => { f.step(DT); if (window.Cast3D._footIK()) f.footLock(DT); };
+        for (let i = 0; i < 8; i++) tick();
         const x0 = f.root.position.x, z0 = f.root.position.z;
         const down = { LeftFoot: null, RightFoot: null };
         const slide = { LeftFoot: 0, RightFoot: 0 };
         for (let i = 0; i < 70; i++) {
-          f.step(DT);
+          tick();
           f.root.updateWorldMatrix(true, true);
           for (const foot of ['LeftFoot', 'RightFoot']) {
             const p = wp(foot);
@@ -1860,6 +1865,12 @@ const { boot } = require('./harness.cjs');
     Object.values(feet).every(v => v.slide < 1.2),
     JSON.stringify(Object.fromEntries(Object.entries(feet).map(([k, v]) => [k, v.slide])))
       + ' m — pinning alone gave 1.159 / 1.157 / 1.154');
+  // AND THIS CHECK USED TO PASS FOR THE WRONG REASON. Its plant test is an
+  // absolute height, and until Build 156 the sword clips held their feet at
+  // 0.257m — above the threshold for their whole length — so no frame ever
+  // counted as planted and the slide came out near zero. It was reporting a
+  // hovering clip as a clean one. Standing the clips on the floor is what let
+  // the real number through, and the foot solver is what brings it down.
 
   // ═══ M10 · TIME DILATES WHERE THE FIGHT IS ═══
   //
@@ -2471,6 +2482,53 @@ const { boot } = require('./harness.cjs');
     floating.length === 0,
     JSON.stringify(feetUp) + ' m — the highest the LOWER foot gets; sword was 1.03'
       + ' before tools/ground.mjs and the Build 140 import read 0.70');
+
+  // ═══ N · EVERYBODY STANDS ON THE FLOOR ═══
+  //
+  // The lowest either foot gets over a clip, against the height a foot rests
+  // at in the idle. Whatever a clip does, at some point in it a foot is on the
+  // ground — so those two numbers are the same number, and a clip where they
+  // are not is a clip the character performs while hovering.
+  //
+  // Measured at Build 155: idle 0.105, parry 0.105, sword 0.257, swordHeavy
+  // 0.259. The sword clips never put a foot down ONCE over their whole length.
+  //
+  // This is the check the suite did not have, and its absence is instructive:
+  // BODY above asks whether anybody sinks INTO the paving, which is the same
+  // question asked in one direction only. Nobody was sinking. They were
+  // fifteen centimetres in the air, for a hundred builds, in the loudest
+  // animation in the game.
+  const standing = await J(() => {
+    const C3 = window.Cast3D, f = C3._figure('ash');
+    const feet = ['LeftFoot', 'RightFoot', 'LeftToeBase', 'RightToeBase']
+      .map(n => f.bones[n]).filter(Boolean);
+    const low = (a) => {
+      const dur = a.getClip().duration;
+      for (const k of Object.keys(f.actions)) { f.actions[k].setEffectiveWeight(0); f.actions[k].stop(); }
+      if (f.idle) f.idle.setEffectiveWeight(0);
+      a.reset(); a.setEffectiveWeight(1); a.play(); a.paused = true;
+      let y = Infinity;
+      for (let i = 0; i < 24; i++) {
+        a.time = dur * i / 23; f.mixer.update(0); f.root.updateMatrixWorld(true);
+        for (const b of feet) y = Math.min(y, b.matrixWorld.elements[13]);
+      }
+      a.setEffectiveWeight(0); a.stop(); a.paused = false;
+      return y;
+    };
+    const rest = low(f.idle);
+    const out = {};
+    for (const n of Object.keys(f.actions)) if (n !== 'idle') out[n] = +((low(n && f.actions[n]) - rest) * 100).toFixed(1);
+    if (f.idle) { f.idle.reset(); f.idle.setEffectiveWeight(1); f.idle.play(); }
+    return { rest: +rest.toFixed(3), hover: out, lifted: C3._figure('ash').settled || {} };
+  });
+  // a clip that genuinely leaves the ground still lands, so its lowest frame is
+  // at rest height like everyone else's — no clip needs an exception here
+  const hovering = Object.entries(standing.hover).filter(([, v]) => Math.abs(v) > 3);
+  check('GROUND: every clip puts a foot on the floor at some point in it',
+    hovering.length === 0,
+    JSON.stringify(standing.hover) + ' cm above the idle\'s own resting foot'
+      + ' — sword hovered 15cm for its whole length before `settle`; lifted: '
+      + JSON.stringify(standing.lifted));
 
   // ═══ N · NOBODY SLIDES HOME ═══
   //
