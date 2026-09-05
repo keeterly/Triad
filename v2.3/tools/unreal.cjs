@@ -259,6 +259,17 @@ const round = (v) => +v.toFixed(DP);
       // does not. That difference is the whole test.
       const spin = new THREE.Quaternion();
       if (arg.spin) spin.setFromAxisAngle(new THREE.Vector3(1, 0, 0), arg.spin * Math.PI / 180);
+      // ── R: THE SOURCE'S WORLD, EXPRESSED IN OURS ──
+      //
+      // Set below, once the bind pose has said which way is up in this file.
+      // It is the piece the first two cuts of this converter both lacked, in
+      // opposite ways: one carried the departure in the source's world and
+      // never rotated it into ours, the other sidestepped the question by
+      // measuring in each bone's own rest frame — which needs no up axis and is
+      // also wrong, because the two rigs do not hold a bone the same way
+      // relative to the body it is in. A yaw about the source's spine came out
+      // as a pitch about ours, and the further a clip yawed the worse it got.
+      const Rq = new THREE.Quaternion(), Ri = new THREE.Quaternion();
       const round = (v) => +v.toFixed(4);
       const gOf = (rest, par) => {
         const G = {};
@@ -321,6 +332,10 @@ const round = (v) => +v.toFixed(DP);
       const pose0V = mine.Hips ? mine.Hips.getWorldPosition(new THREE.Vector3()) : bindV;
 
       const zUp = Math.abs(bindV.z) > Math.abs(bindV.y);
+      // …and now R is known: the same change of basis `upright` does to a
+      // position, as a rotation, so a turn and a travel arrive in one frame.
+      if (zUp) Rq.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+      Ri.copy(Rq).invert();
       // into the library's frame, where y is up and z is the way a stride goes
       const upright = (v) => (zUp ? { x: v.x, y: v.z, z: -v.y }
                                   : { x: v.x, y: v.y, z: v.z });
@@ -407,12 +422,13 @@ const round = (v) => +v.toFixed(DP);
         const At = {};
         for (const b of order) {
           if (!Gtgt[b]) continue;                       // a bone our rig does not have
-          // THE BONE'S OWN REST FRAME, NOT THE WORLD'S — see the header. The
-          // world form (A · Gsrc⁻¹, then · Gtgt) is what shipped, and it makes
-          // the conversion depend on which way the source happened to be
-          // standing.
-          d.copy(tmp.copy(Gsrc[b]).invert()).multiply(A[b]).normalize();
-          At[b] = Gtgt[b].clone().multiply(d).normalize();
+          // THE DEPARTURE IN WORLD AXES, CARRIED INTO OUR WORLD — see header.
+          //     D    = A · Gsrc⁻¹        the bone's turn, in the SOURCE's world
+          //     D'   = R · D · R⁻¹       the same turn, in OURS
+          //     A_t  = D' · Gtgt
+          d.copy(A[b]).multiply(tmp.copy(Gsrc[b]).invert()).normalize();
+          d.premultiply(Rq).multiply(Ri).normalize();
+          At[b] = d.clone().multiply(Gtgt[b]).normalize();
         }
         // …and back to a LOCAL rotation, against OUR hierarchy rather than the
         // source's — which is the whole reason a spine named backwards matters

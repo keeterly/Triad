@@ -1834,35 +1834,57 @@ const { boot } = require('./harness.cjs');
   // you did not. The one thing the player is being asked to answer was the one
   // thing that never slowed down.
   //
-  // Measured as distance travelled by a bone in a fixed slice of REAL time, so
-  // the number cannot be produced by the dial alone.
-  console.log('\n── time dilates ──');
+  // ── MEASURED AS THE WORLD'S OWN CLOCK AGAINST THE WALL CLOCK ──
+  //
+  // The first instrument sampled how far a WRIST travelled in a fixed slice of
+  // real time, once at full speed and once slowed, on the reasoning that a
+  // distance cannot be produced by the dial alone. It is a fair property and an
+  // unreliable way to read it, and two sessions have now watched it fail on a
+  // build that was fine: 0.224 / 0.414 / 0.252 against a 0.62 bar on one
+  // machine, and fast 1.037 against slow 0.962 here — with the same check
+  // passing twice in a row either side of that failure.
+  //
+  // Two things break it and neither is the game. Headless renders at about two
+  // frames a second, so a 640ms window is one or two samples and the wrist is
+  // wherever the swing happened to be. And a strike is barely longer than the
+  // window, so at full speed it can END inside it while the slowed arm is still
+  // mid-swing: the two halves are not measuring the same motion at all.
+  //
+  // What the dial does is scale the time the 3D world advances by — frame()
+  // multiplies real elapsed time by the eased level and hands that to the
+  // mixer. So the honest reading is the MIXER'S OWN CLOCK against the wall
+  // clock: seconds of animation per second of reality, at each setting. Frame
+  // rate divides out of the ratio, and the idle loops so nothing can finish
+  // underneath the measurement.
   const clock = await J(async () => {
-    const C3 = window.Cast3D;
-    const w = () => { const b = C3._figure('ash').bones.RightHand;
-                      return b.getWorldPosition(b.position.clone()); };
-    const run = async () => {
-      C3.play('ash', 'slash');
-      await new Promise(r => setTimeout(r, 240));
-      const a = w();
-      await new Promise(r => setTimeout(r, 640));
-      return a.distanceTo(w());
+    const C3 = window.Cast3D, f = C3._figure('ash');
+    // let the eased level ARRIVE before reading anything: it moves at
+    // real/0.12 per frame, which at two frames a second is not instant
+    const settle = async (want) => {
+      C3.slow(want);
+      for (let i = 0; i < 240; i++) {
+        await new Promise(r => requestAnimationFrame(r));
+        if (Math.abs(C3._state().slow - want) < 0.01) break;
+      }
     };
-    C3.slow(1);
-    const fast = await run();
-    C3.slow(0.34);
-    await new Promise(r => setTimeout(r, 380));
-    const slow = await run();
+    const rate = async () => {
+      const t0 = performance.now(), m0 = f.mixer.time;
+      for (let i = 0; i < 24; i++) await new Promise(r => requestAnimationFrame(r));
+      return (f.mixer.time - m0) / ((performance.now() - t0) / 1000);
+    };
+    await settle(1);
+    const fast = await rate();
+    await settle(0.34);
+    const slow = await rate();
     const at = C3._state().slow;
-    C3.slow(1);
-    await new Promise(r => setTimeout(r, 380));
+    await settle(1);
     return { fast: +fast.toFixed(3), slow: +slow.toFixed(3),
-             dial: at, back: C3._state().slow };
+             ratio: +(slow / (fast || 1)).toFixed(3), dial: at, back: C3._state().slow };
   });
   check('TIME: slowing down reaches the world, not just the interface',
-    clock.fast > 0.05 && clock.slow / clock.fast < 0.62,
-    JSON.stringify(clock) + ' — metres of wrist travel in the same real time;'
-      + ' 1.0 would mean the canvas ignored it');
+    clock.ratio > 0.2 && clock.ratio < 0.55,
+    JSON.stringify(clock) + ' — seconds of animation per second of reality;'
+      + ' the dial asks for 0.34 and a canvas ignoring it would read 1.0');
   check('TIME: …and it gives the clock back',
     clock.back > 0.9, JSON.stringify({ back: clock.back }));
 

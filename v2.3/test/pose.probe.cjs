@@ -10,7 +10,7 @@
 // the gate read healthy over a party folded in half. What cannot be faked is
 // where the head ends up relative to the hips once the pose is on the rig.
 //
-//   node test/pose.probe.cjs [who]
+//   node test/pose.probe.cjs [who] [samples]
 const { boot } = require('./harness.cjs');
 (async () => {
   const { page, J, sleep, browser } = await boot({ query: 'cast=3d' });
@@ -18,9 +18,10 @@ const { boot } = require('./harness.cjs');
   await sleep(600);
   await J(() => startCombat({ foes: ['husk'] }));
   const who = process.argv[2] || 'ash';
+  const N = +(process.argv[3] || 8);
   for (let i = 0; i < 40 && !(await J(w => !!(window.Cast3D && window.Cast3D._figure(w)), who)); i++) await sleep(250);
 
-  const out = await J(async (who) => {
+  const out = await J(async ({ who, N }) => {
     const C3 = window.Cast3D, f = C3._figure(who);
     const B = {};
     f.root.traverse(o => { if (o.isBone) B[o.name] = o; });
@@ -30,11 +31,11 @@ const { boot } = require('./harness.cjs');
     for (const clip of Object.keys(f.actions)) {
       const a = f.actions[clip], dur = a.getClip().duration;
       const row = [];
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < N; i++) {
         for (const k of Object.keys(f.actions)) { f.actions[k].setEffectiveWeight(0); f.actions[k].stop(); }
         if (f.idle) f.idle.setEffectiveWeight(0);
         a.reset(); a.setEffectiveWeight(1); a.play(); a.paused = true;
-        a.time = dur * (i / 7) * 0.999;
+        a.time = dur * (i / (N - 1)) * 0.999;
         f.mixer.update(0);
         f.root.updateMatrixWorld(true);
         const h = wp('Hips'), hd = wp('Head'), lf = wp('LeftFoot'), rf = wp('RightFoot');
@@ -49,13 +50,15 @@ const { boot } = require('./harness.cjs');
     for (const k of Object.keys(f.actions)) { f.actions[k].paused = false; f.actions[k].setEffectiveWeight(0); f.actions[k].stop(); }
     f.acting = null; if (f.idle) f.idle.setEffectiveWeight(1);
     return res;
-  }, who);
+  }, { who, N });
 
-  console.log('\n' + who + ' — degrees the trunk is off vertical, at eight phases of each clip');
+  console.log('\n' + who + ' — worst trunk angle off vertical, then the first phases, over ' + N + ' samples');
   for (const [k, row] of Object.entries(out))
-    console.log('  ' + k.padEnd(14) + row.map(r => r ? String(r.lean).padStart(5) : '  ---').join(''));
-  console.log('\n' + who + ' — metres the LOWER foot is off the paving');
+    console.log('  ' + k.padEnd(14) + String(Math.max(...row.map(r => r ? r.lean : 0))).padStart(5)
+      + '  |' + row.slice(0, 12).map(r => r ? String(r.lean).padStart(4) : ' ---').join(''));
+  console.log('\n' + who + ' — worst height of the LOWER foot off the paving, then the first phases');
   for (const [k, row] of Object.entries(out))
-    console.log('  ' + k.padEnd(14) + row.map(r => r ? r.foot.toFixed(2).padStart(6) : '   ---').join(''));
+    console.log('  ' + k.padEnd(14) + Math.max(...row.map(r => r ? r.foot : 0)).toFixed(2).padStart(6)
+      + '  |' + row.slice(0, 12).map(r => r ? r.foot.toFixed(2).padStart(6) : '   ---').join(''));
   await browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

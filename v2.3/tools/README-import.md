@@ -153,3 +153,58 @@ those two angles. The angle of a rotation is unchanged by a change of frame, and
 both rigs are playing the same performance, so frame zero means the same instant
 on both. `test/import.probe.cjs` does this, and it refuses to report agreement
 when our figure is not moving.
+
+## Checking a conversion — the only comparison that means anything
+
+Two commands, from the repo root and then from `v2.3/`:
+
+```
+node v2.3/test/trunk.probe.cjs attack_1,sword_heavy,idle_relaxed,death
+node v2.3/test/pose.probe.cjs ash 31
+```
+
+The first reads the FBX and measures the angle of the pelvis-to-head line away
+from the source's own up axis, per frame, taking the largest. The second does
+the same on the game's rig after conversion. They should agree within about ten
+degrees; the two skeletons have different proportions, so they will not agree
+exactly.
+
+Measured on the UE4 pack, source against converted:
+
+| clip | source | converted |
+|---|---|---|
+| `attack_1` | 40° | 31° |
+| `sword_heavy` | 50° | 55° |
+| `death` | 88° | 93° |
+| `idle_relaxed` | 4° | 11° |
+
+**Nothing else is a valid comparison, and three things that look like one are
+not.** Bone quaternions cannot be compared between two rigs that hold their
+bones in different frames. How far a joint TURNED cannot either — the angle of
+a rotation does not change when you change the frame you measure it in, which
+is why the converter's own gate read healthy over a party folded in half. And
+frame-invariance is not a property a retarget has: a conversion has to know
+which way the source was standing, because that is the whole of what `R` is
+for. A probe asserting the opposite shipped briefly and was wrong.
+
+Where the head ends up over the hips is anatomy, and anatomy is the one thing
+two skeletons share.
+
+## R, and the two ways to get it wrong
+
+    D = A · G_s⁻¹          the bone's turn, in the SOURCE's world
+    D' = R · D · R⁻¹       the same turn, in OURS
+    A_t = D' · G_t         applied to our rest pose
+
+Both halves matter and each was shipped alone:
+
+* **Without R** the departure arrives about the source's axes. Unreal is Z-up
+  and this library is Y-up, so the party stood permanently hunched at 37° and a
+  heavy swing folded the figure into a ball.
+* **Measuring in each bone's own rest frame instead** — `G_s⁻¹ · A`, then
+  `G_t · D` — needs no up axis and is also wrong, because the two rigs do not
+  hold a bone the same way relative to the body it is in. A yaw about the
+  source's spine came out as a pitch about ours, and the error grew with how
+  much a clip yawed: attack clips carrying 110-169° of shoulder yaw arrived at
+  roughly 2.5x their true trunk pitch, while an idle carrying 9° came through
+  clean.
