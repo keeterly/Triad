@@ -121,14 +121,23 @@ const { boot } = require('./harness.cjs');
       // while the lower foot is within 12cm of the lowest either foot reaches
       // in the clip; above that the figure is in the air and owes nobody a
       // planted foot.
+      // ── AND HOW OFTEN IS ANYTHING ACTUALLY PINNED? ───────────────────────
+      // The solver only holds a foot it believes is bearing weight, and it
+      // believes that from HEIGHT alone: within 7.5cm of the floor it measured
+      // for this figure. If a clip carries its feet higher than that while the
+      // body is still on them, no plant is ever detected and the solver is a
+      // no-op — which would look exactly like a solver that does not work.
+      // Distinguishing "not pinning" from "pinning and still sliding" is the
+      // difference between widening a window and writing a better solver.
       const dt = dur / (SAMPLES - 1);
       const sp = (p, q) => d(p, q) / dt;
       const floor = Math.min(...lf.map(p => p.y), ...rf.map(p => p.y));
-      let glideSum = 0, glidePeak = 0, air = 0, ground = 0;
+      let glideSum = 0, glidePeak = 0, air = 0, ground = 0, pinned = 0;
       for (let i = 1; i < SAMPLES; i++) {
         const low = Math.min(lf[i].y, rf[i].y);
         if (low - floor > 0.12) { air++; continue; }
         ground++;
+        if (held[i]) pinned++;
         const g = Math.min(sp(lf[i], lf[i - 1]), sp(rf[i], rf[i - 1]));
         glideSum += g * dt; glidePeak = Math.max(glidePeak, g);
       }
@@ -143,7 +152,8 @@ const { boot } = require('./harness.cjs');
       out.push({ name, dur: +dur.toFixed(2), drift: +drift.toFixed(3), reach: +reach.toFixed(3),
                  glide: +glideSum.toFixed(3), peak: +glidePeak.toFixed(2),
                  floor: +lowY.toFixed(3), rise: +(hiY - lowY).toFixed(3),
-                 air: Math.round(100 * air / Math.max(1, air + ground)) });
+                 air: Math.round(100 * air / Math.max(1, air + ground)),
+                 pin: Math.round(100 * pinned / Math.max(1, ground)) });
     }
     return { who, out };
   }, { who, SAMPLES });
@@ -154,7 +164,7 @@ const { boot } = require('./harness.cjs');
     + '% of each clip  ·  metres, ' + SAMPLES + ' samples ===');
   console.log('');
   console.log('  ' + 'clip'.padEnd(14) + 'dur'.padStart(6) + 'drift'.padStart(8)
-    + 'reach'.padStart(8) + '   glide m' + '  peak m/s' + '  airborne');
+    + 'reach'.padStart(8) + '   glide m' + '  peak m/s' + '  airborne' + '   pinned');
   const bad = [];
   for (const r of rows.out.sort((a, b) => b.drift - a.drift)) {
     const flag = r.drift > 0.15 ? '  <-- DRIFTS' : '';
