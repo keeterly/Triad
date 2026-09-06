@@ -593,6 +593,36 @@ const { boot } = require('./harness.cjs');
     });
     check('SHOT: a move can walk its AIM from one subject to another, not just its lens',
       !travel || (travel.toAt && travel.to && travel.over > 0), JSON.stringify(travel));
+
+    // THE 2D SHOCK RING DOES NOT BELONG IN A 3D WORLD. Build 127 made the
+    // argument — a CSS circle is a decal on the lens: it cannot be occluded by
+    // the body it happened to, it does not move when the camera does, and it
+    // is the same size whether the hit was two metres away or nine — and then
+    // gated exactly ONE of its six callers on it. The other five went on
+    // stamping gold circles across the party through every parry, which is the
+    // moment the player most needs to read a bar. Written against Build 172
+    // this goes red on both halves.
+    const rings = await J(async () => {
+      window.K.startCombat({ seed: 5, foes: ['husk'] });
+      await new Promise(r => setTimeout(r, 300));
+      const count = () => document.querySelectorAll('.k-shock').length;
+      const fire = () => { window.K._fxHitResolved('elin', 5, false, true);
+                           window.K._fxNoteGrade('perfect', 'tap');
+                           window.K._fxComboCall && window.K._fxComboCall('FOLLOW_UP'); };
+      document.body.classList.add('k-cast3d'); fire();
+      await new Promise(r => setTimeout(r, 60));
+      const inWorld = count();
+      document.querySelectorAll('.k-shock').forEach(e => e.remove());
+      // …and the flat stage keeps every one of them, because there it is still
+      // the only thing saying a blow landed
+      document.body.classList.remove('k-cast3d'); fire();
+      await new Promise(r => setTimeout(r, 60));
+      const flat = count();
+      document.body.classList.add('k-cast3d');
+      return { inWorld, flat };
+    });
+    check('IMPACT: no CSS shock ring is stamped on anybody once there is a world under them',
+      rings.inWorld === 0 && rings.flat > 0, JSON.stringify(rings));
   }
 
   const r = report();

@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 172;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 173;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -4589,7 +4589,23 @@ function centreOf(node) {
   const b = boxOf(node, S);
   return { x: b.x + b.w / 2, y: b.y + b.h * 0.38 };
 }
+// ── AND THE RING FINISHED LEAVING (Build 173) ──────────────────────────────
+//
+// Build 127 established why a CSS circle is wrong once there is a world under
+// it — "a decal stuck on the lens: it cannot be occluded by the body it
+// happened to, it does not move when the camera does, and it is the same size
+// whether the hit was two metres away or nine" — and then gated exactly ONE of
+// the six callers on it. The other five went on stamping gold circles on the
+// party through every parry: a clash threw two, a perfect note threw a third,
+// and they were the largest thing on screen at the moment the player most
+// needs to read a bar. The impact is already told by the flash, the shards and
+// the world's own particles.
+//
+// Gated here rather than at the call sites so a seventh caller cannot
+// reintroduce it, and `?cast=2d` — where the ring is still the right answer,
+// because there is nothing else — keeps every one of them.
 function shockRing(x, y, power, tone) {
+  if (document.body.classList.contains('k-cast3d')) return;
   const S = stageBox(); if (!S) return;
   const r = document.createElement('div');
   r.className = 'k-shock k-shock-' + (tone || 'hit');
@@ -6352,6 +6368,42 @@ function placeBodyLabels() {
     const over = e.classList.contains('k-tell') || e.dataset.over === '1';
     e.classList.toggle('k-lbl-over', over);
     e.style.top = (over ? Math.max(_tellFloor(a.x), a.top - 8) : a.bottom + 4).toFixed(1) + 'px';
+  }
+  _spreadTells();
+}
+// ── TWO WARNINGS MAY NOT SHARE A LINE ──────────────────────────────────────
+//
+// The clamp that keeps a badge out of the enemy readout parks every badge it
+// catches on the SAME line — and the creatures it catches are the back rank,
+// which is also the rank standing closest together. Measured on a three-body
+// line: two badges at the floor, forty pixels apart, reading as one string of
+// numbers belonging to nobody.
+//
+// So anything still overlapping after the clamp is stacked instead. Ordered by
+// the body's own index rather than by where it happens to be on screen, so the
+// resolution is the same every frame and a badge cannot flicker between two
+// heights while the camera moves.
+function _spreadTells() {
+  const stage = el('k-stage'); if (!stage) return;
+  const tells = [...stage.querySelectorAll('.k-tell[data-body]')]
+    .filter(e => e.style.visibility !== 'hidden' && e.offsetWidth)
+    .sort((a, b) => a.dataset.body.localeCompare(b.dataset.body));
+  const placed = [];
+  const sr = stage.getBoundingClientRect();
+  const k = sr.width / stage.offsetWidth || 1;
+  for (const e of tells) {
+    const r = e.getBoundingClientRect();
+    const w = r.width / k, h = r.height / k;
+    const cx = (r.left + r.width / 2 - sr.left) / k;
+    let top = parseFloat(e.style.top) || 0;         // its bottom edge, by the transform
+    for (let guard = 0; guard < 4; guard++) {
+      const hit = placed.find(p => Math.abs(p.cx - cx) < (p.w + w) / 2 + 6
+                                && Math.abs(p.top - top) < h + 2);
+      if (!hit) break;
+      top = hit.top + h + 5;
+    }
+    e.style.top = top.toFixed(1) + 'px';
+    placed.push({ cx, w, top });
   }
 }
 // HOW HIGH A BADGE MAY CLIMB, at this x. Six pixels off the top of the board

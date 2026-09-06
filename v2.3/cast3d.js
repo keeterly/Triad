@@ -3578,7 +3578,13 @@ const Cast3D = (() => {
   // measured at, so `home` is untouched.
   const SHOTS = {
     // the board, as it has been framed since Build 4
-    home:      { az:   0, dist: 7.35, height: 1.70, aimY: 1.70, at: 'board' },
+    // …AND IT STANDS FURTHER BACK (Build 173). 7.35 m framed a party and one
+    // opponent, which is what the board was when this number was set in Build
+    // 4. It is a plaza with up to six bodies in it now and the line runs a
+    // metre wider than it did — the frame was cropping the room the fight is
+    // supposed to be happening in. A metre back and a touch higher, which also
+    // lifts the horizon and gives the back rank sky of its own for its badge.
+    home:      { az:   0, dist: 8.05, height: 1.80, aimY: 1.68, at: 'board' },
     // a finisher: come around the party's shoulder and get low enough that the
     // Regent is above you, which is the whole feeling of fighting one
     duel:      { az: -33, dist: 5.85, height: 1.28, aimY: 1.62, at: 'foe' },

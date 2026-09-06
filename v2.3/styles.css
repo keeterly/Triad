@@ -501,14 +501,14 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    single foe is packed into a .k-foe-plate that stacks: the container holds the
    turn emblem and a column of plates, so a second and third foe are more plates
    rather than a second layout. */
-/* OFF THE ENEMY'S SKY (Build 171). The roster sat top-right, which is exactly
-   where the line stands: the board lays its creatures out in depth, so the
-   back rank is drawn small and HIGH and its crown lands in the top twelfth of
-   the frame. The moment the telegraph moved onto the bodies, all three badges
-   were landing inside the readout they had just replaced. The roster moves to
-   the sky over the PARTY, which is empty — the heroes are drawn low — and the
-   sky over the enemies becomes theirs. */
-#k-boss-hud { position: absolute; left: 222px; right: auto; top: 10px; width: 268px;
+/* …AND BACK TO THE RIGHT (Build 173). Build 171 moved the roster over the
+   party to clear the sky for the new intent badges, and it cost more than it
+   bought: the enemy's readout belongs on the enemy's side of the board, and
+   over the party it collided with the parry bar's own headline — "1/2 turned"
+   and "THE REST GETS THROUGH" print dead centre. The badges do not need the
+   roster to move: `_tellFloor` already stops any badge climbing into it, and
+   the camera pulling back gives the back rank real sky of its own. */
+#k-boss-hud { position: absolute; right: 16px; left: auto; top: 10px; width: 268px;
   display: flex; flex-direction: column; align-items: flex-end; gap: 3px; z-index: 10; }
 .k-foe-plate { display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
   width: 100%; }

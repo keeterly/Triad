@@ -810,10 +810,18 @@ const { boot } = require('./harness.cjs');
       Object.entries(A).map(([k, v]) => [k, v.screen.x + '/' + v.screen.ground + ' h' + v.screen.h]))));
 
   // …AND IT LANDED WHERE THE PAINTED STAGE HAD IT. The heroes' projected
-  // centres and ground lines have been ~240/234, ~352/253, ~474/276 since
-  // Build 101. Within a dozen pixels is the same board; the check exists so a
+  // centres and ground lines held at ~240/234, ~352/253, ~474/276 from Build
+  // 101 to 172. Within a dozen pixels is the same board; the check exists so a
   // camera tweak cannot quietly slide the party off the painted plaza.
-  const LADDER = { elin: [240, 234], mira: [352, 253], ash: [474, 276] };
+  //
+  // RE-BASELINED AT BUILD 173, and the gate is why the number is here rather
+  // than guessed: the home shot moved back from 7.35 m to 8.05 and up from
+  // 1.70 to 1.80, deliberately, because the board grew — a line of three
+  // creatures a metre wider than it used to be, on a plaza the old framing
+  // cropped. That lifts every ground line by 17 to 29 px and narrows the
+  // party's spread by about 32, which this caught on the first run. The
+  // tolerance stays at 22 so the next unintended nudge is caught the same way.
+  const LADDER = { elin: [252, 218], mira: [348, 232], ash: [454, 248] };
   const drift = Object.fromEntries(Object.entries(LADDER).map(([id, [x, y]]) =>
     [id, [+(A[id].screen.x - x).toFixed(1), +(A[id].screen.ground - y).toFixed(1)]]));
   check('WORLD: and it frames the board the painted stage framed',
