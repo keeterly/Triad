@@ -180,8 +180,8 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
    went with the sky telegraph in Build 171 — left in place it collapsed every
    name to "H.." because the grid still reserved its width and the name column
    gave the difference back. */
-.k-lrow { display: grid; grid-template-columns: 1fr 52px 30px 26px; align-items: center;
-  gap: 6px; width: 100%; padding: 3px 5px; border-radius: 4px;
+.k-lrow { display: flex; flex-direction: column; align-items: stretch;
+  gap: 2px; width: 100%; padding: 3px 6px 4px; border-radius: 4px;
   background: rgba(12,10,16,0.42); border: 1px solid rgba(201,164,92,0.14);
   color: #cdc4b8; font: 600 9px/1.1 var(--ui, system-ui), sans-serif;
   letter-spacing: 0.04em; text-align: left; cursor: pointer;
@@ -4519,3 +4519,36 @@ body.k-cast3d .k-hero.k-row-front img { filter: none; }
   margin-left: 2px; text-shadow: 0 1px 3px #000; }
 .k-tell-all { font-style: normal; font-size: 9px; letter-spacing: 0.08em; color: #d8bd7e;
   margin-left: 5px; text-shadow: 0 1px 3px #000; white-space: nowrap; }
+
+/* ── A PACK ROW IS THE BOSS PLATE, COMPRESSED (Build 175) ───────────────────
+   A solo fight has always had a real readout — name, a long bar, a row of
+   POISE pips, its statuses — and a pack got a table row: name, hairline bar,
+   two bare numbers. Same fight, two vocabularies, and the one with MORE to
+   read got the poorer half. Two lines now, in the plate's own reading order,
+   so a fight against three things teaches nothing new. */
+.k-lr-top { display: flex; align-items: baseline; gap: 6px; }
+.k-lr-name { flex: 1 1 auto; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.k-lr-fx { display: inline-flex; align-items: center; gap: 5px; flex: none; }
+.k-lr-fx em { display: inline-flex; align-items: center; gap: 1px; font-style: normal;
+  font-size: 8.5px; font-weight: 700; }
+.k-lr-fx .k-ico { width: 8px; height: 8px; }
+.k-lr-chill { color: #a8d4e8; }
+.k-lr-bleed { color: #e0908c; }
+.k-lr-hp { flex: none; font-style: normal; font-variant-numeric: tabular-nums;
+  font-size: 10px; font-weight: 700; color: #e8dfcd; }
+.k-lr-hp s { text-decoration: none; font-weight: 400; font-size: 8.5px;
+  color: rgba(200,190,170,0.5); }
+.k-lr-bot { display: flex; align-items: center; gap: 6px; }
+.k-lr-bot .k-lr-bar { flex: 1 1 auto; }
+/* THE POISE GAUGE, at pack scale. A bare "4" cannot say four OF WHAT, and what
+   a player tracks is how much of the gauge is left rather than its value.
+   Twelve pips at 3px plus their gaps is 47px, which is what makes this fit
+   where a second table column used to. */
+.k-lr-poise { display: flex; gap: 1px; flex: none; align-items: center; }
+.k-lr-poise i { width: 3px; height: 6px; border-radius: 1px;
+  background: rgba(120,132,150,0.28); }
+.k-lr-poise i.on { background: #8fb4d4; box-shadow: 0 0 3px rgba(143,180,212,0.5); }
+.k-lrow .k-lr-stag { flex: none; font-style: normal; font-size: 8px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase; color: #d99a4e; }
+.k-lrow-dead .k-lr-poise, .k-lrow-dead .k-lr-fx { display: none; }

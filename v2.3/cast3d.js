@@ -106,19 +106,19 @@ const CAST = {
   // three lesser creatures take their distance from the world like anyone else.
   husk:     { model: 'husk.glb', foe: true, side: -1,
               paper: 0xefe9df, shadow: 0x8a7f72, ink: 0x38312a,
-              turn: 28, tall: 1.00, strike: 'sword', metres: 1.86 },
+              turn: 28, tall: 1.00, strike: 'sword', metres: 1.86 , stance: { lean: 0.20, arm: 0.20, sway: 0.030, rate: 1.05 } },
   cultist:  { model: 'cultist.glb', foe: true, side: -1,
               paper: 0xf1eee8, shadow: 0x87839a, ink: 0x35323f,
-              turn: 33, tall: 1.00, strike: 'staff', metres: 1.92 },
+              turn: 33, tall: 1.00, strike: 'staff', metres: 1.92 , stance: { lean: 0.09, arm: 0.26, sway: 0.038, rate: 0.72 } },
   wraith:   { model: 'wraith.glb', foe: true, side: -1,
               paper: 0xeceff2, shadow: 0x7f8f9e, ink: 0x2f363d,
-              turn: 26, tall: 1.00, strike: 'daggers', metres: 2.04 },
+              turn: 26, tall: 1.00, strike: 'daggers', metres: 2.04 , stance: { lean: 0.24, arm: 0.32, sway: 0.055, rate: 0.58 } },
   revenant: { model: 'revenant.glb', foe: true, side: -1,
               paper: 0xf4efe6, shadow: 0x94836b, ink: 0x3b3226,
-              turn: 31, tall: 1.00, strike: 'sword', metres: 2.14, depth: 1 },
+              turn: 31, tall: 1.00, strike: 'sword', metres: 2.14, depth: 1 , stance: { lean: 0.22, arm: 0.24, sway: 0.028, rate: 0.88 } },
   mourner:  { model: 'mourner.glb', foe: true, side: -1,
               paper: 0xf6f3ee, shadow: 0x8d8a97, ink: 0x39353f,
-              turn: 30, tall: 1.00, strike: 'sword', metres: 2.30, depth: 1 },
+              turn: 30, tall: 1.00, strike: 'sword', metres: 2.30, depth: 1 , stance: { lean: 0.10, arm: 0.17, sway: 0.024, rate: 0.46 } },
 };
 const ART = './art/cast/';
 const D = Math.PI / 180;
@@ -2915,6 +2915,53 @@ class Figure {
     return true;
   }
 
+  // ── STANDING READY IS NOT STANDING (Build 175) ──────────────────────────
+  //
+  // The library holds exactly ONE idle, and it is a person at rest: square on,
+  // arms down, weight even. Every creature in the bestiary plays it between
+  // turns, so a wraith, a broken man and a cultist all wait for you the same
+  // way — which is what "the monsters need better idle combat stances" names.
+  // Baking five more idles is a pipeline job.
+  //
+  // This is the other half of the answer, and the half a rig can do: an
+  // ADDITIVE layer. The mixer writes absolute rotations, so a small offset
+  // added on top after it runs bends the same clip into a stance without
+  // touching the clip — a forward lean, arms carried away from the body, the
+  // head dropped, and a sway slower and wider than the idle's own breathing so
+  // the creature reads as coiled rather than idling.
+  //
+  // IT LETS GO FOR AN ACTION. A stance is what a body does when it is waiting;
+  // a swing is a statement and must not be leaned through. The weight eases
+  // rather than cutting, so a creature settles back into its guard after a blow
+  // instead of snapping into it.
+  stance(dt) {
+    const st = this.tone && this.tone.stance;
+    if (!st || !this.bones) return;
+    const want = this.acting && this.idleWant < 0.5 ? 0 : 1;
+    this.stanceW = (this.stanceW || 0) + (want - (this.stanceW || 0)) * Math.min(1, dt * 3.2);
+    const w = this.stanceW;
+    if (w < 0.008) return;
+    this.stanceT = (this.stanceT || 0) + dt;
+    const sway = Math.sin(this.stanceT * (st.rate || 0.8));
+    const roll = Math.sin(this.stanceT * (st.rate || 0.8) * 0.61 + 1.1);
+    const put = (name, x, y, z) => {
+      const b = this.bones[name]; if (!b) return;
+      b.rotation.x += x * w; b.rotation.y += y * w; b.rotation.z += z * w;
+    };
+    const lean = st.lean || 0, arm = st.arm || 0, amp = st.sway || 0;
+    put('Spine',   lean * 0.5 + sway * amp,        0, roll * amp * 0.6);
+    put('Spine01', lean * 0.3,                     0, roll * amp * 0.5);
+    put('Spine02', lean * 0.2 + sway * amp * 0.4,  0, 0);
+    // the arms come away from the ribs, which is the whole difference between
+    // hands-by-your-sides and hands-ready
+    put('LeftArm',  0, 0,  arm);
+    put('RightArm', 0, 0, -arm);
+    put('LeftForeArm',  0, 0,  arm * 0.5);
+    put('RightForeArm', 0, 0, -arm * 0.5);
+    // …and the head keeps looking at you while the chest drops
+    put('Head', -lean * 0.7, 0, 0);
+  }
+
   // wind up and stop, at `frac` of the way through the clip
   ready(name, frac) {
     if (!this.play(name)) return false;
@@ -3027,6 +3074,9 @@ class Figure {
       } else if (base && a.timeScale !== base) a.timeScale = base;
     }
     this.mixer.update(dt);
+    // …and a creature that is not doing anything is still a creature that is
+    // about to. See `stance`.
+    this.stance(dt);
     // ── THE BODY TAKES THE TRAVEL, NOT THE FEET (Build 135) ────────────────
     //
     // The clips travel: a sword judgment steps into the blow, a knock-down

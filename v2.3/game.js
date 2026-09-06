@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 174;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 175;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1339,6 +1339,7 @@ function startCombat(opts) {
   // checks and to the run layer, and both ask `state().boss.hp`, so the two
   // views are re-exposed on the snapshot in snapshotOf().
   C.deck = shuffle(rosterIds(C.roster));
+  warmCardArt(C.deck);
   for (const id of Object.keys(C.heroes)) if (C.heroes[id].hp <= 0) C.heroes[id].downed = true;
   // A FIGHT IS AN ENTRANCE. The battle theme restarts from its downbeat rather
   // than resuming, and it is ducked under the effects because the parry's own
@@ -6226,24 +6227,47 @@ function renderLineHud() {
       aimAt(+row.dataset.ix);
     });
   }
+  // ── A PACK GETS THE PLATE THE BOSS GETS, IN A THIRD OF THE ROOM ──────────
+  //
+  // A solo fight has always had a real readout — name, a long bar, a row of
+  // POISE pips, its statuses — and a pack got a table row: name, hairline bar,
+  // two bare numbers. Same fight, two vocabularies, and the one with MORE to
+  // read got the poorer half.
+  //
+  // So a pack row is the plate, compressed rather than replaced. Two lines
+  // instead of one: the name and the health fraction above, the bar and the
+  // poise pips below. Poise is pips here for the same reason it is pips there
+  // — a bare "4" cannot say four OF WHAT, and the thing a player is tracking
+  // is how much of the gauge is left rather than its value. They are 3px wide
+  // and there are at most twelve, which is what makes three of these fit in
+  // the height two table rows used.
   strip.innerHTML = C.foes.map(F => {
     const on = F.ix === C.aim && !F.dead;
+    const stag = !F.dead && (F.broken || F.cancelNext);
+    const pips = [];
+    if (!F.dead) for (let i2 = 0; i2 < F.breakMax; i2++)
+      pips.push('<i' + (i2 < F.brk ? ' class="on"' : '') + '></i>');
     return '<button type="button" class="k-lrow' + (on ? ' k-lrow-on' : '')
       + (F.dead ? ' k-lrow-dead' : '') + '" data-ix="' + F.ix + '"'
       + (F.dead ? ' disabled' : '') + '>'
-      // THE LANE LETTER WENT WITH THE SKY STRIP (Build 171). It was there to
-      // match a telegraph that printed F / M / B on every chip; that telegraph
-      // is a badge over the creature's own head now and names no place, so a
-      // letter here was the last survivor of a vocabulary nothing else spoke.
       // …AND THE NAME GETS THE ROOM BACK. Every creature in the bestiary is
       // called "The Something", so the article is three characters of nothing
       // repeated down the column — and with it there, all three names truncated.
-      + '<b class="k-lr-name">' + F.name.replace(/^The\s+/, '') + '</b>'
-      + '<span class="k-bar k-lr-bar"><span class="k-bar-fill k-bar-boss" style="width:'
-      + (F.dead ? 0 : Math.max(0, F.hp / F.max * 100)) + '%"></span></span>'
-      + '<em class="k-lr-hp">' + (F.dead ? '—' : fmtN(F.hp)) + '</em>'
-      + '<em class="k-lr-brk' + (F.broken || F.cancelNext ? ' k-lr-stag' : '') + '">'
-      + (F.dead ? '' : (F.broken || F.cancelNext) ? 'STAG' : fmtN(F.brk)) + '</em>'
+      + '<span class="k-lr-top">'
+      +   '<b class="k-lr-name">' + F.name.replace(/^The\s+/, '') + '</b>'
+      // the statuses ride the name line, where the boss plate puts them too
+      +   '<span class="k-lr-fx">'
+      +     (!F.dead && F.chill > 0 ? '<em class="k-lr-chill">' + icon('chill') + fmtN(F.chill) + '</em>' : '')
+      +     (!F.dead && F.bleed > 0 ? '<em class="k-lr-bleed">' + icon('bleed') + fmtN(F.bleed) + '</em>' : '')
+      +   '</span>'
+      +   '<em class="k-lr-hp">' + (F.dead ? '—' : fmtN(F.hp) + '<s>/' + fmtN(F.max) + '</s>') + '</em>'
+      + '</span>'
+      + '<span class="k-lr-bot">'
+      +   '<span class="k-bar k-lr-bar"><span class="k-bar-fill k-bar-boss" style="width:'
+      +   (F.dead ? 0 : Math.max(0, F.hp / F.max * 100)) + '%"></span></span>'
+      +   (stag ? '<em class="k-lr-stag">Staggered</em>'
+              : '<span class="k-lr-poise">' + pips.join('') + '</span>')
+      + '</span>'
       + '</button>';
   }).join('');
 }
@@ -6713,6 +6737,34 @@ const CARD_ART = {
 };
 // The id is the BASE id, not the upgraded one — Cleave+ is the same swing as
 // Cleave and shares its painting rather than going bare.
+// ── AND THE DECK'S FACES ARE BUILT BEFORE THEY ARE NEEDED (Build 175) ──────
+//
+// `decoding="async"` stops a decode blocking the frame that reveals a card; it
+// does not make the decode free, it moves it. The deal draws five cards in
+// 130ms steps, so five first-appearances land inside two thirds of a second —
+// which is a decode budget the phone has to find somewhere, and the only place
+// it can find it is between those frames.
+//
+// So they are built at the top of the fight instead, when there is nothing on
+// screen to stutter. Measured: a cold decode is ~8ms and a warm one is 0.2 —
+// the whole cost is the first one, and this is where it gets paid. Fire and
+// forget: a face that fails to warm simply decodes the old way.
+let _warmed = null;
+function warmCardArt(ids) {
+  if (!ids || !ids.length) return;
+  if (!_warmed) _warmed = Object.create(null);
+  for (const id of ids) {
+    const src = cardArt(id);
+    if (!src || _warmed[src]) continue;
+    _warmed[src] = 1;
+    try {
+      const im = new Image();
+      im.decoding = 'async';
+      im.src = src;
+      if (im.decode) im.decode().catch(() => {});
+    } catch (e) {}
+  }
+}
 function cardArt(cardId) {
   const a = CARD_ART[cardId];
   if (!a) return null;
@@ -6944,7 +6996,16 @@ function cardFaceHTML(c, ev, gem, ownerArt) {
     // black smear. The GLYPH identifies the card; the portrait, bled behind a
     // scrim, is atmosphere and says only whose hand this is.
     + '<span class="k-cart ' + tone + (glyphs.length > 1 ? ' k-cart-two' : '') + '">'
-    + '<img class="k-cbg' + (own ? ' k-cbg-own' : '') + '" src="' + src
+    // ── A CARD FACE MAY NOT BLOCK THE FRAME IT APPEARS IN (Build 175) ──────
+    //
+    // Measured: a cold card-art decode costs about 8ms on a desktop CPU, and
+    // with no `decoding` attribute the browser does it SYNCHRONOUSLY with the
+    // paint that first shows the card — so the frame the card is revealed on
+    // is the frame that pays for it. On a phone that is several frames, and it
+    // lands exactly where the hand reported feeling stuck: right before the
+    // reveal. It got worse at Build 170, when the re-rendered art replaced
+    // 22 KB faces with 36 KB ones carrying far more fine detail.
+    + '<img decoding="async" class="k-cbg' + (own ? ' k-cbg-own' : '') + '" src="' + src
     + '" alt="" aria-hidden="true">'
     + '</span>'
     // THE TYPE, IN THE CORNER OPPOSITE THE COST. The verb marks used to sit in
