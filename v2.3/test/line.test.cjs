@@ -736,6 +736,59 @@ const { boot } = require('./harness.cjs');
       && fit.covers && fit.off.length === 0
       && fit.live[0] > 0 && fit.live[2] > 0 && fit.live[3] > 0 && fit.live[1] >= 0,
       JSON.stringify(fit));
+
+    // ── AND A SCREEN MADE OF SENTENCES IS NOT ALLOWED TO BE CROPPED ────────
+    //
+    // The check above only ever watched the COMBAT readout. Every other screen
+    // — the road, the fire, the mark, the awakening, the trade, the deck, and
+    // the reckoning over the battlefield — was still laying itself out at
+    // `left: 22px` of a board whose first seventy-seven pixels were off the
+    // side of the window. Found by playing it, not by the suite: the
+    // reckoning's title printed "LLOW HUSK" for THE HOLLOW HUSK.
+    //
+    // The world is composed to be cropped and stays full-bleed. A sentence is
+    // not, so each of these now lays out inside `--ui-*` — and this is the
+    // check that says so, at a shape nobody develops at.
+    const clipped = await J(async () => {
+      const root = document.documentElement;
+      const keep = ['--sa-t', '--sa-r', '--sa-b', '--sa-l'].map(k => root.style.getPropertyValue(k));
+      root.style.setProperty('--sa-t', '0px'); root.style.setProperty('--sa-b', '21px');
+      root.style.setProperty('--sa-l', '59px'); root.style.setProperty('--sa-r', '59px');
+      dispatchEvent(new Event('resize'));
+      await new Promise(r => setTimeout(r, 80));
+      const out = {};
+      // A HIDDEN ELEMENT HAS A ZERO RECT, AND ZERO PASSES EVERYTHING. The first
+      // cut of this check read all eight while they were `display: none`,
+      // reported four zeros each, and went green against a build that was
+      // still clipping — the same class of instrument failure this suite has
+      // caught three times. Each one is shown for the measurement and put back.
+      for (const id of ['k-map', 'k-camp', 'k-mark', 'k-wake', 'k-scene', 'k-swap', 'k-deck', 'k-reck']) {
+        const e = document.getElementById(id); if (!e) continue;
+        const was = e.classList.contains('k-hidden');
+        if (was) e.classList.remove('k-hidden');
+        const b = e.getBoundingClientRect();
+        // …AGAINST WHAT CONTAINS IT, NOT AGAINST THE WINDOW. Seven of these are
+        // siblings of the stage and sit straight on the window; the reckoning
+        // lives INSIDE the stage, which carries a live transform — the impact
+        // push moves it — so a window-space reading of it measures the shove as
+        // well as the layout and comes back three pixels out.
+        const host = (e.offsetParent || document.documentElement).getBoundingClientRect();
+        out[id] = { shown: b.width > 1 && b.height > 1,
+                    l: Math.round(b.left - host.left), t: Math.round(b.top - host.top),
+                    r: Math.round(host.right - b.right), bo: Math.round(host.bottom - b.bottom) };
+        if (was) e.classList.add('k-hidden');
+      }
+      ['--sa-t', '--sa-r', '--sa-b', '--sa-l'].forEach((k, i) => root.style.setProperty(k, keep[i] || ''));
+      dispatchEvent(new Event('resize'));
+      return out;
+    });
+    // every one of them starts inside the window rather than off the side of it
+    // …and a box that measured zero is a box that was not measured
+    const inside = Object.keys(clipped).filter(k =>
+      clipped[k].shown && clipped[k].l >= 58 && clipped[k].r >= 58);
+    check('FIT: a screen made of sentences lays out inside the crop, not off the side of it',
+      Object.keys(clipped).length >= 7 && inside.length === Object.keys(clipped).length,
+      JSON.stringify(clipped));
   }
 
   const r = report();

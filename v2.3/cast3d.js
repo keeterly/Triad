@@ -4196,7 +4196,17 @@ const Cast3D = (() => {
     // Build 22 and the drawing buffer since Build 119 for the same reason, and
     // nothing the suite asks about the water is a function of its resolution:
     // the check switches the reflection off and compares the floor.
-    reflect = new THREE.WebGLRenderTarget(TEST ? 160 : 512, TEST ? 80 : 256);
+    // ── THE MIRROR IS AN EDGE OF AN EDGE ──────────────────────────────────
+    //
+    // 512x256 stretched across the bottom of a 2400px-wide frame is a 4.7x
+    // upscale of a picture that is already all silhouette, which is why the
+    // reflections were the most obviously jagged thing on the screen. At
+    // 1024x512 it is 2.3x, which the water's own distortion can hide. The
+    // mirror pass draws the scene a second time, so this is the one dial here
+    // that costs real fragments — it is doubled once and not made adaptive,
+    // because a reflection that changes resolution with the window is a
+    // reflection that shimmers when the window moves.
+    reflect = new THREE.WebGLRenderTarget(TEST ? 160 : 1024, TEST ? 80 : 512);
     reflect.texture.colorSpace = THREE.SRGBColorSpace;
     mirror = new THREE.PerspectiveCamera(FOV, VIEW.w / FULL_H, 0.1, 90);
     mirror.setViewOffset(VIEW.w, FULL_H, 0, OFF_Y, VIEW.w, VIEW.h);
@@ -5269,7 +5279,22 @@ const Cast3D = (() => {
     // precision on the highlights, so the darks — which is most of this game —
     // arrive quantised to a handful of levels and come back banded and lifted.
     // Half-float costs memory and nothing else.
-    post = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType });
+    // ── AND IT IS THE ONLY PLACE MSAA CAN LIVE (Build 181) ────────────────
+    //
+    // `new WebGLRenderer({ antialias: true })` has been on since Build 112 and
+    // has never done anything. That flag antialiases the DEFAULT framebuffer —
+    // the canvas — and the whole scene is rendered into THIS target instead and
+    // blitted out through the contour pass, so every edge in the game has been
+    // resolved at exactly one sample. Every figure, every step of the plaza,
+    // and worst of all the reflections, which are edges of edges.
+    //
+    // Four samples on the target is where the flag was always meant to apply.
+    // The earlier note above — "not the missing MSAA (samples: 4 moved it by
+    // 0.0003)" — was measuring the round trip's effect on mean BRIGHTNESS
+    // while chasing a gamma shift; a change that fixes stair-steps and moves
+    // the average by a thousandth is exactly what antialiasing looks like.
+    post = new THREE.WebGLRenderTarget(w, h,
+      { type: THREE.HalfFloatType, samples: TEST ? 0 : 4 });
     post.texture.minFilter = THREE.LinearFilter;
     post.texture.magFilter = THREE.LinearFilter;
     // ── THE TARGET ENCODES THE WAY THE CANVAS DOES ─────────────────────────
@@ -5817,14 +5842,46 @@ const Cast3D = (() => {
         // feet still somewhere between two clips, and froze a delta 35 pixels
         // wrong for the rest of the fight.
         //
-        // AGAINST THE FIGURE'S OWN TARGET, not against 1. The idle rides at
-        // IDLE_WEIGHT — 0.62, not full — so a gate written as "weight > 0.95"
-        // never fired at all, standDX stayed undefined, and the whole thing
-        // quietly fell back to the silhouette offset it was replacing. It read
-        // as the fix doing nothing rather than as a gate that could not pass.
-        if (f.standDX === undefined && !f.acting && !f.lunge
-            && f.idle && f.idle.getEffectiveWeight() >= (f.idleWant || 0) - 0.02
-            && (f.idleWant || 0) > 0.1
+        // ── WAIT FOR THE FEET TO STOP, NOT FOR A WEIGHT TO ARRIVE (Build 181)
+        //
+        // Every version of this gate has been a PROXY for "the figure is
+        // standing still": first `weight > 0.95`, which the idle's own 0.62
+        // could never reach; then `weight >= idleWant - 0.02`, which reached it
+        // usually. Usually is the whole problem. Measured across three runs of
+        // unchanged code, elin came back 8.3 / 8.3 / 0.1 px off her mark — and
+        // 8.3 is exactly `ctrOff`, the silhouette fallback, which is what the
+        // line reads when the freeze never fires at all. A binary result, not a
+        // spread: the gate either opened or it did not.
+        //
+        // So it waits for the actual condition instead. The delta being frozen
+        // is only true once BOTH the feet and the root have stopped moving —
+        // the solver pins feet in the world, so while the root is still easing
+        // toward its mark the delta between them is changing under the
+        // measurement. Three consecutive still frames on both, and nothing to
+        // do with which clip is at what weight.
+        //
+        // It is self-correcting by construction: until the delta exists the
+        // root eases to the silhouette offset and settles there, the freeze
+        // then measures the truth, the mark moves by the eight pixels between
+        // them, and the root eases once more and stays.
+        // ── AND IT IS A FIXED POINT, NOT A SNAPSHOT (Build 181) ─────────────
+        //
+        // Freezing it ONCE cannot converge, and the measurement says so
+        // exactly: with the delta frozen the placement lands on the mark to
+        // zero metres and the feet still sit 8.4 screen pixels off it, with
+        // the feet moving 0.1px between samples. Not sway, then — stale.
+        //
+        // The reason is the solver: it pins feet in the WORLD, so applying the
+        // correction slides the root and leaves the feet exactly where they
+        // were. The delta the correction was computed from stops being true
+        // the instant it is used.
+        //
+        // So it keeps measuring while the figure is still, and stops when the
+        // number stops moving. Each pass only runs after everything has come
+        // to rest, which makes it a damped fixed-point iteration rather than
+        // the frame-by-frame tail-chase this comment used to warn against —
+        // and the deadband is what ends it.
+        if (!f.acting && !f.lunge
             && f.bones.LeftFoot && f.bones.RightFoot) {
           // …and the bones are brought up to date first. matrixWorld is only
           // meaningful once the root's has been recomputed for this frame, and
@@ -5833,8 +5890,22 @@ const Cast3D = (() => {
           // the rest of the fight. It costs one traversal, once per figure.
           f.root.updateMatrixWorld(true);
           const eL = f.bones.LeftFoot.matrixWorld.elements, eR = f.bones.RightFoot.matrixWorld.elements;
-          f.standDX = (eL[12] + eR[12]) / 2 - f.root.position.x;
-          f.standDZ = (eL[14] + eR[14]) / 2 - f.root.position.z;
+          const fx = (eL[12] + eR[12]) / 2, fz = (eL[14] + eR[14]) / 2;
+          const p = f._stLast;
+          const still = p && Math.abs(fx - p[0]) < 0.003 && Math.abs(fz - p[1]) < 0.003
+                          && Math.abs(f.root.position.x - p[2]) < 0.003
+                          && Math.abs(f.root.position.z - p[3]) < 0.003;
+          f._stHold = still ? (f._stHold || 0) + 1 : 0;
+          f._stLast = [fx, fz, f.root.position.x, f.root.position.z];
+          if (f._stHold >= 3) {
+            const wantX = fx - f.root.position.x, wantZ = fz - f.root.position.z;
+            if (f.standDX === undefined
+                || Math.abs(wantX - f.standDX) > 0.004
+                || Math.abs(wantZ - (f.standDZ || 0)) > 0.004) {
+              f.standDX = wantX; f.standDZ = wantZ;
+              f._stHold = 0;              // …and settle again before the next pass
+            }
+          }
         }
         let tx = slot[0] - (f.standDX === undefined ? f.ctrOff : f.standDX);
         let tz = slot[1] - (f.standDZ || 0);
@@ -6383,6 +6454,20 @@ const Cast3D = (() => {
       figures: Object.keys(figs),
       playing: Object.fromEntries(Object.keys(figs).map(id => [id, figs[id].clipName || null])),
       bones: Object.keys(figs).length ? Object.keys(figs[Object.keys(figs)[0]].bones).length : 0,
+      // WHY A BODY IS OR IS NOT ON ITS MARK. `standDX` is the settled distance
+      // between a figure's feet and its root; until it exists the placement
+      // falls back to the silhouette centre and the ring lands beside the
+      // figure. Three runs of unchanged code disagreed about elin, so the gate
+      // that freezes it is readable from outside now rather than inferrable
+      // from a pixel measurement.
+      stand: Object.fromEntries(Object.keys(figs).map(id => {
+        const f = figs[id];
+        return [id, { dx: f.standDX === undefined ? null : +f.standDX.toFixed(3),
+                      ctr: +(f.ctrOff || 0).toFixed(3),
+                      rootX: +f.root.position.x.toFixed(3),
+                      hold: f._stHold || 0, acting: !!f.acting, lunge: !!f.lunge,
+                      feet: !!(f.bones.LeftFoot && f.bones.RightFoot) }];
+      })),
       // the air: how many sparks are alive, and whether any arc is drawing
       sparks: fx ? (fx.sparks.live || 0) : 0,
       // any figure whose silhouette measurement never settled — it will be the

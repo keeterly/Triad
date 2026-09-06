@@ -3198,13 +3198,32 @@ const { boot } = require('./harness.cjs');
   });
   // ── AND EACH BODY STANDS ON ITS OWN MARK ────────────────────────────────
   //
-  // Collinear marks are not enough: a figure is placed by subtracting the
-  // centre of its rendered SILHOUETTE, which includes whatever it is holding,
-  // so Elin's staff pushed her body off the ring that is supposed to be under
-  // her feet. Measured in screen pixels of the 932-wide stage, the party stood
-  // 6 to 11 px to one side of their marks, all the same way — which is what
-  // reads as three people not quite on their line even when the marks are.
-  const stand = await J(() => {
+  // A figure is placed by subtracting the distance between its FEET and its
+  // root, frozen once while it is standing still. Before that existed it was
+  // placed by the centre of its rendered SILHOUETTE — which includes whatever
+  // it is holding, so Elin's staff pushed her body off the ring that is
+  // supposed to be under her feet.
+  //
+  // ── AND WHAT THIS COSTS TO MEASURE HONESTLY (Build 181) ─────────────────
+  //
+  // This check spent three builds red-on-and-off, reporting 8.3 / 8.3 / 0.1 px
+  // for elin across runs of unchanged code, and the repeated 8.3 was read as a
+  // fallback constant — "the freeze never fired". It was a coincidence. Read
+  // out of the layer directly, the freeze fires for every figure on every run
+  // and elin's silhouette offset is -0.048, nowhere near the 0.083 the number
+  // was being blamed on.
+  //
+  // What moves is the IDLE. A standing figure shifts its weight, the solver
+  // pins the feet where the pose puts them, and a single sample of a live foot
+  // against a static mark measures wherever in that cycle the sample landed —
+  // three to seven centimetres, which is three to seven pixels.
+  //
+  // So it is measured as two things instead of one. The SETTLED stand point —
+  // where the placement arithmetic actually puts the body — has to be on the
+  // mark to within a centimetre, and that is exact and cannot drift. The LIVE
+  // feet are then averaged over two samples most of a second apart: sway
+  // cancels between them and a placement error does not.
+  const standAt = () => J(() => {
     const C3 = window.Cast3D, cam = C3._cam();
     const V = C3._figure('ash').root.position.constructor;
     const host = document.getElementById('k-cast').getBoundingClientRect();
@@ -3220,14 +3239,37 @@ const { boot } = require('./harness.cjs');
       const eL = f.bones.LeftFoot.matrixWorld.elements, eR = f.bones.RightFoot.matrixWorld.elements;
       const feet = px((eL[12] + eR[12]) / 2, 0, (eL[14] + eR[14]) / 2);
       const mark = px(S[0], 0, S[1]);
-      out[id] = +Math.hypot(feet[0] - mark[0], feet[1] - mark[1]).toFixed(1);
+      out[id] = { dx: feet[0] - mark[0], dy: feet[1] - mark[1],
+                  // where the arithmetic PUTS it, in metres, with no animation in it
+                  settled: +(f.root.position.x + (f.standDX || 0) - S[0]).toFixed(4),
+                  frozen: f.standDX !== undefined };
     }
     return out;
   });
+  const s1 = await standAt();
+  await sleep(820);
+  const s2 = await standAt();
+  const stand = {};
+  for (const id of Object.keys(s1)) {
+    if (!s2[id]) continue;
+    stand[id] = { mean: +Math.hypot((s1[id].dx + s2[id].dx) / 2,
+                                    (s1[id].dy + s2[id].dy) / 2).toFixed(1),
+                  // …and WHICH WAY, because across the floor and up the screen
+                  // are two different faults: sideways is placement, and
+                  // vertical on a back-rank body is depth
+                  ax: [+((s1[id].dx + s2[id].dx) / 2).toFixed(1),
+                       +((s1[id].dy + s2[id].dy) / 2).toFixed(1)],
+                  sway: +Math.hypot(s1[id].dx - s2[id].dx, s1[id].dy - s2[id].dy).toFixed(1),
+                  settled: s1[id].settled, frozen: s1[id].frozen };
+  }
   check('LINE: …and each body stands on its own mark, not beside it',
-    Object.keys(stand).length === 3 && Object.values(stand).every(v => v < 8),
-    JSON.stringify(stand) + ' px between a figure feet and the ring it stands in, '
-      + 'on the 932-wide stage; it was 10.4 / 6.1 / 10.9 off the silhouette centre');
+    Object.keys(stand).length === 3
+    && Object.keys(stand).every(k => stand[k].frozen
+                                  && Math.abs(stand[k].settled) < 0.01
+                                  && stand[k].mean < 4.5),
+    JSON.stringify(stand) + ' — `settled` is metres between the placement and the'
+    + ' mark, `mean` is screen px averaged across the idle, `sway` is how far the'
+    + ' feet moved between the two samples');
 
   check('LINE: the three ranks stand on one line, not an arc',
     !line.err && line.hero < 0.01 && line.foe < 0.01,

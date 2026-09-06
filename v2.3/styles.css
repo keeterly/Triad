@@ -2219,7 +2219,8 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    WHAT IS THERE  an icon whose SILHOUETTE differs before its colour does
    Those three channels are independent on purpose: the map has to survive a
    glance at arm's length on a phone, and colour alone does not survive that. */
-#k-map { position: absolute; inset: 0; width: 932px; height: 430px; overflow: hidden;
+#k-map { position: absolute; left: var(--ui-l); right: var(--ui-r);
+  top: var(--ui-t); bottom: var(--ui-b); width: auto; height: auto; overflow: hidden;
   background: #0d0c10; color: #cfc8ba; }
 #k-map, #k-map * { -webkit-touch-callout: none !important; -webkit-user-select: none; user-select: none; }
 #k-map img { -webkit-user-drag: none; pointer-events: none; }
@@ -2341,6 +2342,10 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
 /* ── the edges: exactly three weights, because a glance sorts three ── */
 /* the roads have to survive being drawn over a painting, so they carry their
    own shadow — a pale dash on pale rubble is not a road, it is a scratch */
+/* …EXCEPT THE EDGE LAYER, which is an SVG drawn in the chart's own 932x430
+   coordinates with the node positions read off the same grid. It stays the
+   board so the lines keep meeting the coins they connect; the chart is
+   allowed to be cropped, the sentences are not. */
 #k-map-edges { position: absolute; inset: 0; width: 932px; height: 430px; z-index: 2;
   pointer-events: none; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.95)); }
 .k-edge { fill: none; stroke-linecap: round; }
@@ -2530,7 +2535,8 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    — the card as it is, then the card as it becomes — because a tree that
    describes its own effects in prose goes stale the first time a card is
    retuned, and because the player is buying the difference, not the sentence. */
-#k-camp { position: absolute; inset: 0; width: 932px; height: 430px; overflow: hidden;
+#k-camp { position: absolute; left: var(--ui-l); right: var(--ui-r);
+  top: var(--ui-t); bottom: var(--ui-b); width: auto; height: auto; overflow: hidden;
   background: #0d0b0e; color: #cfc8ba; }
 #k-camp, #k-camp * { -webkit-touch-callout: none !important; -webkit-user-select: none; user-select: none; }
 #k-camp img { -webkit-user-drag: none; pointer-events: none; }
@@ -2902,7 +2908,8 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    card learns it. Every option is drawn AS A CARD, wearing the mark it would
    get — the change is the thing being chosen, so it has to be the thing on
    screen rather than a sentence about it. */
-#k-mark { position: absolute; inset: 0; width: 932px; height: 430px; overflow: hidden;
+#k-mark { position: absolute; left: var(--ui-l); right: var(--ui-r);
+  top: var(--ui-t); bottom: var(--ui-b); width: auto; height: auto; overflow: hidden;
   background: #0b0910; color: #cfc8ba; font-family: var(--serif, Georgia, serif); }
 #k-mark, #k-mark * { -webkit-touch-callout: none !important; -webkit-user-select: none; user-select: none; }
 /* `> header`, not `header`: an id-plus-type selector outranks the class rule
@@ -3062,7 +3069,8 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    the prose gets the room and the mechanical line sits under it in gold —
    the same order the campfire's nodes use, for the same reason: the player
    should be choosing a thing that happened, not a stat. */
-#k-wake { position: absolute; inset: 0; width: 932px; height: 430px; overflow: hidden;
+#k-wake { position: absolute; left: var(--ui-l); right: var(--ui-r);
+  top: var(--ui-t); bottom: var(--ui-b); width: auto; height: auto; overflow: hidden;
   background: #08070a; color: #cfc8ba; }
 #k-wake, #k-wake * { -webkit-touch-callout: none !important; -webkit-user-select: none; user-select: none; }
 #k-wake img { -webkit-user-drag: none; pointer-events: none; }
@@ -3115,7 +3123,8 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
 .k-wk-card { border-color: rgba(140,176,208,0.44); }
 .k-wk-card:hover, .k-wk-card:focus-visible { border-color: rgba(170,206,238,0.85); }
 
-#k-scene { position: absolute; inset: 0; width: 932px; height: 430px; overflow: hidden;
+#k-scene { position: absolute; left: var(--ui-l); right: var(--ui-r);
+  top: var(--ui-t); bottom: var(--ui-b); width: auto; height: auto; overflow: hidden;
   background: #08070a; color: #cfc8ba; cursor: pointer; }
 #k-scene, #k-scene * { -webkit-touch-callout: none !important; -webkit-user-select: none; user-select: none; }
 #k-scene img { -webkit-user-drag: none; pointer-events: none; }
@@ -3599,7 +3608,8 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
 
 /* THE TRADE — five slots a hero, and the two columns are the two heroes who
    own the card being offered. */
-#k-swap { position: absolute; inset: 0; width: 932px; height: 430px; overflow: hidden;
+#k-swap { position: absolute; left: var(--ui-l); right: var(--ui-r);
+  top: var(--ui-t); bottom: var(--ui-b); width: auto; height: auto; overflow: hidden;
   background: #0c0a10; color: #cfc8ba; }
 #k-swap, #k-swap * { -webkit-touch-callout: none !important; -webkit-user-select: none; user-select: none; }
 #k-swap-bg { position: absolute; inset: 0; }
@@ -3924,7 +3934,18 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
   background: radial-gradient(closest-side, rgba(6,5,9,0.72), rgba(6,5,9,0) 74%);
   animation: k-rk-fade 900ms var(--ease-out) both 500ms; }
 
-#k-reck { position: absolute; inset: 0; z-index: 45; }
+/* ── A SCREEN IS THE SAFE BOX, NOT THE BOARD (Build 181) ─────────────────
+   The board fills the window by COVER since Build 174, which means at any
+   aspect that is not 932x430 the sides or the ends are cropped — that is the
+   point, and the world is composed to be cropped. A screen made of TEXT is
+   not: measured on a 1990x1100 window the reckoning's title lost its first
+   two letters off the left edge, because it was pinned at `left: 22px` of a
+   board whose first 77 pixels were not on screen.
+   `--ui-*` already carries how much is being cropped on each side. A screen
+   that lays itself out inside those bounds keeps every inset it had, relative
+   to what the player can actually see. The world keeps the full board. */
+#k-reck { position: absolute; left: var(--ui-l); right: var(--ui-r);
+  top: var(--ui-t); bottom: var(--ui-b); z-index: 45; }
 /* THE TITLE NAMES THE FIGHT IT ENDS. Four words in the corner with nothing
    attached was a caption for a scene the player has to reconstruct; the foe's
    name over it says what this is a reckoning OF. */
@@ -3940,20 +3961,32 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
      does not jump between lines of different lengths — and the text was pinned
      to its top-left corner, so every short beat left sixty pixels of void under
      one italic line and read as a rendering failure rather than a pause. */
-  display: flex; flex-direction: column; justify-content: center; position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
-  width: 640px; min-height: 84px; padding: 13px 18px 15px; border-radius: 4px;
-  background: linear-gradient(180deg, rgba(16,14,20,0.94), rgba(10,9,13,0.97));
-  border: 1px solid rgba(201,164,92,0.3); box-shadow: 0 14px 40px rgba(0,0,0,0.7);
+  /* ── AND IT IS A SUBTITLE, NOT A DIALOG BOX (Build 181) ──────────────
+     640 pixels of near-black with a gold border and a drop shadow, parked over
+     the body of the thing they had just killed. It read as a form the game had
+     opened on top of the scene rather than as two people talking in it — which
+     is the opposite of the whole reason this beat happens on the battlefield
+     instead of cutting to a memory screen.
+     What it needs is legibility over a bright plaza, and that is what a
+     gradient scrim gives: no edges, no corners, no box. The text sits on the
+     picture the way a subtitle does. */
+  display: flex; flex-direction: column; justify-content: flex-end;
+  position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+  width: 760px; min-height: 104px; padding: 26px 24px 30px; border-radius: 0;
+  background: linear-gradient(180deg, rgba(8,7,11,0) 0%, rgba(8,7,11,0.62) 34%,
+                              rgba(6,5,9,0.9) 100%);
+  border: 0; box-shadow: none;
   animation: k-rk-in 520ms cubic-bezier(0.2,0.8,0.3,1) both; }
 #k-reck-who { display: block; font-size: 10px; letter-spacing: 0.28em; color: #c9a45c;
-  margin-bottom: 5px; }
-.k-rk-line { font-size: 16px; line-height: 1.36; color: #efe6d4; }
+  margin-bottom: 6px; text-shadow: 0 2px 10px rgba(0,0,0,0.95); }
+.k-rk-line { font-size: 17px; line-height: 1.4; color: #f2e9d8;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.95); }
 .k-rk-narr { font-style: italic; color: #a79c88; }
-#k-reck-dots { position: absolute; left: 18px; bottom: 7px; display: flex; gap: 4px; }
+#k-reck-dots { position: absolute; left: 24px; bottom: 12px; display: flex; gap: 4px; }
 #k-reck-dots i { width: 12px; height: 2px; background: rgba(255,255,255,0.14); border-radius: 1px; }
 #k-reck-dots i.on { background: rgba(201,164,92,0.5); }
 #k-reck-dots i.now { background: #e0c084; }
-#k-reck-next { position: absolute; right: 18px; bottom: 8px; font-size: 9px;
+#k-reck-next { position: absolute; right: 24px; bottom: 12px; font-size: 9px;
   letter-spacing: 0.22em; color: #8d8474; animation: k-rk-blink 1.6s ease-in-out infinite; }
 @keyframes k-rk-blink { 50% { opacity: 0.35; } }
 @keyframes k-rk-in { from { opacity: 0; transform: translate(-50%, 14px); } }
@@ -4138,7 +4171,8 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    The run's actual shape, top down: three heroes down the left and the five
    cards each carries to the right. Fifteen slots, and until now the only view
    of a card outside a fight was whichever one a scene happened to be offering. */
-#k-deck { position: absolute; inset: 0; width: 932px; height: 430px; overflow: hidden;
+#k-deck { position: absolute; left: var(--ui-l); right: var(--ui-r);
+  top: var(--ui-t); bottom: var(--ui-b); width: auto; height: auto; overflow: hidden;
   background: radial-gradient(120% 90% at 50% 0%, #191520, #0b0910 70%);
   color: #cfc8ba; font-family: var(--serif, Georgia, serif); z-index: 40; }
 #k-deck > header { position: absolute; left: 20px; right: 20px; top: 13px; z-index: 3;
@@ -4275,6 +4309,22 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
 body.k-cast3d .k-cast3d-on .k-fig img { opacity: 0; }
 /* the canvas is under the DOM heroes, above the painted floor */
 body.k-cast3d #k-cast3d { position: absolute; inset: 0; pointer-events: none; }
+/* ── THE HANDOFF IS A DISSOLVE, NOT A CUT (Build 181) ────────────────────
+   `enable()` runs at DOMContentLoaded and has to fetch a clip library and
+   three rigs before it can stand anybody up, so for those few hundred
+   milliseconds the painted plates are the game — and the moment the models
+   land, every one of them switched off on a single frame. That is the 2D pop
+   on load, and it happens again mid-fight every time a creature's model
+   arrives after the creature did.
+   Nothing here changes WHEN the swap happens; it just takes a fifth of a
+   second to happen, which is the difference between a bug and a cross-fade.
+   `.k-cast3d-on` is written per body per frame, so a late-arriving foe gets
+   the same dissolve the party got at boot. */
+#k-cast3d { opacity: 0; transition: opacity 260ms var(--ease-out, ease); }
+body.k-cast3d #k-cast3d { opacity: 1; }
+#k-cast .k-fig img, #k-cast .k-fanim, #k-backdrop,
+.k-hero .k-shadow, #k-boss-art .k-shadow, .k-foe-art .k-shadow {
+  transition: opacity 260ms var(--ease-out, ease); }
 /* THE PAINTED SHADOW RETIRES (Build 119). It was welcome for as long as there
    was no floor for a real one to fall on: a rigged figure with no contact
    shadow floats, and an ellipse under each hero sold the contact cheaply. Now
