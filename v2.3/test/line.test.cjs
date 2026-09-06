@@ -534,6 +534,67 @@ const { boot } = require('./harness.cjs');
       after.live > 0 && after.shown === 0 && after.lanes === 0, JSON.stringify(after));
   }
 
+  // ═══ ROOM TO STAND, AND A BODY THAT ANSWERS THE BLOW (Build 172) ═════════
+  console.log('\n── the line has room, and it reacts ──');
+  {
+    // MEASURED OFF THE SLOTS, NOT OFF THE SCREEN. Three passes at a pixel
+    // instrument all came back measuring something else — the intent badges
+    // moving, the flooded floor re-lighting, a painted plate the 3D layer had
+    // hidden with `opacity` and not `display`. The slots are the thing that
+    // was actually wrong and they are directly readable: the party stood
+    // 1.60 m apart and the creatures — bigger bodies, every one of them — at
+    // 1.41.
+    const gaps = await J(async () => {
+      window.K.startCombat({ seed: 5, foes: ['husk', 'cultist', 'wraith'] });
+      await new Promise(r => setTimeout(r, 400));
+      const C3 = window.Cast3D;
+      if (!C3 || !C3._stage) return null;
+      const S = C3._stage();
+      const d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+      return { foe: +d(S.foe.front, S.foe.mid).toFixed(2),
+               foe2: +d(S.foe.mid, S.foe.back).toFixed(2),
+               hero: +d(S.hero.front, S.hero.mid).toFixed(2) };
+    });
+    check('LINE: a creature gets at least as much room as a hero, because it is bigger',
+      !gaps || (gaps.foe >= gaps.hero && gaps.foe2 >= gaps.hero),
+      JSON.stringify(gaps));
+
+    // WHAT BEING HIT LOOKS LIKE IS NOT ONE THING. There is a single `hurt`
+    // clip in the library, so the grading has to be the world's: how much
+    // ground the body gives. A graze, a heavy blow and a stagger have to come
+    // out in that order or the reaction is decoration.
+    const react = await J(async () => {
+      window.K.startCombat({ seed: 5, foes: ['husk'] });
+      await new Promise(r => setTimeout(r, 1200));
+      const C3 = window.Cast3D;
+      if (!C3 || !C3.react) return null;
+      const f = C3._figure('foe0'); if (!f) return null;
+      const read = (power, stagger) => {
+        f.lunge = null;
+        C3.react('foe0', { power, stagger, from: 'party' });
+        return f.lunge ? +Math.hypot(f.lunge.x, f.lunge.z).toFixed(3) : 0;
+      };
+      return { graze: read(0.05, false), heavy: read(0.9, false), stagger: read(0.4, true) };
+    });
+    check('REACT: a graze, a heavy blow and a stagger move the body by three different amounts',
+      !react || (react.graze > 0 && react.heavy > react.graze * 1.6
+                 && react.stagger > react.heavy),
+      JSON.stringify(react));
+
+    // …AND A SHOT MAY AIM SOMEWHERE ELSE BY THE END OF ITSELF. `full()` fills
+    // every pose out to the same fields precisely so a shot cannot inherit a
+    // travel it never asked for — which means a new field silently vanishes
+    // unless it is named there. That is this check's whole job.
+    const travel = await J(() => {
+      const C3 = window.Cast3D; if (!C3) return null;
+      C3.shot('alloutland', { for: 300 });
+      const a = C3.shot().asked;
+      return { toAt: a.toAt || null, to: !!a.to, over: a.over || 0 };
+    });
+    check('SHOT: a move can walk its AIM from one subject to another, not just its lens',
+      !travel || (travel.toAt && travel.to && travel.over > 0), JSON.stringify(travel));
+  }
+
   const r = report();
   await H.browser.close();
   process.exit(r.passed === r.total && r.errs === 0 ? 0 : 1);

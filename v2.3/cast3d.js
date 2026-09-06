@@ -3589,18 +3589,25 @@ const Cast3D = (() => {
     // line legible and still swings hard enough to feel like a camera move.
     // …and it keeps swinging while the three of them commit, rather than
     // arriving and watching.
-    allout:    { az:  40, dist: 7.60, height: 2.60, aimY: 1.38, roll: 3, fov: 52,
-                 at: 'board',
-                 to: { az: 26, dist: 6.70, height: 2.15, aimY: 1.44, roll: -1.5, fov: 55 },
+    allout:    { az:  52, dist: 8.10, height: 2.95, aimY: 1.36, roll: 5, fov: 51,
+                 at: 'board', toAt: 'foe',
+                 to: { az: 18, dist: 6.20, height: 1.95, aimY: 1.46, roll: -3, fov: 57 },
                  over: 2200 },
     // …and where it goes once all three have committed: down onto the line of
     // them, low and wide, so the blows land in frame rather than after it. The
     // all-out used to hand the camera back BEFORE the damage was dealt — the
     // shot was over and the board was home by the time anything was hit.
-    alloutland:{ az: -46, dist: 5.40, height: 1.10, aimY: 1.42, roll: -5, fov: 60,
-                 at: 'foe',
-                 to: { az: -22, dist: 6.30, height: 1.85, aimY: 1.40, roll: 0, fov: 55 },
-                 over: 1600 },
+    // …AND IT SWEEPS THROUGH THE WHOLE EXCHANGE (Build 172). It arced 24
+    // degrees around the creature, which framed the landing and left the three
+    // people who threw it outside the picture — the shot for the one move in
+    // the game that is explicitly about all three of them. It now opens hard
+    // off the line on the foe and travels 60 degrees back across the floor,
+    // with `toAt` walking the aim onto the board so the party comes into frame
+    // as the blows land rather than after.
+    alloutland:{ az: -58, dist: 5.10, height: 0.96, aimY: 1.42, roll: -8, fov: 62,
+                 at: 'foe', toAt: 'board',
+                 to: { az: 2, dist: 6.90, height: 2.05, aimY: 1.38, roll: 1.5, fov: 54 },
+                 over: 1750 },
     // ── THE PARRY, WHICH IS THE ONE MOMENT THE PLAYER HAS TO ACT ──────────
     //
     // It was az -13, dist 5.10, height 1.42: thirteen degrees off dead centre
@@ -3665,10 +3672,16 @@ const Cast3D = (() => {
     // into the thing it hits. That needs more room than one figure did — hence
     // further back and wider — and it stays a push-in, because a strike should
     // still close on the moment of contact.
-    strike:    { az: -18, dist: 6.40, height: 1.44, aimY: 1.52, roll: -2.5, fov: 58,
+    // …AND IT SWINGS HARDER (Build 172). The arc was eleven degrees and the
+    // cant unwound through three and a half — enough to be a move and not
+    // enough to be a blow. Twenty-six degrees of travel, a metre of push, and
+    // a cant that crosses zero rather than easing toward it, so the frame is
+    // still rolling when the weapon arrives. It also drops lower into the
+    // contact, which is the difference between watching a hit and being at it.
+    strike:    { az: -30, dist: 6.70, height: 1.52, aimY: 1.52, roll: -5, fov: 57,
                  at: 'foe',
-                 to: { az: -7, dist: 5.70, height: 1.30, roll: 1, fov: 60 },
-                 over: 900 },
+                 to: { az: -4, dist: 5.30, height: 1.18, aimY: 1.46, roll: 3.5, fov: 62 },
+                 over: 880 },
     // …and mercy is the opposite shot in every respect — further back, higher,
     // on the party rather than on what it is hitting, because a heal is not an
     // impact and a camera that treats it like one flattens both
@@ -3692,21 +3705,21 @@ const Cast3D = (() => {
     // COMMIT is the first half of a duo: low, off the line, close enough that
     // the hero filling it reads as a person rather than a rank, and pushing in
     // while they wind up.
-    commit:    { az: -30, dist: 3.90, height: 1.24, aimY: 1.44, roll: -4, fov: 58,
-                 to: { az: -20, dist: 3.40, height: 1.30, roll: -1, fov: 60 },
-                 over: 800 },
+    commit:    { az: -38, dist: 4.10, height: 1.18, aimY: 1.44, roll: -7, fov: 58,
+                 to: { az: -14, dist: 4.60, height: 1.42, roll: 2, fov: 62 },
+                 over: 860 },
     // ANSWER is the cut: the other side of the line, the opposite cant, and it
     // arrives already moving. Cutting to a still frame after a moving one is
     // what makes a cut read as a mistake.
-    answer:    { az:  34, dist: 3.60, height: 1.16, aimY: 1.46, roll: 6, fov: 60,
-                 to: { az: 18, dist: 4.30, height: 1.44, roll: 0, fov: 55 },
-                 over: 1000 },
+    answer:    { az:  42, dist: 3.70, height: 1.10, aimY: 1.46, roll: 10, fov: 60,
+                 to: { az: 10, dist: 5.00, height: 1.52, roll: -2, fov: 57 },
+                 over: 1040 },
     // TOGETHER is the frame that holds them BOTH, and it is the reason a duo
     // gets three shots rather than two: two singles say "one, then the other",
     // and the third says "and that was one thing".
-    together:  { az: -12, dist: 5.20, height: 1.86, aimY: 1.50, roll: 0, fov: 54,
-                 to: { az: -2, dist: 5.90, height: 2.05, roll: 0, fov: 52 },
-                 over: 1100 },
+    together:  { az: -26, dist: 5.60, height: 1.70, aimY: 1.50, roll: -3, fov: 56,
+                 to: { az: 8, dist: 6.60, height: 2.10, roll: 1, fov: 53 },
+                 over: 1300 },
     // A DEFLECTION IS A FRACTION OF A SECOND, so its shot is nearly a cut — and
     // the little it has time to do is snap back toward level, which reads as
     // the frame recoiling off the block.
@@ -3779,7 +3792,23 @@ const Cast3D = (() => {
   // magnitude smaller (7.9cm), and is made exact for the same reason.
   const mid2 = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
   const HERO_F = [0.00, 0.54], HERO_B = [-2.76, -1.06];
-  const FOE_F  = [2.10, 0.60], FOE_B  = [4.45, -0.95];
+  // ── THE ENEMY LINE NEEDS MORE ROOM THAN THE PARTY, NOT LESS (Build 172) ───
+  //
+  // Measured off these two numbers rather than off the screen: the party's
+  // slots sit 1.60 m apart and the foe line's sat 1.41 — and a creature is
+  // 2.00 m tall against a hero's 1.78, several of them far wider than a
+  // person. The bigger bodies were packed the tighter, which is the whole of
+  // "they stack up". 1.78 m is the party's gap scaled by the size difference
+  // (1.60 x 2.00 / 1.78), which is the rule the party's own spacing already
+  // follows.
+  //
+  // IT GROWS BACKWARD. Expanding about the midpoint would have pulled the
+  // front rank from x 2.10 to 1.77 — sixteen percent off the gap the charge
+  // crosses, and off the distance every attack shot is composed around.
+  // Holding the front mark and letting the line run away from the camera also
+  // buys perspective separation, which does more for the read than the metres
+  // do.
+  const FOE_F  = [2.10, 0.60], FOE_B  = [5.08, -1.36];
   const STAGE = {
     hero: { front: HERO_F, mid: mid2(HERO_F, HERO_B), back: HERO_B },
     foe:  { front: FOE_F,  mid: mid2(FOE_F, FOE_B),   back: FOE_B },
@@ -4815,7 +4844,7 @@ const Cast3D = (() => {
   function full(shot) {
     const o = { roll: 0, fov: FOV };
     for (const k of POSE) if (shot[k] !== undefined) o[k] = shot[k];
-    o.at = shot.at; o.to = shot.to; o.over = shot.over;
+    o.at = shot.at; o.to = shot.to; o.over = shot.over; o.toAt = shot.toAt;
     return o;
   }
   const TRIPOD = Object.assign(full(SHOTS.home), { atP: BOARD.slice() });
@@ -4932,9 +4961,20 @@ const Cast3D = (() => {
     // somewhere. Smoothstepped, so it accelerates out of the first pose and
     // decelerates into the second instead of starting at full speed.
     let mark = SHOT;
+    // ── …AND THE SUBJECT CAN TRAVEL TOO (Build 172) ──────────────────────────
+    //
+    // A move slid the LENS from one pose to another and aimed the whole way at
+    // one fixed subject, which is why a duo's opening shot could frame the
+    // hero winding up or the creature they were winding up at, and never the
+    // journey between them. `toAt` names where the aim ends: the mark walks
+    // from one subject to the other on the same smoothstep the pose uses, so
+    // the camera carries the eye from the actor to the answer as one move
+    // rather than cutting between two compositions of it.
+    const prog = (SHOT.over && (SHOT.to || SHOT.toAt))
+      ? (() => { const q = Math.min(1, Math.max(0, (now() - shotAt) / SHOT.over));
+                 return q * q * (3 - 2 * q); })() : 0;
     if (SHOT.to && SHOT.over) {
-      const p = Math.min(1, Math.max(0, (now() - shotAt) / SHOT.over));
-      const e = p * p * (3 - 2 * p);
+      const e = prog;
       mark = MARK;
       for (const key of POSE) {
         const a0 = SHOT[key], a1 = SHOT.to[key] !== undefined ? SHOT.to[key] : a0;
@@ -4945,7 +4985,13 @@ const Cast3D = (() => {
 
     // ── the tripod walks to its mark ──
     const ks = Math.min(1, dt * shotSpeed * 2.6);
-    const target = aimPoint(SHOT.at);
+    let target = aimPoint(SHOT.at);
+    if (SHOT.toAt && SHOT.over) {
+      const t1 = aimPoint(SHOT.toAt);
+      target = [target[0] + (t1[0] - target[0]) * prog,
+                target[1] + (t1[1] - target[1]) * prog,
+                target[2] + (t1[2] - target[2]) * prog];
+    }
     TRIPOD.az = easeAngle(TRIPOD.az, mark.az, ks);
     for (const key of ['dist', 'height', 'aimY', 'roll', 'fov'])
       TRIPOD[key] += (mark[key] - TRIPOD[key]) * ks;
@@ -6493,6 +6539,69 @@ const Cast3D = (() => {
       if (m <= 0) return false;
       f.lunge = { x: dx / d * m, z: dz / d * m, until: now() + (ms || 460) };
       return true;
+    },
+    // ── …AND SOMEBODY GIVING GROUND ────────────────────────────────────────
+    //
+    // `lunge` closes on a subject and clamps to the distance available minus a
+    // keep-out, which is exactly right for a charge and cannot express a
+    // knock-back at all: the direction is inverted and there is no target to
+    // clamp against. Same mechanism underneath — an offset on the mark, held,
+    // then released so the slot ease walks the body home — with the sign
+    // flipped and a plain cap instead of a keep-out.
+    shove(id, from, metres, ms) {
+      const f = figs[id];
+      if (!on || !f || !f.root.visible) return false;
+      let src = from;
+      if (typeof from === 'string' && !figs[from])
+        src = /^foe/.test(from) ? 'foe' : /^(party|foe|board)$/.test(from) ? from : 'party';
+      else if (typeof from === 'string') src = [from];
+      const p = aimPoint(src);
+      let dx = (f.root.position.x + (f.ctrOff || 0)) - p[0];
+      let dz = f.root.position.z - p[2];
+      const d = Math.hypot(dx, dz);
+      // A BLOW FROM NOWHERE STILL PUSHES. If the thrower cannot be resolved —
+      // a bleed tick, a status, a hit whose source has already burned away —
+      // the body gives ground straight down the line it is facing rather than
+      // not reacting at all.
+      if (d < 0.05) { dx = 1; dz = 0; }
+      const m = Math.max(0, Math.min(metres == null ? 0.3 : metres, 1.2));
+      const k = m / (d < 0.05 ? 1 : d);
+      f.lunge = { x: dx * k, z: dz * k, until: now() + (ms || 380) };
+      return true;
+    },
+    // ── WHAT BEING HIT LOOKS LIKE, AND IT IS NOT ONE THING ─────────────────
+    //
+    // Every blow in the fight played `hurt` at rate 1 and nothing else: a 4, a
+    // 22, and three heroes landing an all-out together were the same twitch.
+    // The library has exactly ONE hurt clip and baking more is a pipeline job,
+    // so the grading has to come out of the world instead — which is the
+    // better answer anyway, because weight is physics and not choreography.
+    //
+    // TWO CHANNELS. How hard the clip is played: a heavy blow reads SLOWER,
+    // not faster, because a body that is genuinely rocked takes longer to come
+    // back than one that flinches. And how much ground the body gives, which
+    // is the part a player actually reads across the room.
+    //
+    // STAGGERED IS NOT A HEAVY HIT, it is a different event: the creature has
+    // lost its footing, so it is the slowest read and the longest travel, and
+    // it is the one case that ignores the damage number entirely.
+    react(id, opts) {
+      const f = figs[id];
+      if (!on || !f || !f.root.visible) return false;
+      const o = opts || {};
+      const stagger = !!o.stagger;
+      const p = Math.max(0, Math.min(1, o.power == null ? 0.35 : o.power));
+      const ok = f.play('hurt');
+      if (ok && f.acting) {
+        const rate = stagger ? 0.58 : 1.28 - p * 0.5;
+        f.acting._baseRate = rate;
+        f.acting.timeScale = rate;
+        f.fxVerb = 'hurt';
+      }
+      Cast3D.shove(id, o.from == null ? 'party' : o.from,
+        stagger ? 0.78 : 0.14 + p * 0.5,
+        stagger ? 980 : 300 + p * 340);
+      return ok;
     },
     // WHICH OF THE FIGHT'S FOUR WORDS THIS PERSON THROWS when nothing else is
     // being asked. The fight knows its verbs; it does not know that Elin is the

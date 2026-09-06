@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 171;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 172;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -4694,10 +4694,22 @@ function camOffsetTo(node) {
   return { dx: (r.left + r.width / 2 - sr.left) / k - 466,
            dy: (r.top + r.height * 0.45 - sr.top) / k - 215 };
 }
+// ── AND THE SHOVE THE FRAME TAKES (Build 172) ───────────────────────────────
+//
+// These were tuned in Build 22 against a board that was three flat plates on a
+// painting; they have been carrying a 3D world since 119 and never grew into
+// it. A tier-3 blow moved the lens 118px and canted it 1.7 degrees, which on a
+// picture with real depth in it is a nudge — the numbers below are roughly
+// half again as much across the board, and the CANT is where most of the extra
+// went, because roll is the one axis a still frame cannot fake.
+//
+// THE HOLD GREW WITH THEM. A bigger shove that leaves immediately is a twitch,
+// not a hit; the hold is what makes the frame feel like it was knocked and is
+// recovering rather than vibrating.
 const CAM_PUNCH = [null,
-  { dz: 40, r: 0.5, yaw: 1.8, pitch: 0.5, inMs: 110, hold: 90,  out: 380, pull: 0.05 },
-  { dz: 74, r: 1.0, yaw: 3.0, pitch: 1.0, inMs: 100, hold: 150, out: 440, pull: 0.09 },
-  { dz: 118, r: 1.7, yaw: 4.4, pitch: 1.6, inMs: 95,  hold: 230, out: 520, pull: 0.13 }];
+  { dz: 58, r: 0.9, yaw: 2.4, pitch: 0.7, inMs: 100, hold: 110, out: 400, pull: 0.07 },
+  { dz: 104, r: 1.8, yaw: 4.0, pitch: 1.4, inMs: 92,  hold: 190, out: 470, pull: 0.12 },
+  { dz: 168, r: 3.0, yaw: 5.9, pitch: 2.2, inMs: 84,  hold: 290, out: 560, pull: 0.18 }];
 let _punchAt = 0, _punchPow = -1;
 // A PUNCH HOLDS BEFORE IT LEAVES. A shot that starts going home the instant it
 // arrives reads as a twitch; the hold is what makes it feel authored.
@@ -4881,8 +4893,29 @@ function fxStrikeBoss(n, why, F) {
   // would spend the effect on the least important thing in the fight.
   if (why === 'hit' && typeof castHitStop === 'function')
     castHitStop(0.22, 95 + Math.min(115, n * 6));
-  foeAnimReact('hit', 340, ix);      // the window k-recoil runs for
-  foeCast(ix, 'hurt');
+  // ── AND THE BODY ANSWERS THE BLOW, NOT THE FACT OF ONE ─────────────────
+  //
+  // `foeCast(ix, 'hurt')` was the whole reaction: one clip at one speed for a
+  // 4, for a 22, and for three heroes landing an all-out together. The library
+  // has exactly one hurt clip, so the grading is the world's job — how hard
+  // the clip is played and how much ground the creature gives.
+  //
+  // THREE THINGS DECIDE IT. How big the number is, relative to what this
+  // creature can take — 20 off a 168 HP Regent is a scratch and off a 21 HP
+  // Husk it is nearly everything, and a bar that read them the same would be
+  // measuring the bestiary instead of the fight. How many hands threw it: a
+  // duo lands harder than a single and an all-out harder than either. And
+  // whether it STAGGERED, which is not a heavy hit but a different event —
+  // the creature has lost its footing, so it is the longest read on the board
+  // and the one case the damage number does not enter into.
+  const F2 = F || (C && C.foes ? C.foes[ix] : null);
+  const share = F2 && F2.max ? Math.min(1, n / (F2.max * 0.30)) : Math.min(1, n / 18);
+  const hands = why === 'allout' ? 3 : (_act && _act.hands) || 1;
+  const staggered = !!(F2 && (F2.broken || F2.cancelNext));
+  const power = why === 'bleed' ? 0.12
+              : Math.min(1, share * 0.62 + (hands - 1) * 0.22);
+  foeAnimReact(staggered ? 'broken' : 'hit', staggered ? 620 : 340, ix);
+  castFoeReact(ix, power, staggered, hands);
   // THE SOUND SAYS WHAT THREW IT, the same way the visual effect does: steel
   // scrapes and rings, a spell blooms, and a bleed tick is the plain impact.
   if (_act && why === 'hit')
@@ -5046,6 +5079,16 @@ function castCut(list) {
 function castLunge(id, toward, metres, ms) {
   const C3 = window.Cast3D;
   if (C3 && C3.lunge) C3.lunge(id, toward, metres, ms);
+}
+// A CREATURE GIVING GROUND. `from` is whoever threw it, so the shove runs down
+// the line of the blow rather than in whatever direction the creature happens
+// to be facing — the party as a whole when a single hand cannot be named,
+// which is what an all-out and a status tick both are.
+function castFoeReact(ix, power, stagger, hands) {
+  const C3 = window.Cast3D;
+  if (!C3 || !C3.react) { foeCast(ix, 'hurt'); return; }
+  const from = (hands >= 3 || !_fxFrom) ? 'party' : _fxFrom;
+  C3.react('foe' + ix, { power, stagger, from });
 }
 // ── A BLOW IS THROWN AT SOMETHING, SO THE BODY GOES TO IT ──────────────────
 //
@@ -5265,6 +5308,12 @@ function fxPlayCard(cardId, ev) {
   // to be one action, long enough to have an order.
   const both = ownerHeroes(ev.card);
   const second = both.length > 1 && !ownerDown(ev.card) ? both[1] : null;
+  // HOW MANY HANDS ARE BEHIND THIS. A pair card is two people landing one
+  // blow, and until now the thing being hit could not tell that from one
+  // person landing it — same clip, same speed, same nothing. The number rides
+  // on the act because that is where every other fact about the blow already
+  // lives, and it is read on the contact frame by fxStrikeBoss.
+  if (_act) _act.hands = second ? 2 : 1;
   if (second && C.heroes[second] && !C.heroes[second].downed) {
     const h2 = document.querySelector('.k-hero[data-hero="' + second + '"]');
     setTimeout(() => {
@@ -5290,10 +5339,23 @@ function fxPlayCard(cardId, ev) {
     // whoever answers as they answer, and a third that holds them both — which
     // is the shot that says the two singles were one action. A cut list rather
     // than a move, because no amount of easing between two poses is a cut.
+    // …AND THE THIRD SHOT HAS TO CONTAIN THE THING (Build 172). `at: both` is
+    // the two heroes and nothing else, so the frame whose whole job is to say
+    // "those two singles were one action" was composed on the pair and left
+    // what they hit outside it. A duo is three bodies — both of them and the
+    // creature — and the lens sits where all three fit.
+    //
+    // The first two shots take the target in as well, at the far end of their
+    // sweep rather than the near one: `commit` opens on the hero winding up
+    // and finishes wide enough to hold what they are winding up AT, so the
+    // move itself carries the eye from the actor to the answer.
+    const mark = 'foe' + ((C && C.aim) || 0);
     castCut([
-      { shot: 'commit',   opts: { for: 2600, speed: 2.6, at: [heroId] }, hold: DUO_RELAY + 60 },
-      { shot: 'answer',   opts: { for: 2000, speed: 3.4, at: [second] }, hold: 620 },
-      { shot: 'together', opts: { for: 1100, speed: 1.9, at: both.slice() } },
+      { shot: 'commit',   opts: { for: 2600, speed: 2.6, at: [heroId], toAt: [heroId, mark] },
+        hold: DUO_RELAY + 60 },
+      { shot: 'answer',   opts: { for: 2000, speed: 3.4, at: [second], toAt: [second, mark] },
+        hold: 620 },
+      { shot: 'together', opts: { for: 1300, speed: 1.9, at: both.concat([mark]) } },
     ]);
   } else if (SHOT_FOR[kind]) {
     // ── THE LENS HOLDS FOR AS LONG AS THE ACTION TAKES ────────────────────
