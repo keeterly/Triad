@@ -3342,32 +3342,105 @@
     rally:  'Neither of them can say what changed. They will both feel it, every time.',
     surge:  '{A} shows {B} how to spend everything in one breath. It only works once.',
   };
-  // TWO BEATS. `1` is the moment — the two of them, the mark burning between
-  // them, the line that passed between them. `2` is the decision. They were one
-  // screen, and the decision lost: the scene took two thirds of 430px and the
-  // ten cards were scaled to 62% and stacked five to a half-width column,
-  // unreadable and crammed against the bottom edge.
-  let _markBeat = 1;
-  let _markPick = null;                 // the card being read, not yet marked
+  // ── THE TWO ANSWERS (Build 180) ─────────────────────────────────────────
+  //
+  // A mark used to arrive as two menus: pick one of two rules, then pick which
+  // of fifteen cards spends it. Both halves are real decisions and both were
+  // asked in the register of a settings screen, immediately after two people
+  // said something to each other.
+  //
+  // The bond already knows everything needed to ask it once and ask it well.
+  // It knows WHICH TWO of them this was, it knows the two marks this level
+  // teaches, and each of those two people has an obvious card for their mark
+  // to land on. So the fork and the card-pick collapse into one question with
+  // two answers — one per person — and each answer is drawn as the card it
+  // would make, wearing the mark, under the line that gets said.
+  //
+  // WHAT IS LOST is "any card in the deck". That was worth something to a
+  // player optimising, and it is the reason the old screen printed ten faces.
+  // What is bought is that the mark now means something about THIS bond: it
+  // lands on one of the two people who earned it, on the card of theirs it
+  // most changes, and the sentence above it is a thing one of them says.
+  const MARK_ANSWER = {
+    retain: '\u201cHold something back, {A}.\u201d',
+    chain:  '\u201cGo where {B} has just been.\u201d',
+    combo:  '\u201cAgain, {A}. Same breath.\u201d',
+    rally:  '\u201cLet them hear it, {A}.\u201d',
+    surge:  '\u201cOnce, {A}. Everything.\u201d',
+  };
+  // WHICH OF A HERO'S CARDS A MARK WANTS. Read off the card definitions rather
+  // than listed, so a retune or a new card cannot leave a stale pairing here.
+  //   SURGE scales numbers, so it wants the biggest numbers.
+  //   The order marks refund AP, which is worth most on the dearest card.
+  //   RETAIN and RALLY do the same thing everywhere, so they take the dearest
+  //   too — that is the card a player most wants to keep or most wants seen.
+  // Ties break on roster order, so the same seed deals the same answer.
+  function markScore(id, sig) {
+    const K = window.K, def = K.CARD_DEFS[id];
+    if (!def) return -1;
+    let dmg = 0;
+    for (const fx of (def.base || [])) dmg += (fx.dmg || 0) * (fx.times || 1);
+    return sig === 'surge' ? dmg * 100 + (def.cost || 0)
+                           : (def.cost || 0) * 100 + dmg;
+  }
+  // …and never a card that already wears one, nor the card the other answer is
+  // already about: two answers that are the same card is one answer drawn twice.
+  function markCardFor(hero, sig, taken) {
+    const list = (RUN.roster[hero] || []).filter(
+      id => !RUN.sigils[id] && (taken || []).indexOf(id) < 0);
+    if (!list.length) return null;
+    return list.reduce((best, id) =>
+      markScore(id, sig) > markScore(best, sig) ? id : best, list[0]);
+  }
+  function markAnswers() {
+    if (!RUN || !RUN.pendingSigil) return [];
+    const pair = _markPair || RUN.markPair || PAIRS[0];
+    const heroes = pair.split('|');
+    const fork = (RUN.sigilFork && RUN.sigilFork.length)
+      ? RUN.sigilFork : [RUN.pendingSigil];
+    const out = [], taken = [];
+    heroes.forEach((h, i) => {
+      // a level with one mark on it asks WHICH OF YOU instead of which trick,
+      // which is the same question in the other key and still a real one
+      const sig = fork[i] || fork[0];
+      const card = markCardFor(h, sig, taken);
+      if (!card) return;
+      taken.push(card);
+      out.push({ sigil: sig, card: card, hero: h, other: heroes[1 - i] });
+    });
+    // NOBODY LEFT TO TEACH is the only way this comes back empty, and the
+    // screen's caller reads that as "leave" rather than drawing an empty fan.
+    return out;
+  }
+  // TWO BEATS, ON ONE SCREEN. `1` is the moment — the two of them, the mark
+  // burning between them, the fan of two answers at the bottom edge. `2` is
+  // the answer being held, one tap from being said. They were two PAGES; the
+  // second page was a list of ten cards, and it is gone. The vocabulary stays
+  // because everything downstream — the stylesheet, the suite — reads it.
+  let _markPick = null;                 // which answer is being held, by index
   // TAKING ONE OF THE TWO IS WHAT ENDS THE MOMENT. `ix` names which; called
   // with nothing it takes the first, which is what a resumed run does when the
   // fork was never recorded.
+  // TAKING AN ANSWER IS TWO TAPS, and that is not friction for its own sake:
+  // a mark is permanent for the rest of the run and the fan is a thumb-sized
+  // target at the bottom edge of the screen. The first tap lifts the card and
+  // the line is spoken; the second says it out loud.
   function markGo(ix) {
     if (!RUN || !RUN.pendingSigil) return false;
-    const fork = (RUN.sigilFork && RUN.sigilFork.length) ? RUN.sigilFork : [RUN.pendingSigil];
-    const took = fork[ix || 0] || fork[0];
-    if (took && took !== RUN.pendingSigil) { RUN.pendingSigil = took; save(); }
-    _markBeat = 2; renderMark(); return true;
+    const answers = markAnswers();
+    const a = answers[ix || 0]; if (!a) return false;
+    if (_markPick === (ix || 0)) return placeSigil();
+    _markPick = ix || 0;
+    // THE MARK THE RUN OWES FOLLOWS THE ANSWER BEING READ, so a tab closed
+    // between the two taps resumes owing the thing that was on screen.
+    if (RUN.pendingSigil !== a.sigil) { RUN.pendingSigil = a.sigil; save(); }
+    renderMark(); return true;
   }
+  // …and the old door, kept because the deck screen and the resume path name a
+  // CARD rather than an answer index.
   function markPickCard(id) {
-    if (!RUN || !RUN.pendingSigil) return false;
-    if (RUN.sigils[id]) return false;
-    // THE CAMPFIRE'S GRAMMAR, because this is the campfire's decision: the
-    // first tap picks the card up and the panel reads out what the mark does to
-    // it, the second tap on the same card places it. One stray thumb must never
-    // spend a mark that lasts the rest of the run.
-    if (_markPick === id) return placeSigil(id);
-    _markPick = id; renderMark(); return true;
+    const ix = markAnswers().findIndex(a => a.card === id);
+    return ix < 0 ? false : markGo(ix);
   }
   function renderMark() {
     const K = window.K, sig = RUN.pendingSigil, def = K.SIGILS[sig];
@@ -3375,13 +3448,25 @@
     const pair = _markPair || PAIRS[0];
     const heroes = pair.split('|');
     const A = CAST[heroes[0]], B = CAST[heroes[1]];
-    $('k-mark').className = 'k-mk-sig-' + sig + ' k-mk-beat' + _markBeat;
-    // THE HEADER NAMES THE MARK ONLY ONCE IT IS ONE. While the fork is open
-    // there is no answer yet, and printing one of the two at the top would be
-    // the screen choosing for the player.
-    const forkNow = (RUN.sigilFork && RUN.sigilFork.length > 1 && _markBeat === 1);
-    $('k-mark-title').textContent = forkNow ? 'WHAT THEY LEARNED' : def.name.toUpperCase();
-    $('k-mark-line').textContent = forkNow ? 'Two things came out of it. One of them stays.' : def.line;
+    const answers = markAnswers();
+    // NOBODY LEFT TO TEACH. Six marks is the most a road can grant and a pair
+    // owns ten cards, so this cannot happen today — but a screen whose only
+    // exit is a fan that might be empty is one roster change away from being a
+    // dead end, and there is no skip.
+    if (!answers.length) return leaveMark();
+    const held = _markPick == null ? null : answers[_markPick];
+    $('k-mark').className = 'k-mk-sig-' + (held ? held.sigil : sig)
+      + ' k-mk-beat' + (held ? 2 : 1);
+    // THE HEADER NAMES THE MARK ONLY ONCE ONE IS BEING HELD. Until then there
+    // is no answer yet, and printing one of the two at the top would be the
+    // screen choosing for the player.
+    $('k-mark-title').textContent = held ? K.SIGILS[held.sigil].name.toUpperCase()
+                                         : 'WHAT THEY LEARNED';
+    // ONE LINE OF PROSE UNDER THE TITLE, NEVER TWO. On two pages the header's
+    // line and the narration under the figures never met; on one screen they
+    // both solved for the band under the title and printed through each other.
+    // They are the same slot now and only one of them is ever filled: before an
+    // answer is held the moment gets it, and after, the mark's own rule does.
     // THE SCENE. The two of them, the mark burning between them, and the road
     // they are standing on — the same painting the map is drawn over, so the
     // moment happens somewhere rather than in a void.
@@ -3391,94 +3476,36 @@
     if (figs[0]) { figs[0].src = '../art/' + A.art + '.webp'; figs[0].alt = A.n; }
     if (figs[1]) { figs[1].src = '../art/' + B.art + '.webp'; figs[1].alt = B.n; }
     const gl = $('k-mark-glyph');
-    if (gl) gl.innerHTML = K.icon(def.glyph || 'finale');
-    $('k-mark-say').textContent = (MARK_SAY[sig] || '')
-      .replace('{A}', A.n).replace('{B}', B.n);
-    // NOBODY LEFT TO TEACH. Six marks is the most a road can grant and a pair
-    // owns ten cards, so this cannot happen today — but a screen whose only
-    // exit is a button that might all be disabled is one roster change away
-    // from being a dead end, and there is no skip.
-    if (heroes.every(h => (RUN.roster[h] || []).every(id => RUN.sigils[id]))) return leaveMark();
-    // ── beat one's fork: which of the two this level teaches ────────────────
-    const forkBox = $('k-mark-fork');
-    if (forkBox) {
-      const fork = (RUN.sigilFork && RUN.sigilFork.length) ? RUN.sigilFork : [sig];
-      forkBox.innerHTML = fork.map((sg, i) => {
-        const d = K.SIGILS[sg]; if (!d) return '';
-        return '<button type="button" class="k-mkf k-mkf-' + sg + '" data-ix="' + i + '">'
-          + '<i>' + K.icon(d.glyph || 'finale') + '</i>'
-          + '<b>' + d.name.toUpperCase() + '</b>'
-          + '<span>' + d.line + '</span></button>';
-      }).join('');
-      forkBox.querySelectorAll('.k-mkf').forEach(b =>
-        b.addEventListener('click', (e) => { e.stopPropagation(); markGo(+b.dataset.ix); }));
-    }
-    if (_markBeat === 1) { $('k-mark-cols').innerHTML = ''; _markPick = null; return; }
+    if (gl) gl.innerHTML = K.icon((held ? K.SIGILS[held.sigil] : def).glyph || 'finale');
+    $('k-mark-line').textContent = held ? K.SIGILS[held.sigil].line : '';
+    $('k-mark-say').textContent = held ? ''
+      : (MARK_SAY[sig] || '').replace('{A}', A.n).replace('{B}', B.n);
+    $('k-mark-ask').textContent = held
+      ? 'SAY IT AGAIN TO MEAN IT'
+      : 'WHAT DOES THAT SETTLE \u2014 AND FOR WHICH OF THEM?';
 
-    // ── the decision ────────────────────────────────────────────────────────
-    // THE SAME SHAPE AS EVERY OTHER TRADE IN THIS GAME. Ten cards have to be
-    // SCANNABLE, so they are compact rows — cost, name, what it does, who owns
-    // it — and the ONE that is being considered is drawn at full size in the
-    // panel beside them, twice: as it is, and as it would be. That is the
-    // comparison the screen exists to offer, and shrinking ten faces to 62%
-    // offered it to nobody.
-    if (_markPick && RUN.sigils[_markPick]) _markPick = null;
-    $('k-mark-ask').textContent = 'WHICH CARD LEARNS IT? \u2014 PICK ONE TO SEE WHAT IT BECOMES';
-    $('k-mark-cols').innerHTML = heroes.map(h => {
-      const art = ({ ash: 'kai', elin: 'elin', mira: 'mira' })[h] || h;
-      const rows = (RUN.roster[h] || []).map(id => {
-        const already = RUN.sigils[id];
-        return '<button type="button" class="k-mk'
-          + (already ? ' k-mk-taken' : '') + (_markPick === id ? ' k-mk-on' : '')
-          + '" data-id="' + id + '"' + (already ? ' disabled' : '') + '>'
-          + swapCardHTML(id, false)
-          + (already ? '<span class="k-mk-note">' + K.SIGILS[already].name.toUpperCase() + '</span>'
-                     : '')
-          + '</button>';
-      }).join('');
-      return '<div class="k-mk-col"><header><img src="../art/' + art + '-face.webp" alt="">'
-        + '<b>' + h.toUpperCase() + '</b></header>' + rows + '</div>';
-    }).join('') + markPanelHTML(sig);
-    $('k-mark-cols').querySelectorAll('.k-mk:not([disabled])').forEach(b =>
-      b.addEventListener('click', (e) => { e.stopPropagation(); markPickCard(b.dataset.id); }));
-    const place = $('k-mark-place');
-    if (place) {
-      place.disabled = !_markPick;
-      place.textContent = _markPick
-        ? 'MARK IT \u2014 ' + def.name.toUpperCase()
-        : 'PICK A CARD';
-      if (!place.dataset.wired) { place.dataset.wired = '1';
-        place.addEventListener('click', (e) => { e.stopPropagation();
-          if (_markPick) placeSigil(_markPick); }); }
-    }
-  }
-
-  // NOW, AND WHAT IT BECOMES — two full-size faces, the same panel the trade
-  // screen uses for LEAVES and JOINS, because it is the same kind of question.
-  function markPanelHTML(sig) {
-    const K = window.K;
-    const now = _markPick
-      ? '<div class="k-mkp-face">' + K.staticCardHTML(_markPick, { cls: 'k-card-mkp' }) + '</div>'
-      : '<div class="k-mkp-back"><i>' + svgIcon('ember') + '</i>'
-        + '<span>pick one<br>of their tens</span></div>';
-    const after = _markPick
-      ? '<div class="k-mkp-face">'
-        + K.staticCardHTML(_markPick, { sigil: sig, cls: 'k-card-mkp' }) + '</div>'
-      : '<div class="k-mkp-back k-mkp-ghost"><i>' + (window.K.icon(K.SIGILS[sig].glyph || 'finale'))
-        + '</i><span>' + K.SIGILS[sig].name + '</span></div>';
-    const d = _markPick ? markDelta(_markPick, sig) : '';
-    return '<div class="k-mk-trade">'
-      + '<div class="k-mkp-pair">'
-      +   '<div class="k-mkp-slot"><em>NOW</em>' + now + '</div>'
-      +   '<span class="k-mkp-arrow" aria-hidden="true">'
-      +     '<svg viewBox="0 0 24 24"><path d="M3 12 H19 M15 7 L20 12 L15 17"'
-      +     ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"'
-      +     ' stroke-linejoin="round"/></svg></span>'
-      +   '<div class="k-mkp-slot"><em>' + K.SIGILS[sig].name.toUpperCase() + '</em>'
-      +     after + '</div>'
-      + '</div>'
-      + '<p class="k-mkp-delta">' + (d || '') + '</p>'
-      + '</div>';
+    // ── the fan: two answers, each drawn as the card it would make ──────────
+    const fan = $('k-mark-fan');
+    fan.innerHTML = answers.map((a, i) => {
+      const d = K.SIGILS[a.sigil];
+      const me = CAST[a.hero], you = CAST[a.other];
+      const line = (MARK_ANSWER[a.sigil] || '\u201cThen it is yours, {A}.\u201d')
+        .replace('{A}', me.n).replace('{B}', you.n);
+      const delta = markDelta(a.card, a.sigil);
+      return '<button type="button" class="k-mka k-mka-' + (i ? 'r' : 'l')
+        + (_markPick === i ? ' k-mka-on' : '')
+        + (_markPick != null && _markPick !== i ? ' k-mka-off' : '')
+        + '" data-ix="' + i + '">'
+        + '<span class="k-mka-say">' + line + '</span>'
+        + '<span class="k-mka-face">'
+        +   K.staticCardHTML(a.card, { sigil: a.sigil, cls: 'k-card-mka' }) + '</span>'
+        + '<span class="k-mka-gets"><b>' + d.name.toUpperCase() + '</b> \u2014 onto '
+        +   K.CARD_DEFS[a.card].name + ', for the rest of the run'
+        +   (delta ? '<em>' + delta + '</em>' : '') + '</span>'
+        + '</button>';
+    }).join('');
+    fan.querySelectorAll('.k-mka').forEach(b =>
+      b.addEventListener('click', (e) => { e.stopPropagation(); markGo(+b.dataset.ix); }));
   }
 
   // WHAT THIS MARK WOULD DO TO THIS CARD — and nothing if the answer is the
@@ -3540,6 +3567,13 @@
   }
   function placeSigil(cardId) {
     if (!RUN || !RUN.pendingSigil) return;
+    // CALLED WITH NOTHING, IT PLACES THE ANSWER ON SCREEN. The fan is the only
+    // caller that matters now; the id form is kept for the resume path.
+    if (cardId == null) {
+      const a = markAnswers()[_markPick == null ? 0 : _markPick];
+      if (!a) return;
+      RUN.pendingSigil = a.sigil; cardId = a.card;
+    }
     // ONE MARK PER CARD. Stacking would make a single card the whole deck.
     if (RUN.sigils[cardId]) return;
     const owned = [].concat(RUN.roster.ash, RUN.roster.elin, RUN.roster.mira);
@@ -3563,7 +3597,7 @@
     _markPair = pair || RUN.markPair;
     if (!_markPair) return false;
     RUN.markPair = _markPair; save();
-    _markBeat = 1; _markPick = null;
+    _markPick = null;
     screen('mark'); renderMark();
     return true;
   }
@@ -3798,7 +3832,10 @@
     RECALLS, pendingRecall, openRecall, takeRecall,
     WAKES, wakeOffer, takeWake, renderWake, wakeDef, wakePair,
     SIGIL_BY_PAIR, sigilFor, renderMark, placeSigil, openMark, leaveMark,
-    markGo, markPickCard, markBeat: () => _markBeat, markHeld: () => _markPick,
+    markGo, markPickCard, markBeat: () => (_markPick == null ? 1 : 2),
+    // …still a CARD id, because that is what a caller means by "held"
+    markHeld: () => { const a = markAnswers()[_markPick]; return a ? a.card : null; },
+    markAnswers,
     sigilFork, markForkNow: () => (RUN && RUN.sigilFork) || [],
     swapPick: () => _swapPick, pendingCard: () => _pendingCard, benchSwap,
     PAIRS, BOND_STEPS, BONDS, bondLevel, bondScene, PAIR_NAME,

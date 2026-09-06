@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=179" />
+  <link rel="stylesheet" href="styles.css?v=180" />
 </head>
 <body>
   <div id="k-scale">
@@ -377,25 +377,19 @@
         <span id="k-mark-line"></span>
       </header>
       <p id="k-mark-say"></p>
-      <!-- TWO BEATS, BECAUSE THEY ARE TWO DIFFERENT THINGS. The moment — the
-           two of them and the mark burning between them — was sharing 430px
-           with the ten-card decision, so the scene got two thirds of the board
-           and the cards were shrunk to 62% and stacked five to a half-width
-           column: unreadable, and crammed against the bottom edge. The scene
-           gets the screen it deserves, then hands over to a chooser built the
-           way every other trade in this game is built — scannable rows on the
-           left, the card itself at full size on the right. -->
-      <!-- WHICH MARK, THEN WHICH CARD (Build 110). A mark used to be handed
-           over: the player chose the card it landed on and never which one it
-           was, which made the game's most build-defining system a delivery
-           schedule. The moment ends on a fork now, the same way every other
-           conversation on this road does. -->
-      <div id="k-mark-fork"></div>
+      <!-- ONE SCREEN, AND THE CARDS ARE THE ANSWERS (Build 180).
+           This was two pages: a fork of two marks, then a list of ten cards in
+           two columns with a preview panel beside it. The player chose a rule
+           off a menu and then chose which of their fifteen cards to spend it
+           on, which is a spreadsheet operation performed at the exact moment
+           two characters have just said something to each other.
+           The bond already knows WHICH TWO of them this was about, and each of
+           them has an obvious card for the mark to land on. So there is one
+           question — what does this settle, and for WHICH of you — and the two
+           answers are drawn as cards, wearing the mark they carry, with the
+           line that gets said above them. The card IS the answer. -->
       <p id="k-mark-ask"></p>
-      <div id="k-mark-cols"></div>
-      <div id="k-mark-go-row">
-        <button type="button" id="k-mark-place" disabled>PICK A CARD</button>
-      </div>
+      <div id="k-mark-fan"></div>
     </section>
     <!-- THE TITLE. The game used to open on the awakening — a fork with three
          cards on it, before the player has been told what any of this is. A
@@ -536,13 +530,13 @@
     setTimeout(check, 2500);
   })();
   </script>
-  <script src="run.js?v=179"></script>
-  <script src="game.js?v=179"></script>
+  <script src="run.js?v=180"></script>
+  <script src="game.js?v=180"></script>
   <!-- THE CAST IN THREE DIMENSIONS — a module, and inert unless ?cast=3d.
        It draws one canvas under the DOM heroes and paints a rigged figure
        into each hero's box; everything above it (rows, drag, aim, popups,
        the party HUD) is untouched. -->
-  <script type="module" src="cast3d.js?v=179"></script>
+  <script type="module" src="cast3d.js?v=180"></script>
   <script>
     // ── FIT THE 932x430 DESIGN SPACE TO THE PART OF THE SCREEN THAT IS ONE ──
     //

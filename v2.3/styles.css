@@ -2931,7 +2931,7 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
 #k-mark-cast { position: absolute; left: 50%; top: 84px; z-index: 1;
   transform: translateX(-50%); display: flex; align-items: flex-end; gap: 168px;
   pointer-events: none; }
-.k-mkc-fig { width: auto; height: 196px; object-fit: contain;
+.k-mkc-fig { width: auto; height: 170px; object-fit: contain;
   filter: brightness(1.18) contrast(1.06) drop-shadow(0 10px 22px rgba(0,0,0,0.9));
   animation: k-mkc-in 720ms cubic-bezier(.2,.85,.3,1) both; }
 .k-mkc-a { transform: scaleX(-1); }            /* they face each other */
@@ -2942,7 +2942,7 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
   to { opacity: 1; transform: scaleX(-1); } }
 /* THE MARK ITSELF, burning between them. This is the object the whole screen
    exists to hand over, so it is drawn as an object and not as a heading. */
-#k-mark-seal { position: absolute; left: 50%; top: 74px; z-index: 2; transform: translate(-50%, 0);
+#k-mark-seal { position: absolute; left: 50%; top: 54px; z-index: 2; transform: translate(-50%, 0);
   width: 62px; height: 62px; border-radius: 50%; display: grid; place-items: center;
   background: radial-gradient(circle at 50% 42%, rgba(24,20,16,0.94), rgba(8,7,10,0.9));
   border: 1px solid var(--sig, #e8cf95); color: var(--sig, #e8cf95);
@@ -2967,10 +2967,13 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
   text-shadow: 0 2px 12px rgba(0,0,0,0.95); }
 #k-mark-title { font: 600 26px/1 var(--serif, Georgia, serif); letter-spacing: 0.3em;
   color: var(--sig, #e8cf95); text-indent: 0.3em; }
-#k-mark-line { font: italic 400 12.5px/1.3 var(--serif, Georgia, serif); color: #b6ab97; }
+/* the same band the narration uses, and never at the same time as it */
+#k-mark-line { min-height: 0; font: italic 400 12.5px/1.3 var(--serif, Georgia, serif);
+  color: #b6ab97; }
+#k-mark-line:empty { display: none; }
 /* WHAT PASSED BETWEEN THEM — the one line that makes this a moment rather than
    a menu. It sits under the figures, where a subtitle sits. */
-#k-mark-say { position: absolute; left: 50%; top: 286px; z-index: 3; margin: 0;
+#k-mark-say { position: absolute; left: 50%; top: 62px; z-index: 3; margin: 0;
   transform: translateX(-50%); max-width: 640px; text-align: center;
   font: italic 400 13.5px/1.35 var(--serif, Georgia, serif); color: #d9d0be;
   text-shadow: 0 2px 10px rgba(0,0,0,0.95);
@@ -2981,141 +2984,78 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    to a half-width column: unreadable, and hanging off the bottom edge. The
    moment gets the whole board and hands over to a chooser built the way every
    other trade in this game is built. */
-#k-mark.k-mk-beat1 #k-mark-ask,
-#k-mark.k-mk-beat1 #k-mark-cols,
-#k-mark.k-mk-beat1 #k-mark-go-row { display: none; }
-#k-mark.k-mk-beat2 #k-mark-go { display: none; }
+/* BOTH BEATS SHARE THE BOARD NOW. The scene used to be hidden outright for
+   the decision, because the decision was a two-column list of ten cards and a
+   figure the height of five rows printed straight through it. Two cards at the
+   bottom edge leave the scene its top half, so the two of them stay on screen
+   while the player answers them — dimmed, not deleted. */
 /* THE SCENE IS BEAT ONE'S. Kept behind the decision at 30% it sat directly
    under the two columns of cards — a figure the height of five rows, printed
    through them. The moment has already happened; the mark it handed over is
    named in the title, coloured through the whole screen, and drawn on the card
    face in the panel. */
-#k-mark.k-mk-beat2 #k-mark-cast { display: none; }
-#k-mark.k-mk-beat2 #k-mark-say { display: none; }
-#k-mark.k-mk-beat2 > header { top: 10px; gap: 1px; }
-#k-mark.k-mk-beat2 #k-mark-kind { font-size: 8px; }
-#k-mark.k-mk-beat2 #k-mark-title { font-size: 17px; }
-#k-mark.k-mk-beat2 #k-mark-line { font-size: 11px; }
 
-/* THE ONE DOOR OUT OF THE MOMENT. A cinematic with no visible way forward is a
-   screen the player taps at hopefully; this one says what the next question is
-   before asking it. */
-/* ── THE FORK: which of the two this level teaches ────────────────────────
-   Two cards, side by side, under the figures — the same shape every other
-   conversation on this road ends on. A mark used to be handed over and the
-   player chose only which card wore it; this is the half of the decision the
-   game's most build-defining system was missing. */
-#k-mark-fork { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%);
-  z-index: 4; display: flex; gap: 14px; align-items: stretch; justify-content: center;
+
+/* ── THE FAN: THE ANSWERS ARE THE CARDS (Build 180) ──────────────────────
+   What stood here was a fork of two rule-cards, then a second page holding ten
+   compact rows in two columns plus a before/after preview panel. Two menus,
+   back to back, immediately after two people said something to each other.
+
+   The bond knows which two of them this was and which card of each the mark
+   most changes, so it asks once: what does that settle, and for which of you.
+   Two answers, drawn as the cards they would make, wearing the mark already,
+   with the spoken line above and the rule underneath in the small print. The
+   card is the answer — so it is sized like something you choose, not like a
+   preview of something you chose. */
+/* ABOVE THE SEAL, NOT THROUGH IT. The mark burns at the middle of the figures
+   — 138 to 200 — which is also the gap the fan leaves between its two answers,
+   and that reading is the point: the thing being handed over sits between the
+   two things it could become. The question goes above it. */
+#k-mark-ask { position: absolute; left: 0; right: 0; top: 88px; z-index: 4; margin: 0;
+  text-align: center; font: 600 10px/1 var(--ui, system-ui), sans-serif;
+  letter-spacing: 0.26em; text-transform: uppercase; color: var(--sig, #c9a45c);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.95);
+  animation: k-mkc-in 700ms var(--ease-out) 520ms both; }
+/* THE FAN CLEARS THE BOTTOM EDGE BY ITS OWN ROTATION, NOT BY EYE. A 190px
+   answer tilted five degrees about its bottom centre drops its outer corner
+   93·sin5° ≈ 8px below the container — measured, the small print hung ten
+   pixels past the board. The tilt is 3.5° and the fan sits fourteen up, which
+   is the corner drop plus the four the cards lie down by. */
+#k-mark-fan { position: absolute; left: 50%; bottom: 14px; z-index: 4;
+  transform: translateX(-50%); display: flex; align-items: flex-end; gap: 26px;
   animation: k-mkc-in 700ms var(--ease-out) 620ms both; }
-#k-mark.k-mk-beat2 #k-mark-fork { display: none; }
-.k-mkf { width: 236px; padding: 11px 14px 12px; border-radius: 4px; cursor: pointer;
-  font-family: inherit; text-align: center;
-  display: flex; flex-direction: column; align-items: center; gap: 5px;
-  background: linear-gradient(180deg, rgba(46,38,54,0.94), rgba(22,18,29,0.96));
-  border: 1px solid color-mix(in srgb, var(--mk, #c9a45c) 45%, transparent);
-  box-shadow: 0 8px 22px rgba(0,0,0,0.6);
-  transition: border-color 180ms var(--ease-out), transform 180ms var(--ease-out),
-              box-shadow 180ms var(--ease-out); }
-.k-mkf:hover { transform: translateY(-3px); border-color: var(--mk, #e8cf95);
-  box-shadow: 0 0 26px color-mix(in srgb, var(--mk, #e8cf95) 26%, transparent),
-    0 10px 26px rgba(0,0,0,0.7); }
-.k-mkf i { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
-  color: var(--mk, #e8cf95); border: 1px solid color-mix(in srgb, var(--mk, #e8cf95) 40%, transparent); }
-.k-mkf i svg { width: 15px; height: 15px; display: block; }
-.k-mkf b { font: 600 13px/1 var(--serif, Georgia, serif); letter-spacing: 0.26em;
-  color: var(--mk, #e8cf95); text-indent: 0.26em; }
-.k-mkf span { font: italic 400 10.5px/1.35 var(--serif, Georgia, serif); color: #b6ab97; }
-.k-mkf-retain { --mk: #bcd3ea; } .k-mkf-chain { --mk: #c9b4e4; }
-.k-mkf-combo  { --mk: #e9d49a; } .k-mkf-rally { --mk: #f0b98a; }
-.k-mkf-surge  { --mk: #f4e3a6; }
-
-#k-mark-go { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 4;
-  padding: 12px 30px; border-radius: 3px; cursor: pointer; font-family: inherit;
-  font: 700 11px/1 var(--ui, system-ui), sans-serif; letter-spacing: 0.22em;
-  color: #f2e8d2; background: linear-gradient(180deg, rgba(58,48,64,0.94), rgba(28,23,36,0.96));
-  border: 1px solid color-mix(in srgb, var(--sig, #e8cf95) 60%, transparent);
-  box-shadow: 0 0 22px color-mix(in srgb, var(--sig, #e8cf95) 22%, transparent),
-    0 8px 22px rgba(0,0,0,0.6);
-  animation: k-mkc-in 700ms var(--ease-out) 620ms both; }
-#k-mark-go:hover { color: #fff; border-color: var(--sig, #e8cf95); }
-
-#k-mark-ask { position: absolute; left: 0; right: 0; top: 66px; z-index: 3; margin: 0;
-  text-align: center;
-  font: 600 8.5px/1 var(--serif, Georgia, serif); letter-spacing: 0.28em; color: #8d8478;
-  text-shadow: 0 1px 6px rgba(0,0,0,0.95); }
-/* TEN CARDS HAVE TO BE SCANNABLE AND ONE HAS TO BE READABLE — which is the
-   trade screen's split exactly, and this is the trade screen's question. */
-#k-mark-cols { position: absolute; left: 20px; right: 20px; top: 88px; bottom: 62px; z-index: 3;
-  display: grid; grid-template-columns: 1fr 1fr 248px; gap: 16px;
-  animation: k-mkc-in 420ms var(--ease-out) both; }
-.k-mk-col { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.k-mk-col > header { display: flex; align-items: center; gap: 7px; padding-bottom: 2px;
-  position: static; }
-.k-mk-col > header img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover;
-  object-position: 50% 18%; border: 1px solid rgba(201,164,92,0.45);
-  filter: brightness(1.5) contrast(1.12); background: #241f2c; }
-.k-mk-col > header b { font: 600 10px/1 var(--serif, Georgia, serif);
-  letter-spacing: 0.24em; color: #c9a45c; }
-/* the row IS the swap screen's row — same anatomy, same weight, same muscle
-   memory, because "which of these ten" is the same question in both places */
-.k-mk { flex: 1; display: flex; align-items: center; gap: 9px; width: 100%; position: relative;
-  padding: 5px 9px; border-radius: 3px; font-family: inherit; color: inherit; text-align: left;
-  background: rgba(28,24,36,0.9); border: 1px solid rgba(201,164,92,0.2); cursor: pointer;
-  transition: border-color 160ms var(--ease-out), background 160ms var(--ease-out); }
-.k-mk:hover { border-color: rgba(224,192,132,0.5); }
-.k-mk-on { background: color-mix(in srgb, var(--sig, #e8cf95) 16%, rgba(28,24,36,0.9));
-  border-color: var(--sig, #e8cf95) !important; }
-.k-mk-taken { cursor: default; opacity: 0.42; }
-.k-mk-note { flex: none; font: 600 7px/1 var(--serif, Georgia, serif); letter-spacing: 0.14em;
-  color: var(--sig, #e8cf95); }
-/* NOW, AND WHAT IT BECOMES — two full-size faces. This is the comparison the
-   screen exists to offer, and offering it at 62% offered it to nobody. */
-.k-mk-trade { display: flex; flex-direction: column; justify-content: center; gap: 8px;
-  padding-left: 14px; border-left: 1px solid rgba(201,164,92,0.16); }
-.k-mkp-pair { display: flex; align-items: center; justify-content: center; gap: 4px; }
-.k-mkp-slot { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-.k-mkp-slot em { font-style: normal; font-size: 7.5px; letter-spacing: 0.24em;
-  text-transform: uppercase; color: #8d8474; }
-.k-mkp-slot:last-child em { color: var(--sig, #e8cf95); }
-.k-mkp-face { width: 104px; height: 164px; }
-.k-mkp-face .k-card { pointer-events: none; }
-/* nothing picked up yet is a card face down, not a hole in the layout */
-.k-mkp-back { width: 104px; height: 164px; border-radius: 6px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px;
-  border: 1px solid rgba(201,164,92,0.28);
-  background:
-    repeating-linear-gradient(135deg, rgba(201,164,92,0.05) 0 3px, rgba(0,0,0,0) 3px 7px),
-    linear-gradient(180deg, rgba(38,31,48,0.95), rgba(18,15,24,0.98));
-  box-shadow: inset 0 0 0 1px rgba(8,6,12,0.9), 0 6px 16px rgba(0,0,0,0.6); }
-.k-mkp-back i { display: grid; place-items: center; width: 30px; height: 30px;
-  border-radius: 50%; color: rgba(201,164,92,0.5);
-  border: 1px solid rgba(201,164,92,0.22); }
-.k-mkp-back i svg { width: 15px; height: 15px; display: block; }
-.k-mkp-back span { font-size: 7.5px; letter-spacing: 0.18em; color: #6f675b;
-  text-align: center; line-height: 1.8; text-transform: uppercase; }
-.k-mkp-ghost { border-color: color-mix(in srgb, var(--sig, #e8cf95) 40%, transparent); }
-.k-mkp-ghost i { color: var(--sig, #e8cf95);
-  border-color: color-mix(in srgb, var(--sig, #e8cf95) 40%, transparent); }
-.k-mkp-ghost span { color: var(--sig, #e8cf95); }
-.k-mkp-arrow { flex: none; color: #8d8474; }
-.k-mkp-arrow svg { width: 14px; height: 14px; display: block; }
-/* the one number that moves, under the pair it moves between */
-.k-mkp-delta { margin: 0; min-height: 13px; text-align: center;
-  font: 600 10px/1.3 var(--serif, Georgia, serif); letter-spacing: 0.06em;
-  color: var(--sig, #e8cf95); }
-.k-mkp-delta .k-mk-nil { font-style: normal; color: #6d6558; }
-
-#k-mark-go-row { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
-  display: flex; align-items: center; gap: 10px; z-index: 4; }
-#k-mark-place { padding: 11px 26px; border-radius: 3px; cursor: pointer; font-family: inherit;
-  white-space: nowrap; font: 700 11px/1 var(--ui, system-ui), sans-serif; letter-spacing: 0.16em;
-  color: #f2e8d2; background: linear-gradient(180deg, rgba(58,48,64,0.94), rgba(28,23,36,0.96));
-  border: 1px solid color-mix(in srgb, var(--sig, #e8cf95) 60%, transparent); }
-#k-mark-place:hover:not(:disabled) { color: #fff; border-color: var(--sig, #e8cf95); }
-/* a disabled button that says "pick a card" is an instruction wearing a button */
-#k-mark-place:disabled { cursor: default; background: none; box-shadow: none;
-  border-color: transparent; color: #6f675b; font-weight: 600; }
+.k-mka { width: 190px; padding: 0; background: none; border: 0; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; color: inherit;
+  font-family: inherit; transform-origin: 50% 100%;
+  transition: transform 220ms var(--ease-out), opacity 220ms var(--ease-out); }
+/* the two of them lie in the hand the way a hand lies */
+.k-mka-l { transform: rotate(-3.5deg) translateY(4px); }
+.k-mka-r { transform: rotate(3.5deg)  translateY(4px); }
+.k-mka:hover { transform: translateY(-6px) rotate(0deg); }
+/* HELD: lifted, squared up, and lit by its own mark. The other one steps back
+   rather than disappearing — the choice is still a comparison until it is said. */
+.k-mka-on { transform: translateY(-10px) rotate(0deg); }
+.k-mka-on .k-mka-face { box-shadow: 0 0 0 1px var(--sig, #e8cf95),
+  0 0 30px color-mix(in srgb, var(--sig, #e8cf95) 34%, transparent); border-radius: 8px; }
+.k-mka-off { opacity: 0.4; }
+.k-mka-say { width: 184px; min-height: 24px; display: flex; align-items: flex-end;
+  justify-content: center; margin-bottom: 7px; text-align: center;
+  font: 600 11.5px/1.3 var(--serif, Georgia, serif); letter-spacing: 0.04em;
+  color: #e6dbc2; text-shadow: 0 2px 8px rgba(0,0,0,0.95); }
+.k-mka-on .k-mka-say { color: #fdf4de; }
+.k-mka-face { display: block; }
+.k-card-mka { width: 100px; pointer-events: none; }
+.k-mka-gets { display: block; width: 186px; margin-top: 5px; text-align: center;
+  font: 600 7.5px/1.4 var(--ui, system-ui), sans-serif; letter-spacing: 0.13em;
+  text-transform: uppercase; color: #8b8275; }
+.k-mka-gets b { color: var(--sig, #c9a45c); font-weight: 700; }
+.k-mka-gets em { display: block; margin-top: 1px; font-style: normal;
+  letter-spacing: 0.06em; text-transform: none; font-size: 8px; line-height: 1.35;
+  font-family: var(--serif, Georgia, serif); color: #a99f8d; }
+.k-mka-gets em .k-mk-nil { color: #6d6558; }
+/* ── the moment gives the fan room rather than a page of its own ──────── */
+#k-mark.k-mk-beat2 #k-mark-cast { opacity: 0.34; }
+#k-mark.k-mk-beat2 #k-mark-say { opacity: 0.42; }
 
 /* ── THE AWAKENING ────────────────────────────────────────────────────────
    Three memories, one taken. The card is a MEMORY first and a boon second, so

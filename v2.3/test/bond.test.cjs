@@ -299,111 +299,114 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     await sleep(420);
     const marking = await J(() => {
       const up = (id) => !document.getElementById(id).classList.contains('k-hidden');
-      // TWO BEATS (Build 104). The screen opens on the MOMENT — the two of them
-      // and the mark burning between them — and hands over to the decision. So
-      // the walk answers the moment before it can be asked which card.
-      // …AND THE MOMENT ENDS ON A FORK (Build 110). A mark used to be handed
-      // over — the player chose the card and never which mark it was, which
-      // made the run's most build-defining system a delivery schedule. Beat one
-      // offers two, and taking one is what opens the cards.
-      const forks = [...document.querySelectorAll('#k-mark-fork .k-mkf')];
-      const beat1 = { beat: window.R.markBeat(),
-                      cards: document.querySelectorAll('#k-mark-cols .k-mk').length,
-                      forks: forks.length,
-                      offered: forks.map(f => (f.querySelector('b') || {}).textContent),
-                      cast: document.querySelectorAll('#k-mark-cast .k-mkc-fig').length };
-      // take the SECOND, so a fall-through to the default cannot pass by luck
-      forks[forks.length - 1].click();
-      const took = window.R.state().pendingSigil;
-      const cards = [...document.querySelectorAll('#k-mark-cols .k-mk')];
-      // The mark is decided by the pair and the level — ash|mira level 1 —
-      // so the screen's title is checked against the map, not a literal.
-      const want = window.R.sigilFor('ash|mira', 1);
-      return { beat1, beat2: window.R.markBeat(), took,
+      // ONE QUESTION, TWO ANSWERS (Build 180). This was a fork of two rules
+      // followed by a second page listing ten cards in two columns. The bond
+      // already knows which two people it was about and which card of each the
+      // mark most changes, so it asks once and the two answers ARE cards.
+      const fan = [...document.querySelectorAll('#k-mark-fan .k-mka')];
+      const A = window.R.markAnswers();
+      return { beat: window.R.markBeat(),
+               held: window.R.markHeld(),
+               answers: A,
+               offered: fan.length,
+               said: fan.map(f => (f.querySelector('.k-mka-say') || {}).textContent || ''),
+               faces: document.querySelectorAll('#k-mark-fan .k-card').length,
+               marked: document.querySelectorAll('#k-mark-fan .k-card-sig').length,
+               cast: document.querySelectorAll('#k-mark-cast .k-mkc-fig').length,
                onMark: up('k-mark'), onStage: up('k-stage'), onMap: up('k-map'),
-               want, wantName: window.K.SIGILS[want].name.toUpperCase(),
                pending: window.R.state().pendingSigil,
+               fork: window.R.state().sigilFork,
+               // each answer must name a card that speaker actually carries,
+               // and that nothing has marked yet
+               ownOk: A.every(a => (window.R.state().roster[a.hero] || []).indexOf(a.card) >= 0
+                                && !window.R.state().sigils[a.card]),
                title: (document.getElementById('k-mark-title') || {}).textContent,
+               // ONE LINE OF PROSE, NOT TWO. Before an answer is held the
+               // moment's own narration has the band under the title; the
+               // mark's rule takes it after. Never both.
+               say: ((document.getElementById('k-mark-say') || {}).textContent || '').length,
                line: ((document.getElementById('k-mark-line') || {}).textContent || '').length,
+               ask: (document.getElementById('k-mark-ask') || {}).textContent || '',
                // WHAT KIND OF THING THIS IS. The screen opened on a mark's NAME
                // and what that mark does, and never said what a mark IS — so a
                // player met the rule without being told what was happening to
                // them, or that it was permanent.
-               kind: ((document.getElementById('k-mark-kind') || {}).textContent || ''),
-               offered: cards.length,
-               named: cards.filter(c => (c.querySelector('.k-sw-body b') || {}).textContent).length,
-               said: cards.filter(c => ((c.querySelector('.k-sw-body em') || {}).textContent || '').length > 3).length,
-               // nothing is drawn as a face until one is picked up
-               facesIdle: document.querySelectorAll('#k-mark-cols .k-mkp-face').length,
-               backs: document.querySelectorAll('#k-mark-cols .k-mkp-back').length };
+               kind: ((document.getElementById('k-mark-kind') || {}).textContent || '') };
     });
     check('MARK: the debt is settled back on the road — never in the doorway of the next stop',
       marking.onMark && !marking.onStage && !marking.onMap && marking.pending
-      // WHAT THE LEVEL OWES IS NOW A FORK, so the title has to match what was
-      // TAKEN rather than what the table lists first — asserting the default
-      // here would assert the absence of the choice this build added.
-      && marking.pending === marking.took
-      && marking.title === marking.took.toUpperCase()
-      && marking.line > 10,
-      JSON.stringify(marking));
-    check('MARK: the screen opens on the moment — the two of them, and a fork of two marks',
-      marking.beat1.beat === 1 && marking.beat1.cards === 0
-      && marking.beat1.forks === 2 && marking.beat1.cast === 2 && marking.beat2 === 2
-      && marking.beat1.offered.every(n => /\S/.test(n || '')),
-      JSON.stringify(marking.beat1));
-    // WHICH MARK IS THE PLAYER'S, and taking the second has to actually take it
-    check('MARK: the fork is a real choice — taking the second is the mark the run learns',
-      marking.took === marking.beat1.offered[1].toLowerCase()
-      && marking.pending === marking.took,
-      JSON.stringify({ offered: marking.beat1.offered, took: marking.took,
-                       pending: marking.pending })); 
-    // TEN CARDS SCANNABLE, ONE READABLE — the trade screen's split, because it
-    // is the trade screen's question. Ten faces shrunk to 62% and stacked five
-    // to a half-width column was neither.
-    check('MARK: all ten are offered as rows that say what they do, under a line saying what a mark IS',
-      marking.offered === 10 && marking.named === 10 && marking.said === 10
-      && marking.facesIdle === 0 && marking.backs === 2
-      && /MARK/.test(marking.kind) && /REST OF THE RUN/.test(marking.kind),
-      JSON.stringify({ offered: marking.offered, named: marking.named, said: marking.said,
-                       facesIdle: marking.facesIdle, backs: marking.backs, kind: marking.kind }));
+      && marking.say > 10 && marking.line === 0 && /MARK/.test(marking.kind)
+      && /REST OF THE RUN/.test(marking.kind),
+      JSON.stringify({ onMark: marking.onMark, pending: marking.pending,
+                       say: marking.say, line: marking.line, kind: marking.kind }));
+    // NOTHING IS CHOSEN YET, so the header may not name one of the two — that
+    // would be the screen answering its own question.
+    check('MARK: it opens on the moment — the two of them, and a question nobody has answered',
+      marking.beat === 1 && marking.held == null && marking.cast === 2
+      && marking.title === 'WHAT THEY LEARNED'
+      && /WHICH OF THEM/.test(marking.ask),
+      JSON.stringify({ beat: marking.beat, held: marking.held, cast: marking.cast,
+                       title: marking.title, ask: marking.ask }));
+    // THE SHAPE OF THE ANSWER. Two of them, one per person in the bond, each a
+    // different card, each already wearing the mark it would place, each with a
+    // line somebody says above it. All four of those are the design.
+    check('MARK: two answers, one per person, each drawn as the card it would make',
+      marking.offered === 2 && marking.faces === 2 && marking.marked === 2
+      && marking.answers.length === 2
+      && marking.answers[0].hero !== marking.answers[1].hero
+      && marking.answers[0].card !== marking.answers[1].card
+      && marking.answers.every(a => marking.fork.indexOf(a.sigil) >= 0)
+      && marking.said.every(t => t.trim().length > 8),
+      JSON.stringify({ offered: marking.offered, faces: marking.faces,
+                       marked: marking.marked, answers: marking.answers,
+                       fork: marking.fork, said: marking.said }));
+    // …AND IT LANDS ON A CARD THEY ACTUALLY CARRY, unmarked, of that person's.
+    check('MARK: each answer names an unmarked card of its own speaker',
+      marking.ownOk && marking.answers.every(a => a.card && a.sigil && a.hero && a.other),
+      JSON.stringify({ ownOk: marking.ownOk, answers: marking.answers }));
 
-    // NOTHING MAY BE TOO SMALL TO READ, OR FALL OFF THE BOTTOM. The screen this
-    // replaces printed each card's note ACROSS the card it described, scaled all
-    // ten faces to 62%, and hung the row seven pixels past the bottom edge of a
-    // container with `overflow: hidden`.
-    await sleep(700);
+    await sleep(600);
+    // TWO TAPS, BECAUSE IT IS PERMANENT. The first lifts the card and commits
+    // the run to owing THAT mark; the second says it.
     const picked = await J(() => {
       const box = document.getElementById('k-mark').getBoundingClientRect();
-      const first = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
-      const id = first.dataset.id;
-      first.click();                       // the first tap picks it up, and only that
-      const faces = [...document.querySelectorAll('#k-mark-cols .k-mkp-face')];
-      const rows = [...document.querySelectorAll('#k-mark-cols .k-mk')];
+      // take the SECOND, so a fall-through to the default cannot pass by luck
+      const fan = [...document.querySelectorAll('#k-mark-fan .k-mka')];
+      fan[fan.length - 1].click();
+      const want = window.R.markAnswers()[1];
       const spill = [...document.querySelectorAll('#k-mark *')].filter(e => {
         const r = e.getBoundingClientRect();
         return r.width && (r.bottom > box.bottom + 1 || r.right > box.right + 1
                         || r.left < box.left - 1);
       }).length;
-      const place = document.getElementById('k-mark-place');
-      return { id, held: window.R.markHeld(), spent: !!window.R.state().sigils[id],
-               on: !!document.querySelector('#k-mark-cols .k-mk.k-mk-on'),
-               faces: faces.length,
-               faceW: faces[0] ? Math.round(faces[0].getBoundingClientRect().width) : 0,
-               rowPx: rows[0]
-                 ? +parseFloat(getComputedStyle(rows[0].querySelector('.k-sw-body b')).fontSize).toFixed(1)
-                 : 0,
-               placeOff: place.disabled, placeSays: place.textContent, spill };
+      const face = document.querySelector('#k-mark-fan .k-mka-on .k-card');
+      return { beat: window.R.markBeat(), held: window.R.markHeld(),
+               want: want, spent: !!window.R.state().sigils[want.card],
+               on: document.querySelectorAll('#k-mark-fan .k-mka-on').length,
+               dimmed: document.querySelectorAll('#k-mark-fan .k-mka-off').length,
+               pending: window.R.state().pendingSigil,
+               title: (document.getElementById('k-mark-title') || {}).textContent,
+               line: ((document.getElementById('k-mark-line') || {}).textContent || '').length,
+               say: ((document.getElementById('k-mark-say') || {}).textContent || '').length,
+               faceW: face ? Math.round(face.getBoundingClientRect().width) : 0,
+               spill };
     });
-    check('MARK: the first tap picks a card up and draws it twice — as it is, and as it would be',
-      picked.held === picked.id && !picked.spent && picked.on
-      && picked.faces === 2 && picked.faceW >= 96 && picked.placeOff === false,
+    check('MARK: the first tap lifts one answer, dims the other, and owes THAT mark',
+      picked.beat === 2 && picked.held === picked.want.card && !picked.spent
+      && picked.on === 1 && picked.dimmed === 1
+      && picked.pending === picked.want.sigil
+      && picked.title === picked.want.sigil.toUpperCase()
+      && picked.line > 10 && picked.say === 0,
       JSON.stringify(picked));
-    check('MARK: every row is legible and nothing hangs off the screen',
-      picked.rowPx >= 11 && picked.spill === 0, JSON.stringify(picked));
+    check('MARK: the card is big enough to be a choice, and nothing hangs off the screen',
+      picked.faceW >= 100 && picked.spill === 0,
+      JSON.stringify({ faceW: picked.faceW, spill: picked.spill }));
 
     const placed = await J(() => {
       const id = window.R.markHeld();
-      document.getElementById('k-mark-place').click();
+      // the second tap on the same answer is what says it
+      const fan = [...document.querySelectorAll('#k-mark-fan .k-mka')];
+      fan[fan.length - 1].click();
       const r = window.R.state();
       const up = (x) => !document.getElementById(x).classList.contains('k-hidden');
       const all = window.K.rosterIds(r.roster);
@@ -414,7 +417,7 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
                sizes: [r.roster.ash.length, r.roster.elin.length, r.roster.mira.length],
                uniq: new Set(all).size };
     });
-    check('MARK: placing it marks exactly one card the party carries, and spends the grant',
+    check('MARK: saying it marks exactly one card the party carries, and spends the grant',
       placed.sigil && placed.pending == null && placed.marks === 1 && placed.owned
       && placed.sizes.every(n => n === 5) && placed.uniq === 15,
       JSON.stringify(placed));
@@ -465,12 +468,9 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     const payDebt = () => J(() => {
       const on = !document.getElementById('k-mark').classList.contains('k-hidden');
       if (!on) return false;
-      // the moment, which ends on a fork
-      const f0 = document.querySelector('#k-mark-fork .k-mkf');
-      if (f0) f0.click();
-      const btn = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
-      if (btn) btn.click();                                  // pick it up
-      document.getElementById('k-mark-place').click();       // and mark it
+      // one answer, twice: the first tap lifts it, the second says it
+      const a0 = document.querySelector('#k-mark-fan .k-mka');
+      if (a0) { a0.click(); a0.click(); }
       return on;
     });
     // A LEG OF THE ROAD IS A CONVERSATION AND THE STOP IS THE STOP. The walk
