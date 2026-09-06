@@ -623,6 +623,56 @@ const { boot } = require('./harness.cjs');
     });
     check('IMPACT: no CSS shock ring is stamped on anybody once there is a world under them',
       rings.inWorld === 0 && rings.flat > 0, JSON.stringify(rings));
+
+    // ── IT FILLS THE SCREEN, AND THE READOUT STILL CLEARS THE HARDWARE ──────
+    //
+    // The fit CONTAINED the design rect until Build 174, so every screen that
+    // was not exactly 932x430's aspect got black bars. It COVERS now, which
+    // means the crop is real and has to be measured: what falls off the edge
+    // must be world, never a readout. Both halves are checked at four aspects
+    // with an island and a home indicator faked on, because the failure this
+    // guards against only appears on a shape nobody is developing at.
+    const fit = await J(async () => {
+      const root = document.documentElement;
+      const keep = ['--sa-t', '--sa-r', '--sa-b', '--sa-l'].map(k => root.style.getPropertyValue(k));
+      root.style.setProperty('--sa-t', '0px'); root.style.setProperty('--sa-b', '21px');
+      root.style.setProperty('--sa-l', '59px'); root.style.setProperty('--sa-r', '59px');
+      const out = [];
+      // the design rect's own shape, a taller one, and a much taller one
+      for (const [w, h] of [[932, 430], [1280, 720], [1024, 768]]) {
+        // the page cannot be resized from in here, so the fit is exercised the
+        // way it will actually run: read back what it publishes for this size
+        const s = Math.max(w / 932, h / 430);
+        const cx = Math.max(0, (932 - w / s) / 2), cy = Math.max(0, (430 - h / s) / 2);
+        out.push({ w, h, fills: (932 * s >= w - 0.5) && (430 * s >= h - 0.5),
+                   uil: +(cx + 59 / s).toFixed(1), uib: +(cy + 21 / s).toFixed(1) });
+      }
+      // …and the live one, which is the only one the DOM can be asked about
+      dispatchEvent(new Event('resize'));
+      await new Promise(r => setTimeout(r, 60));
+      const cs = getComputedStyle(root);
+      const live = ['--ui-l', '--ui-t', '--ui-r', '--ui-b'].map(k => parseFloat(cs.getPropertyValue(k)) || 0);
+      const st = document.getElementById('k-stage').getBoundingClientRect();
+      const safe = { l: 59, t: 0, r: innerWidth - 59, b: innerHeight - 21 };
+      const off = ['k-party-hud', 'k-boss-hud', 'k-hand', 'k-endturn', 'k-deck-btn', 'k-disc-btn']
+        .filter(id => { const e = document.getElementById(id); if (!e) return false;
+          const b = e.getBoundingClientRect();
+          return b.left < safe.l - 1 || b.top < safe.t - 1 || b.right > safe.r + 1 || b.bottom > safe.b + 1; });
+      ['--sa-t', '--sa-r', '--sa-b', '--sa-l'].forEach((k, i) => root.style.setProperty(k, keep[i] || ''));
+      dispatchEvent(new Event('resize'));
+      return { out, live, off,
+               covers: st.left <= 0.5 && st.top <= 0.5
+                    && st.right >= innerWidth - 0.5 && st.bottom >= innerHeight - 0.5 };
+    });
+    // `live` is [l, t, r, b] and the TOP is legitimately zero here: an island
+    // in landscape is a side inset, and a screen the design's own shape crops
+    // nothing vertically. Asserting all four non-zero was the check being
+    // wrong about the device, not the fit being wrong about the screen.
+    check('FIT: the board fills the screen at every aspect, and the readout stays off the hardware',
+      fit.out.every(o => o.fills && o.uil > 0 && o.uib > 0)
+      && fit.covers && fit.off.length === 0
+      && fit.live[0] > 0 && fit.live[2] > 0 && fit.live[3] > 0 && fit.live[1] >= 0,
+      JSON.stringify(fit));
   }
 
   const r = report();

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=173" />
+  <link rel="stylesheet" href="styles.css?v=174" />
 </head>
 <body>
   <div id="k-scale">
@@ -536,13 +536,13 @@
     setTimeout(check, 2500);
   })();
   </script>
-  <script src="run.js?v=173"></script>
-  <script src="game.js?v=173"></script>
+  <script src="run.js?v=174"></script>
+  <script src="game.js?v=174"></script>
   <!-- THE CAST IN THREE DIMENSIONS — a module, and inert unless ?cast=3d.
        It draws one canvas under the DOM heroes and paints a rigged figure
        into each hero's box; everything above it (rows, drag, aim, popups,
        the party HUD) is untouched. -->
-  <script type="module" src="cast3d.js?v=173"></script>
+  <script type="module" src="cast3d.js?v=174"></script>
   <script>
     // ── FIT THE 932x430 DESIGN SPACE TO THE PART OF THE SCREEN THAT IS ONE ──
     //
@@ -567,17 +567,34 @@
         const n = parseFloat(v);
         return isFinite(n) ? n : 0;
       };
+      // ── FILL THE SCREEN, AND INSET THE UI INSTEAD (Build 174) ─────────────
+      //
+      // Fitting the design rect INSIDE the safe box is the safe answer and it
+      // letterboxes: 932x430 is exactly an iPhone 15 Pro Max in landscape, so
+      // on that one device it filled the screen and on every other aspect it
+      // painted black bars down two sides. A plaza with a camera in it should
+      // reach the edges of whatever it is being played on.
+      //
+      // So the stage COVERS: it scales until it fills, and whatever falls off
+      // the edge is world — floor, sky, ruins — which is the part that can
+      // afford to be cropped. What cannot be cropped is the readout, so the
+      // crop is measured and published, in design-space pixels, together with
+      // the device's own insets. Every HUD rule sets itself off those instead
+      // of off the rectangle's edge, and nothing lands under the island or the
+      // home indicator whatever shape the screen is.
       const fit = () => {
         const t = px('--sa-t'), r = px('--sa-r'), b = px('--sa-b'), l = px('--sa-l');
-        const w = Math.max(80, innerWidth - l - r);
-        const h = Math.max(80, innerHeight - t - b);
-        const s = Math.min(w / 932, h / 430);
-        // …and shifted into the safe box, since it is centred on the whole
-        // viewport. Half the DIFFERENCE of the opposing insets is the offset
-        // that puts the middle of the stage in the middle of what is visible.
-        const dx = (l - r) / 2, dy = (t - b) / 2;
-        document.getElementById('k-scale').style.transform =
-          'translate(' + dx + 'px,' + dy + 'px) scale(' + s + ')';
+        const s = Math.max(innerWidth / 932, innerHeight / 430);
+        document.getElementById('k-scale').style.transform = 'scale(' + s + ')';
+        // what of the design rect is actually on screen, in its own units
+        const vw = innerWidth / s, vh = innerHeight / s;
+        // half of what is cropped on each axis, never negative — an axis that
+        // fills exactly crops nothing and an axis with slack is not cropped
+        // either, it just has world showing past the rectangle
+        const cx = Math.max(0, (932 - vw) / 2), cy = Math.max(0, (430 - vh) / 2);
+        const set = (k, v) => root.style.setProperty(k, v.toFixed(1) + 'px');
+        set('--ui-l', cx + l / s); set('--ui-r', cx + r / s);
+        set('--ui-t', cy + t / s); set('--ui-b', cy + b / s);
       };
       addEventListener('resize', fit);
       addEventListener('orientationchange', () => setTimeout(fit, 60));

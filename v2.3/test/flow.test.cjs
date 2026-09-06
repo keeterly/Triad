@@ -763,7 +763,7 @@ const { boot } = require('./harness.cjs');
       const rows = window.K.intentByTarget();
       const chips = [...document.querySelectorAll('.k-tell .k-ichip-atk')].map(c => ({
         n: (c.querySelector('b') || {}).textContent,
-        mul: (c.querySelector('i') || {}).textContent || '',
+        mul: (c.querySelector('.k-tell-x') || {}).textContent || '',
         // WHAT MOVED: the chip carried the target as a 17px circular crop of
         // their head, so "who is about to be hit" — the single most important
         // fact on the screen — was seventeen pixels of dark hair on dark
@@ -800,10 +800,12 @@ const { boot } = require('./harness.cjs');
       const nowRow = window.K.ROW_LETTER[window.K.state().heroes[first].row];
       // every badge's number is a number the engine agrees to deal
       const src = window.K.intentBySource();
-      const owed = [];
-      src.forEach(o => o.blows.forEach(b => owed.push(String(b.d))));
+      // …and what a badge owes is that CREATURE'S WHOLE BAR, not one blow of it
+      const owed = src.filter(o => o.blows.length)
+        .map(o => String(o.blows.reduce((n2, b) => n2 + b.d, 0)));
       const shown = [...document.querySelectorAll('.k-tell .k-ichip-atk b')].map(b => b.textContent);
       return { rows, chips, hits: it.hits.length, total, letters,
+               sources: window.K.intentBySource().filter(o => o.blows.length).length,
                agrees: owed.slice().sort().join(',') === shown.slice().sort().join(','),
                owed, shown,
                live: { first, was, nowRow, before, after, changed: was !== nowRow } };
@@ -981,10 +983,16 @@ const { boot } = require('./harness.cjs');
     // two chips fit, and two marks in a row is how a player counts blows
     // without doing arithmetic. The Hymn strikes Ash twice and Elin once, so
     // this is three chips reading 9F 9F 9M — not two.
-    check('TELEGRAPH: one chip per BLOW — a hero struck twice shows two marks, not a ×2',
-      tel.chips.length === tel.hits && tel.hits >= 3
-      && tel.chips.every(c => !c.mul),
-      JSON.stringify({ chips: tel.chips.length, hits: tel.hits,
+    // INVERTED AT BUILD 174, and the inversion is the point. One chip per BLOW
+    // is right in a strip with a whole sky to run along and wrong over a head:
+    // the Hymn is a double plus a long note plus the dirge, so one creature
+    // wore four marks and two creatures wore seven readings for a turn with
+    // two decisions in it. A creature says one thing, and the count survives
+    // as a multiplier — "30 x3" is one object where three chips were three.
+    check('TELEGRAPH: one chip per CREATURE — a bar of three blows is one mark and a ×3',
+      tel.chips.length === tel.sources && tel.hits >= 3
+      && tel.chips.some(c => /×\d/.test(c.mul || '')),
+      JSON.stringify({ chips: tel.chips.length, sources: tel.sources, hits: tel.hits,
                        muls: tel.chips.map(c => c.mul) }));
     // NO PLACE AT ALL (Build 171). The badge hangs over the creature throwing
     // the blow, so naming a lane on it would be the readout pointing at a
@@ -1002,10 +1010,12 @@ const { boot } = require('./harness.cjs');
       JSON.stringify(tel.live));
     // the numbers are still PER BLOW, the same grammar the player's own cards
     // use — each chip carries what that one blow lands for
-    check('TELEGRAPH: every chip carries what THAT blow lands for',
-      tel.rows.every(r => r.hits.every(d =>
-        tel.chips.some(c => +c.n === d))),
-      JSON.stringify({ chips: tel.chips, rows: tel.rows }));
+    // …AND WHAT A CHIP CARRIES IS ITS CREATURE'S WHOLE BAR (Build 174). Per
+    // BLOW was the old contract; the badge is one reading now, so what has to
+    // hold is that the readings add up to the volley the engine will throw.
+    check('TELEGRAPH: the chips add up to exactly the volley that is coming',
+      tel.chips.reduce((n2, c) => n2 + (+c.n || 0), 0) === tel.total,
+      JSON.stringify({ chips: tel.chips, total: tel.total }));
     check('TELEGRAPH: the per-target numbers still add up to the volley',
       tel.rows.reduce((n, r) => n + r.total, 0) === tel.total,
       JSON.stringify({ sum: tel.rows.reduce((n, r) => n + r.total, 0), total: tel.total }));
@@ -2688,7 +2698,8 @@ const { boot } = require('./harness.cjs');
         clipped, worstOver,
         overHead, oneLine, noBanner, iconed, noWords, chipN: chips.length,
         preview: window.K.intentPreviewDmg(),
-        dirge: !!document.querySelector('.k-tell .k-ichip-dirge'),
+        // the hymn is a qualifier ON the reading now, not a reading of its own
+        dirge: !!document.querySelector('.k-tell .k-ichip-dirge, .k-tell .k-tell-all'),
         atk: (document.querySelector('.k-tell .k-ichip-atk b') || {}).textContent,
         // one chip per hero struck: the numbers must ADD UP to the volley, and
         // no single chip is expected to equal it any more
@@ -2696,7 +2707,7 @@ const { boot } = require('./harness.cjs');
           === window.K.intentPreviewDmg(),
         // …and it names NOBODY now — the badge is standing on its own answer
         hasTargetFace: !!document.querySelector('.k-tell .k-ichip-atk u'),
-        hasDirge: !!document.querySelector('.k-tell .k-ichip-dirge') };
+        hasDirge: !!document.querySelector('.k-tell .k-ichip-dirge, .k-tell .k-tell-all') };
     });
     // `hasTargetFace` INVERTED at Build 171 and the flip is the point: the
     // badge is over the creature throwing the blow, so a lane letter on it

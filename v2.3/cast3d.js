@@ -3684,9 +3684,20 @@ const Cast3D = (() => {
     // a cant that crosses zero rather than easing toward it, so the frame is
     // still rolling when the weapon arrives. It also drops lower into the
     // contact, which is the difference between watching a hit and being at it.
-    strike:    { az: -30, dist: 6.70, height: 1.52, aimY: 1.52, roll: -5, fov: 57,
+    // ── AND IT DOES NOT MAKE THE CAMERA TRAVEL TO GET THERE (Build 174) ──
+    //
+    // The tripod eases at a RATE, so the further a shot's opening pose is from
+    // where the camera is standing, the longer it takes to arrive — and Build
+    // 173 moved home a metre back, which lengthened every one of those trips
+    // at once. That is the delay: not the shot, the commute to it.
+    //
+    // The sweep is unchanged at 26 degrees; what changed is where it starts.
+    // It opens close to the board's own angle and travels the whole distance
+    // in its `to`, so the frame is moving from the first frame of the swing
+    // instead of hurrying across the plaza to a mark and then moving.
+    strike:    { az: -13, dist: 7.30, height: 1.68, aimY: 1.54, roll: -2, fov: 55,
                  at: 'foe',
-                 to: { az: -4, dist: 5.30, height: 1.18, aimY: 1.46, roll: 3.5, fov: 62 },
+                 to: { az: 12, dist: 5.60, height: 1.22, aimY: 1.46, roll: 4, fov: 62 },
                  over: 880 },
     // …and mercy is the opposite shot in every respect — further back, higher,
     // on the party rather than on what it is hitting, because a heal is not an
@@ -3711,8 +3722,8 @@ const Cast3D = (() => {
     // COMMIT is the first half of a duo: low, off the line, close enough that
     // the hero filling it reads as a person rather than a rank, and pushing in
     // while they wind up.
-    commit:    { az: -38, dist: 4.10, height: 1.18, aimY: 1.44, roll: -7, fov: 58,
-                 to: { az: -14, dist: 4.60, height: 1.42, roll: 2, fov: 62 },
+    commit:    { az: -22, dist: 5.60, height: 1.44, aimY: 1.44, roll: -4, fov: 56,
+                 to: { az: 2, dist: 4.30, height: 1.26, roll: 3, fov: 62 },
                  over: 860 },
     // ANSWER is the cut: the other side of the line, the opposite cant, and it
     // arrives already moving. Cutting to a still frame after a moving one is
@@ -6686,7 +6697,9 @@ const Cast3D = (() => {
       }
       Object.assign(SHOT, next);
       shotAt = now();                       // a move starts travelling from here
-      shotSpeed = (opts && opts.speed) || 1.6;
+      // A SHOT WITH NO SPEED OF ITS OWN USED TO CRAWL. 1.6 was set against a
+      // 7.35 m home; every stance change since has had further to walk.
+      shotSpeed = (opts && opts.speed) || 2.1;
       return true;
     },
     shots: () => Object.keys(SHOTS),

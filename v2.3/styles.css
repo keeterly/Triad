@@ -36,6 +36,15 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   --sa-r: env(safe-area-inset-right, 0px);
   --sa-b: env(safe-area-inset-bottom, 0px);
   --sa-l: env(safe-area-inset-left, 0px);
+  /* ── WHERE THE READOUT MAY STAND (Build 174) ────────────────────────────
+     The stage COVERS the screen now, so two things can push a HUD element off
+     the edge: the device's own insets, and the part of the design rectangle
+     that is cropped because the screen is a different shape. The fit measures
+     both, converts them into design-space pixels and writes them here; every
+     rule anchored to an edge adds the one it is anchored to. Zero on a screen
+     that is exactly the design's shape with no notch, which is why the
+     defaults are what they are. */
+  --ui-t: 0px; --ui-r: 0px; --ui-b: 0px; --ui-l: 0px;
 }
 #k-scale { position: absolute; left: 50%; top: 50%; width: 932px; height: 430px;
   margin: -215px 0 0 -466px; transform-origin: 50% 50%; }
@@ -144,14 +153,14 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
    than a tint on the body itself: the creature keeps its own colour, and the
    mark sits where a reticle would sit. Only ever drawn when there is a choice
    to make — a line of one has nothing to aim between. */
-.k-foe-aimed::after { content: ''; position: absolute; left: 50%; bottom: 2px;
-  width: 108px; height: 26px; margin-left: -54px; border-radius: 50%;
-  border: 1.5px solid rgba(201,164,92,0.85);
-  box-shadow: 0 0 14px rgba(201,164,92,0.35), inset 0 0 10px rgba(201,164,92,0.2);
-  animation: k-aim-ring 2.4s var(--ease-soft, cubic-bezier(0.4,0,0.2,1)) infinite;
-  pointer-events: none; }
-@keyframes k-aim-ring { 0%, 100% { opacity: 0.55; transform: scaleX(1); }
-                        50% { opacity: 0.95; transform: scaleX(1.06); } }
+/* NO RING ON THE FLOOR (Build 174). A pulsing ellipse under the aimed
+   creature was the only mark on the board that belonged to the UI rather than
+   to the world — it sat on the water, it did not take the plaza's light, and
+   with the camera stepped back it read as a decal on the floor rather than a
+   reticle. Which creature the cards are pointed at is still said twice: the
+   roster row lights, and the aimed creature's badge carries the mark below. */
+.k-foe-aimed .k-fig { filter: drop-shadow(0 0 10px rgba(224,192,132,0.35)); }
+
 /* SPENT. A body that has gone down keeps its place on the floor and stops
    answering the pointer — it is scenery now, and the survivors do not slide
    into the gap it left. */
@@ -472,7 +481,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-hpnum { font-size: 12px; color: #9a9080; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
 .k-hpnum b { font-weight: 600; font-size: 13px; color: #e6ddc8; }
 
-#k-party-hud { position: absolute; left: 16px; top: 14px; width: 190px; display: flex; flex-direction: column; gap: 10px; z-index: 10; }
+#k-party-hud { position: absolute; left: calc(16px + var(--ui-l)); top: calc(14px + var(--ui-t)); width: 190px; display: flex; flex-direction: column; gap: 10px; z-index: 10; }
 .k-pt-hero { display: flex; align-items: flex-start; gap: 9px; transition: opacity 0.3s var(--ease-out), filter 0.3s var(--ease-out); }
 /* MEDALLIONS. A rounded rectangle reads as a UI tile; a ringed circle reads
    as a portrait, which is what it is. */
@@ -508,7 +517,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    and "THE REST GETS THROUGH" print dead centre. The badges do not need the
    roster to move: `_tellFloor` already stops any badge climbing into it, and
    the camera pulling back gives the back rank real sky of its own. */
-#k-boss-hud { position: absolute; right: 16px; left: auto; top: 10px; width: 268px;
+#k-boss-hud { position: absolute; right: calc(16px + var(--ui-r)); left: auto; top: calc(10px + var(--ui-t)); width: 268px;
   display: flex; flex-direction: column; align-items: flex-end; gap: 3px; z-index: 10; }
 .k-foe-plate { display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
   width: 100%; }
@@ -691,7 +700,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    rather than 4x — and the legibility that actually mattered was never the
    size, it was knowing which of these marks the card in your hand is about to
    take (see .k-ap-going). */
-#k-ap { position: absolute; left: 50%; bottom: 5px; transform: translateX(-50%);
+#k-ap { position: absolute; left: 50%; bottom: calc(5px + var(--ui-b)); transform: translateX(-50%);
   z-index: 15; display: flex; align-items: center; justify-content: center;
   border-radius: 999px;
   box-shadow: 0 0 16px 9px rgba(10,8,6,0.6);
@@ -764,7 +773,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    the one number gating every decision was the smallest thing on the board.
    There is no arrangement where a 12px row both clears that card and stays off
    the screen edge, so the fan gives up seven pixels it was not using. */
-#k-hand { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%);
+#k-hand { position: absolute; left: 50%; bottom: calc(20px + var(--ui-b)); transform: translateX(-50%);
   display: flex; gap: 5px; align-items: flex-end; z-index: 14;
   perspective: 760px; perspective-origin: 50% 130%; }
 #k-hand .k-card-active { margin-bottom: 0; }
@@ -1195,11 +1204,11 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-pile-note b { color: #cfc8ba; }
 
 /* ── the two piles: real stacks, tappable, with a live count ── */
-.k-pile { position: absolute; bottom: 14px; width: 50px; height: 68px; z-index: 13;
+.k-pile { position: absolute; bottom: calc(14px + var(--ui-b)); width: 50px; height: 68px; z-index: 13;
   background: none; border: none; padding: 0; cursor: pointer; font-family: inherit;
   -webkit-tap-highlight-color: transparent; }
-#k-deck-btn { left: 22px; }
-#k-disc-btn { right: 22px; }
+#k-deck-btn { left: calc(22px + var(--ui-l)); }
+#k-disc-btn { right: calc(22px + var(--ui-r)); }
 /* the stack itself — three worn card backs, fanned */
 /* OUTLINED STACKS. Two filled slabs in the bottom corners were reading as
    panels of chrome; drawn as three hairline rectangles they read as what they
@@ -1240,7 +1249,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    hierarchy for a button you press when you have nothing left to do. It is a
    dark plate with a gold rule now, like everything else on the board. */
 /* a word with a rule under it, not a slab — the board has no other buttons */
-#k-endturn { position: absolute; right: 16px; bottom: 96px; min-width: 104px; height: 34px;
+#k-endturn { position: absolute; right: calc(16px + var(--ui-r)); bottom: calc(96px + var(--ui-b)); min-width: 104px; height: 34px;
   background: none; border: 0; border-bottom: 1px solid rgba(201,164,92,0.55); border-radius: 0;
   font-family: inherit; font-size: 12px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase;
   color: #e6d3a4; cursor: pointer; padding: 0 2px 6px; box-shadow: none; z-index: 14;
@@ -4496,3 +4505,17 @@ body.k-cast3d .k-hero.k-row-front img { filter: none; }
 .k-pip-chill  { color: #a8d4e8; }
 .k-pip-bleed  { color: #e0908c; }
 .k-pip-stag   { color: #ffd68a; box-shadow: 0 0 0 1px rgba(255,214,138,0.45); }
+
+/* WHICH ONE THE CARDS ARE POINTED AT, on the badge rather than on the floor.
+   A hairline under the reading — the least a mark can be and still be a mark. */
+.k-tell[data-aimed="1"] .k-ichip { box-shadow: 0 2px 0 -1px rgba(224,192,132,0.85); }
+
+/* ── THE QUALIFIERS ON A SINGLE-ICON TELEGRAPH (Build 174) ─────────────────
+   Both hang off the one reading rather than becoming readings of their own:
+   the multiplier says how many times, the ALL says the hymn is coming as well
+   and reaches everybody. Small on purpose — the number is the sentence and
+   these are its punctuation. */
+.k-tell-x { font-style: normal; font-size: 12px; font-weight: 700; color: #cfc4ae;
+  margin-left: 2px; text-shadow: 0 1px 3px #000; }
+.k-tell-all { font-style: normal; font-size: 9px; letter-spacing: 0.08em; color: #d8bd7e;
+  margin-left: 5px; text-shadow: 0 1px 3px #000; white-space: nowrap; }

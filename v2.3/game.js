@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 173;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 174;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -5391,7 +5391,7 @@ function fxPlayCard(cardId, ev) {
     const hit = 'foe' + ((C && C.aim) || 0);
     const pair = (kind === 'heal' || kind === 'ward') ? null : [heroId, hit];
     castShot(SHOT_FOR[kind], Object.assign(
-      { for: Math.max(760, ms + 420), speed: combo ? 2.2 : 2.9 },
+      { for: Math.max(760, ms + 420), speed: combo ? 3.2 : 3.8 },
       combo ? { dist: kind === 'heal' || kind === 'ward' ? 5.8 : 5.6 } : null,
       pair ? { at: pair } : null));
   }
@@ -6367,7 +6367,16 @@ function placeBodyLabels() {
     // instead, on the same floor rule the badges use.
     const over = e.classList.contains('k-tell') || e.dataset.over === '1';
     e.classList.toggle('k-lbl-over', over);
-    e.style.top = (over ? Math.max(_tellFloor(a.x), a.top - 8) : a.bottom + 4).toFixed(1) + 'px';
+    // …AND THE FLOOR IS A FLOOR FOR THE WHOLE LABEL, NOT ITS BASELINE. A label
+    // that hangs above its body is placed by its BOTTOM edge (translateY of
+    // -100%), so clamping that edge to the readout's underside left the badge
+    // growing upward through the last row of it — measured, ten pixels of the
+    // reading sat on the Grief-Wraith's name. The clamp has to clear the
+    // label's own height as well.
+    const hgt = over ? (e.getBoundingClientRect().height
+                        / ((el('k-stage').getBoundingClientRect().width
+                            / el('k-stage').offsetWidth) || 1)) : 0;
+    e.style.top = (over ? Math.max(_tellFloor(a.x) + hgt, a.top - 8) : a.bottom + 4).toFixed(1) + 'px';
   }
   _spreadTells();
 }
@@ -6490,37 +6499,63 @@ function renderIntent() {
       else if (r.held) chips.push('<span class="k-ichip k-ichip-hold" title="winding up — it swings next turn">'
         + icon('finale') + '<b>…</b></span>');
       else {
-        // ONE MARK PER BLOW. Two marks in a row is how a player counts a double
-        // without doing arithmetic, and it is why the Hymn's double toll has to
-        // stay two chips rather than collapse to a multiplier.
-        r.blows.forEach((b, i) => {
-          chips.push('<span class="k-ichip k-ichip-atk k-w' + b.w + '" data-elem="' + b.elem + '">'
-            + icon(TELL_ICON[b.elem] || 'swords')
-            + '<b>' + fmtN(b.d) + '</b>'
+        // ── ONE ICON PER CREATURE (Build 174) ──────────────────────────────
+        //
+        // It printed a chip per BLOW, which is right in a strip that has a
+        // whole sky to run along and wrong over a head. The Hymn is a double
+        // plus a long note plus the dirge: four marks, stacked over one body,
+        // beside a second creature wearing three more. Seven readings for a
+        // turn with two decisions in it — which is what "double telegraphing"
+        // and "messy" name.
+        //
+        // A creature says ONE thing now: what kind of blow, and how much. The
+        // count survives as a multiplier rather than as repetition — "12 x2"
+        // is how a player counts blows without doing arithmetic, and it is one
+        // object instead of two. The kind is taken from the HEAVIEST blow,
+        // because that is the one the answer has to be chosen against.
+        const blows = r.blows;
+        const total = blows.reduce((n2, b) => n2 + b.d, 0);
+        const lead = blows.reduce((a, b) => (!a || b.d > a.d) ? b : a, null);
+        if (blows.length && lead) {
+          // …and the weight is read off the TOTAL, not off one hit of it. Three
+          // fours in a row is a twelve, and a bar that showed three light marks
+          // would be telling the player they were safe.
+          const w = tellWeight(total, lead.who);
+          chips.push('<span class="k-ichip k-ichip-atk k-w' + w + '" data-elem="' + lead.elem + '">'
+            + icon(TELL_ICON[lead.elem] || 'swords')
+            + '<b>' + fmtN(total) + '</b>'
+            + (blows.length > 1 ? '<i class="k-tell-x">×' + blows.length + '</i>' : '')
             // A STEP AND WHAT IT BUYS. Standing one row back turns the Scything
-            // Advance from 26-34 into 8-12, which is the best single AP in the
-            // game and was invisible before the mark existed.
-            + (r.sweep && i === 0 && r.back < r.total
+            // Advance from 26-34 into 8-12, the best single AP in the game.
+            + (r.sweep && r.back < total
                 ? '<em class="k-ichip-sweep" title="a sweep — one row back and it lands for '
                   + fmtN(r.back) + '">→' + fmtN(r.back) + '</em>' : '')
+            // …AND THE HYMN RIDES THE SAME CHIP. It reaches everyone and no
+            // parry touches it, so it cannot be folded into the number above —
+            // that number is what ONE hero takes. As its own chip it was the
+            // widest thing on the board; as a qualifier it is four characters.
+            + (r.dirge ? '<em class="k-tell-all" title="unblockable, on all three — Guard absorbs it,'
+                       + ' and Breaking her cancels it">+' + fmtN(r.dirge) + ' ALL</em>' : '')
             + '</span>');
-        });
-        if (r.guard) chips.push('<span class="k-ichip k-ichip-guard">' + icon('guard') + '<b>' + fmtN(r.guard) + '</b></span>');
-        if (r.charge) chips.push('<span class="k-ichip k-ichip-charge">' + icon('finale') + '<b>' + fmtN(r.charge) + '</b></span>');
-        if (r.heal) chips.push('<span class="k-ichip k-ichip-heal">' + icon('heal') + '<b>' + fmtN(r.heal) + '</b></span>');
-        // THE HYMN IS THE ONE BLOW YOU CANNOT PARRY, and it has exactly two
-        // answers — Guard absorbs it, Breaking her cancels it. The two glyphs
-        // that answer it ride the chip, because a mark sharing a vocabulary
-        // with everything you CAN parry reads as a window the game forgot to
-        // open unless it says otherwise.
-        if (r.dirge) chips.push('<span class="k-ichip k-ichip-dirge">' + icon('dirge')
-          + '<b>' + fmtN(r.dirge) + '</b><u>ALL</u>'
-          + '<span class="k-ichip-ans" title="Guard absorbs it, and Breaking her cancels it">'
-          + icon('guard') + icon('brk') + '<i class="k-sr">Guard or Break</i></span></span>');
+        } else if (r.heal) {
+          chips.push('<span class="k-ichip k-ichip-heal">' + icon('heal') + '<b>' + fmtN(r.heal) + '</b></span>');
+        } else if (r.guard) {
+          chips.push('<span class="k-ichip k-ichip-guard">' + icon('guard') + '<b>' + fmtN(r.guard) + '</b></span>');
+        } else if (r.charge) {
+          chips.push('<span class="k-ichip k-ichip-charge">' + icon('finale') + '<b>' + fmtN(r.charge) + '</b></span>');
+        } else if (r.dirge) {
+          // a creature whose whole turn is the hymn: the hymn IS its icon
+          chips.push('<span class="k-ichip k-ichip-dirge">' + icon('dirge')
+            + '<b>' + fmtN(r.dirge) + '</b><u>ALL</u></span>');
+        }
       }
     }
     const t = bodyLabel('tell', 'foe' + F.ix, chips.length > 0);
-    if (t && t.innerHTML !== chips.join('')) t.innerHTML = chips.join('');
+    if (t) {
+      if (t.innerHTML !== chips.join('')) t.innerHTML = chips.join('');
+      // the floor reticle went in Build 174; the badge carries the aim instead
+      t.dataset.aimed = (F.ix === C.aim && !F.dead && C.foes.length > 1) ? '1' : '0';
+    }
   });
   // ── AND A LABEL WHOSE BODY IS GONE GOES WITH IT ───────────────────────────
   //
