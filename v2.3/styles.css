@@ -793,7 +793,22 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    card's own size, and 104x164 was itself tuned (Build 167) against exactly
    this trade — so that is a decision to take deliberately, not a side effect
    of moving something down. */
-#k-hand { position: absolute; left: 50%; bottom: calc(20px + var(--ui-b)); transform: translateX(-50%);
+/* ── THE FAN, TEN PER CENT SMALLER (Build 177) ─────────────────────────────
+   The board's bottom is packed — Build 176 measured two pixels of slack before
+   the cards clip or the AP row collides — so the room the battlefield needs
+   has to come out of the cards' own size rather than their position.
+   It is scaled on the CONTAINER, not by resizing the card. `.k-card` is
+   104x164 and its type is sized in px on purpose: Build 167 shrank the box and
+   deliberately did NOT shrink the rules, "so the type holds its size and
+   simply takes a larger share of a smaller face". Taking another ten per cent
+   off the box alone would have run that text out of it. Scaling the whole fan
+   scales the type with it, keeps every internal proportion the face was tuned
+   at, and costs nothing in hit-testing — every drag, drop and flight already
+   measures rects. From the bottom edge, so the fan grows down into the space
+   it was already allowed and gives the board back the sixteen pixels at the
+   top plus a tenth of its width. */
+#k-hand { position: absolute; left: 50%; bottom: calc(20px + var(--ui-b));
+  transform: translateX(-50%) scale(0.9); transform-origin: 50% 100%;
   display: flex; gap: 5px; align-items: flex-end; z-index: 14;
   perspective: 760px; perspective-origin: 50% 130%; }
 #k-hand .k-card-active { margin-bottom: 0; }
@@ -4567,8 +4582,13 @@ body.k-cast3d .k-hero.k-row-front img { filter: none; }
    Twelve pips at 3px plus their gaps is 47px, which is what makes this fit
    where a second table column used to. */
 .k-lr-poise { display: flex; gap: 1px; flex: none; align-items: center; }
-.k-lr-poise i { width: 3px; height: 6px; border-radius: 1px;
-  background: rgba(120,132,150,0.28); }
+/* SKINNY (Build 177). Fodder gets its gauge back — Break is a real answer to a
+   crowd and taking it away made three of five encounters teach nothing about
+   the mechanic — but a pack readout is a glance, not a study, so the pips are
+   a rail rather than a row of tiles. One vocabulary at two lengths: four for
+   a fodder creature, twelve for the thing the fight is about. */
+.k-lr-poise i { width: 3px; height: 3px; border-radius: 1px;
+  background: rgba(120,132,150,0.3); }
 .k-lr-poise i.on { background: #8fb4d4; box-shadow: 0 0 3px rgba(143,180,212,0.5); }
 .k-lrow .k-lr-stag { flex: none; font-style: normal; font-size: 8px; font-weight: 700;
   letter-spacing: 0.12em; text-transform: uppercase; color: #d99a4e; }

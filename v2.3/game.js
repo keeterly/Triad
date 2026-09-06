@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 176;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 177;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -2289,16 +2289,15 @@ function checkBossPhase(F) {
   }
 }
 // The only door into Broken: any Break damage from any source lands here.
-// POISE IS WHAT A REAL OPPONENT HAS (Build 176). Every creature in the
-// bestiary carried a break gauge, which put a twelve-pip meter on a thing with
-// twenty-one health that dies to two cards — and made three of the five
-// encounters in the game teach that Break is how you handle a crowd, when the
-// mechanic exists so that the ONE thing you cannot out-damage can be opened
-// up. A fodder creature is answered by killing it.
-function canStagger(F) { return !!F && !!F.def && F.def.tier !== 'fight'; }
+// EVERYTHING WITH POISE CAN LOSE IT (Build 177). Build 176 made fodder immune
+// to stagger on the reasoning that a twelve-pip meter over a creature that dies
+// to two cards is clutter — but the clutter was the METER, not the mechanic,
+// and taking the mechanic left every Break atom in the deck inert in three of
+// the five encounters while the card faces went on printing "2 Break". A
+// readout is a drawing problem and was solved by drawing it smaller.
 function breakDamage(n, F) {
   F = F || C.boss;
-  if (n <= 0 || !F || F.dead || !canStagger(F)) return;
+  if (n <= 0 || !F || F.dead) return;
   F.brk = Math.max(0, F.brk - n);
   fxBreak();
   if (F.brk === 0 && !F.broken) {
@@ -6251,9 +6250,8 @@ function renderLineHud() {
   strip.innerHTML = C.foes.map(F => {
     const on = F.ix === C.aim && !F.dead;
     const stag = !F.dead && (F.broken || F.cancelNext);
-    const poise = canStagger(F);
     const pips = [];
-    if (!F.dead && poise) for (let i2 = 0; i2 < F.breakMax; i2++)
+    if (!F.dead) for (let i2 = 0; i2 < F.breakMax; i2++)
       pips.push('<i' + (i2 < F.brk ? ' class="on"' : '') + '></i>');
     return '<button type="button" class="k-lrow' + (on ? ' k-lrow-on' : '')
       + (F.dead ? ' k-lrow-dead' : '') + '" data-ix="' + F.ix + '"'
@@ -6273,9 +6271,8 @@ function renderLineHud() {
       + '<span class="k-lr-bot">'
       +   '<span class="k-bar k-lr-bar"><span class="k-bar-fill k-bar-boss" style="width:'
       +   (F.dead ? 0 : Math.max(0, F.hp / F.max * 100)) + '%"></span></span>'
-      +   (!poise ? ''
-            : stag ? '<em class="k-lr-stag">Staggered</em>'
-                   : '<span class="k-lr-poise">' + pips.join('') + '</span>')
+      +   (stag ? '<em class="k-lr-stag">Staggered</em>'
+                : '<span class="k-lr-poise">' + pips.join('') + '</span>')
       + '</span>'
       + '</button>';
   }).join('');
