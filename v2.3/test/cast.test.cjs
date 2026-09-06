@@ -2933,6 +2933,25 @@ const { boot } = require('./harness.cjs');
     JSON.stringify(glass) + ' — the brightest percentile lifts; a glow that raised '
       + 'the whole frame would be a fog, and the mean does not move');
 
+  // THE PAINTED ELLIPSE UNDER A FIGURE BELONGS TO THE 2D STAGE. In three
+  // dimensions there is a real shadow from a real light, and the painted one
+  // was switched off for the HEROES and nobody else — so the foe kept a blob
+  // under it, and since the plate is stood down on death while the element
+  // stays, that blob was still on the floor after the creature burned away.
+  const blob = await J(() => {
+    const out = {};
+    for (const sel of ['.k-hero[data-hero="ash"] .k-shadow', '#k-boss-art .k-shadow']) {
+      const el = document.querySelector(sel);
+      out[sel.indexOf('hero') >= 0 ? 'hero' : 'foe'] =
+        el ? +getComputedStyle(el).opacity : null;
+    }
+    return out;
+  });
+  check('SHADE: the painted floor blob is off for the foe as well as the party',
+    blob.hero === 0 && blob.foe === 0,
+    JSON.stringify(blob) + ' — computed opacity of the 2D shadow ellipse; the foe '
+      + 'kept its own and it outlived the creature');
+
   console.log('\n── the drawn look ──');
   const ink = await J(async () => {
     const C3 = window.Cast3D;
@@ -3109,6 +3128,39 @@ const { boot } = require('./harness.cjs');
     };
     return { hero: off(S.hero), foe: off(S.foe) };
   });
+  // ── AND EACH BODY STANDS ON ITS OWN MARK ────────────────────────────────
+  //
+  // Collinear marks are not enough: a figure is placed by subtracting the
+  // centre of its rendered SILHOUETTE, which includes whatever it is holding,
+  // so Elin's staff pushed her body off the ring that is supposed to be under
+  // her feet. Measured in screen pixels of the 932-wide stage, the party stood
+  // 6 to 11 px to one side of their marks, all the same way — which is what
+  // reads as three people not quite on their line even when the marks are.
+  const stand = await J(() => {
+    const C3 = window.Cast3D, cam = C3._cam();
+    const V = C3._figure('ash').root.position.constructor;
+    const host = document.getElementById('k-cast').getBoundingClientRect();
+    const px = (x, y, z) => {
+      const v = new V(x, y, z).project(cam);
+      return [(v.x * 0.5 + 0.5) * host.width, (-v.y * 0.5 + 0.5) * host.height];
+    };
+    const out = {};
+    for (const [id, row] of [['elin', 'back'], ['mira', 'mid'], ['ash', 'front']]) {
+      const f = C3._figure(id); if (!f) continue;
+      const S = C3._stage().hero[row];
+      f.root.updateMatrixWorld(true);
+      const eL = f.bones.LeftFoot.matrixWorld.elements, eR = f.bones.RightFoot.matrixWorld.elements;
+      const feet = px((eL[12] + eR[12]) / 2, 0, (eL[14] + eR[14]) / 2);
+      const mark = px(S[0], 0, S[1]);
+      out[id] = +Math.hypot(feet[0] - mark[0], feet[1] - mark[1]).toFixed(1);
+    }
+    return out;
+  });
+  check('LINE: …and each body stands on its own mark, not beside it',
+    Object.keys(stand).length === 3 && Object.values(stand).every(v => v < 8),
+    JSON.stringify(stand) + ' px between a figure feet and the ring it stands in, '
+      + 'on the 932-wide stage; it was 10.4 / 6.1 / 10.9 off the silhouette centre');
+
   check('LINE: the three ranks stand on one line, not an arc',
     !line.err && line.hero < 0.01 && line.foe < 0.01,
     JSON.stringify(line) + ' m — how far the middle mark sits off the line '
@@ -3141,7 +3193,11 @@ const { boot } = require('./harness.cjs');
   for (const c of [{ card: 'serrate', who: 'mira', verb: 'slash' },
                    { card: 'mend', who: 'elin', verb: 'heal' }]) {
     await J(() => startCombat({ foes: ['husk'] }));
-    for (let i = 0; i < 40 && !(await J((w) => !!(window.Cast3D && window.Cast3D._figure(w)), c.who)); i++)
+    // …AND FOR THE FOE, not only for the attacker: the step is aimed at the
+    // enemy, so a card played before the bestiary model arrives measures a
+    // fallback rather than the swing, and a 3.1m run reads as 0.34m.
+    for (let i = 0; i < 40 && !(await J((w) => !!(window.Cast3D && window.Cast3D._figure(w)
+        && window.Cast3D._figure('foe0')), c.who)); i++)
       await sleep(250);
     await sleep(600);
     const r = await J(({ card, who }) => {
@@ -3167,9 +3223,10 @@ const { boot } = require('./harness.cjs');
     step[c.verb] = { ...r, back };
   }
   check('STEP: a swing crosses the floor at the thing it is swung at',
-    step.slash.played === true && step.slash.step > 0.3,
+    step.slash.played === true && step.slash.step > 1.0,
     JSON.stringify(step.slash) + ' — metres, set at play time and timed so the '
-      + 'body is still driving forward on the contact frame');
+      + 'body is still driving forward on the contact frame; a lean is not a run, '
+      + 'so this asks for more than a metre');
   check('STEP: …and comes back to its own mark afterwards',
     step.slash.played === true && step.slash.back < 0.05,
     JSON.stringify(step.slash) + ' — a step that does not return is a party '

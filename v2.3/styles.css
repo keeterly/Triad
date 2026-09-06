@@ -1960,6 +1960,14 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    under the fan, and a lane you cannot see is a lane you cannot aim at */
 #k-hand { transition: transform 0.2s var(--ease-out), opacity 0.2s var(--ease-out); }
 #k-stage.k-moving #k-hand { transform: translateX(-50%) translateY(104px); opacity: 0.3; }
+/* …AND THE SAME WHILE A CARD IS BEING AIMED. Moving a hero and throwing a card
+   are the same gesture with a different question, and in both of them the
+   board is the answer: a fan of five cards across the bottom third is exactly
+   what you do not want to be looking through while picking who to hit. It
+   steps back less far than a move does, because the card in the hand is still
+   the thing being dragged and it has to stay legible. */
+#k-stage.k-aiming #k-hand { transform: translateX(-50%) translateY(66px); opacity: 0.42; }
+#k-stage.k-aiming .k-card.k-aiming { opacity: 1; }
 /* where they already stand: stated, not offered */
 .k-row.k-row-here { border-style: solid; border-color: rgba(160,150,128,0.45);
   background: rgba(120,110,90,0.1); }
@@ -3906,6 +3914,12 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
 #k-stage.k-reckoning #k-intent,
 #k-stage.k-reckoning #k-boss-hud,
 #k-stage.k-reckoning .k-row-lbl,
+/* …AND THE RINGS THEMSELVES, not only their labels. This list hid `.k-row-lbl`
+   and stopped, so the three dashed floor marks stayed lit under a party that
+   had finished fighting — furniture from a question nobody is being asked any
+   more. */
+#k-stage.k-reckoning .k-row,
+#k-stage.k-reckoning #k-rows,
 #k-stage.k-reckoning .k-hero-row,
 #k-stage.k-reckoning #k-party-hud {
   opacity: 0; pointer-events: none; transition: opacity 480ms var(--ease-out); }
@@ -4306,7 +4320,14 @@ body.k-cast3d #k-cast3d { position: absolute; inset: 0; pointer-events: none; }
    is a second, wrong shadow lying next to the right one — it does not move with
    the light, does not stretch as a figure lunges, and does not fall across
    anybody else. */
-body.k-cast3d .k-hero .k-shadow { opacity: 0; }
+/* THE PAINTED ELLIPSE UNDER A FIGURE IS THE 2D STAGE'S SHADOW, and in three
+   dimensions there is a real one cast by a real light. This rule hid it for
+   the HEROES and named no one else, so the foe kept a painted blob under it —
+   and since the plate is stood down on death while the element stays, that
+   blob was still sitting on the floor after the creature had burned away. */
+body.k-cast3d .k-hero .k-shadow,
+body.k-cast3d #k-boss-art .k-shadow,
+body.k-cast3d .k-foe-art .k-shadow { opacity: 0; }
 
 /* THE FOE JOINS THE CAST (Build 118). Same rule as the heroes: the painted
    plate steps aside for the figure, and everything else about the element —

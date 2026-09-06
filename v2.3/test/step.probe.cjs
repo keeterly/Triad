@@ -46,7 +46,11 @@ const { boot } = require('./harness.cjs');
   const rows = [];
   for (const c of CASES) {
     await J(() => startCombat({ foes: ['husk'] }));
-    for (let i = 0; i < 40 && !(await J((w) => !!(window.Cast3D && window.Cast3D._figure(w)), c.who)); i++)
+    // …AND FOR THE FOE, not only for the attacker. The step is aimed at the
+    // enemy, so a card played before the bestiary model arrives measures the
+    // fallback rather than the swing — which is how a 3.1m run read as 0.34m.
+    for (let i = 0; i < 40 && !(await J((w) => !!(window.Cast3D && window.Cast3D._figure(w)
+        && window.Cast3D._figure('foe0')), c.who)); i++)
       await sleep(250);
     await sleep(700);
     const r = await J(({ card, who }) => {

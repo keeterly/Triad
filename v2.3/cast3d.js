@@ -3664,6 +3664,15 @@ const Cast3D = (() => {
         x += figs[id].root.position.x; z += figs[id].root.position.z; n++;
       }
       if (n) return [x / n, 0, z / n];
+      // ── AND AN EMPTY FOE LINE IS STILL A DIRECTION ────────────────────
+      //
+      // Falling through to BOARD here means "toward the enemy" resolves to
+      // the middle of the floor, which is a couple of metres in FRONT of the
+      // party — so a blow thrown in the first second of a fight, before the
+      // bestiary model has arrived, made its owner step 0.34m and swing at
+      // nothing instead of crossing the floor. The line the foes stand on is
+      // fixed geometry and known whether or not anything has loaded into it.
+      if (want) return [STAGE.foe.front[0], 0, STAGE.foe.front[1]];
     }
     return BOARD;
   }
@@ -5557,7 +5566,52 @@ const Cast3D = (() => {
         // …AND IT GIVES A LUNGE ROOM TO HAPPEN. Pulling at 5.5 while an action
         // is driving the body forward damps the step into a twitch; the same
         // ease brings it home once the swing is over, which is the recovery.
-        let tx = slot[0] - f.ctrOff, tz = slot[1];
+        // ── A FLOOR MARK IS UNDER THE FEET ────────────────────────────────
+        //
+        // A figure was placed by subtracting `ctrOff`, the centre of its
+        // rendered SILHOUETTE — which includes whatever it is holding. Elin
+        // carries a staff out to one side, so centring her outline on the mark
+        // pushes her body off it and the ring lands beside her. Measured, the
+        // party stood 6 to 11 screen pixels off their own marks, all the same
+        // way, which reads as three people not quite on their line.
+        //
+        // IN WORLD SPACE, AND FROZEN. A first attempt measured the ankles in
+        // the ROOT's frame and subtracted that from a world x — but these
+        // figures are turned to face the enemy, so a local sideways offset is
+        // mostly a world FORWARD one, and applying it across moved everybody
+        // 30 to 40 pixels the other way. The delta between the feet and the
+        // root is a world-space vector and has to be measured as one.
+        //
+        // And taken once, while the figure is standing: a swing throws the
+        // feet a metre from the root, and re-measuring every frame would also
+        // chase its own tail, because the foot solver pins feet in the world
+        // and the root is exactly what this is moving.
+        // …and only once the idle actually HAS the body. Sampling on the first
+        // frame that is merely not-acting caught mira mid-crossfade, with her
+        // feet still somewhere between two clips, and froze a delta 35 pixels
+        // wrong for the rest of the fight.
+        //
+        // AGAINST THE FIGURE'S OWN TARGET, not against 1. The idle rides at
+        // IDLE_WEIGHT — 0.62, not full — so a gate written as "weight > 0.95"
+        // never fired at all, standDX stayed undefined, and the whole thing
+        // quietly fell back to the silhouette offset it was replacing. It read
+        // as the fix doing nothing rather than as a gate that could not pass.
+        if (f.standDX === undefined && !f.acting && !f.lunge
+            && f.idle && f.idle.getEffectiveWeight() >= (f.idleWant || 0) - 0.02
+            && (f.idleWant || 0) > 0.1
+            && f.bones.LeftFoot && f.bones.RightFoot) {
+          // …and the bones are brought up to date first. matrixWorld is only
+          // meaningful once the root's has been recomputed for this frame, and
+          // on the frame a figure is first placed it has not been — which
+          // handed mira a delta half a metre wrong in both axes, frozen for
+          // the rest of the fight. It costs one traversal, once per figure.
+          f.root.updateMatrixWorld(true);
+          const eL = f.bones.LeftFoot.matrixWorld.elements, eR = f.bones.RightFoot.matrixWorld.elements;
+          f.standDX = (eL[12] + eR[12]) / 2 - f.root.position.x;
+          f.standDZ = (eL[14] + eR[14]) / 2 - f.root.position.z;
+        }
+        let tx = slot[0] - (f.standDX === undefined ? f.ctrOff : f.standDX);
+        let tz = slot[1] - (f.standDZ || 0);
         let k = Math.min(1, dt * (f.acting ? 1.1 : 5.5));
         // ── …AND A FINISHER ACTUALLY CROSSES IT (Build 139) ─────────────────
         //

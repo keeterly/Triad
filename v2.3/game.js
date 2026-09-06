@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 167;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 168;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -4955,7 +4955,20 @@ function castLunge(id, toward, metres, ms) {
 // It is only for a swing. A ward is a brace and a heal is a hand held out —
 // neither of them crosses the floor, and a party that charges the enemy to
 // mend itself is a party with one animation.
-const STEP_IN = 0.62;      // metres a single attack crosses, before the keep-out
+// ── AND IT CROSSES THE WHOLE FLOOR, NOT A POLITE 62cm ──────────────────────
+//
+// The first cut stepped 0.62m, which is a lean rather than a charge: the front
+// rank starts about two and a half metres from the foe line, so a body that
+// moved a quarter of that still swung at empty air with the enemy in the
+// distance behind the blade. What reads as hitting somebody is arriving at
+// them.
+//
+// This is deliberately larger than any gap on the board, because `lunge`
+// already clamps it to the distance actually available minus a keep-out — so
+// the number is not a distance, it is an instruction to close. The keep-out is
+// what stops a charge reading as a collision, and it is the only thing that
+// should be deciding where a body stops.
+const STEP_IN = 6.0;       // "as far as there is floor" — the keep-out governs
 const STEP_HOLD = 170;     // …and how long it stays out there after contact
 function castStep(heroId, kind, flavour) {
   if (kind !== 'slash') return;
@@ -7081,6 +7094,12 @@ function attachCardInput(btn) {
     // parry, a screen change mid-drag — stayed sitting wherever the finger had
     // last been, out of the fan, until something else rebuilt the hand.
     btn.classList.remove('k-dragging', 'k-aiming', 'k-drop-ok');
+    // …and the stage with it. `abandon` is the path a drag takes when nothing
+    // ends it cleanly — the hand hidden behind a parry, a screen change
+    // mid-drag — which is exactly the case where a class left on the stage
+    // would keep the hand sunk for the rest of the fight.
+    const stg = document.getElementById('k-stage');
+    if (stg) stg.classList.remove('k-aiming');
     btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy');
   };
   const spin = () => {
@@ -7156,6 +7175,11 @@ function attachCardInput(btn) {
       btn.style.setProperty('--dragx', '0px');
       btn.style.setProperty('--dragy', '0px');
       btn.classList.add('k-aiming');
+      // …AND THE STAGE LEARNS IT TOO. `k-aiming` on the card says which card;
+      // the hand stepping back is a property of the BOARD being the question,
+      // which is the same thing a move already does with `k-moving`. Without a
+      // class up here the stylesheet has no way to ask "is someone aiming".
+      el('k-stage').classList.add('k-aiming');
       // the hero starts the swing as the card leaves the fan
       castReady(btn.dataset.card);
       const stg0 = el('k-stage'), sr0 = stg0.getBoundingClientRect();
@@ -7211,6 +7235,7 @@ function attachCardInput(btn) {
       dragging = false; if (raf) { cancelAnimationFrame(raf); raf = 0; }
       aimClear();
       btn.classList.remove('k-dragging', 'k-aiming', 'k-drop-ok');
+      el('k-stage').classList.remove('k-aiming');
       btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy');
     }
     if (C.pendingDiscard) {                      // Quick Throw's second half
@@ -7240,6 +7265,7 @@ function attachCardInput(btn) {
     aimClear();
     const hc = el('k-hand'); if (hc) hc.classList.remove('k-hand-cancel');
     btn.classList.remove('k-dragging', 'k-aiming', 'k-drop-ok');
+    el('k-stage').classList.remove('k-aiming');
     btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy'); });
 }
 // ONE TARGETING SYSTEM AT A TIME. Tap-select raises a card and paints a gold
