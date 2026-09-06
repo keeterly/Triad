@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 170;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 171;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -548,22 +548,22 @@ const ALLOUT_BASE = { dmg: TUNE.alloutDmg, brk: TUNE.alloutBrk };
 // being drawn at you. The player is reading the FOE, not a notation.
 const ACTS = {
   // a bell struck, a weight coming down — you brace, you do not dodge
-  toll:   { word: 'TOLL',   note: 'hold',        pose: 'k-foe-toll',   swing: 'k-fs-press',  mark: 'dirge' },
+  toll:   { word: 'TOLL',   note: 'hold',        pose: 'k-foe-toll',   swing: 'k-fs-press',  mark: 'dirge', elem: 'arc' },
   // a raking swipe across the party — wipe the way it rakes
-  claw:   { word: 'CLAW',   note: 'slide',       pose: 'k-foe-sweep',  swing: 'k-fs-arc',    mark: 'move' },
+  claw:   { word: 'CLAW',   note: 'slide',       pose: 'k-foe-sweep',  swing: 'k-fs-arc',    mark: 'move', elem: 'phys' },
   // one blade stroke on a line — cut back along it
-  slash:  { word: 'SLASH',  note: 'slide',       pose: 'k-foe-sweep',  swing: 'k-fs-arc',    mark: 'move' },
+  slash:  { word: 'SLASH',  note: 'slide',       pose: 'k-foe-sweep',  swing: 'k-fs-arc',    mark: 'move', elem: 'phys' },
   // a straight stab: one point, one answer
-  thrust: { word: 'THRUST', note: 'tap',         pose: 'k-foe-toll',   swing: 'k-fs-jab',    mark: 'atk' },
+  thrust: { word: 'THRUST', note: 'tap',         pose: 'k-foe-toll',   swing: 'k-fs-jab',    mark: 'atk', elem: 'phys' },
   // a sigil drawn in the air. You draw it back — the one act whose gesture has
   // a SHAPE in it, and the reason the draw note exists at all.
-  sigil:  { word: 'SIGIL',  note: 'draw:circle', pose: 'k-foe-gather', swing: 'k-fs-cast',   mark: 'finale' },
+  sigil:  { word: 'SIGIL',  note: 'draw:circle', pose: 'k-foe-gather', swing: 'k-fs-cast',   mark: 'finale', elem: 'arc' },
   // many small impacts, no single moment to catch — out-mash it
-  rain:   { word: 'RAIN',   note: 'burst',       pose: 'k-foe-rain',   swing: 'k-fs-flurry', mark: 'bleed' },
+  rain:   { word: 'RAIN',   note: 'burst',       pose: 'k-foe-rain',   swing: 'k-fs-flurry', mark: 'bleed', elem: 'arc' },
   // a twitch that does not commit
-  feint:  { word: 'FEINT',  note: 'feint',       pose: 'k-foe-wind',   swing: 'k-fs-fake',   mark: 'follow' },
+  feint:  { word: 'FEINT',  note: 'feint',       pose: 'k-foe-wind',   swing: 'k-fs-fake',   mark: 'follow', elem: 'phys' },
   // an opening that is bait
-  lure:   { word: 'LURE',   note: 'bait',        pose: 'k-foe-gather', swing: 'k-fs-fake',   mark: 'broken' },
+  lure:   { word: 'LURE',   note: 'bait',        pose: 'k-foe-gather', swing: 'k-fs-fake',   mark: 'broken', elem: 'arc' },
 };
 // `claw:R` -> the act plus the direction it travels. The direction rides on the
 // ACT because it is a fact about the swing, not about the input.
@@ -1384,8 +1384,7 @@ function dressEncounter(foe) {
       box = document.createElement('div');
       box.className = 'k-foe-art';
       box.dataset.ix = ix;
-      box.innerHTML = '<span class="k-fig"><img alt=""></span><span class="k-shadow"></span>'
-        + '<b class="k-foe-lane"></b>';
+      box.innerHTML = '<span class="k-fig"><img alt=""></span><span class="k-shadow"></span>';
       // BEHIND THE FIRST, NOT IN FRONT OF THE PARTY. Inserted straight after
       // `#k-boss-art` so the three heroes keep their own stacking order and a
       // second creature cannot end up painted over Ash.
@@ -1406,17 +1405,15 @@ function dressEncounter(foe) {
     // by its place in the list, so the field and the rule agree by construction
     // rather than by two tables being kept in step.
     if (F.row) box.dataset.row = F.row;
-    // THE LANE, IN THE FLOOR'S OWN WORD. The party's rows are labelled FRONT /
-    // MID / BACK under their feet; a line that used the same three places and
-    // named none of them would be asking the player to infer from x-position
-    // the one fact the telegraph is about to quote back at them.
-    let lane = box.querySelector('.k-foe-lane');
-    if (!lane && line.length > 1) {
-      lane = document.createElement('b'); lane.className = 'k-foe-lane';
-      box.appendChild(lane);
-    }
-    if (lane) { lane.textContent = line.length > 1 ? (F.row || '').toUpperCase() : '';
-                lane.classList.toggle('k-hidden', line.length < 2); }
+    // NO LANE WORD UNDER THE BODY. Every creature carried a FRONT / MID / BACK
+    // chip at its feet, on the reasoning that the telegraph was about to quote
+    // the same lane back at it. The telegraph does not name a lane any more —
+    // it sits over the creature's own head — so the chip was naming a place
+    // nothing else on screen referred to. It also outlived the fight: the
+    // reckoning's hide list never included it, so two dark chips floated over
+    // an empty plaza under a banner reading FALLEN.
+    const oldLane = box.querySelector('.k-foe-lane');
+    if (oldLane) oldLane.remove();
     foeAnimArm(F.id, ix, box);
   });
   const st = el('k-stage');
@@ -1782,6 +1779,89 @@ function intentByTarget() {
                      sweep: !!h.sweep });
   }
   return rows;
+}
+
+// ── THE SAME BAR, GROUPED BY WHO IS THROWING IT (Build 171) ────────────────
+//
+// `intentByTarget` groups the volley by the hero it lands on, which is what a
+// strip in the sky needed: one chip per person, each carrying a letter saying
+// which person. A telegraph that hangs over a creature's own head needs the
+// other axis — one badge per creature, carrying what THAT creature is about to
+// do — and it needs no letter at all, because the badge is standing on the
+// answer.
+//
+// WEIGHT IS RELATIVE TO WHO TAKES IT, not to a table of thresholds. Fifteen is
+// a scratch on a 42 HP Ash and better than a third of Mira; a bar that called
+// both of them the same thing would be measuring the bestiary rather than the
+// fight. And the top tier is not a number at all — CRITICAL means this blow
+// ends somebody, which is the one reading the player has to act on before they
+// spend an AP anywhere else.
+const TELL_BIG = 0.30, TELL_CRIT = 0.55;
+function tellWeight(d, who) {
+  const h = C && C.heroes && C.heroes[who]; if (!h) return 1;
+  if (d >= h.hp + h.guard) return 3;              // it finishes them
+  const f = d / Math.max(1, h.max);
+  return f >= TELL_CRIT ? 3 : f >= TELL_BIG ? 2 : 1;
+}
+// SWUNG OR CAST, from the acts the hit is actually built out of. The fakes are
+// dropped first — a feint is not a blow and its element would be describing a
+// gesture that never lands.
+function tellElem(acts) {
+  for (const a of (acts || [])) {
+    const def = parseAct(a).def;
+    if (def.note === 'feint' || def.note === 'bait') continue;
+    return def.elem || 'phys';
+  }
+  return 'phys';
+}
+function intentBySource() {
+  const V = composeVolley();
+  const out = [];
+  const at = (ix) => {
+    let e = out.find(o => o.ix === ix);
+    if (!e) out.push(e = { ix, blows: [], total: 0, canceled: false, held: false,
+                           heal: 0, guard: 0, charge: 0, dirge: 0, sweep: false, back: 0 });
+    return e;
+  };
+  // A STAGGERED CREATURE STILL GETS A BADGE, and the badge is the point: the
+  // reason to spend Break is that the thing goes quiet, and a blank patch of
+  // sky over its head says "nothing is coming" without saying why.
+  V.acting.filter(a => a.canceled).forEach(a => { at(a.src).canceled = true; });
+  V.held.forEach(a => { at(a.src).held = true; });
+  // …chill is spent against the thrower's own hits, exactly as intentByTarget
+  // spends it, so the two readouts cannot print two different numbers for one
+  // blow.
+  const chills = {};
+  livingFoes().forEach(F => { chills[F.ix] = F.chill; });
+  for (const h of V.hits) {
+    const ix = h.src == null ? (C ? C.aim : 0) : h.src;
+    const who = hitTargetId(h); if (!who) continue;
+    const d = hitDamage(h, chills[ix] || 0); chills[ix] = 0;
+    const e = at(ix);
+    const back = ROWS[Math.min(ROWS.length - 1, ROWS.indexOf(C.heroes[who].row) + 1)];
+    e.blows.push({ d, who, w: tellWeight(d, who), elem: tellElem(h.acts) });
+    e.total += d;
+    e.back += h.sweep ? hitDamage(h, 0, back) : d;
+    e.sweep = e.sweep || !!h.sweep;
+  }
+  V.acting.filter(a => !a.canceled && a.intent).forEach(a => {
+    const e = at(a.src);
+    if (a.intent.kind === 'heal') e.heal = a.intent.phaseHeal || 0;
+    if (a.intent.guard) e.guard = a.intent.guard;
+    if (a.intent.charge) e.charge = a.intent.charge;
+  });
+  // THE HYMN BELONGS TO WHOEVER SINGS IT. `dirgeAmount` is the loudest voice on
+  // the field, so the mark goes over that voice rather than floating over the
+  // board — the creature you break to stop it is the one wearing it.
+  const dg = dirgeAmount();
+  if (dg > 0) {
+    const line = livingFoes();
+    const singer = line.reduce((best, F) => {
+      const v = (F.def && F.def.dirge != null) ? F.def.dirge : (TUNE.dirge[F.phase - 1] || 0);
+      return (!best || v > best.v) ? { F, v } : best; }, null);
+    if (singer && singer.v > 0) at(singer.F.ix).dirge = dg;
+  }
+  return out;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -6073,11 +6153,10 @@ function renderLineHud() {
     return '<button type="button" class="k-lrow' + (on ? ' k-lrow-on' : '')
       + (F.dead ? ' k-lrow-dead' : '') + '" data-ix="' + F.ix + '"'
       + (F.dead ? ' disabled' : '') + '>'
-      // ONE LETTER, AND THE SAME LETTER THE SKY USES. The telegraph has printed
-      // F / M / B for a hero's rank since Build 96; a readout inventing
-      // "Fro / Mid / Bac" beside it would be a second spelling of one fact, and
-      // it ate the width the names needed.
-      + '<em class="k-lr-lane">' + (ROW_LETTER[F.row] || '?') + '</em>'
+      // THE LANE LETTER WENT WITH THE SKY STRIP (Build 171). It was there to
+      // match a telegraph that printed F / M / B on every chip; that telegraph
+      // is a badge over the creature's own head now and names no place, so a
+      // letter here was the last survivor of a vocabulary nothing else spoke.
       // …AND THE NAME GETS THE ROOM BACK. Every creature in the bestiary is
       // called "The Something", so the article is three characters of nothing
       // repeated down the column — and with it there, all three names truncated.
@@ -6096,104 +6175,256 @@ function renderLineHud() {
 // No sentence, no name, no counterplay hint: the shape says what kind of turn
 // is coming and the number says how much.
 const INTENT_ICON = { atk: 'atk', guard: 'guard', charge: 'finale', heal: 'heal', dirge: 'dirge' };
-function renderIntent() {
-  const box = el('k-intent'); if (!box) return;
-  const it = currentIntent();
-  const chips = [];
-  // THE SKY READS THE WHOLE LINE. `C.boss.cancelNext` was the only question
-  // worth asking when there was one thing standing there; with three, the
-  // stagger chip belongs up here only if EVERYTHING is staggered — otherwise
-  // it would announce a quiet turn while two creatures wound up.
-  const _V = composeVolley();
-  const allStaggered = _V.acting.length > 0 && _V.acting.every(a => a.canceled);
-  if (allStaggered) {
-    chips.push('<span class="k-ichip k-ichip-broken">' + icon('broken') + '<b>—</b></span>');
-  } else {
-    // …AND WHAT IS STAGGERED IS STILL SAID, once, beside what is coming.
-    if (_V.acting.some(a => a.canceled))
-      chips.push('<span class="k-ichip k-ichip-broken">' + icon('broken') + '<b>—</b></span>');
-    // ONE CHIP PER TARGET, and the number on it is what THAT hero takes.
-    // A hero struck twice reads "8 ×2" meaning eight apiece — the same grammar
-    // the player's own cards use.
-    // A PLACE, NOT A PERSON. The chip named the hero it was aimed at — nine
-    // letters of ASH/ELIN/MIRA per blow — and with three blows plus a dirge the
-    // readout ran 425px across the sky. The name was also the wrong axis: rows
-    // are EXCLUSIVE in this game (moveHero TRADES PLACES, one hero per row), so
-    // a row letter identifies the target just as precisely in one character AND
-    // names the thing the player can actually act on. F/M/B rather than the
-    // F/C/B a first sketch used, because the floor of the battlefield already
-    // has FRONT, MID and BACK painted on it and a legend that disagrees with
-    // the board is worse than no legend.
-    //
-    // And repeats are SPELLED OUT rather than collapsed to ×2. At name-width a
-    // second chip was unaffordable and "9 ×2" was the compression that bought
-    // room; at three characters two chips fit, and two marks in a row is how a
-    // player counts blows without doing arithmetic.
-    for (const row of intentByTarget()) {
-      const where = ROW_LETTER[C.heroes[row.who].row] || '?';
-      row.hits.forEach((d, i) => {
-        chips.push('<span class="k-ichip k-ichip-atk">'
-          // THE SYMBOL SAYS WHAT KIND OF BLOW IT IS, and this deck has exactly
-          // two kinds of reachable blow plus the hymn: an ordinary strike, and
-          // a SWEEP, which is the one that standing further back blunts. That
-          // is a distinction the rules already make and the player already has
-          // to act on, so it is the one the marks carry.
-          // the mark of THIS blow, so a bar of a claw then a bell then a stab
-          // is three different chips rather than three identical ones
-          + icon((row.acts && row.acts[i] ? parseAct(row.acts[i]).def.mark : null)
-                 || (row.sweep ? 'move' : 'atk'))
-          + '<b>' + fmtN(d) + '</b><u>' + where + '</u>'
-          // …and if distance blunts it, say so and say by how much from here
-          // A STEP AND WHAT IT BUYS. This was a curved arrow the eye had to
-          // decode; a plain arrow beside a row letter reads as "step, and it
-          // becomes this" without a legend, which is the whole sentence.
-          + (row.sweep && i === 0 && row.back < row.total
-              ? '<em class="k-ichip-sweep" title="a sweep — one row back and it lands for '
-                + fmtN(row.back) + '">\u2192' + fmtN(row.back) + '</em>' : '')
-          + '</span>');
-      });
-    }
-    // the vocabulary is ready for defend and charge turns even though the
-    // Regent has none yet — an intent carrying `guard` or `charge` shows one
-    if (it.guard) chips.push('<span class="k-ichip k-ichip-guard">' + icon('guard') + '<b>' + fmtN(it.guard) + '</b></span>');
-    if (it.charge) chips.push('<span class="k-ichip k-ichip-charge">' + icon('finale') + '<b>' + fmtN(it.charge) + '</b></span>');
-    // EVERY VOICE THAT IS MENDING, not just the front one — two creatures
-    // singing each other whole is the shape of a pack fight that the player
-    // has to answer, and it cannot be answered if only one of them is shown.
-    _V.acting.filter(a => !a.canceled && a.intent && a.intent.kind === 'heal').forEach(a =>
-      chips.push('<span class="k-ichip k-ichip-heal">' + icon('heal') + '<b>' + fmtN(a.intent.phaseHeal) + '</b></span>'));
-    // …AND WHAT IS WAITING ITS TURN. A bar is capped at the Regent's own seven
-    // notes, so in a full line something is often winding up rather than
-    // swinging. Silence there would read as a creature that had simply stopped
-    // being dangerous, and the player would step into a blow the game knew
-    // about and did not mention.
-    _V.held.forEach(() => chips.push('<span class="k-ichip k-ichip-hold" title="winding up — it swings next turn">'
-      + icon('finale') + '<b>\u2026</b></span>'));
-    const dg = dirgeAmount();
-    // THE DIRGE IS THE ONE BLOW YOU CANNOT ANSWER. It shares the chip
-    // vocabulary with everything you CAN answer, so without saying so it reads
-    // as a parry window the game forgot to open — a bug, rather than the rule
-    // that only Guard and healing reach it. Earlier builds carried the word
-    // UNPARRYABLE on the old intent banner; the chip telegraph dropped it and
-    // never put it back.
-    // …AND IT HAS TWO ANSWERS, WHICH "no parry" DENIES. Guard absorbs it
-    // (see endTurn), and BROKEN cancels the whole action, hymn included —
-    // `if (dirge > 0 && !result.canceled)`. So the chip was telling the player
-    // there is nothing to be done about the single largest source of damage in
-    // the fight, while two counterplays sat unmentioned. It names them.
-    // THE TWO ANSWERS BECOME THE TWO MARKS THAT ANSWER IT. `Guard or Break`
-    // was eighty-five pixels of prose sitting at the end of a line of marks —
-    // the only sentence on the readout, and the widest thing on it. The shield
-    // and the split are the same two glyphs the player's own cards use for
-    // exactly these two things, so the line stays a line of marks. The words
-    // survive for anyone reading the screen rather than looking at it.
-    if (dg > 0) chips.push('<span class="k-ichip k-ichip-dirge">' + icon('dirge')
-      + '<b>' + fmtN(dg) + '</b><u>ALL</u>'
-      + '<span class="k-ichip-ans" title="Guard absorbs it, and Breaking her cancels it">'
-      + icon('guard') + icon('brk') + '<i class="k-sr">Guard or Break</i></span></span>');
-  }
-  box.innerHTML = chips.join('');
+// ── THE TELEGRAPH STANDS ON THE THING THROWING IT (Build 171) ──────────────
+//
+// It was a row of chips in the sky at the top-right of the board, and every
+// chip had to carry a LETTER — F / M / B — naming the lane it was aimed at,
+// because a strip pinned to the ceiling cannot point at anybody. Three blows
+// and a hymn ran the row four chips wide and the player read it as a sentence:
+// left to right, decode each letter, map each letter to a body, then look down
+// at the board. Four indirections for one question.
+//
+// A badge over the creature's own head answers "who is throwing this" by being
+// there, which retires the letter and the row and the whole strip with it.
+// What is left is the two facts the letter was crowding out: WHAT KIND of blow
+// (swung or cast) and HOW HEAVY (regular, big, or the one that ends somebody).
+//
+// WHO TAKES IT did not go with the letter. It moved to the party roster, where
+// the aimed hero's bar is already outlined and their name already goes red on
+// a lethal turn — that readout was carrying half this job since Build 96 and
+// is the right place for it, being the only place on screen that lists heroes.
+//
+// ── AND THEY ARE PLACED OFF THE ART, NOT OFF THE BOX ───────────────────────
+//
+// The first cut parented both into the body box on the reasoning that the box
+// is placed by the world's own projection every frame, so a child rides it for
+// free. Measured, the box is not the creature: the painted idle strip
+// (`.k-fanim`) is bottom-anchored inside a 250x264 frame and drawn at its own
+// size, so the Hollow Husk's art began FIFTY PIXELS below its box's top edge
+// and ran wider than it on both sides. A badge at `bottom: 100%` of that box
+// sat sixty-eight pixels over the creature's head, up among the enemy plates.
+// The probe read the badge's textContent, saw the right numbers, and passed.
+//
+// The stage already solves this for the parry rings and the string track:
+// they live on `#k-stage`, outside the field, and re-anchor every frame from a
+// rect — "three rect reads, and it buys a camera that can move during a bar."
+// Same answer here, and it is the only one that is right in all three ways a
+// body can be drawn: a 3D figure, a painted animation strip, or a still plate.
+const TELL_ICON = { phys: 'swords', arc: 'arcane' };
+// WHATEVER IS ACTUALLY ON SCREEN FOR THIS BODY. `k-has-anim` swaps the still
+// plate for the strip and the 3D layer hides both, so the drawn thing is a
+// different element in each of the three cases and the box is the right answer
+// only in the last one.
+function drawnArt(box) {
+  // …AND "ON SCREEN" IS NOT "HAS A WIDTH". The 3D layer stands the painted
+  // plate down with `opacity: 0`, never `display: none`, so a claimed body
+  // keeps a full-size rect sitting wherever the stylesheet last parked it.
+  // Reading that rect put every badge on the coordinates of a plate nobody
+  // could see — which looked exactly like an anchoring bug and was not one.
+  // `k-cast3d-on` is the layer saying it owns this body, and when it does the
+  // box IS the figure: `follow` scales it so its height on screen is the
+  // figure's height.
+  if (box.classList.contains('k-cast3d-on')) return box;
+  const fa = box.querySelector('.k-fanim');
+  if (fa && fa.offsetWidth) return fa;
+  const im = box.querySelector('img');
+  if (im && im.offsetWidth) return im;
+  return box;
 }
+// crown and foot of a body, in the stage's own coordinates — the same frame
+// `anchorFor` works in, so a label and a parry ring on one hero agree.
+function bodyAnchor(box) {
+  const stage = el('k-stage'); if (!stage || !box || !box.offsetParent) return null;
+  const sr = stage.getBoundingClientRect();
+  const k = sr.width / stage.offsetWidth || 1;
+  const r = drawnArt(box).getBoundingClientRect();
+  if (!r.width && !r.height) return null;
+  return { x: (r.left + r.width / 2 - sr.left) / k,
+           top: (r.top - sr.top) / k,
+           bottom: (r.bottom - sr.top) / k };
+}
+// A label is keyed by the body it belongs to and lives for as long as that
+// body does, so re-rendering a badge is an innerHTML write rather than a
+// remove-and-rebuild that would restart the critical pulse every turn.
+function bodyLabel(kind, key, on) {
+  const stage = el('k-stage'); if (!stage) return null;
+  const sel = '.k-' + kind + '[data-body="' + key + '"]';
+  let e = stage.querySelector(sel);
+  if (!on) { if (e) e.remove(); return null; }
+  if (!e) {
+    e = document.createElement('div');
+    e.className = 'k-' + kind;
+    e.dataset.body = key;
+    stage.appendChild(e);
+  }
+  return e;
+}
+function boxForBody(key) {
+  return key.slice(0, 3) === 'foe' ? foeBox(+key.slice(3))
+       : document.querySelector('#k-cast .k-hero[data-hero="' + key + '"]');
+}
+// THE ONE LOOP THAT PLACES THEM. It runs whether or not the camera is moving,
+// because in the 3D world it always is — the plaza breathes even on a turn
+// nobody has taken.
+function placeBodyLabels() {
+  const stage = el('k-stage'); if (!stage) return;
+  const labels = stage.querySelectorAll('.k-tell[data-body], .k-pips[data-body]');
+  for (const e of labels) {
+    const box = boxForBody(e.dataset.body);
+    const a = box && bodyAnchor(box);
+    if (!a) { e.style.visibility = 'hidden'; continue; }
+    e.style.visibility = '';
+    e.style.left = a.x.toFixed(1) + 'px';
+    // A BADGE ABOVE THE HEAD, WHERE THERE IS A HEAD'S WORTH OF SKY. The line
+    // stands in depth, so a back-rank creature is drawn small and HIGH — the
+    // Grief-Wraith's crown sits in the top twelfth of the board, under the
+    // enemy plates. Measured, all three back-rank badges landed inside the
+    // readout they were meant to replace. Where the sky runs out the badge
+    // stops climbing and rests on the creature's shoulders instead, which
+    // still reads as its own and never as somebody else's.
+    // ABOVE OR BELOW, BY WHAT IS UNDER THE BODY. A creature has plaza under it
+    // and its statuses hang at its feet. A hero has the HAND under them — the
+    // party stands with their boots on the top edge of the card fan — so a pip
+    // row at Ash's feet was drawn across Cross Sever. Theirs go over the head
+    // instead, on the same floor rule the badges use.
+    const over = e.classList.contains('k-tell') || e.dataset.over === '1';
+    e.classList.toggle('k-lbl-over', over);
+    e.style.top = (over ? Math.max(_tellFloor(a.x), a.top - 8) : a.bottom + 4).toFixed(1) + 'px';
+  }
+}
+// HOW HIGH A BADGE MAY CLIMB, at this x. Six pixels off the top of the board
+// normally; the readout's own bottom edge where it would climb THROUGH the
+// readout. Read live and per-label rather than as one number for the whole
+// board, because a floor set by a plate the badge does not even pass under
+// would push every badge down to clear a collision only one of them has.
+function _tellFloor(x) {
+  const stage = el('k-stage'), hud = el('k-boss-hud');
+  if (!stage || !hud || !hud.offsetParent) return 6;
+  const sr = stage.getBoundingClientRect(), hr = hud.getBoundingClientRect();
+  const k = sr.width / stage.offsetWidth || 1;
+  const l = (hr.left - sr.left) / k, r = (hr.right - sr.left) / k;
+  return (x > l - 40 && x < r + 40) ? (hr.bottom - sr.top) / k + 10 : 6;
+}
+let _labelRaf = 0;
+function startBodyLabels() {
+  if (_labelRaf) return;
+  _labelRaf = requestAnimationFrame(function tick() {
+    placeBodyLabels();
+    _labelRaf = requestAnimationFrame(tick);
+  });
+}
+// ── WHAT IS ON A BODY, ON THE BODY ─────────────────────────────────────────
+//
+// Guard was a 7px shield glyph tucked into the party roster's HP line — a
+// number inside another number, in the corner furthest from the hero it
+// described — and chill and bleed were worse: they rendered into the boss
+// plate, which reads the AIMED foe, so in a fight against three things two of
+// them carried statuses that appeared nowhere at all. A player chilling the
+// creature they were not pointed at got no acknowledgement that anything had
+// happened.
+//
+// Every body wears its own now, at its feet, out of the same glyph set the
+// cards use.
+function pip(kind, glyph, n) {
+  return '<span class="k-pip-b k-pip-' + kind + '">' + icon(glyph)
+       + (n == null ? '' : '<b>' + fmtN(n) + '</b>') + '</span>';
+}
+function renderBodyPips() {
+  if (!C) return;
+  const quiet = C.phase === 'VICTORY' || C.phase === 'DEFEAT';
+  for (const id of Object.keys(C.heroes || {})) {
+    const h = C.heroes[id];
+    const out = [];
+    if (!quiet && !h.downed) {
+      if (h.guard > 0) out.push(pip('guard', 'guard', h.guard));
+      // STANDING IN FRONT OF SOMEONE IS A STATE THE PLAYER BOUGHT and could not
+      // see they still owned — it was one line of prose in a corner of the HUD.
+      if (C.intercession === id) out.push(pip('inter', 'guard', null));
+      // …and the counterstance, which is a flag on the fight rather than on a
+      // hero because only Ash can arm it — so it shows on Ash.
+      if (C.counterstance && id === 'ash') out.push(pip('stance', 'follow', null));
+    }
+    const p = bodyLabel('pips', id, out.length > 0);
+    if (p) { p.dataset.over = '1';
+             if (p.innerHTML !== out.join('')) p.innerHTML = out.join(''); }
+  }
+  (C.foes || []).forEach(F => {
+    const out = [];
+    if (!quiet && !F.dead) {
+      if (F.broken || F.cancelNext) out.push(pip('stag', 'broken', null));
+      if (F.chill > 0) out.push(pip('chill', 'chill', F.chill));
+      if (F.bleed > 0) out.push(pip('bleed', 'bleed', F.bleed));
+    }
+    const p = bodyLabel('pips', 'foe' + F.ix, out.length > 0);
+    if (p && p.innerHTML !== out.join('')) p.innerHTML = out.join('');
+  });
+}
+function renderIntent() {
+  renderBodyPips();
+  if (!C || !C.foes) return;
+  let rows = [];
+  try { rows = intentBySource(); } catch (e) { rows = []; }
+  const quiet = C.phase === 'VICTORY' || C.phase === 'DEFEAT';
+  C.foes.forEach(F => {
+    const box = foeBox(F.ix); if (!box) return;
+    const r = quiet || F.dead ? null : rows.find(o => o.ix === F.ix);
+    const chips = [];
+    if (r) {
+      // STAGGERED IS A STATE, NOT A BLOW, and it replaces the bar rather than
+      // sitting beside it — a creature that has been broken throws nothing.
+      if (r.canceled) chips.push('<span class="k-ichip k-ichip-broken">' + icon('broken') + '<b>—</b></span>');
+      else if (r.held) chips.push('<span class="k-ichip k-ichip-hold" title="winding up — it swings next turn">'
+        + icon('finale') + '<b>…</b></span>');
+      else {
+        // ONE MARK PER BLOW. Two marks in a row is how a player counts a double
+        // without doing arithmetic, and it is why the Hymn's double toll has to
+        // stay two chips rather than collapse to a multiplier.
+        r.blows.forEach((b, i) => {
+          chips.push('<span class="k-ichip k-ichip-atk k-w' + b.w + '" data-elem="' + b.elem + '">'
+            + icon(TELL_ICON[b.elem] || 'swords')
+            + '<b>' + fmtN(b.d) + '</b>'
+            // A STEP AND WHAT IT BUYS. Standing one row back turns the Scything
+            // Advance from 26-34 into 8-12, which is the best single AP in the
+            // game and was invisible before the mark existed.
+            + (r.sweep && i === 0 && r.back < r.total
+                ? '<em class="k-ichip-sweep" title="a sweep — one row back and it lands for '
+                  + fmtN(r.back) + '">→' + fmtN(r.back) + '</em>' : '')
+            + '</span>');
+        });
+        if (r.guard) chips.push('<span class="k-ichip k-ichip-guard">' + icon('guard') + '<b>' + fmtN(r.guard) + '</b></span>');
+        if (r.charge) chips.push('<span class="k-ichip k-ichip-charge">' + icon('finale') + '<b>' + fmtN(r.charge) + '</b></span>');
+        if (r.heal) chips.push('<span class="k-ichip k-ichip-heal">' + icon('heal') + '<b>' + fmtN(r.heal) + '</b></span>');
+        // THE HYMN IS THE ONE BLOW YOU CANNOT PARRY, and it has exactly two
+        // answers — Guard absorbs it, Breaking her cancels it. The two glyphs
+        // that answer it ride the chip, because a mark sharing a vocabulary
+        // with everything you CAN parry reads as a window the game forgot to
+        // open unless it says otherwise.
+        if (r.dirge) chips.push('<span class="k-ichip k-ichip-dirge">' + icon('dirge')
+          + '<b>' + fmtN(r.dirge) + '</b><u>ALL</u>'
+          + '<span class="k-ichip-ans" title="Guard absorbs it, and Breaking her cancels it">'
+          + icon('guard') + icon('brk') + '<i class="k-sr">Guard or Break</i></span></span>');
+      }
+    }
+    const t = bodyLabel('tell', 'foe' + F.ix, chips.length > 0);
+    if (t && t.innerHTML !== chips.join('')) t.innerHTML = chips.join('');
+  });
+  // ── AND A LABEL WHOSE BODY IS GONE GOES WITH IT ───────────────────────────
+  //
+  // Labels are keyed by body and rebuilt from whoever is standing there, so a
+  // fight that starts with fewer creatures than the last one leaves the extra
+  // keys untouched — nothing in the loop above ever visits `foe2` again. The
+  // reckoning check found four of them, hanging over an empty plaza with the
+  // numbers of a fight that had already ended.
+  const live = {};
+  Object.keys(C.heroes || {}).forEach(id => { live[id] = 1; });
+  (C.foes || []).forEach(F => { live['foe' + F.ix] = 1; });
+  const stage = el('k-stage');
+  if (stage) stage.querySelectorAll('.k-tell[data-body], .k-pips[data-body]')
+    .forEach(e => { if (!live[e.dataset.body]) e.remove(); });
+  startBodyLabels();
+  placeBodyLabels();
+}
+
 function renderHand() {
   const hand = el('k-hand'); if (!hand) return;
   const n = C.hand.length, mid = (n - 1) / 2;
@@ -6401,8 +6632,26 @@ const ICON_PATHS = {
   // sky, on one screen. A hymn falling on everyone: three descending strokes
   // over a line nobody gets under.
   dirge: 'M3 2.5 V8 M8 2.5 V10 M13 2.5 V8 M1.5 13 H14.5',
+  // ── WHAT KIND OF BLOW, IN TWO MARKS (Build 171) ──────────────────────────
+  //
+  // The telegraph over a creature's head answers two questions and only two:
+  // what kind, and how heavy. `atk` cannot carry the first — it is one sword,
+  // and one sword is what a CARD does; a mark that means both "you strike" and
+  // "you are struck" is not telling anyone apart. Crossed swords is the
+  // universal mark for a blow incoming, and it can never be read as a card.
+  //
+  // Stroked, because at the 17px a critical wears, two filled blades crossing
+  // become a solid lozenge — the crossing is the whole shape and it has to
+  // stay open. The guards are the short strokes; without them an X at 11px is
+  // a multiply sign.
+  swords:'M3.4 13.6 L12.6 3.4 M12.6 13.6 L3.4 3.4'
+       + ' M2.2 12.4 L4.6 14.8 M13.8 12.4 L11.4 14.8',
+  // …and the cast. Four points rather than five so it cannot be read as
+  // `finale`, concave so it cannot be read as `heal`, and filled so it holds
+  // its weight beside the stroked swords at the same size.
+  arcane:'M8 1 Q9 6.4 14.6 8 Q9 9.6 8 15 Q7 9.6 1.4 8 Q7 6.4 8 1 Z',
 };
-const STROKE_ICONS = { chill: 1, follow: 1, move: 1, dirge: 1 };
+const STROKE_ICONS = { chill: 1, follow: 1, move: 1, dirge: 1, swords: 1 };
 function icon(name, cls) {
   const d = ICON_PATHS[name]; if (!d) return '';
   // FILLED IS THE DEFAULT NOW; stroke is the exception, for the four marks whose
@@ -7878,7 +8127,8 @@ window.K = {
   // moment Build 94 shortened the lead-in, reporting a broken promise where
   // there was only a changed constant.
   BEAT_MS, BEAT_LEADIN,
-  intentByTarget, ROW_LETTER, ROWS, placeHero,
+  intentByTarget, intentBySource, tellWeight, ROW_LETTER, ROWS, placeHero,
+  renderIntent, placeBodyLabels,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText, condText,
   staticCardHTML, staticInspectHTML,
   cam, bgParallax, SIGILS, sigilOf, brighten, effectsWithSigil,

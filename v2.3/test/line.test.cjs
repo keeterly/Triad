@@ -319,17 +319,25 @@ const { boot } = require('./harness.cjs');
                  base: Math.round(r.top + r.height - S.top), w: Math.round(r.width) }; };
       const foes = [...document.querySelectorAll('#k-boss-art, #k-cast .k-foe-art')]
         .map(b => ({ row: b.dataset.row, lane: (b.querySelector('.k-foe-lane') || {}).textContent, ...at(b) }));
+      const lanes = document.querySelectorAll('.k-foe-lane').length;
       const heroes = {};
       document.querySelectorAll('.k-hero').forEach(h => {
         heroes[window.K.state().heroes[h.dataset.hero].row] = at(h);
       });
-      return { foes, heroes, stage: Math.round(S.width) };
+      return { foes, heroes, lanes, stage: Math.round(S.width) };
     });
     const F = {}; drawn.foes.forEach(f => { F[f.row] = f; });
-    check('SLOTS: every body is drawn in its own slot, wearing the floor’s own word for it',
+    // …AND WEARING NO WORD FOR IT (Build 171). Each body carried a FRONT /
+    // MID / BACK chip at its feet, put there so the sky telegraph could quote
+    // the same lane back. That telegraph hangs over the creature's own head
+    // now and names no place, which left the chip naming something nothing
+    // else on screen referred to — and it outlived the fight, because the
+    // reckoning's hide list never included it. The slot is still real and
+    // still on the element; only the caption is gone.
+    check('SLOTS: every body is drawn in its own slot, and wears no word for it',
       drawn.foes.length === 3 && ['front', 'mid', 'back'].every(r => !!F[r])
-      && F.front.lane === 'FRONT' && F.mid.lane === 'MID' && F.back.lane === 'BACK',
-      JSON.stringify(drawn.foes.map(f => f.row + '=' + f.lane)));
+      && drawn.lanes === 0,
+      JSON.stringify({ rows: drawn.foes.map(f => f.row), lanes: drawn.lanes }));
     // ONE FLOOR, NOT TWO DRAWINGS — and the claim is that the two ladders are
     // PARALLEL, not that a rank lands on the same pixel as its opposite number.
     //
@@ -425,6 +433,105 @@ const { boot } = require('./harness.cjs');
     });
     check('AIM: one creature is still one answer — a solo fight asks nothing new',
       solo.foes === 1 && solo.arcs === 1 && solo.zone === 'enemy', JSON.stringify(solo));
+  }
+
+  // ═══ THE TELEGRAPH OVER EACH HEAD (Build 171) ═══════════════════════════
+  //
+  // Written against Build 170 every one of these goes red: there were no
+  // badges, one strip in the sky, and statuses for the aimed creature only.
+  console.log('\n── what each creature is about to do ──');
+  {
+    const tell = await J(async () => {
+      window.K.startCombat({ seed: 5, foes: ['husk', 'cultist', 'wraith'] });
+      window.K.renderIntent(); window.K.placeBodyLabels();
+      await new Promise(r2 => setTimeout(r2, 60));
+      const src = window.K.intentBySource();
+      const per = [...document.querySelectorAll('.k-tell')].map(t => ({
+        body: t.dataset.body,
+        chips: t.querySelectorAll('.k-ichip-atk').length,
+        elems: [...t.querySelectorAll('.k-ichip-atk')].map(c => c.dataset.elem),
+        weights: [...t.querySelectorAll('.k-ichip-atk')]
+          .map(c => (c.className.match(/k-w(\d)/) || [])[1]),
+        icons: [...t.querySelectorAll('.k-ichip-atk svg')].length,
+      }));
+      return { src, per };
+    });
+    // ONE BADGE PER CREATURE, and its marks are that creature's own blows —
+    // the strip it replaced grouped by TARGET, so two creatures swinging at
+    // one hero produced one chip and no way to tell which of them threw it.
+    check('TELL: each creature wears its own bar, one mark per blow',
+      tell.per.length >= 1
+      && tell.per.every(p => {
+        const o = tell.src.find(x => 'foe' + x.ix === p.body);
+        return o && (o.canceled || o.held || p.chips === o.blows.length);
+      }) && tell.per.every(p => p.icons === p.chips),
+      JSON.stringify({ per: tell.per, src: tell.src.map(o => ({ ix: o.ix, n: o.blows.length })) }));
+    // SWUNG OR CAST, and never neither — a mark with no kind is the old
+    // one-glyph-for-everything the acts table already had the answer to.
+    check('TELL: every mark says what kind of blow it is — swung or cast',
+      tell.per.every(p => p.elems.every(e => e === 'phys' || e === 'arc')),
+      JSON.stringify(tell.per.map(p => p.elems)));
+    // …AND HOW HEAVY, in three tiers and no more.
+    check('TELL: every mark carries a weight, and the weight is one of three',
+      tell.per.every(p => p.weights.every(w => w === '1' || w === '2' || w === '3')),
+      JSON.stringify(tell.per.map(p => p.weights)));
+
+    // WEIGHT IS MEASURED AGAINST WHO TAKES IT, not against a table. Fifteen is
+    // a scratch on Ash and better than a third of Mira, and the top tier is
+    // not a number at all — CRITICAL means the blow ends somebody.
+    const weigh = await J(() => window.K.state() && ({
+      scratch: window.K.tellWeight(3, 'ash'),
+      heavy: window.K.tellWeight(15, 'ash'),
+      lethal: window.K.tellWeight(999, 'ash'),
+    }));
+    check('TELL: weight is read off the hero who takes it, and lethal is always critical',
+      weigh.scratch === 1 && weigh.heavy === 2 && weigh.lethal === 3,
+      JSON.stringify(weigh));
+
+    // STATUSES ON THE BODY THAT OWNS THEM. The boss plate reads the AIMED
+    // creature, so before this a chill landed on one of three foes showed up
+    // nowhere at all — the player got no acknowledgement that the card had
+    // done anything.
+    const pips = await J(async () => {
+      window.K.startCombat({ seed: 5, foes: ['husk', 'cultist', 'wraith'] });
+      const st = window.K.state();
+      st.foes[1].chill = 4; st.foes[2].bleed = 3; st.heroes.ash.guard = 7;
+      window.K.aimAt(0);                       // aim at the one with NOTHING on it
+      window.K.renderIntent();
+      await new Promise(r2 => setTimeout(r2, 60));
+      const read = {};
+      document.querySelectorAll('.k-pips').forEach(p => {
+        read[p.dataset.body] = [...p.querySelectorAll('.k-pip-b')]
+          .map(b => b.className.replace(/.*k-pip-/, '') + (b.querySelector('b') ? ':' + b.querySelector('b').textContent : ''));
+      });
+      return read;
+    });
+    check('PIPS: a status shows on the body that carries it, aimed at or not',
+      (pips.foe1 || []).join() === 'chill:4'
+      && (pips.foe2 || []).join() === 'bleed:3'
+      && (pips.ash || []).join() === 'guard:7'
+      && !pips.foe0,
+      JSON.stringify(pips));
+
+    // AND NONE OF IT SURVIVES THE FIGHT. The lane chips did — the reckoning's
+    // hide list never named them — so two dark FRONT / MID chips floated over
+    // an empty plaza under a banner reading FALLEN.
+    const after = await J(async () => {
+      window.K.startCombat({ seed: 5, foes: ['husk'] });
+      const st = window.K.state();
+      st.heroes.ash.guard = 7; st.foes[0].chill = 4;
+      window.K.renderIntent();
+      const live = document.querySelectorAll('.k-tell, .k-pips').length;
+      st.foes[0].hp = 0; st.foes[0].dead = true;
+      st.phase = 'VICTORY';
+      window.K.renderIntent();
+      await new Promise(r2 => setTimeout(r2, 60));
+      const shown = [...document.querySelectorAll('.k-tell, .k-pips')]
+        .filter(e => e.innerHTML.trim()).length;
+      return { live, shown, lanes: document.querySelectorAll('.k-foe-lane').length };
+    });
+    check('RECKONING: the badges and the pips stand down with the fight',
+      after.live > 0 && after.shown === 0 && after.lanes === 0, JSON.stringify(after));
   }
 
   const r = report();

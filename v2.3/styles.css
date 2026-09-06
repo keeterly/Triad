@@ -137,14 +137,8 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 /* WHICH LANE A BODY IS IN, said in the same word the floor uses. Only ever
    drawn when there is more than one of them — a lone opponent has no lane to
    distinguish it from. */
-/* AT ITS FEET, NOT BELOW THEM. Hung under the box the front body's label fell
-   behind the card fan — the one lane the player most needs to read was the one
-   the hand covered. */
-.k-foe-lane { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%);
-  z-index: 5; padding: 1px 6px; border-radius: 3px; white-space: nowrap;
-  background: rgba(12,10,16,0.72); border: 1px solid rgba(201,164,92,0.2);
-  font: 700 7.5px/1.3 var(--ui, system-ui), sans-serif; letter-spacing: 0.18em;
-  color: rgba(216,196,160,0.9); text-shadow: 0 1px 3px #000; pointer-events: none; }
+/* Build 171: `.k-foe-lane` — the FRONT / MID / BACK chip under each body — was
+   deleted with the sky telegraph that used to quote it back. */
 
 /* WHAT YOU ARE POINTED AT. A ring on the floor under the aimed body rather
    than a tint on the body itself: the creature keeps its own colour, and the
@@ -173,7 +167,11 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
    A line of one keeps the plate it has always had; a line replaces it. */
 #k-boss-hud:has(.k-line-strip) .k-foe-plate { display: none; }
 .k-line-strip { display: flex; flex-direction: column; gap: 3px; width: 100%; margin-top: 2px; }
-.k-lrow { display: grid; grid-template-columns: 13px 1fr 52px 30px 26px; align-items: center;
+/* FOUR COLUMNS, NOT FIVE. The first was 13px holding the lane letter, which
+   went with the sky telegraph in Build 171 — left in place it collapsed every
+   name to "H.." because the grid still reserved its width and the name column
+   gave the difference back. */
+.k-lrow { display: grid; grid-template-columns: 1fr 52px 30px 26px; align-items: center;
   gap: 6px; width: 100%; padding: 3px 5px; border-radius: 4px;
   background: rgba(12,10,16,0.42); border: 1px solid rgba(201,164,92,0.14);
   color: #cdc4b8; font: 600 9px/1.1 var(--ui, system-ui), sans-serif;
@@ -183,10 +181,6 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
 .k-lrow-on { background: rgba(201,164,92,0.16); border-color: rgba(201,164,92,0.55); color: #f0e6d6; }
 .k-lrow-dead { opacity: 0.4; cursor: default; }
 .k-lr-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* WHICH LANE, in the floor's own word — the first column, because "which of
-   these is in front of me" is the question the readout is for. */
-.k-lr-lane { font-style: normal; font-size: 9px; letter-spacing: 0;
-  text-align: center; color: rgba(201,164,92,0.85); }
 .k-lr-bar { height: 5px; border-radius: 3px; overflow: hidden; background: rgba(0,0,0,0.5); }
 .k-lr-hp, .k-lr-brk { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; }
 .k-lr-brk { color: #8fb4d4; }
@@ -507,8 +501,15 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    single foe is packed into a .k-foe-plate that stacks: the container holds the
    turn emblem and a column of plates, so a second and third foe are more plates
    rather than a second layout. */
-#k-boss-hud { position: absolute; right: 16px; top: 10px; width: 268px; display: flex;
-  flex-direction: column; align-items: flex-end; gap: 3px; z-index: 10; }
+/* OFF THE ENEMY'S SKY (Build 171). The roster sat top-right, which is exactly
+   where the line stands: the board lays its creatures out in depth, so the
+   back rank is drawn small and HIGH and its crown lands in the top twelfth of
+   the frame. The moment the telegraph moved onto the bodies, all three badges
+   were landing inside the readout they had just replaced. The roster moves to
+   the sky over the PARTY, which is empty — the heroes are drawn low — and the
+   sky over the enemies becomes theirs. */
+#k-boss-hud { position: absolute; left: 222px; right: auto; top: 10px; width: 268px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 3px; z-index: 10; }
 .k-foe-plate { display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
   width: 100%; }
 .k-foe-plate + .k-foe-plate { margin-top: 7px; }
@@ -582,10 +583,10 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    furniture. The readings are dense enough to be their own object now, so the
    sky goes back to being sky. What the plate was really providing is kept as
    text weight: each reading's own shadow, and the row letter's plate. */
-#k-intent { position: absolute; right: 18px; top: 92px; max-width: 620px;
-  display: flex; gap: 6px; align-items: center; justify-content: flex-end;
-  z-index: 11; pointer-events: none; }
-#k-intent:empty { display: none; }
+/* BUILD 171 — AND THE SKY GOES BACK TO BEING SKY FOR GOOD. The strip lived at
+   the top-right of the board and every chip in it had to carry a lane letter,
+   because a readout pinned to the ceiling cannot point at anybody. The badge
+   is over the creature's head now (`.k-tell` below), which is the pointing. */
 /* ONE LINE, NOT A ROW OF BADGES. Three filled pills with rims were the
    loudest thing on the board after the boss herself — and they are a READOUT,
    not a call to action. Naked marks and numbers on a hairline read faster and
@@ -605,7 +606,6 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* ONE LINE, however many targets. The telegraph carries a chip per hero now,
    so it has to stay compact: the dirge's "all · no parry" was wrapping and
    making the whole row two lines tall. */
-#k-intent { flex-wrap: nowrap; white-space: nowrap; gap: 0; align-items: center; }
 .k-ichip { padding: 2px 0; gap: 4px; }
 /* THE NUMBER LEADS. Mocked at three densities against the actual sky: the
    reading a player needs first is how much, so it is the largest thing in the
@@ -3911,7 +3911,12 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
 #k-stage.k-reckoning #k-endturn,
 #k-stage.k-reckoning #k-deck-btn,
 #k-stage.k-reckoning #k-disc-btn,
-#k-stage.k-reckoning #k-intent,
+/* …and the telegraph, which is now a badge on every body rather than one strip
+   — plus the status pips at their feet. Everything the fight was played WITH
+   stands down together; a creature wearing a chill it will never spend is the
+   same furniture the old lane chips were. */
+#k-stage.k-reckoning .k-tell,
+#k-stage.k-reckoning .k-pips,
 #k-stage.k-reckoning #k-boss-hud,
 #k-stage.k-reckoning .k-row-lbl,
 /* …AND THE RINGS THEMSELVES, not only their labels. This list hid `.k-row-lbl`
@@ -4409,3 +4414,85 @@ body.k-cast3d .k-cast3d-on[style*="--w-off: 1"] { visibility: hidden; }
 body.k-cast3d .k-hero.k-row-back img,
 body.k-cast3d .k-hero.k-row-mid img,
 body.k-cast3d .k-hero.k-row-front img { filter: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUILD 171 — THE TELEGRAPH AND THE STATUSES LIVE ON THE BODIES
+   ═══════════════════════════════════════════════════════════════════════════
+   They sit on the STAGE, not inside the body boxes, and `placeBodyLabels`
+   re-anchors them every frame off whatever is actually drawn for that body.
+   Parenting them into the box looked free — the box is placed by the world's
+   own projection — but the box is a 250x264 frame and the art inside it is
+   bottom-anchored at its own size, so a badge hung off the box's top edge
+   floated sixty-eight pixels above the Hollow Husk. Same reasoning, and the
+   same fix, as the parry rings and the string track.
+
+   `left` / `top` are written in stage pixels by that loop. The transforms here
+   are only the anchor edge: a badge grows upward from the crown, a pip row
+   downward from the feet. */
+.k-tell, .k-pips {
+  position: absolute; z-index: 22; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+  white-space: nowrap;
+}
+.k-tell { transform: translate(-50%, -100%); gap: 10px; }
+.k-pips { transform: translate(-50%, 0); gap: 5px; }
+/* a label that hangs ABOVE its body grows upward from the crown */
+.k-pips.k-lbl-over { transform: translate(-50%, -100%); }
+
+/* ── HOW HEAVY, IN THREE SIZES ───────────────────────────────────────────────
+   The mark grows and the number grows with it, so weight is legible before
+   anything is read — a critical is a different SHAPE on the board, not a
+   different colour of the same shape. Colour is the second channel and only
+   the top tier spends it: a board where every number is warm has no way left
+   to say "this one ends somebody". */
+.k-tell .k-ichip { padding: 0; }
+.k-tell .k-ichip + .k-ichip { margin-left: 0; }
+.k-tell .k-ichip b { text-shadow: 0 1px 4px #000, 0 0 12px rgba(0,0,0,0.9); }
+.k-ichip.k-w1 .k-ico { width: 12px; height: 12px; opacity: 0.8; }
+.k-ichip.k-w1 b { font-size: 15px; color: #e6dcc8; }
+.k-ichip.k-w2 .k-ico { width: 16px; height: 16px; opacity: 0.95; }
+.k-ichip.k-w2 b { font-size: 20px; color: #f6ecd6; font-weight: 700; }
+/* CRITICAL. The ring is what makes it a state rather than a bigger number —
+   at a glance the board carries one circled mark and the player knows where
+   the turn's real question is before reading a single digit. */
+.k-ichip.k-w3 { padding: 2px 7px 2px 5px; border-radius: 999px;
+  background: rgba(48,10,12,0.55); box-shadow: 0 0 0 1px rgba(226,106,92,0.55),
+              0 0 14px rgba(214,74,60,0.3); }
+.k-ichip.k-w3 .k-ico { width: 19px; height: 19px; opacity: 1; color: #ff9d8c; }
+.k-ichip.k-w3 b { font-size: 23px; color: #ffcfc2; font-weight: 800; }
+.k-ichip.k-w3 { animation: k-tell-crit 1.5s ease-in-out infinite; }
+@keyframes k-tell-crit { 0%, 100% { opacity: 1; } 50% { opacity: 0.78; } }
+/* SWUNG IS COLD, CAST IS WARM — the one hue split on the badge, so the kind of
+   blow survives being seen out of the corner of an eye. Overridden by the
+   critical rule above, which is louder than either on purpose. */
+.k-ichip[data-elem="phys"] .k-ico { color: #cfd8e4; }
+.k-ichip[data-elem="arc"]  .k-ico { color: #d3b4ea; }
+.k-tell .k-ichip-broken .k-ico { color: #e0c084; }
+.k-tell .k-ichip-hold { opacity: 0.6; }
+.k-tell .k-ichip-heal .k-ico { color: #9fd6a8; }
+.k-tell .k-ichip-guard .k-ico { color: #cbb27a; }
+.k-tell .k-ichip-dirge .k-ico { color: #c9a45c; }
+.k-tell .k-ichip u { font-style: normal; font-size: 8px; letter-spacing: 0.14em;
+  color: #b8ac95; margin-left: 3px; text-decoration: none; }
+.k-tell .k-ichip-ans { display: inline-flex; align-items: center; gap: 1px; margin-left: 4px;
+  opacity: 0.75; }
+.k-tell .k-ichip-ans .k-ico { width: 9px; height: 9px; }
+.k-tell .k-ichip-sweep { font-style: normal; font-size: 10px; color: #9ec7a6;
+  margin-left: 3px; text-shadow: 0 1px 3px #000; }
+
+/* ── THE STATUSES, AT THE FEET ───────────────────────────────────────────────
+   Small on purpose. These are things the player has already spent a card on
+   and needs to be reminded of, not decisions being asked for — the badge above
+   the head is the only thing on a body allowed to shout. */
+.k-pip-b { display: inline-flex; align-items: center; gap: 2px;
+  padding: 1px 5px 1px 4px; border-radius: 999px;
+  background: rgba(10,9,14,0.78); box-shadow: 0 0 0 1px rgba(255,255,255,0.07);
+  font: 700 10px/1.2 var(--ui, system-ui), sans-serif; }
+.k-pip-b .k-ico { width: 9px; height: 9px; }
+.k-pip-b b { font-size: 11px; font-weight: 700; }
+.k-pip-guard  { color: #e6cd92; }
+.k-pip-inter  { color: #f0dcb0; box-shadow: 0 0 0 1px rgba(224,192,132,0.4); }
+.k-pip-stance { color: #cbd8ea; }
+.k-pip-chill  { color: #a8d4e8; }
+.k-pip-bleed  { color: #e0908c; }
+.k-pip-stag   { color: #ffd68a; box-shadow: 0 0 0 1px rgba(255,214,138,0.45); }

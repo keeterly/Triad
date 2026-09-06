@@ -761,7 +761,7 @@ const { boot } = require('./harness.cjs');
       window.K.startCombat({ seed: 7 });
       window.K.forceIntent('hymn');
       const rows = window.K.intentByTarget();
-      const chips = [...document.querySelectorAll('#k-intent .k-ichip-atk')].map(c => ({
+      const chips = [...document.querySelectorAll('.k-tell .k-ichip-atk')].map(c => ({
         n: (c.querySelector('b') || {}).textContent,
         mul: (c.querySelector('i') || {}).textContent || '',
         // WHAT MOVED: the chip carried the target as a 17px circular crop of
@@ -784,14 +784,29 @@ const { boot } = require('./harness.cjs');
       });
       // the letter is LIVE: step the hero the first blow is aimed at and the
       // chip has to follow them, or it is a label rather than a readout
+      // …AND THE LETTER WENT WITH THE STRIP (Build 171). The badge hangs over
+      // the creature throwing the blow, so it names no lane; WHO takes it is
+      // the party roster's job. What still has to be LIVE is the number —
+      // stepping out of a sweep's reach changes what lands, and a badge that
+      // did not re-read would be promising damage the engine will not deal.
+      const before = [...document.querySelectorAll('.k-tell .k-ichip-atk b')]
+        .map(b => b.textContent);
       const first = rows[0].who;
       const was = letters[first];
       window.K.moveHero(first);
-      const moved = [...document.querySelectorAll('#k-intent .k-ichip-atk u')]
-        .map(u => u.textContent);
+      window.K.renderIntent();
+      const after = [...document.querySelectorAll('.k-tell .k-ichip-atk b')]
+        .map(b => b.textContent);
       const nowRow = window.K.ROW_LETTER[window.K.state().heroes[first].row];
+      // every badge's number is a number the engine agrees to deal
+      const src = window.K.intentBySource();
+      const owed = [];
+      src.forEach(o => o.blows.forEach(b => owed.push(String(b.d))));
+      const shown = [...document.querySelectorAll('.k-tell .k-ichip-atk b')].map(b => b.textContent);
       return { rows, chips, hits: it.hits.length, total, letters,
-               live: { first, was, nowRow, moved, changed: was !== nowRow } };
+               agrees: owed.slice().sort().join(',') === shown.slice().sort().join(','),
+               owed, shown,
+               live: { first, was, nowRow, before, after, changed: was !== nowRow } };
     });
     // The Hymn strikes Ash twice and Elin once. The old chip read the VOLLEY
     // TOTAL with the FIRST target's face — so Elin's player was given no sign
@@ -814,10 +829,21 @@ const { boot } = require('./harness.cjs');
           try { window.K.forceIntent(id); } catch (e) { continue; }
           await new Promise(r => setTimeout(r, 20));
           n++;
+          window.K.renderIntent(); window.K.placeBodyLabels();
           const st = document.getElementById('k-stage').getBoundingClientRect();
-          const r2 = document.getElementById('k-intent').getBoundingClientRect();
-          if (r2.right > st.right + 0.5 || r2.left < st.left - 0.5)
-            bad.push(f + '/' + id + ':' + Math.round(r2.right - st.right));
+          for (const t of document.querySelectorAll('.k-tell')) {
+            const r2 = t.getBoundingClientRect();
+            if (!r2.width) continue;
+            // …AND IT ALSO MAY NOT CLIMB INTO THE ENEMY READOUT, which is the
+            // collision that made the badge worth measuring: the line stands
+            // in depth, so a back-rank crown sits in the top twelfth of the
+            // frame and a badge over it lands exactly where the plates are.
+            const hud = document.getElementById('k-boss-hud').getBoundingClientRect();
+            const overHud = r2.right > hud.left && r2.left < hud.right
+                         && r2.bottom > hud.top && r2.top < hud.bottom;
+            if (r2.right > st.right + 0.5 || r2.left < st.left - 0.5 || r2.top < st.top - 0.5 || overHud)
+              bad.push(f + '/' + id + (overHud ? ':hud' : ':' + Math.round(r2.right - st.right)));
+          }
         }
       }
       return { n, bad, W: Math.round(document.getElementById('k-stage').getBoundingClientRect().width) };
@@ -924,16 +950,23 @@ const { boot } = require('./harness.cjs');
       const sweeper = window.K.state().foes[0].intents.find(i => (i.hits || []).some(h => h.sweep));
       window.K.forceIntent(sweeper.id);
       await new Promise(r => setTimeout(r, 40));
+      // ONCE PER CREATURE, NOT ONCE PER TARGET (Build 171). The badge is
+      // grouped by whoever is throwing the bar, so one sweeping creature wears
+      // one offer however many people its arc crosses — the Scything Advance
+      // used to print the same "step back" twice, on two chips, for one swing.
+      const src = window.K.intentBySource().filter(o => o.sweep && o.back < o.total);
       const rows = window.K.intentByTarget().filter(r => r.sweep);
-      const marks = [...document.querySelectorAll('.k-ichip-sweep')].map(e => e.textContent.replace(/[^0-9]/g, ''));
+      const marks = [...document.querySelectorAll('.k-tell .k-ichip-sweep')]
+        .map(e => e.textContent.replace(/[^0-9]/g, ''));
       if (!rows.length) return { swept: 0 };
       const who = rows[0].who, promised = rows[0].back, before = rows[0].total;
       window.K.moveHero(who);                       // take the offer
+      window.K.renderIntent();
       const after = (window.K.intentByTarget().find(r => r.who === who) || {}).total;
-      return { swept: rows.length, marks, who, before, promised, after };
+      return { swept: rows.length, sources: src.length, marks, who, before, promised, after };
     });
     check('LANES: a sweep says so, and the number it promises one row back is the number that lands',
-      swept.swept >= 1 && swept.marks.length === swept.swept
+      swept.swept >= 1 && swept.marks.length === swept.sources
       && swept.after === swept.promised && swept.after < swept.before,
       JSON.stringify(swept));
 
@@ -953,24 +986,25 @@ const { boot } = require('./harness.cjs');
       && tel.chips.every(c => !c.mul),
       JSON.stringify({ chips: tel.chips.length, hits: tel.hits,
                        muls: tel.chips.map(c => c.mul) }));
-    // A PLACE, NOT A PERSON. Written against the old code this goes red twice
-    // over: `face` was ASH/ELIN/MIRA, which is neither one character nor a row.
-    check('TELEGRAPH: each blow names the ROW it lands in, in one character, never a hero',
-      tel.chips.length > 0
-      && tel.chips.every(c => /^[FMB]$/.test((c.face || '').trim()))
-      && tel.rows.every(r => tel.chips.some(c => c.face === tel.letters[r.who])),
-      JSON.stringify({ faces: tel.chips.map(c => c.face), letters: tel.letters }));
-    // …and it is a READOUT, not a label: step the target and the letter follows,
-    // because that is the whole reason a row beats a name here.
-    check('TELEGRAPH: the row letter is live — moving the target moves the reading',
-      tel.live.changed && tel.live.moved.indexOf(tel.live.nowRow) >= 0
-      && tel.live.moved.indexOf(tel.live.was) < 0,
+    // NO PLACE AT ALL (Build 171). The badge hangs over the creature throwing
+    // the blow, so naming a lane on it would be the readout pointing at a
+    // third thing. Written against Build 170 this goes red: every chip carried
+    // an F / M / B in a `<u>`.
+    check('TELEGRAPH: a badge names no lane — it is standing on the answer',
+      tel.chips.length > 0 && tel.chips.every(c => !c.face),
+      JSON.stringify({ faces: tel.chips.map(c => c.face) }));
+    // …and it is a READOUT, not a label: every number on the board is a number
+    // the engine has agreed to deal, and it re-reads when the party moves.
+    check('TELEGRAPH: every badge on the board is a blow the engine owes',
+      tel.agrees, JSON.stringify({ owed: tel.owed, shown: tel.shown }));
+    check('TELEGRAPH: the reading is live — stepping the target re-prices the badge',
+      tel.live.changed && tel.live.after.length > 0,
       JSON.stringify(tel.live));
     // the numbers are still PER BLOW, the same grammar the player's own cards
     // use — each chip carries what that one blow lands for
     check('TELEGRAPH: every chip carries what THAT blow lands for',
       tel.rows.every(r => r.hits.every(d =>
-        tel.chips.some(c => c.face === tel.letters[r.who] && +c.n === d))),
+        tel.chips.some(c => +c.n === d))),
       JSON.stringify({ chips: tel.chips, rows: tel.rows }));
     check('TELEGRAPH: the per-target numbers still add up to the volley',
       tel.rows.reduce((n, r) => n + r.total, 0) === tel.total,
@@ -1066,7 +1100,9 @@ const { boot } = require('./harness.cjs');
   {
     const dirge = await J(() => {
       window.K.forceIntent('hymn');
-      const t = (document.getElementById('k-intent') || {}).textContent || '';
+      window.K.renderIntent();
+      const t = [...document.querySelectorAll('.k-tell')].map(e => e.textContent).join(' ')
+        + ' ' + [...document.querySelectorAll('.k-tell [title]')].map(e => e.title).join(' ');
       return { text: t, dirge: window.K.dirgeAmount() };
     });
     // WHAT MOVED at Build 72: the chip said `all · no parry`, which is true and
@@ -2501,14 +2537,27 @@ const { boot } = require('./harness.cjs');
         if (now === was && now) break;
         was = now;
       }
-      const ir = document.getElementById('k-intent').getBoundingClientRect();
+      // THE TELEGRAPH IS A SET OF THINGS NOW (Build 171), one over each
+      // creature, so "where is the telegraph" is the box that contains them
+      // all — which is what every clearance rule below was really asking.
+      const tells = [...document.querySelectorAll('.k-tell')].filter(e => e.getBoundingClientRect().width);
+      const union = (els) => {
+        const rs = els.map(e => e.getBoundingClientRect());
+        if (!rs.length) return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 };
+        const l = Math.min(...rs.map(r => r.left)), t = Math.min(...rs.map(r => r.top));
+        const r2 = Math.max(...rs.map(r => r.right)), b2 = Math.max(...rs.map(r => r.bottom));
+        return { left: l, top: t, right: r2, bottom: b2, width: r2 - l, height: b2 - t };
+      };
+      const ir = union(tells);
       const br = document.getElementById('k-boss-art').getBoundingClientRect();
       const clearOf = (r) => ir.right < r.left || ir.left > r.right || ir.bottom < r.top || ir.top > r.bottom;
       // the telegraph floats in the sky ABOVE the Regent's head: horizontally
       // over the figure, vertically clear of it and of the boss HUD
       const hud = document.getElementById('k-boss-hud').getBoundingClientRect();
-      const disjoint = ir.bottom < br.top + br.height * 0.45
-        && clearOf(document.getElementById('k-party-hud').getBoundingClientRect());
+      const disjoint = tells.length > 0
+        && ir.bottom < br.top + br.height * 0.45
+        && clearOf(document.getElementById('k-party-hud').getBoundingClientRect())
+        && clearOf(hud);
       // WHAT MOVED at Build 73: this required the row to fit INSIDE the Regent's
       // sprite, ±40px. That held while the telegraph was three bare numbers and
       // stopped holding the moment it started saying WHO each blow is for and
@@ -2521,10 +2570,13 @@ const { boot } = require('./harness.cjs');
       // side of the board rather than drifting away from it, and stays clear of
       // the HUD above it.
       const overHead = ir.left < br.right && br.left < ir.right
-        && Math.abs(ir.right - br.right) < 60
-        && ir.top >= hud.bottom - 1;
+        // …AND IT IS OVER THE CREATURE, not merely near it. The strip was
+        // right-aligned in the sky and this asked its right edge to line up
+        // with the Regent's; a badge hangs from the crown, so what has to hold
+        // is that its CENTRE is the creature's centre.
+        && Math.abs((ir.left + ir.right) / 2 - (br.left + br.right) / 2) < 60;
       const oneLine = ir.height < 34;
-      const chips = document.querySelectorAll('#k-intent .k-ichip');
+      const chips = document.querySelectorAll('.k-tell .k-ichip');
       const iconed = [...chips].every(c => c.querySelector('svg.k-ico') && c.querySelector('b'));
       // THE TELEGRAPH IS ICONS AND NUMBERS, plus a fixed, tiny vocabulary of
       // qualifiers — never a name, never a sentence. This used to be "no word
@@ -2547,16 +2599,16 @@ const { boot } = require('./harness.cjs');
       // letter now — rows are exclusive, so one character says it exactly — and
       // the names are not merely no longer needed, they are forbidden: three
       // nine-letter names is the 425px of sky this readout is climbing out of.
-      const OK_WORDS = ['all', 'or', 'guard', 'break', 'f', 'm', 'b'];
+      // …and the three lane letters came off the list with the lane (Build 171).
+      const OK_WORDS = ['all', 'or', 'guard', 'break'];
       // PER ELEMENT, not off the raw textContent. The row plate and the
       // counterplay hint are adjacent spans with no whitespace between them, so
       // reading the container whole glued ALL to Guard and reported a word
       // nobody wrote. The probe was measuring its own concatenation.
-      const iEl = document.getElementById('k-intent');
-      const words = [...iEl.querySelectorAll('b, u, i, em')]
+      const words = [...document.querySelectorAll('.k-tell b, .k-tell u, .k-tell i, .k-tell em')]
         .flatMap(e => e.textContent.match(/[A-Za-z]+/g) || []);
       const noWords = words.every(w => OK_WORDS.indexOf(w.toLowerCase()) >= 0)
-        && !/ash|elin|mira/i.test(iEl.textContent);
+        && !/ash|elin|mira/i.test(tells.map(e => e.textContent).join(' '));
       const noBanner = !document.getElementById('k-int-notes') && !document.getElementById('k-int-hint')
         && !document.getElementById('k-int-name');
       const rows = document.querySelectorAll('.k-pt-hero').length;
@@ -2585,9 +2637,11 @@ const { boot } = require('./harness.cjs');
               && !document.querySelector('#k-log:not(.k-sr)'),
         // the telegraph must not print over the Break pips
         breakClear: (() => {
-          const a = document.getElementById('k-intent').getBoundingClientRect();
           const b = document.getElementById('k-break').getBoundingClientRect();
-          return a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom;
+          return [...document.querySelectorAll('.k-tell')].every(e => {
+            const a = e.getBoundingClientRect();
+            if (!a.width) return true;
+            return a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom; });
         })(),
         // THE RULE MOVED IN BUILD 56. The ladder used to live in the open sky
         // between the two HUDs and this asked it to clear everything including
@@ -2610,8 +2664,8 @@ const { boot } = require('./harness.cjs');
           const k = kz.getBoundingClientRect();
           const hit = (r) => !(k.right <= r.left || k.left >= r.right
             || k.bottom <= r.top || k.top >= r.bottom);
-          const named = [['boss-hud', document.getElementById('k-boss-hud')],
-            ['intent', document.getElementById('k-intent')]]
+          const named = [['boss-hud', document.getElementById('k-boss-hud')]]
+            .concat([...document.querySelectorAll('.k-tell')].map((n, i) => ['tell:' + i, n]))
             .concat([...document.querySelectorAll('.k-hero')]
               .map(n => ['hero:' + n.dataset.hero, n]));
           const hits = named.filter(([, n]) => hit(n.getBoundingClientRect())).map(([nm]) => nm);
@@ -2634,22 +2688,25 @@ const { boot } = require('./harness.cjs');
         clipped, worstOver,
         overHead, oneLine, noBanner, iconed, noWords, chipN: chips.length,
         preview: window.K.intentPreviewDmg(),
-        dirge: !!document.querySelector('#k-intent .k-ichip-dirge'),
-        atk: (document.querySelector('#k-intent .k-ichip-atk b') || {}).textContent,
+        dirge: !!document.querySelector('.k-tell .k-ichip-dirge'),
+        atk: (document.querySelector('.k-tell .k-ichip-atk b') || {}).textContent,
         // one chip per hero struck: the numbers must ADD UP to the volley, and
         // no single chip is expected to equal it any more
         perTargetSums: window.K.intentByTarget().reduce((n, r) => n + r.total, 0)
           === window.K.intentPreviewDmg(),
-        // the target is NAMED now, not cropped — see OK_WORDS above
-        hasTargetFace: !!document.querySelector('#k-intent .k-ichip-atk u'),
-        hasDirge: !!document.querySelector('#k-intent .k-ichip-dirge') };
+        // …and it names NOBODY now — the badge is standing on its own answer
+        hasTargetFace: !!document.querySelector('.k-tell .k-ichip-atk u'),
+        hasDirge: !!document.querySelector('.k-tell .k-ichip-dirge') };
     });
-    check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; telegraph is icon chips above the Regent; no card clipped',
+    // `hasTargetFace` INVERTED at Build 171 and the flip is the point: the
+    // badge is over the creature throwing the blow, so a lane letter on it
+    // would be the readout pointing somewhere other than where it hangs.
+    check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; telegraph is icon chips over each creature and names no lane; no card clipped',
       ui.disjoint && ui.rows === 3 && ui.bars === 3 && ui.cards === 5 && ui.fanned
       && ui.pips === 12 && ui.noMove && ui.ap === '3' && ui.apPips === 3 && ui.apLit === 3
       && ui.gone && ui.breakClear && ui.kzClear.ok
       && ui.clipped === 0 && ui.overHead && ui.oneLine && ui.noBanner
-      && ui.iconed && ui.noWords && ui.perTargetSums && ui.hasTargetFace && ui.hasDirge,
+      && ui.iconed && ui.noWords && ui.perTargetSums && !ui.hasTargetFace && ui.hasDirge,
       JSON.stringify(ui));
     const hover = await J(async () => {
       const card = document.querySelector('#k-hand .k-card');
@@ -2982,8 +3039,8 @@ const { boot } = require('./harness.cjs');
     const scale = await J(() => ({
       ash: document.querySelector('.k-pt-hero[data-hero="ash"] .k-pt-hp b').textContent.trim(),
       boss: document.getElementById('k-bhp').textContent.trim(),
-      intent: (document.querySelector('#k-intent .k-ichip-atk b') || {}).textContent,
-      commas: [...document.querySelectorAll('#k-hand .k-cprose, .k-pt-hp, #k-bhp, #k-intent b')]
+      intent: (document.querySelector('.k-tell .k-ichip-atk b') || {}).textContent,
+      commas: [...document.querySelectorAll('#k-hand .k-cprose, .k-pt-hp, #k-bhp, .k-tell b')]
         .filter(e => /\d,\d/.test(e.textContent)).length,
     }));
     check('SCALE: HP and damage read at Slay-the-Spire size — no four-digit numbers',
