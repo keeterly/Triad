@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 166;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 167;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -5960,7 +5960,10 @@ function renderBossHud() {
   // means intact. The number is the half a pip row cannot give.
   const bn = el('k-brk-n');
   if (bn) bn.textContent = stag ? '' : fmtN(C.boss.brk) + '/' + fmtN(C.boss.breakMax);
-  el('k-turn-n').textContent = C.turn;
+  // the turn emblem was removed from the foe plate in Build 167; the count
+  // still lives on the state, which is where anything that wants it reads it
+  const tn = document.getElementById('k-turn-n');
+  if (tn) tn.textContent = C.turn;
   // THE BREAK GAUGE ONLY EVER FLASHED AS A WHOLE. Knocking a pip out is the
   // single most consequential thing a support card does, and it was a silent
   // repaint — the row flashed, so you could see that break had moved and

@@ -1829,7 +1829,22 @@ const { boot } = require('./harness.cjs');
         const x0 = f.root.position.x, z0 = f.root.position.z;
         const down = { LeftFoot: null, RightFoot: null };
         const slide = { LeftFoot: 0, RightFoot: 0 };
-        for (let i = 0; i < 70; i++) {
+        // ── THE WHOLE SWING, NOT SEVENTY FRAMES OF IT ──────────────────────
+        //
+        // This ran a fixed frame count, which is a WALL-CLOCK window over a
+        // clip whose speed is not constant: Build 167 gave the swing a warp
+        // that starts slow and accelerates into the blow, and elin's staff
+        // promptly reported 0.037m of root travel against a 0.04 bar it had
+        // been clearing at 0.042. Nothing about her stride changed — the same
+        // seventy frames simply covered less of the clip, because the front of
+        // it now plays slower.
+        //
+        // It is the same fault the skate gate had in Build 163 and it wants
+        // the same answer: run until the CLIP is done rather than until the
+        // frames are. The cap is a guard against a clip that never finishes,
+        // not a budget.
+        const act = f.actions[name], clipDur = act.getClip().duration;
+        for (let i = 0; i < 400 && f.acting && act.time < clipDur * 0.995; i++) {
           tick();
           f.root.updateWorldMatrix(true, true);
           for (const foot of ['LeftFoot', 'RightFoot']) {
@@ -3027,6 +3042,100 @@ const { boot } = require('./harness.cjs');
   // 0.222. The lunge vector is what the ease walks toward, without the frame
   // rate in it. The RETURN is still sampled, because that is a thing that
   // happens over time, and it is only asked to arrive eventually.
+  // ── A SWING IS NOT ONE SPEED ────────────────────────────────────────────
+  //
+  // Every attack used to play at a constant rate, which is what flat is: the
+  // body covers the same ground in the first sixtieth of the wind-up as in the
+  // sixtieth the weapon lands on, and nothing in the motion says which frame
+  // the blow is.
+  //
+  // The warp pins three points — start, CONTACT and end — so each half maps
+  // onto itself and neither the moment the weapon arrives nor the length of
+  // the clip moves. That invariant is what lets it be applied at all: contact
+  // and beat are both derived from duration and timeScale, and everything
+  // downstream is scheduled off them. It is checked two ways — the shape here,
+  // and the consequences in beat.test, which reads when the number prints and
+  // how long the camera holds.
+  console.log('\n── the swing ──');
+  const swing = await J(() => {
+    const C3 = window.Cast3D, f = C3._figure('ash');
+    const name = C3._verbClip('ash', 'slash');
+    const m = f.meta && f.meta[name];
+    if (!m || !(m.hit > 0)) return { err: 'no contact frame on ' + name };
+    f.clear(); f.play(name);
+    const a = f.actions[name], dur = a.getClip().duration;
+    const base = a._baseRate;
+    const at = [];
+    for (const u of [0.02, 0.25, 0.5, 0.75, 0.98]) {
+      a.time = u * dur;
+      f.step(0.0001);
+      at.push(+(a.timeScale / base).toFixed(2));
+    }
+    // the fastest frame of the clip, and where it sits relative to contact
+    let peak = 0, peakU = 0;
+    for (let i = 1; i < 200; i++) {
+      a.time = (i / 200) * dur;
+      f.step(0.0001);
+      const r = a.timeScale / base;
+      if (r > peak) { peak = r; peakU = i / 200; }
+    }
+    f.clear();
+    return { at, hit: +m.hit.toFixed(3), peak: +peak.toFixed(2), peakU: +peakU.toFixed(3),
+             lo: +Math.min(...at).toFixed(2), hi: +Math.max(...at).toFixed(2) };
+  });
+  check('SWING: the blow accelerates rather than playing at one speed',
+    !swing.err && swing.hi / swing.lo > 3,
+    JSON.stringify(swing) + ' — rate against the clip own budget, sampled across it');
+  check('SWING: …and it is fastest at the frame the weapon arrives',
+    !swing.err && Math.abs(swing.peakU - swing.hit) < 0.04,
+    JSON.stringify(swing) + ' — the peak has to land on the contact frame, not '
+      + 'somewhere in the follow-through');
+
+  // ── THREE RANKS ON ONE LINE ─────────────────────────────────────────────
+  //
+  // The middle slot sat 27cm off the line between its neighbours and the steps
+  // between ranks were uneven, so the party read as a bend rather than as a
+  // formation with a front and a back. Measured as the perpendicular distance
+  // of the middle mark from the line joining the other two, which is the only
+  // thing "in a line" can mean.
+  const line = await J(() => {
+    const S = window.Cast3D._stage ? window.Cast3D._stage() : null;
+    if (!S) return { err: 'no stage' };
+    const off = (r) => {
+      const a = r.front, b = r.back, m = r.mid;
+      const vx = b[0] - a[0], vy = b[1] - a[1];
+      const L = Math.hypot(vx, vy) || 1;
+      return +(Math.abs((m[0] - a[0]) * vy - (m[1] - a[1]) * vx) / L).toFixed(4);
+    };
+    return { hero: off(S.hero), foe: off(S.foe) };
+  });
+  check('LINE: the three ranks stand on one line, not an arc',
+    !line.err && line.hero < 0.01 && line.foe < 0.01,
+    JSON.stringify(line) + ' m — how far the middle mark sits off the line '
+      + 'joining the front and back; it was 0.27 for the party');
+
+  // ── AND THE TEXTURE IS READ AS SHARPLY AS THE MACHINE ALLOWS ────────────
+  //
+  // The maps are 2048 square and were being sampled with anisotropy 1, which
+  // is the setting that picks a mip from a surface's WORST axis: every cloak
+  // falling away from the camera, every turning sleeve, read from a blurred
+  // mip while the detail sat in the texture. This is the cheapest sharpness in
+  // the file and it was left on the default.
+  const sharp = await J(() => {
+    const f = window.Cast3D._figure('ash');
+    let sk = null; f.root.traverse(o => { if (o.isSkinnedMesh) sk = o; });
+    const map = sk && sk.material && sk.material.map;
+    const gl = document.createElement('canvas').getContext('webgl2');
+    const ext = gl && gl.getExtension('EXT_texture_filter_anisotropic');
+    const max = ext ? gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT) : 1;
+    return { aniso: map ? map.anisotropy : null, max,
+             size: map && map.image ? [map.image.width, map.image.height] : null };
+  });
+  check('SHARP: the figures are sampled at the anisotropy the machine offers',
+    sharp.aniso >= Math.min(16, sharp.max),
+    JSON.stringify(sharp) + ' — 1 is the default and it costs a 2048 map most '
+      + 'of its detail on anything turned away from the camera');
+
   console.log('\n── the step into the blow ──');
   const step = {};
   for (const c of [{ card: 'serrate', who: 'mira', verb: 'slash' },

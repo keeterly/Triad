@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=166" />
+  <link rel="stylesheet" href="styles.css?v=167" />
 </head>
 <body>
   <div id="k-scale">
@@ -123,10 +123,12 @@
 
       <!-- boss HUD — upper-right -->
       <div id="k-boss-hud">
-        <div class="k-turn-emblem" title="Turn">
-          <svg width="15" height="15" viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" transform="rotate(45 8 8)" fill="none" stroke="#c9a45c" stroke-width="1.1"></rect><circle cx="8" cy="8" r="2" fill="#c9a45c"></circle></svg>
-          <b id="k-turn-n">1</b>
-        </div>
+        <!-- THE TURN EMBLEM IS GONE. A gold diamond and a bare number sat
+             above the foe's own name and health, which is the most-read
+             corner of the screen, and neither of them was a thing anybody
+             looks at during a fight — the turn is legible from the board.
+             The number it carried is still on the state, which is where the
+             suites read it from now. -->
         <!-- ONE FOE PLATE. Everything about a single opponent lives inside this
              block and nothing about it is positioned from the stage, so a fight
              with three of them is a matter of repeating the plate rather than
@@ -533,21 +535,52 @@
     setTimeout(check, 2500);
   })();
   </script>
-  <script src="run.js?v=166"></script>
-  <script src="game.js?v=166"></script>
+  <script src="run.js?v=167"></script>
+  <script src="game.js?v=167"></script>
   <!-- THE CAST IN THREE DIMENSIONS — a module, and inert unless ?cast=3d.
        It draws one canvas under the DOM heroes and paints a rigged figure
        into each hero's box; everything above it (rows, drag, aim, popups,
        the party HUD) is untouched. -->
-  <script type="module" src="cast3d.js?v=166"></script>
+  <script type="module" src="cast3d.js?v=167"></script>
   <script>
-    // fit the 932×430 design space to the viewport, v2.2-style
+    // ── FIT THE 932x430 DESIGN SPACE TO THE PART OF THE SCREEN THAT IS ONE ──
+    //
+    // v2.2 fitted to innerWidth/innerHeight, and with viewport-fit=cover that
+    // includes the strip under the camera housing and the one under the home
+    // indicator. In landscape the island covers a whole end of the stage —
+    // which is the end the party's health sits on — so the readout was being
+    // drawn behind the hardware.
+    //
+    // The fix is not to move the HUD: the design space is one fixed rectangle
+    // and everything in it is positioned against everything else. It is to fit
+    // that rectangle to the SAFE box instead of the raw one, and centre it
+    // there. The stage loses a few per cent of its scale on a notched phone
+    // and nothing at all on anything else, because the insets are zero.
+    //
+    // env() is not readable from script, so the four values are copied onto
+    // custom properties in the stylesheet and read back off computed style.
     (function () {
-      const fit = () => {
-        const s = Math.min(innerWidth / 932, innerHeight / 430);
-        document.getElementById('k-scale').style.transform = 'scale(' + s + ')';
+      const root = document.documentElement;
+      const px = (name) => {
+        const v = getComputedStyle(root).getPropertyValue(name);
+        const n = parseFloat(v);
+        return isFinite(n) ? n : 0;
       };
-      addEventListener('resize', fit); fit();
+      const fit = () => {
+        const t = px('--sa-t'), r = px('--sa-r'), b = px('--sa-b'), l = px('--sa-l');
+        const w = Math.max(80, innerWidth - l - r);
+        const h = Math.max(80, innerHeight - t - b);
+        const s = Math.min(w / 932, h / 430);
+        // …and shifted into the safe box, since it is centred on the whole
+        // viewport. Half the DIFFERENCE of the opposing insets is the offset
+        // that puts the middle of the stage in the middle of what is visible.
+        const dx = (l - r) / 2, dy = (t - b) / 2;
+        document.getElementById('k-scale').style.transform =
+          'translate(' + dx + 'px,' + dy + 'px) scale(' + s + ')';
+      };
+      addEventListener('resize', fit);
+      addEventListener('orientationchange', () => setTimeout(fit, 60));
+      fit();
     })();
   </script>
 </body>

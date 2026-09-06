@@ -489,7 +489,22 @@ const HOLDS = { down: true };
 //                  toward ink. Without it this reads as flat 3D, not as paint.
 //   4. grain     — the paper's tooth, in SCREEN space, so it stays paper and
 //                  does not swim around with the figure
+// how sharply a texture may be read at a glancing angle. Filled in when the
+// renderer exists; 1 until then, which is the value that costs the detail.
+let MAX_ANISO = 1;
 function watercolour(map, tone) {
+  // ── THE MAP IS 2048 SQUARE AND WAS BEING SAMPLED LIKE IT WAS 256 ────────
+  //
+  // Anisotropy defaults to 1, which means a surface seen at an angle picks a
+  // mip chosen by its WORST axis: a cloak falling away from the camera, a
+  // sleeve turning, the side of a hood. All of them were being read from a
+  // blurred mip while the texture had the detail sitting right there. This is
+  // the cheapest sharpness in the file — no extra buffer, no extra pass, one
+  // number the hardware already supports up to sixteen.
+  if (map && MAX_ANISO > 1 && map.anisotropy !== MAX_ANISO) {
+    map.anisotropy = MAX_ANISO;
+    map.needsUpdate = true;
+  }
   const m = new THREE.MeshStandardMaterial({
     map, roughness: 1, metalness: 0, side: THREE.DoubleSide,
   });
@@ -2179,8 +2194,8 @@ const FX_VERB = {
   // follows the blade instead of puffing — fewer sparks, faster, shorter-lived,
   // and a cut mark rather than a shockwave.
   slash: { trail: true, reach: 0.92,
-           hit: { n: 78, speed: 8.4, spread: 0.42, life: 0.36, size: 0.05, cut: 1.25,
-                  shard: 20, ember: 12, arc: 1.15, flash: 1.15, flashMs: 0.13 } },
+           hit: { n: 128, speed: 8.4, spread: 0.42, life: 0.36, size: 0.05, cut: 1.25,
+                  shard: 34, ember: 22, arc: 1.15, flash: 1.15, flashMs: 0.13 } },
   // A SPELL, which really is radial: this is the one that has earned its ring.
   cast:  { trail: true, reach: 0.34, charge: true,
            hit: { n: 64, speed: 4.4, spread: 1.9, life: 0.9, size: 0.07, ring: 2.2, grav: -0.7,
@@ -2676,6 +2691,13 @@ class Figure {
       // afford, so the division lands just over 1 rather than at three.
       const beat = meta[name] && meta[name].beat;
       a.timeScale = ((loops || !beat) ? 1 : (rt.duration / beat)) * CLIP_RATE;
+      // The rate the whole clip is BUDGETED at, kept because `step` varies the
+      // live one every frame and would otherwise compound its own warp.
+      // ON THE ACTION ITSELF, because an AnimationAction has no userData — that
+      // is an Object3D thing, and assuming otherwise threw during load, took
+      // the whole layer down with it, and left the suite waiting on figures
+      // that were never going to arrive.
+      a._baseRate = a.timeScale;
       // ── THE POSE HOLDS UNTIL SOMETHING BLENDS IT AWAY (Build 125) ────────
       //
       // This is what "sloppy and jittery" was, and it was one line.
@@ -2905,6 +2927,18 @@ class Figure {
       if (Math.abs(this.idleWant - w) > 0.0005)
         this.idle.setEffectiveWeight(w + (this.idleWant - w) * k);
       else if (w !== this.idleWant) this.idle.setEffectiveWeight(this.idleWant);
+    }
+    // ── THE SWING SPEEDS UP INTO THE BLOW AND SETTLES OUT OF IT ──────────
+    //
+    // Only while a clip that HAS a contact frame is actually running, and
+    // never while the wind-up is being held — the hold drives `time` itself,
+    // and a rate applied on top of that would fight it.
+    if (this.acting && !this.held && !/swing=off/.test(location.search)) {
+      const a = this.acting, m = this.meta && this.meta[this.clipName];
+      const base = a._baseRate;
+      if (base && m && m.hit > 0 && !m.loop) {
+        a.timeScale = base * swingRate(a.time, a.getClip().duration, m.hit);
+      } else if (base && a.timeScale !== base) a.timeScale = base;
     }
     this.mixer.update(dt);
     // ── THE BODY TAKES THE TRAVEL, NOT THE FEET (Build 135) ────────────────
@@ -3159,6 +3193,72 @@ const _ikI = new THREE.Quaternion();
 // so that the rest of the layer follows for free — `beatMs` and `contactMs`
 // are both derived from the scaled duration, so the camera holds stretch with
 // the swing and the damage number still lands on the frame the weapon arrives.
+// ── AND A SWING IS NOT ONE SPEED ────────────────────────────────────────────
+//
+// Every attack played at a constant rate, which is what "flat" is: the body
+// travels the same distance in the first sixtieth of the wind-up as in the
+// sixtieth the weapon lands on. Nothing in the motion says which frame the
+// blow is. Animators have always answered this the same way — slow into the
+// wind-up, accelerate through the strike, then decelerate out of the
+// follow-through — and it is a property of the TIMING, not of the poses, so
+// it can be applied to clips that were captured flat.
+//
+// ── IT PRESERVES THE CONTACT FRAME AND THE LENGTH, EXACTLY ────────────────
+//
+// This is the constraint that makes it safe. `contactMs` and `beatMs` are both
+// derived from duration and timeScale, and everything downstream is scheduled
+// off them: when the damage number prints, how long the camera holds, when the
+// party starts talking. A warp that moved the contact would silently put the
+// number on a different frame from the weapon.
+//
+// So the remap is piecewise and pins three points — the start, the CONTACT,
+// and the end. Before contact it is w = h(p/h)^kIn, after it is a mirrored
+// ease; both map their segment onto itself, so the moment the weapon arrives
+// and the moment the clip ends are where they always were, and only the
+// distribution of time within each half changes.
+//
+// It is applied as a RATE rather than by writing `time` directly, because the
+// mixer owns that field and also runs the crossfades. The rate is the exact
+// derivative of the warp, expressed in terms of the warped position — which is
+// the only position available to read back — so following it reproduces the
+// remap without anything having to track a second clock.
+const SWING_IN = 1.85;    // how hard it accelerates into the blow
+const SWING_OUT = 1.55;   // …and settles out of it
+const SWING_FLOOR = 0.34; // nothing ever fully stops; a stalled clip is a hang
+// ── AND THE FLOOR IS PAID FOR, NOT IGNORED ────────────────────────────────
+//
+// The bare power law preserves each segment's duration exactly: the integral
+// of dt over a rate of k·y^(1-1/k) across the segment comes back to the
+// segment. The FLOOR breaks that, because it holds the rate up over the first
+// couple of per cent where the law would have gone to zero, and the clip
+// arrives early. Measured by integrating the warp: contact 6.3% early on every
+// clip and the whole swing 3-4.5% short — 15 to 40ms, about two frames, and
+// exactly the kind of quiet systematic drift that puts the damage number on a
+// different frame from the weapon that earned it.
+//
+// The error is a property of the NORMALISED segment, so it is the same 6.3%
+// whatever the clip or where its contact sits, and it can be cancelled by
+// scaling the rate by it. It is integrated here at load rather than written
+// down as a constant, so the three dials above can be tuned without silently
+// invalidating the correction — which is what a hand-copied 0.937 would do the
+// first time somebody changed SWING_IN.
+const [SWING_NIN, SWING_NOUT] = (() => {
+  const N = 4096;
+  const mean = (f) => { let a = 0; for (let i = 0; i < N; i++) a += 1 / f((i + 0.5) / N); return a / N; };
+  return [mean(y => Math.max(SWING_FLOOR, SWING_IN * Math.pow(y, 1 - 1 / SWING_IN))),
+          mean(y => Math.max(SWING_FLOOR, SWING_OUT * Math.pow(1 - y, 1 - 1 / SWING_OUT)))];
+})();
+function swingRate(t, dur, hit) {
+  const hT = hit * dur;
+  if (!(hT > 0.01) || !(dur - hT > 0.01)) return 1;
+  if (t < hT) {
+    const y = Math.max(0, Math.min(1, t / hT));
+    return SWING_NIN * Math.max(SWING_FLOOR, SWING_IN * Math.pow(y, 1 - 1 / SWING_IN));
+  }
+  const y = Math.max(0, Math.min(1, (t - hT) / (dur - hT)));
+  return SWING_NOUT * Math.max(SWING_FLOOR, SWING_OUT * Math.pow(1 - y, 1 - 1 / SWING_OUT));
+}
+
 const CLIP_RATE = 0.86;
 
 const FOOT_ON = 0.075, FOOT_OFF = 0.135;
@@ -3567,9 +3667,25 @@ const Cast3D = (() => {
     }
     return BOARD;
   }
+  // ── THREE RANKS ON ONE LINE, NOT AN ARC ─────────────────────────────────
+  //
+  // The middle slot used to sit 27cm off the line between its two neighbours,
+  // and the steps between ranks were uneven — 1.23m then 1.53m across, 0.57m
+  // then 1.03m back. Three people standing like that do not read as a
+  // formation with a front and a back, they read as a bend, and the eye takes
+  // the bend as the composition rather than the depth.
+  //
+  // The two ENDS are unchanged; only the middle moves, to the point exactly
+  // halfway between them. That keeps every framing, every camera mark and
+  // every reach that was tuned against the front and back ranks, and costs
+  // nothing but the kink. The foe line had the same fault, an order of
+  // magnitude smaller (7.9cm), and is made exact for the same reason.
+  const mid2 = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  const HERO_F = [0.00, 0.54], HERO_B = [-2.76, -1.06];
+  const FOE_F  = [2.10, 0.60], FOE_B  = [4.45, -0.95];
   const STAGE = {
-    hero: { front: [0.00, 0.54], mid: [-1.23, -0.03], back: [-2.76, -1.06] },
-    foe:  { front: [2.10, 0.60], mid: [3.30, -0.10], back: [4.45, -0.95] },
+    hero: { front: HERO_F, mid: mid2(HERO_F, HERO_B), back: HERO_B },
+    foe:  { front: FOE_F,  mid: mid2(FOE_F, FOE_B),   back: FOE_B },
     solo: [2.55, 1.15],
   };
   // metres, crown to sole. A generated model comes back whatever height the
@@ -3679,6 +3795,10 @@ const Cast3D = (() => {
     host.insertBefore(canvas, host.firstChild);
     try {
       renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+      // …and what this machine will let a texture be read at when it is
+      // turned away from the camera. Asked once, here, because it needs a
+      // context to answer and every map made afterwards wants the number.
+      MAX_ANISO = Math.min(16, renderer.capabilities.getMaxAnisotropy() || 1);
     } catch (err) { failed = 'no webgl: ' + err.message; return false; }
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -5328,7 +5448,16 @@ const Cast3D = (() => {
     // the zoom into the pixel ratio, not from resizing a box that never
     // changes — and the cap is on the product, so a very large monitor asks for
     // a sharper picture rather than an unbounded one.
-    const dpr = Math.min(TEST ? 1 : 2.5, (window.devicePixelRatio || 1) * zoom);
+    // ── AND THE CAP CLEARS A 3x PHONE ──────────────────────────────────
+    //
+    // At 2.5 the buffer came up SHORT of the screen on the device this is
+    // played on. An iPhone in landscape fits the 932-wide stage at about
+    // 0.914, so the canvas asked for 932 x 2.5 = 2330 pixels across while the
+    // panel was showing it over 852 css px at 3x — 2556 real ones. Nine per
+    // cent under, resampled up, on every figure in the game. Three is the
+    // ratio those screens actually have, so it is the number that stops
+    // costing resolution and the point past which more buffer buys nothing.
+    const dpr = Math.min(TEST ? 1 : 3, (window.devicePixelRatio || 1) * zoom);
     if (css.w !== sized.w || css.h !== sized.h || dpr !== sized.dpr) {
       sized.w = css.w; sized.h = css.h; sized.dpr = dpr;
       renderer.setPixelRatio(dpr);
@@ -6281,6 +6410,9 @@ const Cast3D = (() => {
     // rather than at whatever the software rasteriser manages
     _fx: () => fx,
     _cam: () => cam,          // test-only: the effects billboard against it
+    // test-only: the marks the three ranks stand on, so a suite can ask
+    // whether they are actually in a line rather than eyeballing a screenshot
+    _stage: () => STAGE,
     _scene: () => scene,        // test-only: the fog and the lights live here
     _homed: () => ({ ...homed }),     // test-only: the returns baked into clips
     _footIK: (v) => (v === undefined ? _footIK : (_footIK = !!v)),

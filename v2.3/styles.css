@@ -24,6 +24,19 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
   -webkit-user-select: none; user-select: none; touch-action: manipulation; }
 
+/* ── THE PARTS OF THE SCREEN THAT ARE NOT THE SCREEN ──────────────────────
+   The page already ships viewport-fit=cover, so on a phone the canvas runs
+   under the camera housing and the home indicator. In landscape — which is
+   the only way this game is played — the island sits over one whole end of
+   the stage, which is where the party's own health readout lives.
+   env() cannot be read from script, so it is copied onto custom properties
+   here and the fit reads them back off the computed style. */
+:root {
+  --sa-t: env(safe-area-inset-top, 0px);
+  --sa-r: env(safe-area-inset-right, 0px);
+  --sa-b: env(safe-area-inset-bottom, 0px);
+  --sa-l: env(safe-area-inset-left, 0px);
+}
 #k-scale { position: absolute; left: 50%; top: 50%; width: 932px; height: 430px;
   margin: -215px 0 0 -466px; transform-origin: 50% 50%; }
 #k-stage { position: relative; width: 932px; height: 430px; overflow: hidden;
@@ -499,8 +512,6 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-foe-plate { display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
   width: 100%; }
 .k-foe-plate + .k-foe-plate { margin-top: 7px; }
-.k-turn-emblem { display: flex; align-items: center; gap: 5px; margin-bottom: 1px; }
-.k-turn-emblem b { font-size: 14px; color: #e0c084; }
 .k-bname { font-size: 13.5px; font-weight: 600; letter-spacing: 0.15em; color: #ece2ca;
   text-shadow: 0 1px 5px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.7);
   text-transform: uppercase; }

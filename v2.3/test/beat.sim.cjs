@@ -37,7 +37,11 @@ const PROBES = `
     bossBreak: () => txt('k-break'),
     kizuna:    () => txt('k-kz-n'),
     intent:    () => { const e = document.getElementById('k-intent'); return e ? e.textContent.trim().slice(0, 60) : null; },
-    turn:      () => txt('k-turn-n'),
+    // OFF THE STATE, NOT THE DOM. The turn used to be read from an emblem in
+    // the foe plate; that emblem was removed for being decoration in the
+    // most-read corner of the screen, and a sim that reads a number through
+    // the widget displaying it breaks when the widget is redesigned.
+    turn:      () => { try { return String(window.K.state().turn); } catch (e) { return null; } },
     heroHp:    () => [...document.querySelectorAll('#k-party-hud .k-pt-hp')].map(e => e.textContent.replace(/\\s+/g, '')).join('|'),
     // the big painted number is the ONLY thing that tells a player how hard a
     // blow was; if it never appears the hit did not communicate
