@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 177;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 178;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -6271,9 +6271,14 @@ function renderLineHud() {
       + '<span class="k-lr-bot">'
       +   '<span class="k-bar k-lr-bar"><span class="k-bar-fill k-bar-boss" style="width:'
       +   (F.dead ? 0 : Math.max(0, F.hp / F.max * 100)) + '%"></span></span>'
-      +   (stag ? '<em class="k-lr-stag">Staggered</em>'
-                : '<span class="k-lr-poise">' + pips.join('') + '</span>')
       + '</span>'
+      // …AND THE POISE GAUGE GETS ITS OWN LINE, the way the boss plate has it.
+      // Squeezed onto the end of the health bar it was a row of ticks beside a
+      // number rather than a gauge — a thing you read the VALUE of instead of
+      // seeing how much was left, which is the whole reason poise is pips.
+      + (F.dead ? ''
+         : stag ? '<em class="k-lr-stag">Staggered</em>'
+                : '<span class="k-lr-poise">' + pips.join('') + '</span>')
       + '</button>';
   }).join('');
 }

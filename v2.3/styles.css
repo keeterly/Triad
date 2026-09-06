@@ -4581,15 +4581,19 @@ body.k-cast3d .k-hero.k-row-front img { filter: none; }
    a player tracks is how much of the gauge is left rather than its value.
    Twelve pips at 3px plus their gaps is 47px, which is what makes this fit
    where a second table column used to. */
-.k-lr-poise { display: flex; gap: 1px; flex: none; align-items: center; }
-/* SKINNY (Build 177). Fodder gets its gauge back — Break is a real answer to a
-   crowd and taking it away made three of five encounters teach nothing about
-   the mechanic — but a pack readout is a glance, not a study, so the pips are
-   a rail rather than a row of tiles. One vocabulary at two lengths: four for
-   a fodder creature, twelve for the thing the fight is about. */
-.k-lr-poise i { width: 3px; height: 3px; border-radius: 1px;
-  background: rgba(120,132,150,0.3); }
-.k-lr-poise i.on { background: #8fb4d4; box-shadow: 0 0 3px rgba(143,180,212,0.5); }
-.k-lrow .k-lr-stag { flex: none; font-style: normal; font-size: 8px; font-weight: 700;
+.k-lr-poise { display: flex; gap: 2px; align-items: center; width: 100%; margin-top: 1px; }
+/* ── THE BOSS'S GAUGE, SHORTER (Build 178) ─────────────────────────────────
+   It was a row of 3px ticks wedged onto the end of the health bar, which is a
+   thing you read the VALUE of rather than a gauge you see the state of — and
+   poise is pips precisely so it can be seen rather than read. It is the boss
+   plate's own gauge now: the same bordered tiles that fill gold, on their own
+   line under the bar, four pixels tall instead of seven. The tiles STRETCH, so
+   a creature with four reads as a full gauge and one with twelve reads as a
+   finer one, rather than four tiles making a stub in the corner. */
+.k-lr-poise i { flex: 1 1 0; min-width: 0; max-width: 22px; height: 4px;
+  border-radius: 1px; border: 1px solid rgba(124,111,82,0.6); background: none; }
+.k-lr-poise i.on { background: linear-gradient(180deg, #dcb46e, #a8873f);
+  border-color: #c9a45c; }
+.k-lrow .k-lr-stag { display: block; margin-top: 1px; font-style: normal; font-size: 8px; font-weight: 700;
   letter-spacing: 0.12em; text-transform: uppercase; color: #d99a4e; }
 .k-lrow-dead .k-lr-poise, .k-lrow-dead .k-lr-fx { display: none; }
