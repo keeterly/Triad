@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 168;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 169;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -2916,9 +2916,40 @@ function fxFoeAct(intentId, ix) {
 // looked identical every time. Both take the act now, and the pose is re-set
 // on every blow, so a bar that claws then tolls then thrusts is three
 // different shapes on screen.
+// ── AND THE CREATURE CROSSES THE FLOOR TO DO IT ────────────────────────────
+//
+// The party runs at what it hits; the thing hitting back stood on its mark and
+// swung from where it was, which makes the blow arrive from nowhere in
+// particular. It closes on the rank it is aiming at now, using the same lunge
+// the heroes use, and `fxFoeSettle` walks it home with everything else.
+//
+// THE PARRY WINDOW IS INSIDE THE APPROACH, which is the whole reason this is
+// worth doing rather than decoration. The notes are already armed when the
+// swing starts, so a creature that spends that time COMING AT YOU turns the
+// bar from an abstract rhythm into the thing you are watching: it is closing,
+// and the note is when it arrives.
+const FOE_STEP = 6.0;      // an instruction to close; the keep-out decides where
+function fxFoeStep(ix) {
+  const slot = 'foe' + (ix == null ? (C && C.aim) || 0 : ix);
+  // ── AT THE FRONT RANK, WHICH IS WHO A MELEE BLOW REACHES ─────────────
+  //
+  // Which hero a blow finally lands on is not settled until impact — it goes
+  // through `struck`, at the end — so there is nothing to aim at yet when the
+  // swing begins. The front rank is: it is where the party has put the person
+  // meant to be reached first, and closing on it is what the row means.
+  // Anyone still standing there is the target; failing that, the party.
+  let who = 'party';
+  if (C && C.heroes) {
+    const front = Object.keys(C.heroes).filter(
+      id => C.heroes[id].row === 'front' && !C.heroes[id].downed);
+    if (front.length) who = front[0];
+  }
+  castLunge(slot, who, FOE_STEP, 560);
+}
 function fxFoeSwing(actSpec, ix) {
   const a = parseAct(actSpec);
   foeCast(ix, 'slash');
+  fxFoeStep(ix);
   foeSet(FOE_POSES, a.def.pose, null, ix);
   foeAnimState(sheetStateOf(a.def.pose), ix);
   foeSet(FOE_SWINGS, a.def.swing || 'k-fs-jab', 420, ix);
@@ -6754,7 +6785,12 @@ function renderHeroes() {
     // the word only — the row plate also carries a permanent step cue saying
     // this figure can be picked up and put somewhere, and writing textContent
     // over the whole plate would delete it every render
-    h.querySelector('.k-hero-row b').textContent = C.heroes[id].row.toUpperCase();
+    // THE ROW TAG IS GONE. Three rings on the floor already say where the
+    // ranks are, and a word repeating it under every body was the same
+    // information a second time in a smaller voice — in the part of the frame
+    // the fight is actually happening in.
+    const rowTag = h.querySelector('.k-hero-row b');
+    if (rowTag) rowTag.textContent = C.heroes[id].row.toUpperCase();
   });
   // TURN ONE TEACHES THE MOVE, and then gets out of the painting's way. The
   // step cue used to be permanent — three arrows standing in the middle of the

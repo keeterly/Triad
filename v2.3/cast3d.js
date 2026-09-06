@@ -865,6 +865,58 @@ function watercolour(map, tone) {
   return m;
 }
 
+// ── AND THE SHADOW OF A BODY THAT IS COMING APART ─────────────────────────
+//
+// three draws the shadow map with its own depth material, which knows nothing
+// about the burn's discard — so a creature that had dissolved into ash went on
+// casting a whole, solid, creature-shaped shadow on the paving. It outlived the
+// creature by the whole reckoning, because the ash finishes rising long before
+// anybody looks away from the floor.
+//
+// This is the same threshold, on the same varyings, in a MeshDepthMaterial: it
+// shares the colour material's uniform objects rather than copying their
+// values, so the front they cut is the same front, frame for frame, with
+// nothing to keep in step by hand. Skinning comes from the depth material
+// itself — the burn changes which fragments survive, never where they are.
+function burnDepth(mat) {
+  const d = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  d.onBeforeCompile = (sh) => {
+    sh.uniforms.uBurn = mat.userData.burn;
+    sh.uniforms.uTall = mat.userData.tall;
+    sh.uniforms.uFoot = mat.userData.foot;
+    sh.vertexShader = sh.vertexShader
+      .replace('void main() {',
+               'uniform float uTall;\nuniform float uFoot;\n'
+               + 'varying float vBurnY;\nvarying vec3 vBurnP;\nvoid main() {')
+      .replace('#include <begin_vertex>', `
+        #include <begin_vertex>
+        vBurnP = transformed;
+        vBurnY = clamp( ( transformed.y - uFoot ) / uTall, 0.0, 1.0 );`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('void main() {', `
+        uniform float uBurn;
+        varying float vBurnY; varying vec3 vBurnP;
+        float bdHash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float bdTooth(vec2 p){
+          vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+          float a = mix(mix(bdHash(i), bdHash(i+vec2(1,0)), f.x),
+                        mix(bdHash(i+vec2(0,1)), bdHash(i+vec2(1,1)), f.x), f.y);
+          i = floor(p*2.3); f = fract(p*2.3); f = f*f*(3.0-2.0*f);
+          float b = mix(mix(bdHash(i), bdHash(i+vec2(1,0)), f.x),
+                        mix(bdHash(i+vec2(0,1)), bdHash(i+vec2(1,1)), f.x), f.y);
+          return a*0.65 + b*0.35;
+        }
+        void main() {
+          if ( uBurn > 0.0001 ) {
+            float grain = bdTooth( vBurnP.xz * 6.5 + vBurnP.y * 3.1 ) * 0.62
+                        + bdTooth( vBurnP.xy * 17.0 ) * 0.38;
+            float front = uBurn * 1.52 - 0.20;
+            if ( ( front - vBurnY ) + ( grain - 0.5 ) * 0.30 > 0.028 ) discard;
+          }`);
+  };
+  return d;
+}
+
 // ── retargeting ────────────────────────────────────────────────────────────
 //
 // EVERY MODEL COMES BACK ON ITS OWN SKELETON. Not "the same skeleton in a
@@ -1507,14 +1559,22 @@ const TRAIL = 22;                     // samples kept — about a third of a sec
 // …and how many vertices are drawn between two of them. Five is where the
 // corners stop being findable on a fast swing at this camera distance; the
 // cost is 105 verts instead of 22, which is nothing.
-const RIB_SUB = 5;
+// ── AND IT IS A BLADE, NOT A CLOUD ────────────────────────────────────────
+//
+// The trail was reading as a mass of glow rather than as a stroke: the strip
+// was wide enough that its soft body swamped the hot core, so what the eye got
+// was an area rather than an edge. Narrowing it concentrates the same light
+// into a line — the core does not get dimmer, the wash around it gets smaller
+// — and doubling the subdivision gives the curve enough vertices to stay a
+// curve at that width instead of showing its segments.
+const RIB_SUB = 9;
 // …AND HOW FAR PAST THE BLADE THE STRIP REACHES. The arc used to end exactly
 // at the tip's curve, which is the one place it must NOT end: that curve is
 // the cutting edge, and an edge with nothing outside it cannot glow. It can
 // only stop. Flaring the outer rail a third past the tip gives the light
 // somewhere to fall off into, and costs nothing but a wider quad — the edge
 // itself stays exactly where the steel was, at `1/RIB_FLARE` across the band.
-const RIB_FLARE = 1.34;
+const RIB_FLARE = 1.06;
 // ── CENTRIPETAL CATMULL-ROM ────────────────────────────────────────────────
 //
 // Uniform Catmull-Rom — the textbook one, with the 2/-5/4/-1 coefficients —
@@ -1683,7 +1743,7 @@ class Ribbon {
       }
       float bodyOf(float life) {
         float d = max(-offOf(), 0.0);              // inboard only
-        float b = exp(-d * 3.0) * smoothstep(0.0, 0.05, clamp(vUv.y, 0.0, 1.0));
+        float b = exp(-d * 4.8) * smoothstep(0.0, 0.05, clamp(vUv.y, 0.0, 1.0));
         // the tail frays; the head is clean because it was just cut — and the
         // fray never touches the edge, which has to stay a line
         float turb = noise(vec2(vUv.x * 11.0 - uTime * 2.6, vUv.y * 3.5 + uTime * 0.7));
@@ -1692,8 +1752,13 @@ class Ribbon {
       // THE HALO, which is the whole reason the strip runs past the steel. Wide
       // and symmetric about the edge, so the cut sits in its own light instead
       // of being a bright line pasted on the world.
+      // …AND IT HUGS THE EDGE. At 5.4 the halo was wide enough that its wash
+      // covered more of the screen than the cut did, and a stroke whose glow
+      // is bigger than the stroke reads as a cloud with a line somewhere in
+      // it. The same light over a third of the width is the same brightness
+      // and a tenth of the area.
       float bloomOf(float life) {
-        return exp(-abs(offOf()) * 5.4) * (0.30 + 0.70 * life);
+        return exp(-abs(offOf()) * 9.2) * (0.30 + 0.70 * life);
       }`;
 
     const common = {
@@ -2015,6 +2080,7 @@ class Shocks {
 // crescent of that path, camera-facing, tapering to nothing at both ends, alive
 // for a sixth of a second.
 const CLASH_N = 16;            // vertices along the crescent
+const _clArr = new Float32Array(3);   // where the spline writes a sampled point
 const CLASHES = 3;
 const _clA = new THREE.Vector3(), _clB = new THREE.Vector3(), _clC = new THREE.Vector3();
 const _clT = new THREE.Vector3(), _clV = new THREE.Vector3(), _clNr = new THREE.Vector3();
@@ -2091,10 +2157,24 @@ class Clash {
     it.t = it.dur = dur || 0.17;
     const n = pts.length;
     for (let k = 0; k < CLASH_N; k++) {
-      // resample the path evenly across the crescent
+      // ── RESAMPLED ON A CURVE, NOT BETWEEN THE SAMPLES ──────────────────
+      //
+      // This lerped between neighbouring path points, which makes the crescent
+      // a POLYLINE through the raw recording — and the raw recording is a
+      // blade tip sampled once a frame through a fast swing, so its points are
+      // unevenly spaced and slightly noisy. Drawn straight, that reads as a
+      // jagged bolt rather than as an arc: every sample is a corner.
+      //
+      // The ribbon beside it has always gone through a centripetal
+      // Catmull-Rom for exactly this reason — knots spaced by root-distance,
+      // which provably cannot overshoot or cusp on unevenly spaced points. The
+      // clash is the same recording and wants the same curve, so it uses the
+      // same function rather than a second opinion about smoothing.
       const x = (k / (CLASH_N - 1)) * (n - 1);
       const i0 = Math.min(n - 2, Math.floor(x)), f = x - i0;
-      _clA.copy(pts[i0]).lerp(pts[i0 + 1], f);
+      cr(pts[Math.max(0, i0 - 1)], pts[i0], pts[i0 + 1],
+         pts[Math.min(n - 1, i0 + 2)], f, _clArr, 0);
+      _clA.set(_clArr[0], _clArr[1], _clArr[2]);
       // the tangent, from the neighbours rather than one segment, so a single
       // noisy sample cannot flip the strip
       const j0 = Math.max(0, i0 - 1), j1 = Math.min(n - 1, i0 + 2);
@@ -2396,7 +2476,13 @@ class Effects {
     if (speed < 14) return;
     // …spread along the path travelled this frame, so a fast swing does not
     // stack every mote on one point, and more of them the harder it is moving
-    const n = Math.min(4, Math.ceil((speed - 14) / 14));
+    // …AND THERE ARE MORE OF THEM. Four was a sprinkle beside a strip of glow
+    // that was doing all the work; with the strip narrowed to a stroke the
+    // motes are what fills the space it used to occupy, and a swing that
+    // throws a dozen reads as steel moving fast rather than as a light being
+    // switched on. The threshold is untouched: a staff gathering light still
+    // throws nothing, because it never clears 14 m/s.
+    const n = Math.min(11, Math.ceil((speed - 14) / 5.5));
     for (let k = 0; k < n; k++) {
       _fxV.copy(tip).lerp(last, Math.random());
       _fxD.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5);
@@ -3347,6 +3433,8 @@ const Cast3D = (() => {
   let on = false, ready = false, failed = null;
   let renderer = null, scene = null, cam = null, canvas = null;
   let ground = null, reflect = null, mirror = null;
+  // the camera's own basis, flipped about the floor to build the mirror
+  const _mirU = new THREE.Vector3(), _mirF = new THREE.Vector3();
   let fx = null;
   const sized = { w: 0, h: 0, dpr: 0 };
   const figs = {};
@@ -4373,7 +4461,20 @@ const Cast3D = (() => {
     });
     const mat = watercolour(map, tone);
     root.traverse(o => {
-      if (o.isMesh || o.isSkinnedMesh) { o.material = mat; o.frustumCulled = false; o.castShadow = true; }
+      if (o.isMesh || o.isSkinnedMesh) {
+        o.material = mat; o.frustumCulled = false; o.castShadow = true;
+        // ── AND WHAT IT DISCARDS, IT DISCARDS FROM ITS SHADOW ─────────────
+        //
+        // The burn tears a body apart by discarding fragments, and that runs
+        // in the COLOUR pass only. The shadow map is drawn with three's own
+        // depth material, which knows nothing about it — so a creature that
+        // had dissolved into ash went on casting a whole, solid, creature-
+        // shaped shadow on the paving, and it stayed there through the
+        // reckoning because the ash finishes rising long before anybody looks
+        // away. A custom depth material running the same threshold is the only
+        // thing that makes a hole in a body a hole in its shadow.
+        o.customDepthMaterial = burnDepth(mat);
+      }
     });
     root.scale.setScalar(tone.tall);
     // WHAT RANGE DOES `transformed` ACTUALLY COVER? Ask the geometry, once,
@@ -5686,11 +5787,32 @@ const Cast3D = (() => {
     // setting is pushed first; only the expensive half is gated.
     if (ground.material.userData.u) ground.material.userData.u.uWet.value = LOOK.wet;
     if (reflect && LOOK.wet > 0.01) {
-      mirror.position.set(_eye.x, -_eye.y, _eye.z);
-      mirror.up.set(0, 1, 0);
-      mirror.lookAt(_look.x, -_look.y, _look.z);
-      mirror.rotateZ((RIG.r + TRIPOD.roll) * D);
+      // ── MIRROR THE CAMERA THAT IS ACTUALLY THERE ──────────────────────
+      //
+      // This rebuilt the mirror from the TRIPOD's mark — the eased eye and aim
+      // point — and then bolted the roll back on by hand. But the real camera
+      // is not at the mark: the operator's offsets (push, pan, yaw, pitch) are
+      // applied to it afterwards, in its own axes, and none of them reached
+      // here. For an ordinary combat framing the two are close enough that
+      // nobody sees the difference; for a shot that pulls the camera well off
+      // its mark, like the reckoning, they are looking at different things —
+      // and the floor goes on sampling a reflection rendered from somewhere
+      // the player is not, which arrives as long smeared streaks under the
+      // party that no camera angle explains.
+      //
+      // Reading the camera's own world basis and flipping it about the floor
+      // plane is the same construction with nothing left out, and it stays
+      // right for every offset anybody adds later — including ones that do not
+      // exist yet, which is what the hand-copied roll could never be.
+      cam.updateMatrixWorld();
+      const e = cam.matrixWorld.elements;
+      _mirU.set(e[4], e[5], e[6]).normalize();              // the camera's up
+      _mirF.set(-e[8], -e[9], -e[10]).normalize();          // …and where it looks
+      mirror.position.set(e[12], -e[13], e[14]);
+      mirror.up.set(_mirU.x, -_mirU.y, _mirU.z);
+      mirror.lookAt(e[12] + _mirF.x, -(e[13] + _mirF.y), e[14] + _mirF.z);
       if (Math.abs(mirror.fov - cam.fov) > 0.01) mirror.fov = cam.fov;
+      if (Math.abs(mirror.aspect - cam.aspect) > 0.001) mirror.aspect = cam.aspect;
       mirror.updateMatrixWorld();
       mirror.updateProjectionMatrix();
       const u = ground.material.userData;
@@ -6467,6 +6589,9 @@ const Cast3D = (() => {
     // test-only: the marks the three ranks stand on, so a suite can ask
     // whether they are actually in a line rather than eyeballing a screenshot
     _stage: () => STAGE,
+    // test-only: the mirror camera, so a suite can ask whether it is actually
+    // where the real one is reflected to rather than where the tripod's mark is
+    _mirror: () => mirror,
     _scene: () => scene,        // test-only: the fog and the lights live here
     _homed: () => ({ ...homed }),     // test-only: the returns baked into clips
     _footIK: (v) => (v === undefined ? _footIK : (_footIK = !!v)),

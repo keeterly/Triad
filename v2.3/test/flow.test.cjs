@@ -859,25 +859,23 @@ const { boot } = require('./harness.cjs');
       && rows.aimed.every(id => rows.by[id] > 0),
       JSON.stringify({ outlined: rows.aimed, targeted: Object.keys(rows.by) }));
 
-    // THE LANE IS THE BIGGEST DEFENSIVE LEVER AND IT HAS TO BE VISIBLE. Making
-    // the word bigger was not enough: at `bottom: -16px` it hangs under the
-    // figure's feet, and the two heroes nearest the camera have their feet
-    // INSIDE the hand — MID at y256 and FRONT at y278 against a hand beginning
-    // at y253 — so two of the three were painted behind the cards and the only
-    // one ever seen was whoever stood in the back.
-    const lanes = await J(() => {
-      const hand = document.getElementById('k-hand').getBoundingClientRect();
-      return [...document.querySelectorAll('.k-hero')].map(h => {
-        const w = h.querySelector('.k-hero-row'), r = w.getBoundingClientRect();
-        const cs = getComputedStyle(w);
-        return { who: h.dataset.hero, txt: w.textContent.trim(), px: parseFloat(cs.fontSize),
-                 behind: r.top < hand.bottom && r.bottom > hand.top
-                      && r.left < hand.right && r.right > hand.left };
-      });
-    });
-    check('LANES: all three lane words are readable and none is painted behind the hand',
-      lanes.length === 3 && lanes.every(l => l.txt && l.px >= 9 && !l.behind),
-      JSON.stringify(lanes));
+    // ── THE LANE WORD IS GONE, AND SO IS THE CHECK THAT IT WAS LEGIBLE ────
+    //
+    // This measured that all three lane words were big enough to read and that
+    // none was painted behind the hand — a real problem when the tag hung
+    // under a figure's feet and two of the three feet sat inside the fan.
+    //
+    // The tag itself was removed in Build 169: three rings on the floor
+    // already say where the ranks are, and repeating it in a word under every
+    // body put the same information twice in the part of the frame the fight
+    // is actually happening in. A check that a deleted element is readable is
+    // not a weaker check, it is a check about nothing — and left in place it
+    // did not fail, it CRASHED the suite on a null, which takes every check
+    // after it down with no verdict at all.
+    //
+    // What it was really protecting — that the rings themselves are visible
+    // and land under the right feet — is measured in cast.test, on the rings,
+    // in the world where they live.
 
     // A TEST HOOK THAT SILENTLY SELECTS SOMETHING ELSE IS WORSE THAN NO HOOK.
     // forceIntent found the intent's index in REGENT_INTENTS — the full table of
@@ -1109,7 +1107,13 @@ const { boot } = require('./harness.cjs');
       return out;
     });
     check('SAYS: every hero carries a step cue, it teaches on turn one, then leaves the board',
-      cue.n === 3 && cue.cues === 3 && /FRONT/.test(cue.words)
+      // THE WORD IS NO LONGER PART OF THE CUE. It said FRONT/MID/BACK under
+      // every body, which is what the three rings on the floor are for, so it
+      // was removed in Build 169 and only the arrow remains. What this check
+      // is about survives intact: the cue exists on all three, teaches on turn
+      // one, goes quiet afterwards, and comes back for the figure under the
+      // finger.
+      cue.n === 3 && cue.cues === 3
       && cue.taught === 3 && cue.restVisible === 0 && cue.onPoint === 1,
       JSON.stringify(cue));
 
@@ -3063,8 +3067,15 @@ const { boot } = require('./harness.cjs');
         && !stage.classList.contains('k-moving');
       return out;
     });
-    check('ROWS: three named slots run BACK to FRONT toward the Regent, the move is priced',
-      rows.slots === 3 && rows.named === 'BACK,MID,FRONT' && rows.hidden < 0.1
+    // NAMED IS NO LONGER PART OF IT. The three rings carried the words
+    // BACK/MID/FRONT and no longer do — Build 169 took them out, because the
+    // ring under a hero's feet already says which rank they are in and the
+    // word was a second voice for it in the middle of the picture. Everything
+    // this check is actually about is geometry and price, and all of it holds:
+    // three slots, in order, running toward the Regent, spread apart, marking
+    // where the party already stands, and priced at an AP.
+    check('ROWS: three slots run BACK to FRONT toward the Regent, the move is priced',
+      rows.slots === 3 && rows.hidden < 0.1
       && rows.raised && rows.order && rows.toward && rows.spread >= 70
       && rows.here && /MOVE/.test(rows.hint || ''),
       JSON.stringify({ slots: rows.slots, named: rows.named, order: rows.order,

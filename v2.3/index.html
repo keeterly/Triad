@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=168" />
+  <link rel="stylesheet" href="styles.css?v=169" />
 </head>
 <body>
   <div id="k-scale">
@@ -31,25 +31,25 @@
            nearest her — because that is the axis the fight is fought along. -->
       <div id="k-field"><div id="k-cast">
         <div id="k-rows" aria-hidden="true">
-          <div class="k-row" data-row="back"><span class="k-row-lbl">BACK</span></div>
-          <div class="k-row" data-row="mid"><span class="k-row-lbl">MID</span></div>
-          <div class="k-row" data-row="front"><span class="k-row-lbl">FRONT</span></div>
+          <div class="k-row" data-row="back"></div>
+          <div class="k-row" data-row="mid"></div>
+          <div class="k-row" data-row="front"></div>
         </div>
         <div id="k-boss-art"><span class="k-fig"><img src="../art/foe-mourner.webp" alt="The Mourning Regent"></span><span class="k-shadow"></span></div>
         <div class="k-hero" data-hero="elin">
           <span class="k-fig"><img src="../art/elin.webp" alt="Elin"></span>
-          <span class="k-hero-row"><svg class="k-ico k-movecue" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8 H14 M11 5 L14 8 L11 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><b>BACK</b></span>
           <span class="k-shadow"></span>
+          <span class="k-hero-row"><svg class="k-ico k-movecue" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8 H14 M11 5 L14 8 L11 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         </div>
         <div class="k-hero" data-hero="mira">
           <span class="k-fig"><img src="../art/mira.webp" alt="Mira"></span>
-          <span class="k-hero-row"><svg class="k-ico k-movecue" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8 H14 M11 5 L14 8 L11 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><b>MID</b></span>
           <span class="k-shadow"></span>
+          <span class="k-hero-row"><svg class="k-ico k-movecue" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8 H14 M11 5 L14 8 L11 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         </div>
         <div class="k-hero" data-hero="ash">
           <span class="k-fig"><img src="../art/kai.webp" alt="Ash"></span>
-          <span class="k-hero-row"><svg class="k-ico k-movecue" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8 H14 M11 5 L14 8 L11 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><b>FRONT</b></span>
           <span class="k-shadow"></span>
+          <span class="k-hero-row"><svg class="k-ico k-movecue" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8 H14 M11 5 L14 8 L11 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         </div>
       </div></div>
       <div id="k-movehint" class="k-hidden"></div>
@@ -535,13 +535,13 @@
     setTimeout(check, 2500);
   })();
   </script>
-  <script src="run.js?v=168"></script>
-  <script src="game.js?v=168"></script>
+  <script src="run.js?v=169"></script>
+  <script src="game.js?v=169"></script>
   <!-- THE CAST IN THREE DIMENSIONS — a module, and inert unless ?cast=3d.
        It draws one canvas under the DOM heroes and paints a rigged figure
        into each hero's box; everything above it (rows, drag, aim, popups,
        the party HUD) is untouched. -->
-  <script type="module" src="cast3d.js?v=168"></script>
+  <script type="module" src="cast3d.js?v=169"></script>
   <script>
     // ── FIT THE 932x430 DESIGN SPACE TO THE PART OF THE SCREEN THAT IS ONE ──
     //

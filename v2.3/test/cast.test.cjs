@@ -153,12 +153,18 @@ const { boot } = require('./harness.cjs');
              // …and the ELEMENT is untouched: still laid out, still hit-testable,
              // still carrying its row plate and its shadow
              heroBox: Math.round(h.getBoundingClientRect().width),
-             rowPlate: !!h.querySelector('.k-hero-row b'),
+             // THE ROW TAG WAS ONE OF THE THINGS THIS COUNTED, and it is gone
+             // on purpose: three rings on the floor already say where the
+             // ranks are, and a word under every body repeated it in the part
+             // of the frame the fight happens in. What this check is really
+             // about is that the 3D layer HIDES the painted plate without
+             // dismantling the element around it, and the element's own box
+             // and shadow anchor say that.
              shadow: !!h.querySelector('.k-shadow') };
   });
   check('SWAP: the 2D plate is hidden but the hero ELEMENT is fully intact',
     swap.imgStillThere && swap.imgHidden && swap.heroBox > 40
-    && swap.rowPlate && swap.shadow, JSON.stringify(swap));
+    && swap.shadow, JSON.stringify(swap));
 
   // ═══ C · SOMETHING IS ACTUALLY DRAWN, AND IN THE RIGHT BOX ═══
   // A layer that builds, reports ready and paints nothing passes every check
@@ -2951,6 +2957,60 @@ const { boot } = require('./harness.cjs');
     blob.hero === 0 && blob.foe === 0,
     JSON.stringify(blob) + ' — computed opacity of the 2D shadow ellipse; the foe '
       + 'kept its own and it outlived the creature');
+
+  // ── THE WATER REFLECTS THE CAMERA THAT IS THERE ─────────────────────────
+  //
+  // The mirror was rebuilt from the TRIPOD's mark — the eased eye and aim point
+  // — with the roll bolted back on by hand, and the operator's offsets (push,
+  // pan, yaw, pitch) never reached it. On an ordinary combat framing the two
+  // are close enough that nothing shows; on a shot that pulls well off its
+  // mark, like the reckoning, the floor sampled a reflection rendered from
+  // somewhere the player is not, and it arrived as long smeared streaks under
+  // the party that no camera angle explains.
+  //
+  // A reflection about the floor is exactly this: the same point with its
+  // height negated. Anything that moves the camera and not the mirror breaks
+  // this equality, whether or not anybody remembered it existed.
+  const mir = await J(() => {
+    const C3 = window.Cast3D, cam = C3._cam(), m = C3._mirror();
+    if (!m) return { err: 'no mirror' };
+    // …with the camera pulled off its mark, which is the case that failed
+    C3.shot('reckoning', { speed: 0.85 });
+    return new Promise(r => setTimeout(() => {
+      cam.updateMatrixWorld(); m.updateMatrixWorld();
+      const c = cam.getWorldPosition(new cam.position.constructor());
+      const p = m.getWorldPosition(new cam.position.constructor());
+      C3.shot('home');
+      r({ dx: +Math.abs(p.x - c.x).toFixed(3),
+          dy: +Math.abs(p.y + c.y).toFixed(3),
+          dz: +Math.abs(p.z - c.z).toFixed(3),
+          camY: +c.y.toFixed(2), mirY: +p.y.toFixed(2) });
+    }, 1400));
+  });
+  check('WATER: the mirror sits where the camera reflects to, not where the mark is',
+    !mir.err && mir.dx < 0.02 && mir.dy < 0.02 && mir.dz < 0.02,
+    JSON.stringify(mir) + ' — metres between the mirror camera and the real one '
+      + 'flipped about the floor, measured on a shot that pulls off its mark');
+
+  // ── AND WHAT THE BURN DISCARDS, IT DISCARDS FROM ITS SHADOW ─────────────
+  //
+  // The tear runs in the colour pass; the shadow map is drawn with three's own
+  // depth material, which knows nothing about it — so a creature dissolved into
+  // ash went on casting a whole, solid, creature-shaped shadow, and it outlived
+  // the creature by the length of the reckoning. Nothing about the picture says
+  // this is missing until somebody dies and leaves a hole where a body was, so
+  // the check is structural: every skinned mesh carries a depth material of its
+  // own, and the default one has no idea the burn exists.
+  const bshade = await J(() => {
+    const f = window.Cast3D._figure('ash');
+    let n = 0, custom = 0;
+    f.root.traverse(o => { if (o.isSkinnedMesh) { n++; if (o.customDepthMaterial) custom++; } });
+    return { skinned: n, withDepth: custom };
+  });
+  check('BURN: a body coming apart casts a shadow that is coming apart too',
+    bshade.skinned > 0 && bshade.withDepth === bshade.skinned,
+    JSON.stringify(bshade) + ' — skinned meshes carrying their own depth material; '
+      + 'without it the discard never reaches the shadow map');
 
   console.log('\n── the drawn look ──');
   const ink = await J(async () => {
