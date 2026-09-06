@@ -166,39 +166,12 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
    into the gap it left. */
 .k-foe-spent { pointer-events: none; filter: grayscale(0.85) brightness(0.55); }
 
-/* THE REST OF THE LINE, under the aimed foe's plate. Compact rows: name,
-   health, poise. Tapping one is the second way to change your aim, for anyone
-   reading the numbers rather than watching the floor. */
-/* ONE READOUT, NOT TWO. With a line on the floor the big plate was printing the
-   aimed foe's name and health directly above a strip that printed the same name
-   and the same health — and it sat across the telegraph, so the two most
-   important things in the top-right corner were fighting for the same pixels.
-   A line of one keeps the plate it has always had; a line replaces it. */
-#k-boss-hud:has(.k-line-strip) .k-foe-plate { display: none; }
-.k-line-strip { display: flex; flex-direction: column; gap: 3px; width: 100%; margin-top: 2px; }
-/* FOUR COLUMNS, NOT FIVE. The first was 13px holding the lane letter, which
-   went with the sky telegraph in Build 171 — left in place it collapsed every
-   name to "H.." because the grid still reserved its width and the name column
-   gave the difference back. */
-/* NO BOX (Build 176). Three bordered plates stacked in a corner read as a
-   table of records; the solo plate they are modelled on has no box either —
-   it is a name, a bar and a gauge laid straight onto the sky, holding by
-   weight and shadow. The aimed one still says so, with a rule down its
-   leading edge rather than a rectangle around it. */
-.k-lrow { display: flex; flex-direction: column; align-items: stretch;
-  gap: 2px; width: 100%; padding: 2px 0 3px 7px; border-radius: 0;
-  background: none; border: 0; border-left: 2px solid transparent;
-  color: #cdc4b8; font: 600 9px/1.1 var(--ui, system-ui), sans-serif;
-  letter-spacing: 0.04em; text-align: left; cursor: pointer;
-  transition: background 180ms var(--ease-soft, cubic-bezier(0.4,0,0.2,1)),
-              border-color 180ms var(--ease-soft, cubic-bezier(0.4,0,0.2,1)); }
-.k-lrow-on { background: none; border-left-color: rgba(224,192,132,0.85); color: #f4ecdc; }
-.k-lrow-dead { opacity: 0.4; cursor: default; }
-.k-lr-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.k-lr-bar { height: 5px; border-radius: 3px; overflow: hidden; background: rgba(0,0,0,0.5); }
-.k-lr-hp, .k-lr-brk { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; }
-.k-lr-brk { color: #8fb4d4; }
-.k-lr-stag { color: #d99a4e; }
+/* A LINE OF ONE KEEPS THE CORNER; A LINE OF SEVERAL LEAVES IT (Build 179).
+   The pack strip that lived here stood on top of the creatures it described —
+   a mob's readout is `.k-vit` now, over the mob's own head. The block is
+   REMOVED rather than emptied, because `_tellFloor` reads it live: gone, it
+   stops clamping the telegraph out of sky nothing is using. */
+#k-boss-hud.k-hud-away { display: none; }
 /* WINDING UP. The chip for a foe the bar had no room for — it is not attacking
    this turn and it is not harmless either, and the sky has to say which. */
 .k-ichip-hold { opacity: 0.72; }
@@ -4483,6 +4456,62 @@ body.k-cast3d .k-hero.k-row-front img { filter: none; }
 /* a label that hangs ABOVE its body grows upward from the crown */
 .k-pips.k-lbl-over { transform: translate(-50%, -100%); }
 
+/* ── THE MOB'S OWN PLATE (Build 179) ────────────────────────────────────────
+   A pack readout stacked in the top-right corner covers the enemy line, which
+   stands in that corner: measured on three bodies it sat on 22,171 square
+   pixels of creature, and the lens cannot fix it — the clear band between the
+   readout and the card fan is 151px and a creature is drawn 179px tall.
+
+   So the plate stands on the creature. Same reading order the boss plate has
+   — the name, the bar and its number, the poise gauge — at 74px wide, which
+   is the number the SPACING chooses: the tightest the line ever stands is 78
+   screen pixels between neighbouring bodies (the flat ladder; in the world it
+   is nearer a hundred), and a plate wider than that gap is a plate the
+   spreader has to push down onto somebody's head. The name gets its own line
+   for the same reason — beside the number it truncated at this width.
+
+   It is pointer-transparent: the creature is the target, and this hangs in the
+   sky ABOVE the creature, so anything it swallowed would be a click on air. */
+.k-vit {
+  position: absolute; z-index: 20; pointer-events: none;
+  width: 74px; display: flex; flex-direction: column; gap: 2px;
+  transform: translate(-50%, -100%);
+  opacity: 0.88; transition: opacity 200ms var(--ease-soft, cubic-bezier(0.4,0,0.2,1));
+}
+/* the aimed one is not a highlighted ROW any more — there is no list for it to
+   be a row of — so it says so the way the boss plate does: it is the one that
+   is fully lit, with a hairline around its bar. */
+.k-vit-on { opacity: 1; }
+.k-vit b { display: block; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; text-align: center;
+  font: 600 8px/1.2 var(--ui, system-ui), sans-serif; letter-spacing: 0.08em;
+  text-transform: uppercase; color: #c8bfb2;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.8); }
+.k-vit-on b { color: #f4ecdc; }
+.k-vit-bot { display: flex; align-items: center; gap: 4px; }
+.k-vit-bot .k-vit-bar { flex: 1 1 auto; }
+.k-vit-bot em { flex: none; font-style: normal; font-weight: 700; font-size: 10px;
+  line-height: 1; font-variant-numeric: tabular-nums; color: #e8dfcd;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.8); }
+.k-vit-bar { display: block; height: 4px; border-radius: 2px; overflow: hidden;
+  background: rgba(0,0,0,0.55); box-shadow: 0 1px 4px rgba(0,0,0,0.75); }
+.k-vit-on .k-vit-bar { box-shadow: 0 1px 4px rgba(0,0,0,0.75),
+  0 0 0 1px rgba(224,192,132,0.55); }
+.k-vit-bar i { display: block; height: 100%;
+  background: linear-gradient(180deg, #c1553f, #8d3226);
+  transition: width 260ms var(--ease-soft, cubic-bezier(0.4,0,0.2,1)); }
+/* the gauge at body scale: the same bordered tiles the plate has, three pixels
+   tall instead of four, and they stretch — four of them read as a full gauge
+   rather than a stub under a 98px bar. */
+.k-vit-poise { display: flex; gap: 2px; align-items: center; width: 100%; }
+.k-vit-poise i { flex: 1 1 0; min-width: 0; max-width: 12px; height: 3px;
+  border-radius: 1px; border: 1px solid rgba(124,111,82,0.65); background: none; }
+.k-vit-poise i.on { background: linear-gradient(180deg, #dcb46e, #a8873f);
+  border-color: #c9a45c; }
+.k-vit-stag { font: 700 8px/1.2 var(--ui, system-ui), sans-serif;
+  letter-spacing: 0.12em; text-transform: uppercase; color: #d99a4e;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.95); }
+
 /* ── HOW HEAVY, IN THREE SIZES ───────────────────────────────────────────────
    The mark grows and the number grows with it, so weight is legible before
    anything is read — a critical is a different SHAPE on the board, not a
@@ -4555,45 +4584,3 @@ body.k-cast3d .k-hero.k-row-front img { filter: none; }
 .k-tell-all { font-style: normal; font-size: 9px; letter-spacing: 0.08em; color: #d8bd7e;
   margin-left: 5px; text-shadow: 0 1px 3px #000; white-space: nowrap; }
 
-/* ── A PACK ROW IS THE BOSS PLATE, COMPRESSED (Build 175) ───────────────────
-   A solo fight has always had a real readout — name, a long bar, a row of
-   POISE pips, its statuses — and a pack got a table row: name, hairline bar,
-   two bare numbers. Same fight, two vocabularies, and the one with MORE to
-   read got the poorer half. Two lines now, in the plate's own reading order,
-   so a fight against three things teaches nothing new. */
-.k-lr-top { display: flex; align-items: baseline; gap: 6px; }
-.k-lrow .k-lr-name, .k-lrow .k-lr-hp { text-shadow: 0 1px 4px rgba(0,0,0,0.95); }
-.k-lr-name { flex: 1 1 auto; min-width: 0; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap; }
-.k-lr-fx { display: inline-flex; align-items: center; gap: 5px; flex: none; }
-.k-lr-fx em { display: inline-flex; align-items: center; gap: 1px; font-style: normal;
-  font-size: 8.5px; font-weight: 700; }
-.k-lr-fx .k-ico { width: 8px; height: 8px; }
-.k-lr-chill { color: #a8d4e8; }
-.k-lr-bleed { color: #e0908c; }
-.k-lr-hp { flex: none; font-style: normal; font-variant-numeric: tabular-nums;
-  font-size: 10px; font-weight: 700; color: #e8dfcd; }
-.k-lr-hp s { text-decoration: none; font-weight: 400; font-size: 8.5px;
-  color: rgba(200,190,170,0.5); }
-.k-lr-bot { display: flex; align-items: center; gap: 6px; }
-.k-lr-bot .k-lr-bar { flex: 1 1 auto; }
-/* THE POISE GAUGE, at pack scale. A bare "4" cannot say four OF WHAT, and what
-   a player tracks is how much of the gauge is left rather than its value.
-   Twelve pips at 3px plus their gaps is 47px, which is what makes this fit
-   where a second table column used to. */
-.k-lr-poise { display: flex; gap: 2px; align-items: center; width: 100%; margin-top: 1px; }
-/* ── THE BOSS'S GAUGE, SHORTER (Build 178) ─────────────────────────────────
-   It was a row of 3px ticks wedged onto the end of the health bar, which is a
-   thing you read the VALUE of rather than a gauge you see the state of — and
-   poise is pips precisely so it can be seen rather than read. It is the boss
-   plate's own gauge now: the same bordered tiles that fill gold, on their own
-   line under the bar, four pixels tall instead of seven. The tiles STRETCH, so
-   a creature with four reads as a full gauge and one with twelve reads as a
-   finer one, rather than four tiles making a stub in the corner. */
-.k-lr-poise i { flex: 1 1 0; min-width: 0; max-width: 22px; height: 4px;
-  border-radius: 1px; border: 1px solid rgba(124,111,82,0.6); background: none; }
-.k-lr-poise i.on { background: linear-gradient(180deg, #dcb46e, #a8873f);
-  border-color: #c9a45c; }
-.k-lrow .k-lr-stag { display: block; margin-top: 1px; font-style: normal; font-size: 8px; font-weight: 700;
-  letter-spacing: 0.12em; text-transform: uppercase; color: #d99a4e; }
-.k-lrow-dead .k-lr-poise, .k-lrow-dead .k-lr-fx { display: none; }

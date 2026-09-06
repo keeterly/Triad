@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 178;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 179;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -6201,13 +6201,8 @@ function renderBossHud() {
 }
 // THE REST OF THE LINE. The plate above is the AIMED foe and keeps every id it
 // has ever had, so a fight against one thing renders exactly as it always did
-// and no check has to learn a new selector. Everything else standing gets a
-// compact row under it — name, health, poise — and tapping one is how you
-// change what your cards are pointed at.
-//
-// A DEAD ROW STAYS. It goes grey and keeps its place rather than collapsing the
-// list, because a readout that reflows when something dies makes the player
-// re-find every other row at the exact moment they most need to read them.
+// and no check has to learn a new selector. Everything else standing wears its
+// own readout, over its own head — see `renderFoeVitals`.
 // THE FIELD SAYS WHAT THE READOUT SAYS. A reticle on the aimed body, and a
 // spent one on anything that has gone down.
 function renderLineMarks() {
@@ -6220,67 +6215,65 @@ function renderLineMarks() {
 }
 function renderLineHud() {
   renderLineMarks();
-  const hud = el('k-boss-hud'); if (!hud || !C) return;
-  let strip = hud.querySelector('.k-line-strip');
-  if (C.foes.length < 2) { if (strip) strip.remove(); return; }
-  if (!strip) {
-    strip = document.createElement('div');
-    strip.className = 'k-line-strip';
-    hud.appendChild(strip);
-    strip.addEventListener('click', (e) => {
-      const row = e.target.closest('.k-lrow'); if (!row) return;
-      e.stopPropagation();
-      aimAt(+row.dataset.ix);
-    });
-  }
-  // ── A PACK GETS THE PLATE THE BOSS GETS, IN A THIRD OF THE ROOM ──────────
-  //
-  // A solo fight has always had a real readout — name, a long bar, a row of
-  // POISE pips, its statuses — and a pack got a table row: name, hairline bar,
-  // two bare numbers. Same fight, two vocabularies, and the one with MORE to
-  // read got the poorer half.
-  //
-  // So a pack row is the plate, compressed rather than replaced. Two lines
-  // instead of one: the name and the health fraction above, the bar and the
-  // poise pips below. Poise is pips here for the same reason it is pips there
-  // — a bare "4" cannot say four OF WHAT, and the thing a player is tracking
-  // is how much of the gauge is left rather than its value. They are 3px wide
-  // and there are at most twelve, which is what makes three of these fit in
-  // the height two table rows used.
-  strip.innerHTML = C.foes.map(F => {
-    const on = F.ix === C.aim && !F.dead;
-    const stag = !F.dead && (F.broken || F.cancelNext);
+  renderFoeVitals();
+}
+// ── A MOB WEARS ITS OWN HEALTH (Build 179) ─────────────────────────────────
+//
+// The pack readout was three plates stacked in the top-right corner, which is
+// the corner the enemy line stands in. Measured on a three-body fight, the
+// block covered 22,171 square pixels of creature — and no camera pose fixes
+// that, because the clear band between the readout's underside and the top of
+// the card fan is 151px while a creature is drawn 179px tall. The lens can
+// only trade figure size for clearance: the widest framing that still held
+// everyone on screen bought a 67% cut and cost 17px off every body.
+//
+// So the readout goes to the creature instead. The same plate the corner had
+// — name, health, the poise gauge — ninety-eight pixels wide, floating over
+// the head on the machinery the telegraph already uses, which re-anchors from
+// a live rect every frame and therefore holds while the camera moves.
+//
+// A BOSS AND AN ELITE KEEP THE CORNER, and they get it for free: the road
+// stands them alone ("an elite and the Regent stand alone" is the rule the
+// chart is built on), so a line of one is exactly the set of fights where the
+// corner is empty anyway. That makes the test for which readout to draw the
+// same one-line test it already was, and nothing has to learn about tiers.
+function renderFoeVitals() {
+  const many = !!(C && C.foes && C.foes.length > 1);
+  const hud = el('k-boss-hud');
+  // …and with the corner unused, the whole block goes rather than emptying:
+  // `_tellFloor` reads it live, so a hidden readout hands the telegraph back
+  // the sky it was being clamped out of.
+  if (hud) hud.classList.toggle('k-hud-away', many);
+  // a plate belongs to a body, so when there are no bodies to belong to — a
+  // line of one, or the fight after a line of three — every plate goes. Left
+  // standing they would be hidden rather than gone, which is a thing that can
+  // come back.
+  const stage = el('k-stage');
+  if (!many && stage)
+    stage.querySelectorAll('.k-vit[data-body]').forEach(e => e.remove());
+  if (!C || !C.foes) return;
+  const quiet = C.phase === 'VICTORY' || C.phase === 'DEFEAT';
+  C.foes.forEach(F => {
+    // A DEAD MOB'S PLATE GOES. The corner strip kept a grey row so the list
+    // would not reflow under the player's eye — but these do not form a list,
+    // they stand where their creature stands, and the creature is gone.
+    const e = bodyLabel('vit', 'foe' + F.ix, many && !F.dead && !quiet);
+    if (!e) return;
+    e.classList.toggle('k-vit-on', F.ix === C.aim);
+    const stag = F.broken || F.cancelNext;
     const pips = [];
-    if (!F.dead) for (let i2 = 0; i2 < F.breakMax; i2++)
-      pips.push('<i' + (i2 < F.brk ? ' class="on"' : '') + '></i>');
-    return '<button type="button" class="k-lrow' + (on ? ' k-lrow-on' : '')
-      + (F.dead ? ' k-lrow-dead' : '') + '" data-ix="' + F.ix + '"'
-      + (F.dead ? ' disabled' : '') + '>'
-      // …AND THE NAME GETS THE ROOM BACK. Every creature in the bestiary is
-      // called "The Something", so the article is three characters of nothing
-      // repeated down the column — and with it there, all three names truncated.
-      + '<span class="k-lr-top">'
-      +   '<b class="k-lr-name">' + F.name.replace(/^The\s+/, '') + '</b>'
-      // the statuses ride the name line, where the boss plate puts them too
-      +   '<span class="k-lr-fx">'
-      +     (!F.dead && F.chill > 0 ? '<em class="k-lr-chill">' + icon('chill') + fmtN(F.chill) + '</em>' : '')
-      +     (!F.dead && F.bleed > 0 ? '<em class="k-lr-bleed">' + icon('bleed') + fmtN(F.bleed) + '</em>' : '')
-      +   '</span>'
-      +   '<em class="k-lr-hp">' + (F.dead ? '—' : fmtN(F.hp) + '<s>/' + fmtN(F.max) + '</s>') + '</em>'
-      + '</span>'
-      + '<span class="k-lr-bot">'
-      +   '<span class="k-bar k-lr-bar"><span class="k-bar-fill k-bar-boss" style="width:'
-      +   (F.dead ? 0 : Math.max(0, F.hp / F.max * 100)) + '%"></span></span>'
-      + '</span>'
-      // …AND THE POISE GAUGE GETS ITS OWN LINE, the way the boss plate has it.
-      // Squeezed onto the end of the health bar it was a row of ticks beside a
-      // number rather than a gauge — a thing you read the VALUE of instead of
-      // seeing how much was left, which is the whole reason poise is pips.
-      + (F.dead ? ''
-         : stag ? '<em class="k-lr-stag">Staggered</em>'
-                : '<span class="k-lr-poise">' + pips.join('') + '</span>')
-      + '</button>';
-  }).join('');
+    for (let i = 0; i < F.breakMax; i++)
+      pips.push('<i' + (i < F.brk ? ' class="on"' : '') + '></i>');
+    // the article is three characters of nothing on every creature in the
+    // bestiary, and at this width it is three characters the name needs
+    const html = '<b>' + F.name.replace(/^The\s+/, '') + '</b>'
+      + '<span class="k-vit-bot"><span class="k-vit-bar"><i style="width:'
+      + Math.max(0, F.hp / F.max * 100) + '%"></i></span>'
+      + '<em>' + fmtN(F.hp) + '</em></span>'
+      + (stag ? '<span class="k-vit-stag">Staggered</span>'
+              : '<span class="k-vit-poise">' + pips.join('') + '</span>');
+    if (e.innerHTML !== html) e.innerHTML = html;
+  });
 }
 // THE TELEGRAPH — icons and amounts, in the sky above the Regent's head.
 // One chip per thing the action will do: a blade for damage, a shield for
@@ -6384,37 +6377,64 @@ function boxForBody(key) {
 // nobody has taken.
 function placeBodyLabels() {
   const stage = el('k-stage'); if (!stage) return;
-  const labels = stage.querySelectorAll('.k-tell[data-body], .k-pips[data-body]');
+  const sr = stage.getBoundingClientRect();
+  const k = sr.width / stage.offsetWidth || 1;
+  const labels = stage.querySelectorAll(
+    '.k-tell[data-body], .k-pips[data-body], .k-vit[data-body]');
+  // ── WHAT HANGS OVER ONE HEAD IS A STACK NOW (Build 179) ────────────────
+  //
+  // Two things want the sky over a mob: its health plate and its telegraph.
+  // Placed independently they both solve for "just above the crown" and land
+  // on each other, so the over-labels are gathered per body and the stack is
+  // built in one pass from the crown upward — the plate on the head, the
+  // telegraph riding above it. The chip goes on top because it is the small,
+  // high-contrast one and `_tellFloor` exists to protect exactly it.
+  const heads = Object.create(null);
   for (const e of labels) {
     const box = boxForBody(e.dataset.body);
     const a = box && bodyAnchor(box);
     if (!a) { e.style.visibility = 'hidden'; continue; }
     e.style.visibility = '';
     e.style.left = a.x.toFixed(1) + 'px';
-    // A BADGE ABOVE THE HEAD, WHERE THERE IS A HEAD'S WORTH OF SKY. The line
-    // stands in depth, so a back-rank creature is drawn small and HIGH — the
-    // Grief-Wraith's crown sits in the top twelfth of the board, under the
-    // enemy plates. Measured, all three back-rank badges landed inside the
-    // readout they were meant to replace. Where the sky runs out the badge
-    // stops climbing and rests on the creature's shoulders instead, which
-    // still reads as its own and never as somebody else's.
     // ABOVE OR BELOW, BY WHAT IS UNDER THE BODY. A creature has plaza under it
     // and its statuses hang at its feet. A hero has the HAND under them — the
     // party stands with their boots on the top edge of the card fan — so a pip
     // row at Ash's feet was drawn across Cross Sever. Theirs go over the head
     // instead, on the same floor rule the badges use.
-    const over = e.classList.contains('k-tell') || e.dataset.over === '1';
+    const over = e.classList.contains('k-tell') || e.classList.contains('k-vit')
+              || e.dataset.over === '1';
     e.classList.toggle('k-lbl-over', over);
+    if (!over) { e.style.top = (a.bottom + 4).toFixed(1) + 'px'; continue; }
+    const g = heads[e.dataset.body]
+           || (heads[e.dataset.body] = { a: a, vit: null, tell: null, rest: [] });
+    if (e.classList.contains('k-vit')) g.vit = e;
+    else if (e.classList.contains('k-tell')) g.tell = e;
+    else g.rest.push(e);
+  }
+  for (const key of Object.keys(heads)) {
+    const g = heads[key];
+    // A BADGE ABOVE THE HEAD, WHERE THERE IS A HEAD'S WORTH OF SKY. The line
+    // stands in depth, so a back-rank creature is drawn small and HIGH — the
+    // Grief-Wraith's crown sits in the top twelfth of the board. Where the sky
+    // runs out the stack stops climbing and rests on the creature's shoulders
+    // instead, which still reads as its own and never as somebody else's.
+    //
     // …AND THE FLOOR IS A FLOOR FOR THE WHOLE LABEL, NOT ITS BASELINE. A label
     // that hangs above its body is placed by its BOTTOM edge (translateY of
-    // -100%), so clamping that edge to the readout's underside left the badge
-    // growing upward through the last row of it — measured, ten pixels of the
-    // reading sat on the Grief-Wraith's name. The clamp has to clear the
-    // label's own height as well.
-    const hgt = over ? (e.getBoundingClientRect().height
-                        / ((el('k-stage').getBoundingClientRect().width
-                            / el('k-stage').offsetWidth) || 1)) : 0;
-    e.style.top = (over ? Math.max(_tellFloor(a.x) + hgt, a.top - 8) : a.bottom + 4).toFixed(1) + 'px';
+    // -100%), so clamping that edge left the badge growing upward through
+    // whatever it was being kept out of. The clamp clears its own height too.
+    const floor = _tellFloor(g.a.x);
+    // eight pixels off the crown for a lone badge; four when a plate is going
+    // there first, because the plate is already the gap and the sky over the
+    // back rank is measured in tens.
+    let edge = g.a.top - (g.vit ? 4 : 8);
+    for (const e of [g.vit, g.tell].concat(g.rest)) {
+      if (!e) continue;
+      const h = e.getBoundingClientRect().height / k;
+      const top = Math.max(floor + h, edge);
+      e.style.top = top.toFixed(1) + 'px';
+      edge = top - h - 3;
+    }
   }
   _spreadTells();
 }
@@ -6432,9 +6452,15 @@ function placeBodyLabels() {
 // heights while the camera moves.
 function _spreadTells() {
   const stage = el('k-stage'); if (!stage) return;
-  const tells = [...stage.querySelectorAll('.k-tell[data-body]')]
+  // …and the health plates spread on the same rule, because two creatures a
+  // hand's width apart on screen have plates far wider than either of them.
+  // A body is never spread against ITSELF: `placeBodyLabels` has already
+  // stacked its own labels, and re-resolving that here would push the
+  // telegraph back down onto the plate it was just lifted off.
+  const tells = [...stage.querySelectorAll('.k-tell[data-body], .k-vit[data-body]')]
     .filter(e => e.style.visibility !== 'hidden' && e.offsetWidth)
-    .sort((a, b) => a.dataset.body.localeCompare(b.dataset.body));
+    .sort((a, b) => a.dataset.body.localeCompare(b.dataset.body)
+                 || (a.classList.contains('k-vit') ? -1 : 1));
   const placed = [];
   const sr = stage.getBoundingClientRect();
   const k = sr.width / stage.offsetWidth || 1;
@@ -6443,14 +6469,21 @@ function _spreadTells() {
     const w = r.width / k, h = r.height / k;
     const cx = (r.left + r.width / 2 - sr.left) / k;
     let top = parseFloat(e.style.top) || 0;         // its bottom edge, by the transform
+    // …with the slack a badge needs and a plate does not: two small chips forty
+    // pixels apart read as one string of numbers belonging to nobody, which is
+    // what the six is for. Two plates are wide, bordered by their own bar, and
+    // touching at the edge is simply two plates.
+    const vit = e.classList.contains('k-vit');
     for (let guard = 0; guard < 4; guard++) {
-      const hit = placed.find(p => Math.abs(p.cx - cx) < (p.w + w) / 2 + 6
+      const hit = placed.find(p => p.body !== e.dataset.body
+                                && Math.abs(p.cx - cx)
+                                     < (p.w + w) / 2 + (vit && p.vit ? 0 : 6)
                                 && Math.abs(p.top - top) < h + 2);
       if (!hit) break;
       top = hit.top + h + 5;
     }
     e.style.top = top.toFixed(1) + 'px';
-    placed.push({ cx, w, top });
+    placed.push({ cx, w, top, body: e.dataset.body, vit: vit });
   }
 }
 // HOW HIGH A BADGE MAY CLIMB, at this x. Six pixels off the top of the board

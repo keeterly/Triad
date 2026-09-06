@@ -3634,7 +3634,19 @@ const Cast3D = (() => {
     // metre wider than it did — the frame was cropping the room the fight is
     // supposed to be happening in. A metre back and a touch higher, which also
     // lifts the horizon and gives the back rank sky of its own for its badge.
-    home:      { az:   0, dist: 8.05, height: 1.80, aimY: 1.68, at: 'board' },
+    // ── AND IT LEAVES SKY OVER THE BACK RANK (Build 179) ────────────────
+    //
+    // A mob wears its health plate over its own head now, and the telegraph
+    // rides above that: 21px of plate, 22px of chip, and the gaps — 46px of
+    // clear air above the highest crown, or the clamp piles the whole stack
+    // into the top edge. Measured at the Build 178 pose the back rank had 46
+    // EXACTLY, so it crushed. Raising `aimY` pitches the lens up, which sits
+    // the world lower in frame; a touch more distance keeps the party's boots
+    // off the card fan while it does. The buy is 12px of slack for 3px of
+    // figure height (176 from 179) — the cheapest step on the curve, and the
+    // reason not to take the next one is the fan: at aimY 1.90 the heroes'
+    // feet reach 260 against a fan top of 265.
+    home:      { az:   0, dist: 8.20, height: 1.81, aimY: 1.82, at: 'board' },
     // a finisher: come around the party's shoulder and get low enough that the
     // Regent is above you, which is the whole feeling of fighting one
     duel:      { az: -33, dist: 5.85, height: 1.28, aimY: 1.62, at: 'foe' },

@@ -183,14 +183,16 @@ const { boot } = require('./harness.cjs');
       const V = window.K._composeVolley();
       return { foes: c.foes.length, aim: c.aim,
                bossIsFoe: c.boss === c.foes[0], hp: c.boss.hp, max: c.boss.max,
-               strip: !!document.querySelector('.k-line-strip'),
+               plates: document.querySelectorAll('.k-vit[data-body]').length,
+               corner: !document.getElementById('k-boss-hud').classList
+                 .contains('k-hud-away'),
                marks: document.querySelectorAll('.k-foe-aimed').length,
                extras: document.querySelectorAll('#k-cast .k-foe-art[data-ix]').length,
                voices: V.hits.length, held: V.held.length };
     });
-    check('LINE: one opponent is a line of one — same health, no strip, no reticle, no extra bodies',
+    check('LINE: one opponent keeps the corner plate — no floating vitals, no reticle, no extra bodies',
       solo.foes === 1 && solo.aim === 0 && solo.hp === solo.max && solo.max === 168
-      && !solo.strip && solo.marks === 0 && solo.extras === 0,
+      && solo.plates === 0 && solo.corner && solo.marks === 0 && solo.extras === 0,
       JSON.stringify(solo));
     check('LINE: …and the Regent still throws her whole bar at the party',
       solo.voices >= 2 && solo.held === 0, JSON.stringify({ voices: solo.voices, held: solo.held }));
@@ -208,15 +210,76 @@ const { boot } = require('./harness.cjs');
                ix: bodies.map(b => b.dataset.ix),
                art: bodies.map(b => (b.querySelector('img') || {}).getAttribute
                  ? b.querySelector('img').getAttribute('src') : null),
-               rows: document.querySelectorAll('.k-line-strip .k-lrow').length,
+               rows: document.querySelectorAll('.k-vit[data-body]').length,
+               corner: document.getElementById('k-boss-hud').classList
+                 .contains('k-hud-away'),
                aimed: document.querySelectorAll('.k-foe-aimed').length };
     });
     check('LINE: every body is on the field, wearing its own painting',
       seen.bodies === 3 && seen.line === '3' && seen.ix.join() === '0,1,2'
       && new Set(seen.art).size === 2 && seen.art.every(a => a && a.indexOf('foe-') >= 0),
       JSON.stringify(seen));
-    check('LINE: the readout carries a row per body, and exactly one is aimed',
-      seen.rows === 3 && seen.aimed === 1, JSON.stringify({ rows: seen.rows, aimed: seen.aimed }));
+    check('LINE: a pack wears a plate per body and the corner stands down',
+      seen.rows === 3 && seen.aimed === 1 && seen.corner === true,
+      JSON.stringify({ rows: seen.rows, aimed: seen.aimed, corner: seen.corner }));
+
+    // ── AND IT STANDS ON THE RIGHT CREATURE, NOT NEAR ONE ─────────────────
+    //
+    // The reason the corner strip had to go is that it sat ON the line — so
+    // the thing to prove is not that plates exist but that each one is over
+    // its own body's head, that no two of them are stacked on each other, and
+    // that the readout no longer covers anybody. The overlap is measured the
+    // same way the framing study measured it: rect against rect, in stage px².
+    const worn = await J(() => {
+      const stg = document.getElementById('k-stage');
+      const st = stg.getBoundingClientRect();
+      const k = st.width / stg.offsetWidth || 1;
+      const px = (v) => Math.round(v / k);
+      const out = [], boxes = [];
+      let cover = 0;
+      // THE BOX IS NOT THE FIGURE. A `.k-foe-art` is a 250×264 frame with the
+      // painting bottom-anchored inside it, so a plate measured against the
+      // BOX reads sixty pixels of overlap with sky. Measure what is drawn —
+      // the same element `bodyAnchor` anchors to.
+      const drawn = (b) => b.querySelector('.k-fanim')
+                        || b.querySelector('img') || b;
+      const bodies = [...document.querySelectorAll('#k-boss-art, #k-cast .k-foe-art')]
+        .filter(b => b.offsetParent);
+      document.querySelectorAll('.k-vit[data-body]').forEach(v => {
+        const ix = v.dataset.body.slice(3);
+        const b = +ix ? document.querySelector('#k-cast .k-foe-art[data-ix="' + ix + '"]')
+                      : document.getElementById('k-boss-art');
+        if (!b) return;
+        const r = v.getBoundingClientRect(), q = drawn(b).getBoundingClientRect();
+        boxes.push(r);
+        out.push({ ix: ix,
+                   dx: px(Math.abs((r.left + r.width / 2) - (q.left + q.width / 2))),
+                   overHead: px(q.top - r.bottom) });
+      });
+      // every plate against every body — a plate on a NEIGHBOUR still covers
+      bodies.forEach(b => {
+        const q = drawn(b).getBoundingClientRect();
+        boxes.forEach(r => {
+          cover += Math.max(0, Math.min(r.right, q.right) - Math.max(r.left, q.left))
+                 * Math.max(0, Math.min(r.bottom, q.bottom) - Math.max(r.top, q.top))
+                 / (k * k);
+        });
+      });
+      let stacked = 0;
+      for (let i = 0; i < boxes.length; i++)
+        for (let j = i + 1; j < boxes.length; j++) {
+          const a = boxes[i], b = boxes[j];
+          if (Math.min(a.right, b.right) > Math.max(a.left, b.left)
+           && Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top)) stacked++;
+        }
+      return { each: out, stacked: stacked, cover: Math.round(cover) };
+    });
+    check('LINE: every plate is centred on its own creature and clear of its crown',
+      worn.each.length === 3 && worn.each.every(o => o.dx <= 2 && o.overHead >= 0),
+      JSON.stringify(worn.each));
+    check('LINE: no two plates are stacked, and the readout covers nobody',
+      worn.stacked === 0 && worn.cover < 2000,
+      JSON.stringify({ stacked: worn.stacked, cover: worn.cover }));
 
     const aimed = await J(() => {
       const before = window.K.state().aim;
@@ -225,7 +288,7 @@ const { boot } = require('./harness.cjs');
       return { before, after: c.aim, boss: c.boss.id, name: c.boss.name,
                plate: document.querySelector('#k-boss-hud .k-bname').textContent.trim(),
                hp: +document.getElementById('k-bhp').textContent,
-               onRow: document.querySelectorAll('.k-lrow-on').length,
+               onRow: document.querySelectorAll('.k-vit-on').length,
                mark: (document.querySelector('.k-foe-aimed') || {}).dataset };
     });
     check('LINE: aiming moves the plate, the reticle and the readout together',
