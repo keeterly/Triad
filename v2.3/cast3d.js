@@ -310,6 +310,33 @@ const LOOK = {
   // glow buffer came back empty and black at every bloom strength. Read it
   // again with ?look=bloom:-1, which shows the glow alone.
   glowT:  0.33,  // …and how bright a thing has to be to put it there, LINEAR
+  // ── THE DRAWN PASS (Build 186) ───────────────────────────────────────────
+  //
+  // Three faults, each measured on the frame the player sees, each with its
+  // own stage. They are separable and were shown separately before any of
+  // them shipped, because "it looks better" over three simultaneous changes
+  // is not a reading of anything.
+  //
+  //                    sat   black%   fig/bg
+  //     before        0.068    0.0%     0.84   ..a grey with a tint on it
+  //     after         0.259    5.9%     0.96
+  //
+  // The line is the third, and it is the smallest of the three however loudly
+  // it read as the fault: the contour's operator was already finding the right
+  // edges, and what made it invisible was that its INK was sRGB 0.45 — a mid
+  // grey, lighter than the bodies it was drawing round. See the shader.
+  //
+  // `sil` REPLACES the old `line` when it is above zero; `bite` is still the
+  // curvature threshold both operators share, and `line` survives for the
+  // negative debug views.
+  sil:    0.95,  // the silhouette line: how black
+  silg:   0.10,  // how big a one-sided depth step earns it, as a fraction of distance
+  crease: 0.22,  // …and the interior line, on folds, at its own strength
+  crush:  0.55,  // the black point, into the darkest fiftieth of the LINEAR range
+  gsat:   1.45,  // chroma over the whole frame; 1 is untouched
+  warm:   0.85,  // warm light against cool shadow, across the picture
+  atmo:   0.85,  // how far the distance is graded off the grey card it was
+  atmod:  22.0,  // …and the metres at which that grade is full
   flat:  0.0,    // the band ladder stays off; it flattened the art it sat on
   steps: 6,
   tooth: 0.0,    // and so does the paper, which read as noise at this size
@@ -336,6 +363,14 @@ const LOOK_HELP = {
   flat:  ['flatten', 0, 1, 0.01, 'tone stepped into bands across the whole frame'],
   steps: ['bands', 2, 10, 1, 'how many of them'],
   tooth: ['paper', 0, 0.4, 0.01, 'the grain of the sheet, over everything'],
+  sil:    ['silhouette', 0, 1, 0.01, 'the drawn edge of a form — replaces the old line'],
+  silg:   ['edge bite', 0.01, 0.5, 0.005, 'how big a depth step earns a silhouette'],
+  crease: ['crease line', 0, 1, 0.01, 'the lighter line on folds inside the form'],
+  crush:  ['black point', 0, 1, 0.01, 'how far into the darkest fiftieth the black is set'],
+  gsat:   ['saturation', 0.5, 2.5, 0.01, 'chroma over the whole picture — the frame measures 0.07'],
+  warm:   ['warm/cool', 0, 1.5, 0.01, 'warm light against cool shadow, across the frame'],
+  atmo:   ['distance grade', 0, 1, 0.01, 'how deep and coloured the background goes — it is a grey card now'],
+  atmod:  ['distance', 5, 60, 1, 'the metres at which that grade is full'],
   paint: ['watercolour', 0, 1, 0.01, 'how much of the wash is applied at all'],
   bands: ['washes', 2, 8, 1, 'how many flat tones the brush lays down'],
   wash:  ['flatten', 0, 1, 0.01, 'how much of the real painting the wash eats'],
@@ -5447,6 +5482,10 @@ const Cast3D = (() => {
         uLine: { value: 0 }, uLineW: { value: 1 }, uFlat: { value: 0 },
         uSteps: { value: 6 }, uTooth: { value: 0 },
         uBite: { value: 0.07 }, uReach: { value: 11 },
+        // ── THE DRAWN PASS (Build 186) ──
+        uSil: { value: 0 }, uSilG: { value: 0.10 }, uCrease: { value: 0 },
+        uCrush: { value: 0 }, uGsat: { value: 1 }, uWarm: { value: 0 },
+        uAtmo: { value: 0 }, uAtmoD: { value: 22 },
         uNear: { value: 0.1 }, uFar: { value: 100 },
         tBlur: { value: null }, tGlow: { value: null },
         uDof: { value: 0 }, uFocus: { value: 8 }, uFRange: { value: 6 },
@@ -5462,6 +5501,8 @@ const Cast3D = (() => {
         uniform vec2 uTexel;
         uniform float uLine, uLineW, uFlat, uSteps, uTooth, uNear, uFar;
         uniform float uBite, uReach;
+        uniform float uSil, uSilG, uCrease, uCrush, uGsat, uWarm;
+        uniform float uAtmo, uAtmoD;
         uniform sampler2D tBlur, tGlow;
         uniform float uDof, uFocus, uFRange, uBloom;
         varying vec2 vUv;
@@ -5571,6 +5612,56 @@ const Cast3D = (() => {
           float bite = uBite * c;
           float line = smoothstep(bite, bite * 2.0, lap);
 
+          // ── TWO KINDS OF EDGE, NOT ONE (Build 186) ────────────────────────
+          //
+          // The Laplacian alone answers "is this a ramp or a step" and nothing
+          // else, so every crease in a cloak scores as well as the edge of the
+          // body, and the mark it leaves is soft where it should be decided.
+          //
+          // BE PRECISE ABOUT HOW MUCH THIS IS WORTH, because the first reading
+          // of it was not. Measured on the mask itself — the shader's own
+          // output under uLine < -2.5, which is free of the ink colour and of
+          // whatever lies under it — over the bodies' own boxes:
+          //
+          //                 covers   at full   partial   crisp
+          //     Laplacian    4.43%     2.90%     1.53%    0.65
+          //     both terms   4.52%     3.68%     0.84%    0.81
+          //
+          // The same coverage, decided rather than smeared: partial values fall
+          // by 45%. That is a refinement of a working operator, not a rescue of
+          // a broken one. An earlier note here claimed the old contour inked
+          // 28% of a figure; that came from differencing two frames captured in
+          // separate browser sessions, where the pose and the camera had moved
+          // under the measurement, and it was wrong. The reason the outline
+          // read as absent is the ink colour, forty lines below.
+          //
+          // A silhouette is BOTH not-a-ramp AND a big jump. A cloth fold is
+          // not-a-ramp and a small jump; a floor at a grazing angle is a big
+          // jump and a ramp. So the two operators together separate all three,
+          // and neither can do it alone:
+          //
+          //     lap  = curvature — kills the grazing floor
+          //     grad = the largest one-sided step — kills the fold
+          //
+          // uSilG is that step as a fraction of its own distance, for the
+          // same reason uBite is: one pixel spans more world the further out
+          // it lies.
+          float grad = max(max(abs(c - dl), abs(c - dr)),
+                           max(abs(c - du), abs(c - dd)));
+          // …AND THE LINE IS INK OR IT IS NOTHING. The old ramp ran from the
+          // threshold to twice it, which is what spread a contour into a wash:
+          // every fold landed somewhere in the middle of it and got a grey.
+          // A tenth as wide, and the buffer's own sampling does the smoothing
+          // an artist's nib would.
+          float silT = uSilG * c;
+          float sil = smoothstep(bite, bite * 1.1, lap)
+                    * smoothstep(silT, silT * 1.1, grad);
+          // …and the folds get their OWN line, at their own strength, because
+          // an interior line is drawing and a silhouette is the edge of the
+          // form. They are different marks and they were sharing one dial.
+          float crease = smoothstep(bite, bite * 1.4, lap) * (1.0 - sil);
+          if (uSil > 0.001) line = sil * uSil + crease * uCrease;
+
           // …and where nothing was drawn there is nothing to outline. The far
           // plane is not a surface; without this the whole world gets a border
           // and the sky gets a frame.
@@ -5593,7 +5684,9 @@ const Cast3D = (() => {
           // softened it.
           float lineMask = line * solid * near
                          * (1.0 - clamp(coc * uDof, 0.0, 1.0) * 0.92);
-          line = lineMask * uLine;
+          // the new operator carries its own strengths in uSil/uCrease, so the
+          // old master dial only scales the old one
+          line = uSil > 0.001 ? lineMask : lineMask * uLine;
 
           // ── THE TONE, ON A LADDER ──
           // Stepped by LUMINANCE and reapplied as a ratio, so a red sash steps
@@ -5616,8 +5709,94 @@ const Cast3D = (() => {
           float tooth = hash(floor(vUv / uTexel * 0.5)) - 0.5;
           col += tooth * uTooth;
 
-          // the ink is a constant, not a swatch anybody will pick
-          col = mix(col, vec3(0.169, 0.149, 0.133), clamp(line, 0.0, 1.0));
+          // ── AND THE INK IS ACTUALLY DARK (Build 186) ──────────────────────
+          //
+          // It was vec3(0.169, 0.149, 0.133), and this buffer is LINEAR: on
+          // screen that is sRGB 0.448 — 114 of 255, a MID GREY. The contour has
+          // been drawing a line lighter than the bodies it outlines, which is
+          // MOST OF WHY THERE APPEARED TO BE NO LINE AT ALL — the mask above
+          // fires cleanly and always has; it was being spent on a colour that
+          // could not mark anything.
+          //
+          // THIS IS THE THIRD TIME THIS FILE HAS MADE THIS MISTAKE. The glow
+          // threshold was first set to 0.62 on a picture whose brightest pixel
+          // was 0.41; the black point in the grade below was first set to 0.10
+          // and took half the frame with it. A number written into this shader
+          // is not the number that reaches the screen, and the conversion runs
+          // the wrong way from the intuition every time: dark linear values are
+          // much lighter than they look, so anything meant to read as ink has
+          // to be an order of magnitude smaller than it seems it should be.
+          //
+          // 0.012 is sRGB 0.112 — a near-black with a little blue left in it,
+          // which is what a brush loaded with ink leaves rather than the pure
+          // black nothing in a painting ever is.
+          col = mix(col, vec3(0.011, 0.011, 0.014), clamp(line, 0.0, 1.0));
+
+          // ── THE DISTANCE, FIRST (Build 186) ──────────────────────────────
+          //
+          // Most of what reads as washed out is not the cast at all — it is
+          // that the whole upper half of the picture is one flat grey card.
+          // The mist band it comes from is literally three greys, 8f959d to
+          // 9aa0a6 to 8a8d90, at 55-63% and no chroma: a white-out behind
+          // everything, which is the one thing the reference never does. Its
+          // distance is deep and COLOURED, and the cast reads because it is
+          // warm against that, not because it is outlined against nothing.
+          //
+          // Doing it here rather than in the mist texture is deliberate: depth
+          // is the only place that knows how far away a pixel is, so the ramp
+          // holds for the plaza, the columns, the reflections and anything
+          // else that ends up back there, and one dial answers for all of it.
+          float fardist = smoothstep(uAtmoD * 0.35, uAtmoD, c);
+          vec3 deep = mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, 0.45)
+                    * vec3(0.40, 0.49, 0.66);
+          col = mix(col, deep, fardist * uAtmo);
+
+          // ── AND THEN THE GRADE (Build 186) ───────────────────────────────
+          //
+          // "Washed out" is not a feeling here, it is three numbers. Over the
+          // party's own region of the frame the picture measures mean
+          // saturation 0.068 — a greyscale image with a tint on it — with the
+          // middle half of every pixel inside a 0.18-wide band around mid grey,
+          // no pixel below 0.089 and none above 0.682. There is no black in the
+          // game and there is no white.
+          //
+          // What the reference does is the opposite of subtle: a small number
+          // of strongly saturated hues, a real black to sit them against, and
+          // the light and the shadow in different families. None of that is a
+          // shader trick — it is a grade, and it goes here, on the finished
+          // pixel, after the drawing and before the glow (a bloom graded like
+          // paint stops reading as light).
+          //
+          // AND THIS BUFFER HOLDS LINEAR LIGHT, which is the trap this file has
+          // already fallen into once — the glow threshold was first set to 0.62
+          // on a picture whose brightest pixel was 0.41, and the glow buffer
+          // came back empty at every strength. The same mistake, made again:
+          // a black point of 0.10 reads as "the darkest tenth" and is in fact
+          // everything below mid grey, which took 55% of the frame to black in
+          // the first cut of this grade.
+          //
+          // So the constants are placed on the distribution, measured off the
+          // party's own region of a real frame, LINEAR:
+          //
+          //     p1     p5     p25    med    p75    p95    p99
+          //     0.0085 0.0147 0.0835 0.1085 0.2082 0.3656 0.4130
+          //
+          // THE BLACK POINT FIRST, because chroma pushed on a washed image
+          // amplifies the wash. Rescaling rather than subtracting keeps the
+          // white where it is instead of dragging the whole ramp down. It is
+          // scaled into the bottom fiftieth of that range, so the dial reads
+          // 0..1 and lands where the darks actually are.
+          col = max(vec3(0.0), (col - uCrush * 0.02) / max(0.02, 1.0 - uCrush * 0.02));
+          // …then chroma, around the pixel's own luminance so a grey stays grey
+          float glum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+          col = mix(vec3(glum), col, uGsat);
+          // …and the two families. Warm where the light is, cool where it is
+          // not — the split is in the picture rather than per-figure, so the
+          // paving and the people are lit by the same afternoon. The ramp sits
+          // on the median with its shoulder at the third quartile, which is
+          // where "lit" and "in shadow" actually divide in this frame.
+          col *= mix(vec3(0.90, 0.95, 1.12), vec3(1.10, 1.01, 0.88),
+                     smoothstep(0.06, 0.26, glum)) * uWarm + (1.0 - uWarm);
 
           // ── AND THE LIGHT IN THE AIR, LAST ──────────────────────────────
           //
@@ -5749,6 +5928,14 @@ const Cast3D = (() => {
     m.uniforms.uFlat.value = LOOK.flat;
     m.uniforms.uSteps.value = Math.max(2, Math.round(LOOK.steps));
     m.uniforms.uTooth.value = LOOK.tooth;
+    m.uniforms.uSil.value = LOOK.sil;
+    m.uniforms.uSilG.value = Math.max(0.002, LOOK.silg);
+    m.uniforms.uCrease.value = LOOK.crease;
+    m.uniforms.uCrush.value = LOOK.crush;
+    m.uniforms.uGsat.value = LOOK.gsat;
+    m.uniforms.uWarm.value = LOOK.warm;
+    m.uniforms.uAtmo.value = LOOK.atmo;
+    m.uniforms.uAtmoD.value = Math.max(2, LOOK.atmod);
     m.uniforms.uNear.value = cam.near;
     m.uniforms.uFar.value = cam.far;
     renderer.render(postScene, postCam);

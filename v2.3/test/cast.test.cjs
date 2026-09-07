@@ -3394,6 +3394,115 @@ const { boot } = require('./harness.cjs');
     && stages['opt-out'].body === false,
     JSON.stringify(stages['opt-out']));
 
+  // ═══ THE PICTURE HAS DARKS, COLOUR AND A LINE (Build 186) ══════════════
+  //
+  // "Washed out with an unrefined outline" was three faults and none of them
+  // had an instrument, so each could come back silently. Measured on the
+  // combat frame, before: mean saturation 0.068 — a greyscale image with a
+  // tint — with nothing below 0.089 and nothing above 0.682. No black in the
+  // game and no white.
+  //
+  // THE LINE IS THE ONE THAT TOOK FOUR TRIES TO MEASURE, and every failure was
+  // the instrument rather than the shader:
+  //
+  //   "most of the ink should be at full strength" — false for any thin line.
+  //   A one-pixel contour is mostly EDGE; partial coverage is what
+  //   antialiasing IS. A perfectly clean silhouette scored 0.22 on this,
+  //   indistinguishable from the smear it was supposed to catch.
+  //
+  //   measured over the whole board — the board is mostly plaza, the plaza is
+  //   deliberately out of focus, and the ink fades with the same circle of
+  //   confusion. A correct fade counted as weak ink.
+  //
+  //   coverage of the COMPOSITE against an un-inked frame — confounded by the
+  //   ink COLOUR. Build 186 made the ink four times darker, so every partly
+  //   covered edge pixel began crossing the threshold and the "thinner" line
+  //   measured as covering more: 20.6% before, 26.2% after, for a line that
+  //   had barely changed shape.
+  //
+  // What answers the question is the MASK, which the shader will print on
+  // request (uLine < -2.5) and which neither the ink colour nor the picture
+  // underneath can touch. Read over the bodies own boxes:
+  //
+  //                 covers   at full   partial   crisp
+  //     Laplacian    4.43%     2.90%     1.53%    0.65
+  //     both terms   4.52%     3.68%     0.84%    0.81
+  //
+  // So the gate is CRISPNESS, not coverage — the share of the mark that is
+  // committed rather than grey — with coverage kept in a corridor either side
+  // so a line that vanishes and a line that floods both fail.
+  console.log('\n── the picture is drawn, not rendered ──');
+  {
+    const pic = await J(async () => {
+      const C3 = window.Cast3D;
+      const grab = async () => {
+        await new Promise(r => requestAnimationFrame(r));
+        await new Promise(r => requestAnimationFrame(r));
+        await C3._snapshot();
+        const c = window.__castShot;
+        return { w: c.width, h: c.height,
+                 d: c.getContext('2d').getImageData(0, 0, c.width, c.height).data };
+      };
+      const was = C3.look();
+      const on = await grab();
+      C3.look({ line: -3 });                 // the mask the composite draws
+      const mask = await grab();
+      C3.look(was);
+      // the middle of the board, where the party stands — in fractions, so the
+      // reading does not depend on the buffer this browser happened to make
+      const x0 = Math.round(on.w * 0.38), x1 = Math.round(on.w * 0.86);
+      const y0 = Math.round(on.h * 0.12), y1 = Math.round(on.h * 0.72);
+      let sat = 0, n = 0, dark = 0, lo = 1, hi = 0;
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+        const i = (y * on.w + x) * 4;
+        const r = on.d[i] / 255, g = on.d[i + 1] / 255, b = on.d[i + 2] / 255;
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+        sat += mx > 0 ? (mx - mn) / mx : 0;
+        const L = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        if (L < 0.06) dark++;
+        if (L < lo) lo = L; if (L > hi) hi = L;
+        n++;
+      }
+      // …and the ink on the BODIES, whose boxes come from the DOM the layer
+      // already follows, in canvas fractions
+      const cv = document.getElementById('k-cast3d');
+      const cr = cv.getBoundingClientRect();
+      const boxes = [];
+      document.querySelectorAll('.k-hero, #k-boss-art').forEach(e => {
+        const b = e.getBoundingClientRect();
+        if (!b.width || !b.height) return;
+        boxes.push([Math.round((b.left - cr.left) / cr.width * on.w),
+                    Math.round((b.top - cr.top) / cr.height * on.h),
+                    Math.round((b.right - cr.left) / cr.width * on.w),
+                    Math.round((b.bottom - cr.top) / cr.height * on.h)]);
+      });
+      let bn = 0, any = 0, full = 0;
+      for (const [bx0, by0, bx1, by1] of boxes)
+        for (let y = Math.max(0, by0); y < Math.min(on.h, by1); y++)
+          for (let x = Math.max(0, bx0); x < Math.min(on.w, bx1); x++) {
+            const v = mask.d[(y * on.w + x) * 4];
+            if (v > 10) any++;
+            if (v > 200) full++;
+            bn++;
+          }
+      return { sat: +(sat / n).toFixed(3), dark: +(100 * dark / n).toFixed(2),
+               lo: +lo.toFixed(3), hi: +hi.toFixed(3), bodies: boxes.length,
+               covers: +(100 * any / bn).toFixed(2),
+               atFull: +(100 * full / bn).toFixed(2),
+               crisp: any ? +(full / any).toFixed(2) : 0 };
+    });
+    check('DRAWN: the picture has colour in it — it measured 0.068, a grey with a tint',
+      pic.sat > 0.13,
+      JSON.stringify(pic) + ' — mean saturation over the board');
+    check('DRAWN: …and a black to stand it against, which it did not have',
+      pic.lo < 0.02 && pic.dark > 1.5,
+      JSON.stringify(pic) + ' — the darkest pixel, and the share under 0.06');
+    check('DRAWN: …and the contour is a decided mark, not a soft one',
+      pic.bodies >= 3 && pic.covers > 1.5 && pic.covers < 10 && pic.crisp > 0.72,
+      JSON.stringify(pic) + ' — read off the MASK, so neither the ink colour nor'
+      + ' the picture under it can flatter this. The Laplacian alone scored 0.65');
+  }
+
   // ═══ A PLACE THAT IS NOT THE FIGHT (Build 184) ═════════════════════════
   //
   // Every mark, every visibility and every DOM follower in this layer has been
