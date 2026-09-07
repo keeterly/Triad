@@ -221,18 +221,42 @@ const { boot } = require('./harness.cjs');
       tier: document.getElementById('k-camp-tier').textContent,
       doors: document.querySelectorAll('#k-camp .k-ctdoor').length,
       nodes: document.querySelectorAll('#k-camp .k-tnode').length,
-      says: [...document.querySelectorAll('#k-camp .k-ctd-say')].map(e => e.textContent.trim()),
+      names: [...document.querySelectorAll('#k-camp .k-ctd-cap > b')].map(e => e.textContent.trim()),
+      // ── AND THE SENTENCE IS IN THE RAIL NOW (Build 183) ─────────────────
+      // Two sentences under every figure is what put Elin's line through the
+      // fire's — three captions across one band with the middle two at the
+      // same x. The rail says one at a time, for whoever is being looked at.
+      rail: (document.getElementById('k-camp-read') || {}).textContent || '',
+      lit: (() => {
+        const d = document.querySelector('.k-ctdoor[data-door=\"mira\"]');
+        d.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse', bubbles: true }));
+        return { on: document.querySelectorAll('.k-ctd-on').length,
+                 says: (document.getElementById('k-camp-read') || {}).textContent || '' };
+      })(),
+      // no boxes: a door is a person standing in a room, not a card
+      boxed: [...document.querySelectorAll('#k-camp .k-ctdoor')]
+        .filter(d => { const c = getComputedStyle(d);
+          return parseFloat(c.borderTopWidth) > 0.5 || c.backgroundImage !== 'none'; }).length,
     }));
     // THE FIRE OPENS ON A QUESTION, NOT ON AN INVENTORY. It used to put all
     // eleven nodes on screen at once — four columns each arguing their own case
     // — which is the thing that made sitting down feel like opening a
-    // spreadsheet. Four doors: three people and the fire itself, each saying
-    // what is behind it before it costs a tap to find out.
+    // spreadsheet. Four doors: three people and the fire itself.
     check('FIRE: the fire opens on four doors, not on the whole tree',
       shown.onCamp && !shown.onMap && shown.doors === 4 && shown.nodes === 0
-      && shown.says.length === 4 && shown.says.every(t => t.length > 4)
+      && shown.names.length === 4 && shown.names.every(t => t.length > 2)
       && shown.purse === '12' && /TIER 2/.test(shown.tier),
-      JSON.stringify(shown));
+      JSON.stringify({ doors: shown.doors, nodes: shown.nodes, names: shown.names,
+                       purse: shown.purse, tier: shown.tier }));
+    // …AND IT IS A ROOM WITH PEOPLE IN IT, NOT FOUR CARDS. No panel on any
+    // door, one sentence in the rail at a time, and looking at somebody is
+    // what puts theirs in it.
+    check('FIRE: the doors are people in a room — no panels, and one line at a time',
+      shown.boxed === 0 && /room beside each of them/.test(shown.rail)
+      && shown.lit.on === 1 && /MIRA/.test(shown.lit.says)
+      && /fingers/.test(shown.lit.says),
+      JSON.stringify({ boxed: shown.boxed, rail: shown.rail.trim().slice(0, 50),
+                       lit: shown.lit.on, says: shown.lit.says.trim().slice(0, 60) }));
 
     // THE FIRE HAS TO FIT. Eleven nodes on a 932x430 landscape phone is the
     // whole risk of this screen: one node clipped by the leave button, or a
@@ -265,7 +289,15 @@ const { boot } = require('./harness.cjs');
       // BOTH SCREENS FIT, and both are measured. The doors are what the fire
       // opens on; the nodes are what a door opens INTO, and the second one is
       // where the eleventh node used to run off the right edge.
-      document.querySelectorAll('#k-camp .k-ctdoor').forEach(d => fit(d, d.dataset.door, 90, 180));
+      // ── A DOOR IS A TAP TARGET, NOT A PANEL (Build 183) ─────────────────
+      //
+      // 180px was the height of a CARD, and it was the right bound while a
+      // door was one. The fire is a fire between three people now — 58px of
+      // glow and a name — and asserting it is card-height is asserting the
+      // design this build removed. What still has to be true is that every one
+      // of the four is comfortably tappable: 44px is the smallest target a
+      // thumb finds reliably, and these are all well past it.
+      document.querySelectorAll('#k-camp .k-ctdoor').forEach(d => fit(d, d.dataset.door, 90, 60));
       const perBranch = {};
       for (const hero of ['ash', 'elin', 'mira', 'all']) {
         window.R.openBranch(hero);

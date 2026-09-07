@@ -2627,36 +2627,50 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    right edge and over the LEAVE button. The column is sized for two now, at the
    same width a hero's card gets, and the whole tree lifts clear of the button
    because the fan tilts its outermost cards ~25px below the grid's own floor. */
-#k-camp-tree { position: absolute; left: 18px; right: 18px; top: 46px; bottom: 88px; z-index: 3;
-  display: grid; grid-template-columns: repeat(3, 1fr) 172px; gap: 18px; }
-
-/* ── FOUR DOORS ──────────────────────────────────────────────────────────────
-   The fire opened on every node in the tree at once — eleven cards, four
-   columns, each arguing its own case. Slay the Spire's fire asks one question
-   with two answers and puts everything else behind whichever you pick; this is
-   that shape, adapted to the thing there is actually a choice about. A door is
-   a person (or the fire), it says what is behind it before it is opened, and it
-   is big enough to be an object rather than a row. */
-.k-ctdoor { position: relative; display: flex; flex-direction: column; align-items: center;
-  justify-content: flex-end; gap: 4px; height: 100%; padding: 0 8px 12px; cursor: pointer;
-  background: linear-gradient(180deg, rgba(18,15,13,0) 30%, rgba(18,15,13,0.55) 100%);
-  border: 1px solid rgba(201,164,92,0.16); border-radius: 10px; color: #cfc8ba;
-  font: inherit; text-align: center;
-  transition: transform 260ms var(--ease-out), border-color 260ms var(--ease-out),
-              background 260ms var(--ease-out), box-shadow 260ms var(--ease-out); }
-.k-ctdoor:hover, .k-ctdoor:focus-visible { transform: translateY(-6px);
-  border-color: rgba(224,192,132,0.6);
-  background: linear-gradient(180deg, rgba(38,28,18,0) 24%, rgba(58,42,20,0.6) 100%);
-  box-shadow: 0 10px 26px rgba(0,0,0,0.6), 0 0 30px rgba(226,150,60,0.18); }
-.k-ctdoor:active { transform: translateY(-2px); }
-.k-ctdoor > b { font-size: 12px; letter-spacing: 0.26em; color: #c9a45c; }
-/* THE FIGURE KEEPS ITS OWN HEIGHT. The first pass gave it `flex: 1; height:
-   auto` to let it fill the taller door, and `.k-ct-fig img { height: 100% }`
-   then resolved against an auto-height parent — so the portraits grew to the
-   full 430px stage and two of them covered the entire screen. A fixed frame is
-   what the whole tree column was built on; the door is just a taller box
-   around the same frame. */
-.k-ctdoor .k-ct-fig { height: 168px; flex: none; }
+/* ── ONE ROOM, NOT FOUR PANELS (Build 183) ────────────────────────────────
+   Four bordered cards side by side is a character-select screen, and that is
+   exactly what this read as: three people in identical boxes, identically lit,
+   none of them anywhere in particular. The fire is a place they have stopped
+   IN, and the composition says so — the fire nearest the camera at the bottom
+   centre, the three of them arranged around and behind it, the furthest one
+   drawn smaller because it is further away. Same four targets, same four
+   sentences, no boxes. */
+#k-camp-tree { position: absolute; left: 18px; right: 18px; top: 46px; bottom: 88px; z-index: 3; }
+#k-camp-tree:not(.k-ct-open) { display: block; }
+.k-ctdoor { position: absolute; bottom: 0; padding: 0; background: none; border: 0;
+  color: #cfc8ba; font: inherit; text-align: center; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  transform: translateX(-50%);
+  transition: transform 260ms var(--ease-out), filter 260ms var(--ease-out); }
+/* the ring, in the band's own coordinates. `--lift` is how far back they are
+   standing: further back is higher up the frame and smaller, which is the
+   whole of perspective at this scale. */
+.k-ctd-ash  { left: 20%; --lift: 34px; --fig: 178px; }
+.k-ctd-elin { left: 50%; --lift: 86px; --fig: 138px; }
+.k-ctd-mira { left: 80%; --lift: 30px; --fig: 182px; }
+.k-ct-all   { left: 50%; --lift: 0px;  --fig: 58px;  z-index: 4; }
+.k-ctdoor { margin-bottom: var(--lift); }
+.k-ctdoor .k-ct-fig { height: var(--fig); flex: none; }
+/* THE ONE FURTHEST BACK IS ALSO THE ONE FURTHEST INTO THE DARK. A ring around
+   a fire is lit from the middle: the near two catch it, the far one does not. */
+.k-ctd-elin .k-ct-fig { filter: brightness(0.82) saturate(0.85); }
+.k-ctdoor:hover, .k-ctdoor:focus-visible { transform: translateX(-50%) translateY(-6px); }
+.k-ctdoor:hover .k-ct-fig, .k-ctdoor:focus-visible .k-ct-fig {
+  filter: brightness(1.14) drop-shadow(0 0 26px rgba(226,150,60,0.45)); }
+.k-ctdoor:active { transform: translateX(-50%) translateY(-2px); }
+/* the caption hangs under whoever it belongs to, narrow enough that three of
+   them across a 896px band do not run into each other */
+/* short enough to sit under a person: three of these across the band do not
+   meet, which two sentences each certainly did */
+.k-ctd-cap { display: flex; flex-direction: column; align-items: center; gap: 3px;
+  width: 118px; padding-top: 5px; }
+.k-ct-all .k-ctd-cap { width: 118px; }
+.k-ctdoor.k-ctd-on .k-ct-fig { filter: brightness(1.14)
+  drop-shadow(0 0 26px rgba(226,150,60,0.45)); }
+.k-ctdoor.k-ctd-on .k-ctd-cap > b { color: #f0dcae; }
+.k-ctdoor > b, .k-ctd-cap > b { font-size: 11px; letter-spacing: 0.26em; color: #c9a45c;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.95); }
+.k-ctdoor:hover .k-ctd-cap > b { color: #f0dcae; }
 /* ── WHAT THAT PERSON IS DOING, AND THEN WHAT IT COSTS (Build 182) ───────
    A door said "3 within reach". That is a stock level, and choosing between
    Ash and Mira on it is comparing two shopping lists at the one stop on the
@@ -2664,16 +2678,19 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    tonight; the arithmetic is still here, one size down and in small caps,
    because a door that hides whether it is affordable makes the player spend a
    tap to find out. */
-.k-ctd-say { font: italic 400 10.5px/1.4 var(--serif, Georgia, serif);
-  color: #b3a893; letter-spacing: 0.01em; }
-.k-ctd-tag { margin-top: 4px; font-size: 7.5px; letter-spacing: 0.2em;
-  text-transform: uppercase; color: #7d7466; }
-.k-ctdoor.k-ctd-poor .k-ctd-tag { color: #8a7d63; }
-.k-ctdoor.k-ctd-sealed { opacity: 0.62; }
-.k-ctdoor.k-ctd-sealed .k-ctd-tag { color: #7d7466; }
-.k-ctdoor.k-ctd-done { opacity: 0.72; }
-.k-ctdoor.k-ctd-done .k-ctd-tag { color: #6f7a63; }
-.k-ctdoor.k-ct-hurt .k-ctd-say { color: #d3a8a0; }
+/* ── AND THE SENTENCE IS IN THE RAIL, ONE AT A TIME ──────────────────────
+   The same strip the branch reads a memory out in, doing the same job a beat
+   earlier: whoever is being looked at, what they are doing, and what is behind
+   them, in one place that is already the width of the screen. */
+.k-cr-who { flex: none; font-size: 11px; letter-spacing: 0.24em; color: #c9a45c; }
+.k-cr-doing { flex: 1 1 auto; min-width: 0; font: italic 400 12.5px/1.35
+  var(--serif, Georgia, serif); color: #d7ccb6; font-style: italic; }
+.k-cr-tag { flex: none; font-size: 8px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: #8d8474; }
+.k-cr-hint { font: italic 400 12px/1.35 var(--serif, Georgia, serif); color: #8d8474; }
+.k-ctdoor.k-ctd-sealed { opacity: 0.66; }
+.k-ctdoor.k-ctd-done { opacity: 0.74; }
+.k-ctdoor.k-ct-hurt .k-ctd-cap > b { color: #d3a8a0; }
 
 /* ── AND WHAT IS BEHIND ONE ──────────────────────────────────────────────────
    The door opens into its own branch and nothing else is on screen: whose
@@ -2696,6 +2713,13 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    behind the door in the same words it wore before it opened */
 .k-ctb-said { font: italic 400 12px/1.4 var(--serif, Georgia, serif); color: #ded3bd;
   text-align: center; text-shadow: 0 2px 10px rgba(0,0,0,0.9); }
+/* the bust that says WHO IS TALKING — the same face the party readout wears in
+   combat, at the size a JRPG puts one beside a line */
+.k-ctb-bust { display: block; width: 46px; height: 46px; border-radius: 50%;
+  overflow: hidden; margin: 0 auto 2px;
+  box-shadow: 0 0 0 1px rgba(201,164,92,0.45), 0 4px 14px rgba(0,0,0,0.7); }
+.k-ctb-bust img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 14%;
+  filter: brightness(1.25) contrast(1.05); }
 .k-ctb-say { font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase;
   color: #7d7466; text-align: center; line-height: 1.4; }
 /* …AND THE QUESTION OVER THE ANSWERS. The fan is a row of things to say; a row
@@ -2719,7 +2743,13 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
 .k-ctb-fan[data-n="4"] .k-tnode { height: 72%; }
 .k-ctb-fan[data-n="5"] .k-tnode { height: 58%; }
 /* the strip has nothing to describe until a door is open */
-.k-cr.k-cr-idle { opacity: 0; pointer-events: none; }
+/* AN IDLE RAIL IS EMPTY, NOT ABSENT (Build 183). It was faded out entirely,
+   which was right while it only ever described a memory — at the doors it
+   carries the line about whoever is being looked at, and with nobody being
+   looked at it says what this beat is. A rail that disappears and comes back
+   is a rail that flickers when the cursor crosses the room. */
+.k-cr.k-cr-idle { opacity: 0.55; pointer-events: none; }
+.k-cr.k-cr-idle:empty { opacity: 0; }
 .k-ct-col { display: flex; flex-direction: column; justify-content: space-between;
   align-items: center; height: 100%; }
 /* THE HERO HEADER IS THE HERO. A 22px avatar in a stat bar is a row label; the

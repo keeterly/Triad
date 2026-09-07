@@ -2312,6 +2312,7 @@
     return { say, cls, ns, afford: afford.length, sealed: sealed.length };
   }
 
+  const FACE = { ash: 'kai', elin: 'elin', mira: 'mira' };
   function renderCampDoors(wrap) {
     const ART = { ash: 'kai', elin: 'elin', mira: 'mira' };
     let seat = 0;                     // the doors deal in off the fire, in order
@@ -2319,29 +2320,74 @@
       const hp = RUN.hp && RUN.hp[hero] != null ? RUN.hp[hero] : MAXHP[hero];
       const pct = Math.max(0, Math.min(100, hp / MAXHP[hero] * 100));
       const st = branchState(hero);
-      return '<button type="button" class="k-ctdoor ' + st.cls
+      // ── THEY STAND IN ONE ROOM, NOT IN FOUR PANELS (Build 183) ──────────
+      //
+      // Four bordered cards side by side is a character-select screen, and
+      // that is what this looked like: three people in identical boxes,
+      // identically lit, none of them anywhere. The panels are gone and the
+      // positions are a RING — the fire nearest the camera, the three of them
+      // arranged around and behind it, the furthest one drawn smaller. Same
+      // four targets, same four sentences; one place instead of four tiles.
+      return '<button type="button" class="k-ctdoor k-ctd-' + hero + ' ' + st.cls
         + (pct <= 34 ? ' k-ct-hurt' : '') + '" data-door="' + hero + '"'
         + ' style="--seat:' + seat++ + '">'
         + '<div class="k-ct-fig"><img src="../art/' + ART[hero] + '.webp" alt=""></div>'
-        + '<b>' + HERO_NAME[hero] + '</b>'
-        + '<span class="k-ct-hp"><i style="width:' + pct + '%"></i></span>'
-        + '<em>' + hp + '<i>/' + MAXHP[hero] + '</i></em>'
-        + '<span class="k-ctd-say">' + campDoing(hero) + '</span>'
-        + '<span class="k-ctd-tag">' + st.say + '</span></button>';
+        // ── AND WHAT IS UNDER THEM IS A NAME (Build 183) ──────────────────
+        //
+        // Two sentences under every figure is what put Elin's line through the
+        // fire's: three captions across one band, and the middle two are at the
+        // same x. The name and the health bar are short enough to sit under a
+        // person; the sentence moves to the strip along the bottom, which
+        // already exists, is already the width of the screen, and already has
+        // exactly one thing in it at a time.
+        + '<span class="k-ctd-cap">'
+        +   '<b>' + HERO_NAME[hero] + '</b>'
+        +   '<span class="k-ct-hp"><i style="width:' + pct + '%"></i></span>'
+        +   '<em>' + hp + '<i>/' + MAXHP[hero] + '</i></em></span></button>';
     });
     const all = branchState('all');
+    // …AND THE FOURTH DOOR IS THE FIRE, WHICH IS ALREADY IN THE MIDDLE OF
+    // THEM. "ALL THREE" was a fourth tile with a spark on it standing beside
+    // three people; it is the thing they are sitting around, so it is drawn
+    // where that is and tapping it is choosing what the three of them do
+    // together.
     doors.push('<button type="button" class="k-ctdoor k-ct-all ' + all.cls + '" data-door="all"'
       + ' style="--seat:' + seat++ + '">'
       + '<div class="k-ct-fig k-ct-brazier">' + svgIcon('ember') + '</div>'
-      + '<b>' + HERO_NAME.all + '</b>'
-      + '<span class="k-ctd-say">' + campDoing('all') + '</span>'
-      + '<span class="k-ctd-tag">' + all.say + '</span></button>');
+      + '<span class="k-ctd-cap"><b>' + HERO_NAME.all + '</b></span></button>');
     wrap.innerHTML = doors.join('');
-    wrap.querySelectorAll('.k-ctdoor').forEach(b =>
-      b.addEventListener('click', (e) => { e.stopPropagation(); openBranch(b.dataset.door); }));
-    focusMemory(null, true);      // the strip belongs to an opened door
+    wrap.querySelectorAll('.k-ctdoor').forEach(b => {
+      b.addEventListener('click', (e) => { e.stopPropagation(); openBranch(b.dataset.door); });
+      // A MOUSE READS BY POINTING, A THUMB BY LOOKING. The strip follows the
+      // cursor where there is one and otherwise holds whoever is nearest the
+      // fire, so a touch player is never looking at an empty rail.
+      b.addEventListener('pointerenter', (e) => {
+        if (e.pointerType === 'mouse') campDoorSay(b.dataset.door);
+      });
+    });
+    campDoorSay(null);
   }
 
+  // WHAT THE STRIP SAYS AT THE DOORS. One sentence at a time, for whoever is
+  // being looked at — and with nobody being looked at, the line that says what
+  // this beat IS rather than an empty rail.
+  function campDoorSay(hero) {
+    const strip = document.getElementById('k-camp-read');
+    if (!strip) return;
+    document.querySelectorAll('#k-camp .k-ctdoor').forEach(b =>
+      b.classList.toggle('k-ctd-on', !!hero && b.dataset.door === hero));
+    if (!hero) {
+      strip.className = 'k-cr k-cr-idle';
+      strip.innerHTML = '<span class="k-cr-hint">There is room beside each of them.'
+        + ' Nobody will say which.</span>';
+      return;
+    }
+    const st = branchState(hero);
+    strip.className = 'k-cr ' + (st.cls || 'k-cr-go');
+    strip.innerHTML = '<b class="k-cr-who">' + HERO_NAME[hero] + '</b>'
+      + '<em class="k-cr-doing">' + campDoing(hero) + '</em>'
+      + '<span class="k-cr-tag">' + st.say + '</span>';
+  }
   function renderCampBranch(wrap, hero) {
     const ART = { ash: 'kai', elin: 'elin', mira: 'mira' };
     const ns = TREE.filter(n => n.hero === hero);
@@ -2355,6 +2401,12 @@
       // WHAT THEY SAY WHEN YOU SIT DOWN, and under it the stock line the door
       // wore — kept, because a branch that stops saying what it costs is a
       // branch you have to leave to find out.
+      // A LINE SOMEBODY SAYS HAS A FACE ON IT. The full-body cut-out above
+      // is the person standing in the room; the bust is the convention every
+      // JRPG uses to say "this one is talking", and it is the same asset the
+      // party readout wears in combat.
+      + (FACE[hero] ? '<span class="k-ctb-bust"><img src="../art/' + FACE[hero]
+          + '-face.webp" alt=""></span>' : '')
       + '<span class="k-ctb-said">' + CAMP_SAY[hero].line + '</span>'
       + '<span class="k-ctb-say">' + branchState(hero).say + '</span></div>'
       // HOW MANY ARE BEHIND THIS DOOR, on the element. A plate is sized by its
