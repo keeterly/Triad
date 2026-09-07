@@ -3075,8 +3075,13 @@ const { boot } = require('./harness.cjs');
       bandMean: +bm.toFixed(3), bandStd: +bs.toFixed(3), clip: pct(v => v >= 0.999),
       expo: was.expo };
   });
+  // THE FLOOR IS FOUR, NOT SEVEN. Tuned on one camera this reads 12.7% over
+  // 0.60; the suite's own frame is a wider, mistier shot and reads 6.9%. A gate
+  // set just under the number it was tuned against would be measuring which
+  // shot the suite happened to stop on. Four is still five times the 0.7% the
+  // picture had before the cast had an exposure at all, which is the fault.
   check('TONE: a body has a lit side and a shadow side, not one grey band',
-    tone.figN > 500 && tone.hi60 > 6 && tone.lo10 > 2,
+    tone.figN > 500 && tone.hi60 > 4 && tone.lo10 > 2,
     JSON.stringify(tone) + ' — over the figures own pixels in sRGB; the art sheet '
       + 'reads 32.3% over 0.60 and 8.4% under 0.10, and this picture had 0.7% and 6.8% '
       + 'before the cast got an exposure of its own');
@@ -3687,6 +3692,11 @@ const { boot } = require('./harness.cjs');
       const on = await grab();
       C3.look({ line: -3 });                 // the mask the composite draws
       const mask = await grab();
+      // …and the FIGURES, flat magenta written after the painted light, so the
+      // silhouette this measures does not move when the lighting does
+      C3.look(was);
+      C3.look({ pl: -2 });
+      const fm = await grab();
       C3.look(was);
       // the middle of the board, where the party stands — in fractions, so the
       // reading does not depend on the buffer this browser happened to make
@@ -3737,13 +3747,57 @@ const { boot } = require('./harness.cjs');
             ringSum += lumAt(x, y); ringN++;
           }
       }
+      // ── AND THE SEPARATION IS MEASURED AT THE EDGE, NOT AS TWO AVERAGES ──
+      //
+      // Build 196 raised the cast's exposure and this reading FELL, from 0.045
+      // to 0.013, while the bodies were plainly easier to see. The old form
+      // was |mean inside the DOM box − mean of a ring around it|, and a DOM box
+      // is mostly plaza — so what it really tracked was where the figures' mean
+      // sat relative to the ground's. The exposure carried that mean from below
+      // the ground (0.247 against 0.300) to above it (0.356 against 0.318), and
+      // an absolute difference passes through zero on the way. It was reading
+      // the crossing, not the separation.
+      //
+      // Measured on the same frames, same mask, same session, the contrast that
+      // actually exists at the silhouette went the other way:
+      //
+      //                 step across the edge   edges over 0.05   mean gap
+      //     expo 1            0.1069                71.2%         0.0527
+      //     expo 5            0.1405                73.6%         0.0380
+      //
+      // So this walks the figure mask's own boundary and compares two pixels
+      // inside against three outside — far enough to clear the lens fringe,
+      // close enough to still be the body and the ground. That is the
+      // comparison an eye makes at a silhouette, which is what the check has
+      // always claimed to be making, and it cannot be cancelled by a mean.
+      const W = on.w;
+      const isFig = (j) => fm.d[j * 4] > 140 && fm.d[j * 4 + 1] < 100 && fm.d[j * 4 + 2] > 140;
+      let stepSum = 0, stepN = 0, strong = 0;
+      for (let y = 4; y < on.h - 4; y++) for (let x = 4; x < W - 4; x++) {
+        const j = y * W + x;
+        if (!isFig(j)) continue;
+        let dx = 0, dy = 0;
+        if (!isFig(j - 1)) dx = -1; else if (!isFig(j + 1)) dx = 1;
+        else if (!isFig(j - W)) dy = -1; else if (!isFig(j + W)) dy = 1;
+        else continue;
+        const a = (y - dy * 2) * W + (x - dx * 2), b = (y + dy * 3) * W + (x + dx * 3);
+        if (a < 0 || b < 0 || a >= W * on.h || b >= W * on.h) continue;
+        if (!isFig(a) || isFig(b)) continue;   // both sides must be what they claim
+        const d = Math.abs(lumAt((a % W), Math.floor(a / W)) - lumAt((b % W), Math.floor(b / W)));
+        stepSum += d; stepN++; if (d > 0.05) strong++;
+      }
       return { sat: +(sat / n).toFixed(3), dark: +(100 * dark / n).toFixed(2),
                lo: +lo.toFixed(3), hi: +hi.toFixed(3), bodies: boxes.length,
                covers: +(100 * any / bn).toFixed(2),
                atFull: +(100 * full / bn).toFixed(2),
                crisp: any ? +(full / any).toFixed(2) : 0,
-               sep: +Math.abs((inN ? inSum / inN : 0)
-                            - (ringN ? ringSum / ringN : 0)).toFixed(3) };
+               edges: stepN,
+               step: +(stepSum / Math.max(1, stepN)).toFixed(4),
+               strongPct: +(100 * strong / Math.max(1, stepN)).toFixed(1),
+               // kept because it is the number that used to be gated on, and a
+               // reader comparing this build to an older log needs to see it
+               meanGap: +Math.abs((inN ? inSum / inN : 0)
+                                - (ringN ? ringSum / ringN : 0)).toFixed(3) };
     });
     check('DRAWN: the picture has colour in it — it measured 0.068, a grey with a tint',
       pic.sat > 0.13,
@@ -3765,13 +3819,16 @@ const { boot } = require('./harness.cjs');
     // would a figure lit against a dark ground, which is the point — either is
     // a real answer and a flat grey figure on a flat grey plaza is not.
     check('DRAWN: …and a body separates from what is behind it',
-      pic.bodies >= 3 && pic.sep > 0.03,
-      JSON.stringify(pic) + ' — the luminance gap between the bodies and the'
-      + ' ring of picture around them; it measures 0.045. This is a FLOOR'
-      + ' against a flat picture and not a target: a grey figure on a grey'
-      + ' plaza runs about 0.015, and the art it is aiming at is far above'
-      + ' both. The ink used to buy this with a drawn line and it is bought'
-      + ' with light now, which is the harder way and the right one');
+      pic.bodies >= 3 && pic.edges > 300 && pic.step > 0.06,
+      JSON.stringify(pic) + ' — the mean luminance step across the figures own'
+      + ' silhouette, two pixels inside against three outside. It reads 0.141'
+      + ' with the cast exposure and 0.107 without it, so the floor sits below'
+      + ' both: this is a guard against a flat picture, not a target. An'
+      + ' outline would pass it and so does a figure lit against a dark ground'
+      + ' — either is a real answer, and a grey figure on a grey plaza is not.'
+      + ' It replaced a difference of two MEANS, which fell to 0.013 on a build'
+      + ' that made the bodies easier to see, because the figures average'
+      + ' crossed the grounds and an absolute difference goes through zero');
   }
 
   // ═══ A PLACE THAT IS NOT THE FIGHT (Build 184) ═════════════════════════
