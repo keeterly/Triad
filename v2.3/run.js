@@ -2220,12 +2220,82 @@
     if (leave) leave.textContent = _campOpen ? 'BACK' : 'BACK TO THE ROAD';
     const say = document.getElementById('k-camp-say');
     if (say) say.textContent = _campOpen
-      ? 'What do they remember?'
-      : 'Wounds close. Nobody says much. There is time to remember.';
+      ? 'Wounds close either way. This is the part nobody has to do.'
+      : 'Nobody sleeps the first hour. There is room beside each of them.';
+    // …AND THE TITLE ASKS THE QUESTION THE SCREEN IS ASKING. "THE FIRE" is
+    // where you are; it is not what you are being asked.
+    const ttl = document.querySelector('#k-camp-top .k-mt-title b');
+    if (ttl) ttl.textContent = _campOpen ? 'THE FIRE' : 'WHO DO YOU SIT WITH?';
     if (!_campOpen) { renderCampDoors(wrap); return; }
     renderCampBranch(wrap, _campOpen);
   }
 
+  // ── THE FIRE IS A ROOM WITH THREE PEOPLE IN IT (Build 182) ──────────────
+  //
+  // The doors already asked the right question — three people and the fire,
+  // one of them opens — and then answered it in the wrong language: each door
+  // said "3 within reach" or "5 embers for the cheapest", which is a stock
+  // level. A player choosing between Ash and Mira on that basis is comparing
+  // two shopping lists, and the fire is the one stop on the road where the
+  // three of them are not fighting anything.
+  //
+  // So the sentence on a door is what that person is DOING tonight, and the
+  // arithmetic drops to a tag under it in small caps — still there, because a
+  // door that hides whether it is affordable makes the player spend a tap to
+  // find out, but no longer the thing being read.
+  const CAMP_DOING = {
+    ash:  { ok: 'Cleaning a blade that is already clean.',
+            hurt: 'Sat where the firelight does not quite reach him.' },
+    elin: { ok: 'Holding the lantern the way you hold a hand.',
+            hurt: 'Awake. Not saying so, and not fooling anybody.' },
+    mira: { ok: 'Counting something on her fingers. Not embers.',
+            hurt: 'Re-wrapping a hand she has already called fine twice.' },
+    all:  { ok: 'Nobody has said anything for a while. The fire does the talking.',
+            hurt: 'Three people not looking at each other, and one fire.' },
+  };
+  // …AND SITTING DOWN IS SOMEBODY SAYING SOMETHING. The branch used to open on
+  // a rail with the door's own stock line repeated on it. It opens on the thing
+  // that person has been waiting all evening to say instead, and the plates
+  // behind it are the answers.
+  const CAMP_SAY = {
+    ash:  { who: 'ASH',  line: 'You are going to ask me if I am all right.' },
+    elin: { who: 'ELIN', line: 'I keep going back over the part where it nearly went wrong.' },
+    mira: { who: 'MIRA', line: 'You keep sending me in first.' },
+    all:  { who: null,   line: 'Three of them, one fire, and a long way still to go down.' },
+  };
+  const CAMP_ASK = {
+    ash: 'What do you say instead?', elin: 'What do you tell her?',
+    mira: 'What do you tell her?',   all: 'What do the three of them agree on?',
+  };
+  // WHAT EACH MEMORY IS, SAID OUT LOUD. One line per node, and it is the line
+  // the plate is read by — what it DOES is still printed underneath, off the
+  // card faces, so the promise cannot drift from the outcome.
+  const NODE_SAY = {
+    'ash.cleave':     '\u201cStop aiming. Just swing.\u201d',
+    'ash.guardcut':   '\u201cTake the hit if you have to.\u201d',
+    'ash.crosssever': '\u201cThen end it in one.\u201d',
+    'ash.learn':      '\u201cCarry the heavy one twice.\u201d',
+    'elin.lcascade':  '\u201cHold the light steadier.\u201d',
+    'elin.mend':      '\u201cLook after them first.\u201d',
+    'elin.sgrace':    '\u201cCover all three of us, or none.\u201d',
+    'elin.learn':     '\u201cThen do it twice a fight.\u201d',
+    'mira.serrate':   '\u201cCut so that it keeps cutting.\u201d',
+    'mira.qthrow':    '\u201cDrop whatever slows you down.\u201d',
+    'mira.twinfang':  '\u201cTwice. Do not stop to look.\u201d',
+    'mira.learn':     '\u201cThen go in twice.\u201d',
+    'all.resolve':    '\u201cWe start earlier tomorrow.\u201d',
+    'all.crescendo':  '\u201cWhen it comes, it comes from all three.\u201d',
+  };
+  const campHurt = (hero) => {
+    if (hero === 'all') return ['ash', 'elin', 'mira']
+      .some(h => (RUN.hp && RUN.hp[h] != null ? RUN.hp[h] : MAXHP[h]) / MAXHP[h] <= 0.34);
+    const hp = RUN.hp && RUN.hp[hero] != null ? RUN.hp[hero] : MAXHP[hero];
+    return hp / MAXHP[hero] <= 0.34;
+  };
+  const campDoing = (hero) => {
+    const d = CAMP_DOING[hero] || CAMP_DOING.all;
+    return campHurt(hero) ? d.hurt : d.ok;
+  };
   // WHAT IS BEHIND A DOOR, in one line, read off the same three states a node
   // wears: held, sealed by tier, or priced beyond the purse.
   function branchState(hero) {
@@ -2256,14 +2326,16 @@
         + '<b>' + HERO_NAME[hero] + '</b>'
         + '<span class="k-ct-hp"><i style="width:' + pct + '%"></i></span>'
         + '<em>' + hp + '<i>/' + MAXHP[hero] + '</i></em>'
-        + '<span class="k-ctd-say">' + st.say + '</span></button>';
+        + '<span class="k-ctd-say">' + campDoing(hero) + '</span>'
+        + '<span class="k-ctd-tag">' + st.say + '</span></button>';
     });
     const all = branchState('all');
     doors.push('<button type="button" class="k-ctdoor k-ct-all ' + all.cls + '" data-door="all"'
       + ' style="--seat:' + seat++ + '">'
       + '<div class="k-ct-fig k-ct-brazier">' + svgIcon('ember') + '</div>'
       + '<b>' + HERO_NAME.all + '</b>'
-      + '<span class="k-ctd-say">' + all.say + '</span></button>');
+      + '<span class="k-ctd-say">' + campDoing('all') + '</span>'
+      + '<span class="k-ctd-tag">' + all.say + '</span></button>');
     wrap.innerHTML = doors.join('');
     wrap.querySelectorAll('.k-ctdoor').forEach(b =>
       b.addEventListener('click', (e) => { e.stopPropagation(); openBranch(b.dataset.door); }));
@@ -2280,14 +2352,16 @@
           ? '<div class="k-ct-fig k-ct-brazier">' + svgIcon('ember') + '</div>'
           : '<div class="k-ct-fig"><img src="../art/' + ART[hero] + '.webp" alt=""></div>')
       + '<b>' + HERO_NAME[hero] + '</b>'
-      // THE RAIL WAS A FIGURE STANDING IN A HUNDRED AND FIFTY PIXELS OF BLACK.
-      // It is the same sentence the door wore before it was opened, so the
-      // branch keeps saying what it is worth while you are inside it.
+      // WHAT THEY SAY WHEN YOU SIT DOWN, and under it the stock line the door
+      // wore — kept, because a branch that stops saying what it costs is a
+      // branch you have to leave to find out.
+      + '<span class="k-ctb-said">' + CAMP_SAY[hero].line + '</span>'
       + '<span class="k-ctb-say">' + branchState(hero).say + '</span></div>'
       // HOW MANY ARE BEHIND THIS DOOR, on the element. A plate is sized by its
       // HEIGHT with a card's aspect ratio deriving the width, so a fourth one
       // does not squeeze — it runs off the edge. The stylesheet needs the count
       // to know how tall they may be.
+      + '<div class="k-ctb-ask">' + CAMP_ASK[hero] + '</div>'
       + '<div class="k-ctb-fan" data-n="' + ns.length + '">'
       + ns.map(n => nodeHTML(n, seat++)).join('') + '</div>'
       + '</div>';
@@ -2344,6 +2418,11 @@
       + (art ? '<img class="k-tn-bg" src="' + art + '" alt="" aria-hidden="true">' : '')
       + '<span class="k-tn-lift" aria-hidden="true"></span>'
       + '<span class="k-tn-cost">' + (own ? '✓' : sealed ? 'T' + n.tier : n.cost) + '</span>'
+      // THE ANSWER, THEN WHAT IT IS. A plate led with an upgrade's NAME —
+      // "Cleave+" — which is the label on a thing you have bought rather than
+      // anything anybody would say. The line is what the player is choosing to
+      // say; the name and the before/after under it are what it does.
+      + '<span class="k-tn-said">' + (NODE_SAY[n.id] || '') + '</span>'
       + '<span class="k-tn-top"><b>' + f.name + '</b></span>'
       // WHAT IT WAS, AND WHAT IT BECOMES — on the plate, not only in the strip
       // forty pixels below it. Given a whole branch to itself a plate is
