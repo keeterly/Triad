@@ -3109,12 +3109,11 @@ const { boot } = require('./harness.cjs');
   // frames the party differently shot to shot; what it is guarding is a body
   // being lit as though it were one of the others, which is a tenth of the
   // scale away, not a hundredth.
-  // Mira's target is the value she is SHIPPED at, not the sheet's: Build 202
-  // traded 0.028 of her median for the blacks she had none of, and a check that
-  // still demanded 0.192 would be asking for the flat version back. The others
-  // are the sheet's own numbers.
-  const ART_MED = { elin: 0.581, ash: 0.273, mira: 0.164 };
-  const ART_LO = { mira: 10.9 };
+  // All three are the sheet's own numbers again. Build 202 had to hold Mira to
+  // the value she was shipped at, because the black point cost her 0.028 of
+  // median; Build 203's per-body exposure bought most of it back — 0.216 — so
+  // the target can be the art's again.
+  const ART_MED = { elin: 0.581, ash: 0.273, mira: 0.192 };
   const bodies = await J(async (art) => {
     const C3 = window.Cast3D, was = C3.look();
     const grab = async () => {

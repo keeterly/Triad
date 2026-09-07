@@ -73,6 +73,20 @@ import { clone as cloneSkinned } from './lib/SkeletonUtils.js';
 const CAST = {
   ash:  { model: 'ash.glb',  sel: '.k-hero[data-hero="ash"]',
           paper: 0xf7efe2, shadow: 0x9a7f6e, ink: 0x3d2f28,
+          // ── AND HE HAD NO HIGHLIGHTS EITHER (Build 203) ─────────────────
+          //
+          // Measured per body, the share of a character above 0.60: the art
+          // sheet gives Mira 19.7%, Ash 29.7% and Elin 47.2%. This game gave
+          // 0.3%, 7.7% and 43.9%. Elin was already there; the two dark bodies
+          // had almost no lit side at all, and their medians were only correct
+          // because the ambient set them there.
+          //
+          // `expo` per creature, multiplied into the global. It rides the
+          // terminator mask, so it lands on the lit side and cannot touch the
+          // blacks Build 202 gave Mira — measured, hers hold at 9.9% through
+          // the whole sweep. Ash at 2 doubles his highlight share for a
+          // quarter of a percent clipped.
+          expo: 2.0,
           turn: 41, tall: 1.00, strike: 'sword' },
   // `verb` is which of the fight's four words this person throws when nothing
   // in particular is being asked of them — an all-out, say. Ash and Mira answer
@@ -118,6 +132,16 @@ const CAST = {
           // Photographed at 0, 0.006 and 0.012: at zero she is one grey-brown
           // mass, at 0.012 her legs and boots merge into a dark one.
           black: 0.006,
+          // …AND THE OTHER END OF HER, which the black point could not reach:
+          // 0.3% of her sat above 0.60 against the art sheet's 19.7%, and 0.0%
+          // above 0.85 against 10.7%. She was a flat dark shape at both ends.
+          //
+          // Five is where the picture stops improving. Photographed at 1, 5 and
+          // 9: at 1 she is a silhouette, at 9 she goes chalky and stops reading
+          // as the dark one of the three. It also buys back most of the median
+          // Build 202 traded away — 0.216 against the sheet's 0.192, where the
+          // black point alone left her at 0.164.
+          expo: 5.0,
           // ── AND SHE OPENS UP LIKE THE OTHER TWO (Build 190) ─────────────
           //
           // 22 was the outlier: `turn` is how far a body is brought back
@@ -836,7 +860,11 @@ function watercolour(map, tone) {
     // ── THE SURFACE (Build 192) ──
     uBump:  { value: LOOK.bump },  uSpec:  { value: LOOK.spec },
     uNan:   { value: LOOK.nan },
-    uExpo:  { value: LOOK.expo },
+    // PER BODY, multiplied into the global. See the note on `expo` in CAST:
+    // the key barely reaches the dark characters, so their highlights are
+    // missing while their medians are correct, and one number cannot serve a
+    // bone-white robe and a black leather at the same time.
+    uExpo:  { value: LOOK.expo * (tone.expo || 1) },
     // ── AND ONE BODY IS NOT ANOTHER (Build 201) ──────────────────────────
     // Per CREATURE, not a global dial, because the fault is per creature — see
     // the note where it is applied. It is called `curve` on the cast entry and
@@ -8163,6 +8191,19 @@ const Cast3D = (() => {
           if (!u[key]) continue;
           if (typeof u[key].value !== typeof next[k]) continue;
           u[key].value = next[k];
+        }
+      }
+      // ── AND THE PER-BODY EXPOSURE IS RESTORED AFTER THE LOOP ────────────
+      //
+      // The loop above maps a dial name to a uniform name and writes the value
+      // straight onto every figure — which for `expo` throws away the factor
+      // each creature carries. Same shape as `keyx` against `shade` twelve
+      // lines up: two things own one number, so the one that composes runs
+      // last and MULTIPLIES rather than replacing.
+      if (next.expo != null) {
+        for (const id of Object.keys(figs)) {
+          const f = figs[id], u = f.root.userData.mat.userData.u;
+          if (u.uExpo) u.uExpo.value = next.expo * ((f.tone && f.tone.expo) || 1);
         }
       }
       Object.assign(LOOK, next);
