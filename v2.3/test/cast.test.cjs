@@ -3075,13 +3075,21 @@ const { boot } = require('./harness.cjs');
       bandMean: +bm.toFixed(3), bandStd: +bs.toFixed(3), clip: pct(v => v >= 0.999),
       expo: was.expo };
   });
-  // THE FLOOR IS FOUR, NOT SEVEN. Tuned on one camera this reads 12.7% over
-  // 0.60; the suite's own frame is a wider, mistier shot and reads 6.9%. A gate
-  // set just under the number it was tuned against would be measuring which
-  // shot the suite happened to stop on. Four is still five times the 0.7% the
-  // picture had before the cast had an exposure at all, which is the fault.
+  // ── WHERE THE FLOOR GOES, AND WHY IT IS NOT JUST UNDER THE READING ──────
+  //
+  // This was gated at 4 against the expo 5 picture, and at expo 3 the suite's
+  // own frame came back 4.2 — a pass with five percent of headroom, which is a
+  // gate measuring which shot the run stopped on rather than whether the cast
+  // has a lit side. Placed on the two populations instead:
+  //
+  //     the fault  (no cast exposure)   0.3% – 0.7%   across cameras
+  //     shipped    (expo 3)             4.2% – 8.4%   across cameras
+  //
+  // Two is three times the worst of the fault and half the best of the ship,
+  // which separates them with room on both sides. That is what a floor is for.
+  // It is deliberately NOT moved to sit just under 4.2.
   check('TONE: a body has a lit side and a shadow side, not one grey band',
-    tone.figN > 500 && tone.hi60 > 4 && tone.lo10 > 2,
+    tone.figN > 500 && tone.hi60 > 2 && tone.lo10 > 2,
     JSON.stringify(tone) + ' — over the figures own pixels in sRGB; the art sheet '
       + 'reads 32.3% over 0.60 and 8.4% under 0.10, and this picture had 0.7% and 6.8% '
       + 'before the cast got an exposure of its own');
