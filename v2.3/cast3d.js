@@ -833,11 +833,50 @@ function watercolour(map, tone) {
           float sfGx = sfXp - sfXm, sfGy = sfYp - sfYm;
           vec3 sfPx = dFdx(-vViewPosition), sfPy = dFdy(-vViewPosition);
           vec2 sfUx = dFdx(vMapUv), sfUy = dFdy(vMapUv);
+          // ── AND EVERY STEP OF THIS CAN DIVIDE BY NOTHING (Build 194) ────
+          //
+          // The first cut divided by abs(sfDet) + 1e-8 and called that a
+          // guard. It is not one: on a UV patch that is degenerate — and
+          // auto-unwrapped models have plenty, a seam, a collapsed face, a
+          // hard edge where two charts meet — the determinant is zero, the
+          // divide returns something of order 1e8, and normalize of a vector
+          // that large overflows a half-float to Inf and then to NaN.
+          //
+          // ON A DESKTOP THAT IS ONE BAD PIXEL. On a phone it is not: mobile
+          // GPUs are tile-based, the scene renders into a HalfFloatType target,
+          // and a NaN written into a tile can take the WHOLE TILE with it —
+          // which is why this showed up as flashing black SQUARES of uniform
+          // size, axis-aligned, sitting over the figures, and why it never
+          // appeared once in a headless browser: SwiftShader is not tiled and
+          // does not fail this way. The reproduction and the fault were in
+          // different renderers, so the only honest fix is to make the
+          // arithmetic incapable of producing the value.
+          //
+          // Every division now has a real floor and every normalize has a
+          // length test. If any of them fails the surface is simply left
+          // alone, which is the shading this shipped with for its whole life.
           float sfDet = sfUx.x * sfUy.y - sfUy.x * sfUx.y;
-          vec3 sfT = (sfUy.y * sfPx - sfUx.y * sfPy) / (abs(sfDet) + 1e-8);
-          sfT = normalize(sfT - normal * dot(normal, sfT));
-          vec3 sfB = cross(normal, sfT);
-          normal = normalize(normal - uBump * (sfGx * sfT + sfGy * sfB));
+          if (abs(sfDet) > 1e-7) {
+            vec3 sfT = (sfUy.y * sfPx - sfUx.y * sfPy) / sfDet;
+            float sfTl = length(sfT);
+            if (sfTl > 1e-6 && sfTl < 1e6) {
+              sfT /= sfTl;
+              sfT = sfT - normal * dot(normal, sfT);
+              float sfTo = length(sfT);
+              if (sfTo > 1e-4) {
+                sfT /= sfTo;
+                vec3 sfB = cross(normal, sfT);
+                // …and the gradient is bounded too. One texel of a compressed
+                // texture can differ from its neighbour by the whole range,
+                // and an unbounded step times an unbounded gradient is the
+                // other way to reach infinity.
+                vec2 sfG = clamp(vec2(sfGx, sfGy), -1.0, 1.0);
+                vec3 sfN = normal - uBump * (sfG.x * sfT + sfG.y * sfB);
+                float sfNl = length(sfN);
+                if (sfNl > 1e-4) normal = sfN / sfNl;
+              }
+            }
+          }
           // …AND WHAT IS SMOOTH GETS TO BE SMOOTH. Roughness 1 everywhere is
           // why nothing has ever caught the light. The detail signal says
           // which parts of a texture are busy — weave, fur, rubble — and the
