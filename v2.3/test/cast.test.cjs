@@ -3093,6 +3093,75 @@ const { boot } = require('./harness.cjs');
     JSON.stringify(tone) + ' — over the figures own pixels in sRGB; the art sheet '
       + 'reads 32.3% over 0.60 and 8.4% under 0.10, and this picture had 0.7% and 6.8% '
       + 'before the cast got an exposure of its own');
+  // ── AND EACH BODY AT ITS OWN VALUE, NOT THE PARTY'S AVERAGE ─────────────
+  //
+  // The party average is what hid the fault twice. Measured per body against
+  // the art sheet's own medians, in sRGB, two of the three were already exactly
+  // right and the third was nowhere near — and every global dial that moved her
+  // moved them off a mark they were already on:
+  //
+  //                before   after    the art
+  //     mira        0.187   0.187     0.192
+  //     ash         0.278   0.278     0.273
+  //     elin        0.403   0.582     0.581
+  //
+  // So this reads them one at a time. The tolerance is wide because a fight
+  // frames the party differently shot to shot; what it is guarding is a body
+  // being lit as though it were one of the others, which is a tenth of the
+  // scale away, not a hundredth.
+  const ART_MED = { elin: 0.581, ash: 0.273, mira: 0.192 };
+  const bodies = await J(async (art) => {
+    const C3 = window.Cast3D, was = C3.look();
+    const grab = async () => {
+      await new Promise(z => requestAnimationFrame(z));
+      await new Promise(z => requestAnimationFrame(z));
+      await C3._snapshot();
+      const c = window.__castShot;
+      return { w: c.width, h: c.height,
+               d: c.getContext('2d').getImageData(0, 0, c.width, c.height).data };
+    };
+    C3.look({ pl: -2 });
+    const mk = await grab();
+    const fig = new Uint8Array(mk.w * mk.h);
+    for (let i = 0, j = 0; i < mk.d.length; i += 4, j++)
+      if (mk.d[i] > 140 && mk.d[i + 1] < 100 && mk.d[i + 2] > 140) fig[j] = 1;
+    C3.look(was);
+    const g = await grab();
+    const cr = document.getElementById('k-cast3d').getBoundingClientRect();
+    const out = {};
+    for (const id of Object.keys(art)) {
+      const el = document.querySelector('.k-hero[data-hero="' + id + '"]');
+      if (!el) continue;
+      const b = el.getBoundingClientRect();
+      const x0 = Math.round((b.left - cr.left) / cr.width * mk.w);
+      const y0 = Math.round((b.top - cr.top) / cr.height * mk.h);
+      const x1 = Math.round((b.right - cr.left) / cr.width * mk.w);
+      const y1 = Math.round((b.bottom - cr.top) / cr.height * mk.h);
+      const q = [];
+      for (let y = Math.max(0, y0); y < Math.min(mk.h, y1); y++)
+        for (let x = Math.max(0, x0); x < Math.min(mk.w, x1); x++) {
+          const j = y * mk.w + x;
+          if (fig[j]) q.push((0.2126 * g.d[j * 4] + 0.7152 * g.d[j * 4 + 1]
+                            + 0.0722 * g.d[j * 4 + 2]) / 255);
+        }
+      if (q.length < 200) { out[id] = { n: q.length }; continue; }
+      q.sort((a, z) => a - z);
+      out[id] = { n: q.length, med: +q[(q.length * 0.5) | 0].toFixed(3),
+                  want: art[id],
+                  off: +Math.abs(q[(q.length * 0.5) | 0] - art[id]).toFixed(3),
+                  clip: +(100 * q.filter(v => v >= 0.999).length / q.length).toFixed(2) };
+    }
+    return out;
+  }, ART_MED);
+  const litBodies = Object.keys(bodies).filter(k => bodies[k].med != null);
+  check('TONE: each body sits at its own value, not the party average',
+    litBodies.length === 3
+      && litBodies.every(k => bodies[k].off <= 0.09 && bodies[k].clip < 2),
+    JSON.stringify(bodies) + ' — each hero median in sRGB against the art sheet, '
+      + 'over that hero own masked pixels. Elin shipped at 0.403 against a 0.581 '
+      + 'target while Mira and Ash were already exact, and the party average read '
+      + 'healthy throughout — which is why this is measured one body at a time');
+
   check('TONE: …and the lit side is still drawn, not clipped flat',
     tone.figN > 500 && tone.clip < 2.5 && tone.bandStd > 0.09,
     JSON.stringify(tone) + ' — how much of the figure sits at 1.0, and how much '

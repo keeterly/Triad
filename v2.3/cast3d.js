@@ -81,6 +81,21 @@ const CAST = {
   // club is a finisher that has forgotten who she is.
   elin: { model: 'elin.glb', sel: '.k-hero[data-hero="elin"]',
           paper: 0xf2f4f7, shadow: 0x8d9ab4, ink: 0x343b4a,
+          // ── AND SHE IS THE ONE THE LIGHT WAS WRONG FOR (Build 201) ───────
+          //
+          // Measured per body against the art sheet's own medians, in sRGB:
+          //
+          //                game    the art
+          //     mira       0.187    0.192
+          //     ash        0.278    0.273
+          //     elin       0.403    0.581
+          //
+          // Two of three were already right, which is why no global dial could
+          // be the answer: every one of them that moved her moved the other
+          // two off a mark they were already on. `curve` is a tone curve on
+          // this body alone, and at 1.6 she reads 0.575 with nothing clipped
+          // while Mira and Ash do not move a thousandth.
+          curve: 1.6,
           turn: 46, tall: 0.97, strike: 'staff', verb: 'cast' },
   mira: { model: 'mira.glb', sel: '.k-hero[data-hero="mira"]',
           paper: 0xeef2ea, shadow: 0x76907c, ink: 0x2b352e,
@@ -803,6 +818,12 @@ function watercolour(map, tone) {
     uBump:  { value: LOOK.bump },  uSpec:  { value: LOOK.spec },
     uNan:   { value: LOOK.nan },
     uExpo:  { value: LOOK.expo },
+    // ── AND ONE BODY IS NOT ANOTHER (Build 201) ──────────────────────────
+    // Per CREATURE, not a global dial, because the fault is per creature — see
+    // the note where it is applied. It is called `curve` on the cast entry and
+    // NOT `lift`, because `lift` is already the watercolour's dial and this
+    // file has lost a build to two different things sharing one name.
+    uPlLift: { value: tone.curve || 1 },
     uTexel2: { value: new THREE.Vector2(1 / 2048, 1 / 2048) },
     uEdge:  { value: LOOK.edge },  uLift:  { value: LOOK.lift },
     uWash:  { value: LOOK.wash },  uAir:   { value: LOOK.air },
@@ -838,6 +859,7 @@ function watercolour(map, tone) {
         uniform float uBump, uSpec;
         uniform float uNan;
         uniform float uExpo;
+        uniform float uPlLift;
         uniform vec2 uTexel2;
         // THE LIGHTING HUES ARE NOT PIGMENT AND NOT DIALS. uPaper/uShadow/uInk
         // are the watercolour's pigments and belong to the figure; these are
@@ -1255,6 +1277,37 @@ function watercolour(map, tone) {
           // scene; this does the figures, because a dimmed key still leaves a
           // hero readable and the point is that only one of them should be.
           c *= uLit;
+          // ── A LIFT, WHICH IS NOT A GAIN, AND NOT ON THE LIGHTING ─────────
+          //
+          // Two of the three bodies already sit on the art sheet's own medians
+          // — Mira 0.187 against 0.192, Ash 0.278 against 0.273. Elin reads
+          // 0.403 against 0.581, and no global dial can lift her without
+          // taking the two that are right with her: keyx 2.5 gets her there
+          // and over-brightens them by a third.
+          //
+          // A GAIN cannot do it either. Multiplying her lit side to the target
+          // clipped 11.35% of her flat, because her albedo is bone-white and a
+          // multiplier runs out of room at 1.0.
+          //
+          // Nor does a gamma on the LIGHTING: her lighting straddles unity, so
+          // a curve that lifts below 1 and compresses above it cancels in the
+          // median — measured 0.405 to 0.392 across the whole range, which is
+          // nothing. That was the second wrong instrument in a row and it is
+          // recorded here so the third one is not tried again either.
+          //
+          // On the body's own output it is a plain tone curve on linear light:
+          // it maps 1 to 1, so it cannot clip a white by construction, and it
+          // is monotonic, so every brush mark in the albedo keeps its order.
+          // One number per creature, because the fault is per creature.
+          // …AND NOT OVER A DEBUG VIEW. The mask every measurement in this
+          // project is cut from is uPl < -1.5, which writes flat magenta — and
+          // a curve applied on top of that is a curve applied to the RULER.
+          // Measured: at 1.6 it lifted the magenta's green channel from 57 to
+          // exactly 100, the mask test is g < 100, and Elin vanished from every
+          // reading while rendering perfectly on screen. The debug outputs are
+          // measurements, not pictures, and nothing downstream may touch them.
+          if (uPlLift != 1.0 && uPl > -0.5)
+            c = pow(max(c, vec3(0.0)), vec3(1.0 / max(0.05, uPlLift)));
           gl_FragColor.rgb = c;
 
           // ── THE BURN ────────────────────────────────────────────────────
