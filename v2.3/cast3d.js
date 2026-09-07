@@ -641,6 +641,27 @@ const LOOK = {
   // atmoc 3 / atmok 0.55 the far architecture is gone into night and the plaza
   // stops being a place. 2.2 and 0.7 is where the distance has real colour, the
   // party separates hard against it, and the colonnade is still legible.
+  // ── HOW BIG THE IMPACT FLASH IS (Build 208) ─────────────────────────────
+  //
+  // A slash at power 1.6 fires the flash at h.flash * (0.75 + k * 0.45) =
+  // 1.69 WORLD UNITS, and the creature it lands on is 2.30 metres tall. The
+  // flash is three quarters of the body's height: photographed across the
+  // impact it is a white star covering the torso for the first three frames,
+  // which is what "all hits just look like a glowing circle" is describing.
+  // The sparks underneath it are fine — thin directional streaks, not the
+  // oversized blobs of the old complaint — they are simply behind a star.
+  // Photographed across the impact at 1.0, 0.55 and 0.30. At 1 the star spans
+  // the torso for three frames and the sparks are behind it; at 0.3 the flash
+  // is a point at the contact and the spray is the thing you read.
+  //
+  // THE NUMBERS BARELY SEPARATE THEM and that is worth recording. Blown pixels
+  // over the frame go 17363 / 15628 / 14392 — nearly flat, because sparks and
+  // bloom dominate the count, not the flash. The largest CONNECTED blown region
+  // is better but still soft: 72x113 px, 67x102, 38x100 on a creature standing
+  // 470 px tall. Only the width really moves. This is the Elin lesson in
+  // reverse — there a histogram called a blown-out silhouette an improvement,
+  // here the histogram cannot see a fix the eye reads instantly.
+  hitf:   0.35,  // a multiplier on every impact flash — 1 is what it shipped as
   atmoc:  2.2,   // how coloured the far field goes — 1 is the blue it shipped with
   atmok:  0.7,   // …and how deep, as a multiplier on that colour
   flat:  0.0,    // the band ladder stays off; it flattened the art it sat on
@@ -693,6 +714,7 @@ const LOOK_HELP = {
   warm:   ['warm/cool', 0, 1.5, 0.01, 'warm light against cool shadow, across the frame'],
   atmo:   ['distance grade', 0, 1, 0.01, 'how deep and coloured the background goes — it is a grey card now'],
   atmod:  ['distance', 5, 60, 1, 'the metres at which that grade is full'],
+  hitf:   ['impact flash', 0, 1.5, 0.01, 'how big the flash at the point of contact is'],
   atmoc:  ['distance colour', 0, 3, 0.02, 'how coloured the far field goes — 1 is what it shipped with'],
   atmok:  ['distance depth', 0.2, 1.4, 0.01, 'how deep the far field goes behind the fight'],
   paint: ['watercolour', 0, 1, 0.01, 'how much of the wash is applied at all'],
@@ -3353,8 +3375,9 @@ class Effects {
     }
 
     // …and the light, stretched along the cut rather than stamped across it
-    if (h.flash) this.flashes.fire(at, h.flash * (0.75 + k * 0.45), h.flashMs || 0.14,
-                                   toward, along, span);
+    if (h.flash && LOOK.hitf > 0.001)
+      this.flashes.fire(at, h.flash * (0.75 + k * 0.45) * LOOK.hitf, h.flashMs || 0.14,
+                        toward, along, span);
     // …AND THE MARK LIES ALONG THE CUT. It was laid along `toward` — the line
     // from the attacker to the target — which is the direction the blow
     // ARRIVED from, not the line the edge drew. A slash mark square across the
