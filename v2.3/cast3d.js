@@ -179,6 +179,18 @@ const LOOK = {
   // body is shadow and takes the cool — which is how a warm/cool split turns
   // into an overall blue cast. A lit form should be mostly lit; the shadow is
   // the shape that describes it, not half the picture.
+  // ── THE RUNGS (Build 187) — the ladder is in the LIGHT, not on the frame ──
+  //
+  // Off by default until it is chosen; `?look=rung:1` turns it on. The count
+  // is what the eye reads as the style: 2 is a hard cel, 4 is a painted anime
+  // key, 6 is barely a ladder at all.
+  cool:   0.0,   // 0 is a warm key against a cold counter; 1 swaps the two
+  fill:   1.0,   // the three fill lamps together — this dial IS the key-to-fill ratio
+  keyx:   1.0,   // …and the key on its own
+  rung:   0.0,   // how much of the light arrives in steps rather than on a slope
+  rungs:  4.0,   // …how many steps
+  rungl:  0.0,   // the mark drawn along a step's edge — the interior line
+  ivory:  0.0,   // the top step takes a warm key of its own
   term:  0.42,   // where the light stops, in the lighting's own luminance
   soft:  0.13,   // …and how much of a decision that is. Wide is just Lambert.
   fold:  0.72,   // how far the shadow side collapses toward one value
@@ -345,6 +357,13 @@ const LOOK = {
 // file does not have to read the shader to find out
 const LOOK_HELP = {
   pl:    ['painted light', 0, 1, 0.01, 'how much the lighting is drawn rather than rendered'],
+  cool:   ['key scheme', 0, 1, 0.01, '0 warm key / cold counter — 1 swaps them'],
+  fill:   ['fill', 0.05, 1.4, 0.01, 'the three fill lamps — lower is a harder key-to-fill ratio'],
+  keyx:   ['key', 0.2, 2.5, 0.01, 'the key light on its own'],
+  rung:   ['rungs', 0, 1, 0.01, 'how much the light arrives in steps rather than on a slope'],
+  rungs:  ['rung count', 2, 7, 1, 'how many steps — 2 is a hard cel, 4 is a painted key'],
+  rungl:  ['step line', 0, 0.6, 0.01, 'the interior mark along the edge of a shadow shape'],
+  ivory:  ['key colour', 0, 1, 0.01, 'the top step takes a warm ivory of its own'],
   term:  ['terminator', 0.1, 1.4, 0.01, 'where the light stops on a form'],
   soft:  ['softness', 0.01, 0.5, 0.005, 'how sharp that edge is — wide is ordinary shading'],
   fold:  ['shadow fold', 0, 1, 0.01, 'how flat the shadow side goes'],
@@ -595,6 +614,12 @@ function watercolour(map, tone) {
     uRimp:  { value: LOOK.rimp },
     uPaint: { value: LOOK.paint },
     uBands: { value: LOOK.bands }, uGrain: { value: LOOK.grain },
+    // ── THE RUNGS (Build 187) ──
+    // NOT `uBands`, which is three lines up and belongs to the watercolour's
+    // washes. A dial name becomes a uniform name by one rule in `look()`, and
+    // this file has already lost a day to `ink` handing a float to a vec3.
+    uRung:  { value: LOOK.rung },  uRungs: { value: LOOK.rungs },
+    uRungl: { value: LOOK.rungl }, uIvory: { value: LOOK.ivory },
     uEdge:  { value: LOOK.edge },  uLift:  { value: LOOK.lift },
     uWash:  { value: LOOK.wash },  uAir:   { value: LOOK.air },
     uPaper: { value: new THREE.Color(tone.paper) },
@@ -612,6 +637,13 @@ function watercolour(map, tone) {
       .replace('void main() {', `
         uniform float uBands, uGrain, uEdge, uLift, uDepth, uWash, uAir, uPaint;
         uniform float uPl, uTerm, uSoft, uFold, uCross, uRim, uRimp, uChroma;
+        // AND A UNIFORM HAS TO BE DECLARED HERE, NOT ONLY HANDED IN. Putting
+        // these four on the material's bag without this line cost a build: an
+        // undeclared identifier is a compile error, three reports it nowhere
+        // this browser surfaces, and the invalid program leaves exactly the
+        // symptom the note above describes — a plaza with weapons floating in
+        // it, every figure gone, and no exception anywhere.
+        uniform float uRung, uRungs, uRungl, uIvory;
         // THE LIGHTING HUES ARE NOT PIGMENT AND NOT DIALS. uPaper/uShadow/uInk
         // are the watercolour's pigments and belong to the figure; these are
         // the colour of the light in this plaza — the sky in the shadows, the
@@ -627,6 +659,8 @@ function watercolour(map, tone) {
         const vec3 PL_COOL = vec3(0.78, 0.80, 1.00);
         const vec3 PL_WARM = vec3(1.18, 1.02, 0.78);
         const vec3 PL_RIM  = vec3(0.58, 0.72, 0.96);
+        // the top rung's own colour — a restrained warm ivory, not a white
+        const vec3 PL_IVOR = vec3(1.24, 1.15, 0.98);
         uniform float uBurn;
         uniform float uLit;
         uniform vec3 uPaper, uShadow, uInk;
@@ -708,7 +742,57 @@ function watercolour(map, tone) {
           // terminator; uSoft is how much of a decision it is. Wide, this is
           // just Lambert again — the shading a renderer gives you for free and
           // the thing that reads as 3D rather than as drawing.
-          float plT = smoothstep(uTerm - uSoft, uTerm + uSoft, plLv);
+          // ══ AND THE LIGHT ARRIVES IN STEPS, NOT ON A SLOPE (Build 187) ══
+          //
+          // Everything above this gives the light a DECISION — one terminator,
+          // two sides. That is the difference between a render and a drawing,
+          // and it is not yet the difference between a render and ANIME, which
+          // is a ladder: a deep shadow, a shadow, the local colour, and a key.
+          // Four values, held flat, with the drawing living in their shapes.
+          //
+          // WHY IT IS HERE AND NOT IN THE POST PASS. The band ladder that used
+          // to run over the finished frame is still in this file, switched off,
+          // with a note saying it flattened the art it sat on — because a
+          // ladder on the PICTURE cannot tell a fold in a cloak from a painted
+          // stripe on it, and quantises both. Up here the quotient is the
+          // LIGHTING alone, so the rungs land on the form and every brush mark
+          // in the albedo comes through them untouched. Same operation, one
+          // multiply earlier, and the difference is the whole look.
+          //
+          // A MeshToonMaterial gradientMap would have been the stock answer and
+          // it is the wrong one for these models: it replaces the shading model
+          // outright and takes the skinning, the alpha-tested hair and the
+          // painted albedo's interaction with it along. This keeps all of it.
+          float plLvS = plLv;
+          if (uRung > 0.001) {
+            float plN = max(2.0, floor(uRungs + 0.5));
+            // the ladder is scaled around the TERMINATOR rather than around
+            // 0..1, so the rungs fall where the drawing is instead of where
+            // the renderer's numbers happen to sit. Measured, this lighting
+            // runs a median of about 0.61 with a p95 near 1.5, so a ladder
+            // laid on the raw range would spend three of its four rungs on
+            // pixels that do not exist.
+            float plX = clamp(plLv / (uTerm * 2.2), 0.0, 1.0);
+            float plS = plX * plN;
+            float plI = floor(plS), plFr = plS - plI;
+            // A RUNG WITH A SOFT NOSE. Perfectly hard steps crawl: a band
+            // boundary that lands between two pixels flickers from one to the
+            // other as the light or the pose moves, and on a figure that is
+            // 200 pixels tall that reads as the shading boiling. The nose is
+            // scaled by the rung count so the softness is a constant share of
+            // a rung rather than a constant share of the range.
+            //
+            // AND THE NOSE HAS TO BE A SMALL PART OF A RUNG. The first cut
+            // scaled it by the rung COUNT — uSoft * plN * 1.7, which at the
+            // shipped softness of 0.13 came to 0.88, clamped to 0.46, a
+            // smoothstep across the whole rung. That is a straight line with
+            // extra steps: the ladder was computed exactly right and then
+            // interpolated flat, and four rungs looked identical to none.
+            float plW = clamp(uSoft * 0.45, 0.015, 0.22);
+            float plStep = (plI + smoothstep(0.5 - plW, 0.5 + plW, plFr)) / plN;
+            plLvS = mix(plLv, plStep * (uTerm * 2.2), uRung);
+          }
+          float plT = smoothstep(uTerm - uSoft, uTerm + uSoft, plLvS);
           // …AND THE SHADOW SIDE GOES QUIET. Not dark — quiet. Collapsing the
           // shadow's values toward one level is what lets an illustrator put
           // detail where they want it instead of where the light happens to
@@ -719,15 +803,56 @@ function watercolour(map, tone) {
           // it. At 0.62 of the threshold the target landed on the measured
           // p25 — so the fold moved the shadow by a couple of per cent and the
           // figure kept the same gentle Lambert falloff it had before.
-          float plLvq = mix(plLv, uTerm * 0.45, uFold);
-          float plLv2 = mix(plLvq, plLv, plT);
+          // …AND THE FOLD STANDS DOWN AS THE LADDER COMES UP. They are the same
+          // job done twice: the fold collapses the shadow side toward one
+          // value, which is exactly what the bottom rungs of a ladder already
+          // are. Run together at full strength the fold squashes rungs 0 and 1
+          // back into each other, and four bands arrive on screen as two — the
+          // ladder computed correctly and then flattened by the stage after it.
+          float plFoldA = uFold * (1.0 - uRung * 0.75);
+          float plLvq = mix(plLvS, uTerm * 0.45, plFoldA);
+          float plLv2 = mix(plLvq, plLvS, plT);
+          // the divisor stays the TRUE lighting: this is a ratio that carries
+          // the shaped value back onto the real light, and dividing by the
+          // shaped one would cancel the shaping it just did
           vec3 plL = plLgt * (plLv2 / max(plLv, 0.0015));
+          // ── THE LINE WHERE THE LIGHT STEPS ─────────────────────────────
+          //
+          // An anime figure's interior drawing is not an outline round its
+          // details, it is a mark along the edge of a shadow SHAPE — which is
+          // exactly where a rung boundary already is. So it costs nothing and
+          // it lands correctly by construction: it follows the light, so it
+          // moves when the light moves, and it cannot draw a line across a
+          // flat-lit surface the way a depth operator in the post pass can.
+          //
+          // The post pass draws the silhouette and this draws the inside; they
+          // never compete, because one is found in depth and the other in the
+          // lighting, and neither can see what the other is doing.
+          if (uRungl > 0.001 && uRung > 0.001) {
+            float plN2 = max(2.0, floor(uRungs + 0.5));
+            float plXe = clamp(plLv / (uTerm * 2.2), 0.0, 1.0) * plN2;
+            float plNe = abs(fract(plXe) - 0.5);
+            // a mark at the boundary, one rung-fraction wide, and gone in the
+            // middle of a rung — and it fades where the light is strongest,
+            // because a drawn line in the key reads as dirt
+            float plEd = (1.0 - smoothstep(0.30, 0.46, plNe))
+                       * (1.0 - smoothstep(0.55, 0.95, plXe));
+            plL *= 1.0 - plEd * uRungl;
+          }
           // WARM AGAINST COOL, WHICH IS THE OTHER HALF OF IT. Value contrast
           // alone gives you grey shadows and a photograph. The shadow carries
           // the sky and the bounce — blue going violet — and the light carries
           // the sun, and the picture gets its depth from the two hues meeting
           // rather than from one of them getting darker.
           plL *= mix(PL_COOL, PL_WARM, plT) * uCross + (1.0 - uCross);
+          // …AND THE TOP RUNG IS A KEY, WITH ITS OWN COLOUR. A highlight that
+          // is only the midtone with more of it is what a renderer gives you;
+          // a painted key is a different, warmer pigment, and that is what
+          // makes the lit side read as a decision rather than as an exposure.
+          if (uIvory > 0.001) {
+            float plHi = smoothstep(0.66, 0.94, clamp(plLvS / (uTerm * 2.2), 0.0, 1.0));
+            plL *= mix(vec3(1.0), PL_IVOR, plHi * uIvory);
+          }
           vec3 plLit = plAlb * plL;
           // THE COUNTER-LIGHT, AND WHY IT IS NOT A HALO. A plain fresnel rims
           // the whole silhouette evenly, which is the cheap version and reads
@@ -7332,6 +7457,27 @@ const Cast3D = (() => {
       // opacity of the shadow catcher and of the painted wash under it, so
       // they are set where they live rather than looked for on four figures
       // that do not have them.
+      // ── THE KEY-TO-FILL RATIO (Build 187) ────────────────────────────
+      //
+      // The one number that decides whether a figure has a shadow SIDE. This
+      // scene ships a key of 2.75 against fills of 2.35 — hemi 0.62, counter
+      // 1.25, bounce 0.48 — which is 1.2:1, near-flat. Cinematic lighting runs
+      // four to eight to one, and the difference is not subtlety: at 1.2:1
+      // there is no shadow shape to draw, band, tint or outline, so every
+      // treatment downstream is working on a gradient that barely exists.
+      //
+      // That is why the rung ladder above reads as a brightness change rather
+      // than as anime: it was quantising a slope with almost no fall in it.
+      // The ladder is correct and it was being fed nothing.
+      //
+      // `fill` scales the three fills together and leaves the key alone, so
+      // the dial IS the ratio: 1.0 is the light this scene shipped with.
+      if (next.fill != null && scene.userData.hemi) {
+        const sd = scene.userData, f = Math.max(0.05, next.fill);
+        if (sd.hemi) sd.hemi.intensity = 0.62 * EXPOSURE * f;
+        if (sd.rim) sd.rim.intensity = 1.25 * EXPOSURE * f;
+        if (sd.bounce) sd.bounce.intensity = 0.48 * EXPOSURE * f;
+      }
       if (ground) {
         // the floor is real geometry now, so its dials are its own: how dark a
         // contact shadow lands, and how bright the painted stone reads
@@ -7339,6 +7485,36 @@ const Cast3D = (() => {
           scene.userData.key.intensity = (1.45 * (1 - next.shade) + 0.45) * EXPOSURE;
         if (next.floor != null)
           ground.material.color.setScalar(0.5 + next.floor * 1.6);
+      }
+      // …AND THE KEY IS SET LAST, BECAUSE `shade` ALREADY OWNS THAT LAMP.
+      //
+      // `shade` is the contact-shadow dial and it drives the key's intensity
+      // outright, three lines up. Setting `keyx` before it meant every sweep
+      // of the key was overwritten by the shade that arrived in the same call
+      // — and since the panel and the probes pass the WHOLE dial set every
+      // time, that was every call. A key sweep from 0.2 to 2.5 moved nothing,
+      // and the ratio it was supposed to be testing never changed.
+      //
+      // So this multiplies what `shade` decided rather than replacing it, and
+      // it runs after. The two dials now compose instead of racing.
+      if (next.keyx != null && scene.userData.key)
+        scene.userData.key.intensity *= Math.max(0.05, next.keyx);
+      // ── WHICH WAY ROUND THE TWO LAMPS ARE ────────────────────────────
+      //
+      // This scene lights a sunset: a warm amber key raking down the street
+      // and a cold counter behind. The other convention — cold key, warm
+      // architectural backlight — is the one most mature anime night work
+      // uses, and it separates a figure harder because the rim is the warm
+      // thing on a cold body rather than the cold thing on a warm one.
+      //
+      // Neither is correct in the abstract; what decides it is the backdrop,
+      // which is painted as a flooded plaza at low sun. So it is a dial with
+      // the two schemes at its ends rather than a constant somebody has to
+      // come back and argue about.
+      if (next.cool != null && scene.userData.key && scene.userData.rim) {
+        const c = Math.max(0, Math.min(1, next.cool));
+        scene.userData.key.color.setHex(0xffe3b8).lerp(new THREE.Color(0xc2d8f5), c);
+        scene.userData.rim.color.setHex(0x8ba6cf).lerp(new THREE.Color(0xffb069), c);
       }
       // A DIAL NAME IS NOT A UNIFORM NAME, and treating it as one is how a
       // dial called `ink` came to hand a float to `uniform vec3 uInk` — the
