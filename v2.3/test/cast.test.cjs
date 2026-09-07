@@ -3178,6 +3178,59 @@ const { boot } = require('./harness.cjs');
       + 'hood to boot. A gamma cannot give her this and will silently take it '
       + 'away again: paired with a curve of 1.1 the same black point reads 0%');
 
+  // ── AND THE DISTANCE IS A PLACE, NOT A GREY CARD ────────────────────────
+  //
+  // Every tone reading in this suite masks down to the FIGURES, and the plaza
+  // is most of the frame. Measured on the canvas alone — no HUD, figures
+  // excluded — against the reference the look is aimed at:
+  //
+  //                        far median   far saturation
+  //     before Build 206      0.370         0.205
+  //     shipped               0.290         0.440
+  //     the reference         0.195         0.458
+  //
+  // Twice as bright and half as coloured is what "one flat grey card" measures
+  // as, and no setting of the old dials could reach it: the grade desaturated
+  // toward grey before applying a mild blue, so the thing it graded TOWARD was
+  // nearly neutral. The floors sit between the two populations rather than
+  // under the shipped reading.
+  const plaza = await J(async () => {
+    const C3 = window.Cast3D, was = C3.look();
+    const grab = async () => {
+      await new Promise(z => requestAnimationFrame(z));
+      await new Promise(z => requestAnimationFrame(z));
+      await C3._snapshot();
+      const c = window.__castShot;
+      return { w: c.width, h: c.height,
+               d: c.getContext('2d').getImageData(0, 0, c.width, c.height).data };
+    };
+    C3.look({ pl: -2 });
+    const mk = await grab();
+    const fig = new Uint8Array(mk.w * mk.h);
+    for (let i = 0, j = 0; i < mk.d.length; i += 4, j++)
+      if (mk.d[i] > 140 && mk.d[i + 1] < 100 && mk.d[i + 2] > 140) fig[j] = 1;
+    C3.look(was);
+    const g = await grab();
+    const L = [], S = [];
+    for (let y = 0; y < mk.h / 3; y++) for (let x = 0; x < mk.w; x++) {
+      const j = y * mk.w + x;
+      if (fig[j]) continue;
+      const r = g.d[j * 4], gr = g.d[j * 4 + 1], b = g.d[j * 4 + 2];
+      L.push((0.2126 * r + 0.7152 * gr + 0.0722 * b) / 255);
+      const mxc = Math.max(r, gr, b), mnc = Math.min(r, gr, b);
+      S.push(mxc > 0 ? (mxc - mnc) / mxc : 0);
+    }
+    L.sort((a, z) => a - z);
+    return { n: L.length, med: +L[(L.length * 0.5) | 0].toFixed(3),
+             sat: +(S.reduce((a, z) => a + z, 0) / S.length).toFixed(3),
+             atmoc: was.atmoc, atmok: was.atmok };
+  });
+  check('SCENE: the distance is a place, not a grey card behind the fight',
+    plaza.n > 2000 && plaza.sat > 0.30 && plaza.med < 0.34,
+    JSON.stringify(plaza) + ' — the far third of the canvas with the figures cut '
+      + 'out, against the reference frame at 0.195 median and 0.458 saturation. '
+      + 'It read 0.370 and 0.205 before the grade was given a colour to aim at');
+
   check('TONE: …and the lit side is still drawn, not clipped flat',
     tone.figN > 500 && tone.clip < 2.5 && tone.bandStd > 0.09,
     JSON.stringify(tone) + ' — how much of the figure sits at 1.0, and how much '

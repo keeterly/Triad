@@ -597,8 +597,36 @@ const LOOK = {
   // background and the missing light source — and the same dials applied to
   // the people made them muddy and lurid. Saturation and the black point land
   // on the art almost exactly when they are simply turned down.
-  atmo:   0.85,  // how far the distance is graded off the grey card it was
+  atmo:   1.00,  // how far the distance is graded off the grey card it was
   atmod:  22.0,  // …and the metres at which that grade is full
+  // ── WHAT THE DISTANCE BECOMES, NOT JUST HOW MUCH OF IT (Build 206) ───────
+  //
+  // `atmo` is the blend amount and `atmod` is the reach; neither says what the
+  // far field turns INTO, and that was a pair of constants in the shader. The
+  // reference the look is aimed at — the Arcane frame, measured over its whole
+  // picture and over its upper third:
+  //
+  //                   median   p5      saturation
+  //     the frame     0.164   0.053      0.385
+  //     its far band  0.195   0.095      0.458
+  //     this plaza    0.362   0.276      0.206   <- at the shipped dials
+  //     …dials maxed  0.335   0.240      0.260   <- as far as they reach
+  //
+  // Twice as bright, half as coloured, and with no dark in it at all. The old
+  // constants desaturated toward grey and applied a mild blue, so no setting
+  // of `atmo` could get there: what is missing is not the amount of the grade,
+  // it is that the thing it grades toward is nearly neutral.
+  //                    far median   far saturation
+  //     shipped            0.370          0.205
+  //     atmoc 2.2 k 0.7    0.290          0.440
+  //     the reference      0.195          0.458
+  //
+  // Photographed at four strengths. The shipped frame is a white-out; at
+  // atmoc 3 / atmok 0.55 the far architecture is gone into night and the plaza
+  // stops being a place. 2.2 and 0.7 is where the distance has real colour, the
+  // party separates hard against it, and the colonnade is still legible.
+  atmoc:  2.2,   // how coloured the far field goes — 1 is the blue it shipped with
+  atmok:  0.7,   // …and how deep, as a multiplier on that colour
   flat:  0.0,    // the band ladder stays off; it flattened the art it sat on
   steps: 6,
   tooth: 0.0,    // and so does the paper, which read as noise at this size
@@ -649,6 +677,8 @@ const LOOK_HELP = {
   warm:   ['warm/cool', 0, 1.5, 0.01, 'warm light against cool shadow, across the frame'],
   atmo:   ['distance grade', 0, 1, 0.01, 'how deep and coloured the background goes — it is a grey card now'],
   atmod:  ['distance', 5, 60, 1, 'the metres at which that grade is full'],
+  atmoc:  ['distance colour', 0, 3, 0.02, 'how coloured the far field goes — 1 is what it shipped with'],
+  atmok:  ['distance depth', 0.2, 1.4, 0.01, 'how deep the far field goes behind the fight'],
   paint: ['watercolour', 0, 1, 0.01, 'how much of the wash is applied at all'],
   bands: ['washes', 2, 8, 1, 'how many flat tones the brush lays down'],
   wash:  ['flatten', 0, 1, 0.01, 'how much of the real painting the wash eats'],
@@ -6267,6 +6297,7 @@ const Cast3D = (() => {
         uSil: { value: 0 }, uSilG: { value: 0.10 }, uCrease: { value: 0 },
         uCrush: { value: 0 }, uGsat: { value: 1 }, uWarm: { value: 0 },
         uAtmo: { value: 0 }, uAtmoD: { value: 22 },
+        uAtmoC: { value: 1 }, uAtmoK: { value: 1 },
         uNear: { value: 0.1 }, uFar: { value: 100 },
         tBlur: { value: null }, tGlow: { value: null },
         uDof: { value: 0 }, uFocus: { value: 8 }, uFRange: { value: 6 },
@@ -6284,6 +6315,7 @@ const Cast3D = (() => {
         uniform float uBite, uReach;
         uniform float uSil, uSilG, uCrease, uCrush, uGsat, uWarm;
         uniform float uAtmo, uAtmoD;
+        uniform float uAtmoC, uAtmoK;
         uniform sampler2D tBlur, tGlow;
         uniform float uDof, uFocus, uFRange, uBloom;
         varying vec2 vUv;
@@ -6533,8 +6565,19 @@ const Cast3D = (() => {
           // holds for the plaza, the columns, the reflections and anything
           // else that ends up back there, and one dial answers for all of it.
           float fardist = smoothstep(uAtmoD * 0.35, uAtmoD, c);
-          vec3 deep = mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, 0.45)
-                    * vec3(0.40, 0.49, 0.66);
+          // ── AND THE COLOUR IT GRADES TOWARD IS NOW A NUMBER ──────────────
+          //
+          // vec3(0.40, 0.49, 0.66) is a blue of saturation 0.39 before anything
+          // downstream dilutes it, and measured out of the finished frame the
+          // far band arrives at 0.206. The reference sits at 0.458. uAtmoC
+          // opens that tint about its own luminance so the far field can be as
+          // coloured as the picture it is aiming at, and uAtmoK carries it down
+          // — the reference's distance is DARK as well as blue, and a grade
+          // that only cools cannot make a night out of a white-out.
+          vec3 atmoT = vec3(0.40, 0.49, 0.66);
+          float atmoL = dot(atmoT, vec3(0.2126, 0.7152, 0.0722));
+          atmoT = max(vec3(0.0), mix(vec3(atmoL), atmoT, uAtmoC)) * uAtmoK;
+          vec3 deep = mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, 0.45) * atmoT;
           col = mix(col, deep, fardist * uAtmo);
 
           // ── AND THEN THE GRADE (Build 186) ───────────────────────────────
@@ -6735,6 +6778,8 @@ const Cast3D = (() => {
     m.uniforms.uWarm.value = LOOK.warm;
     m.uniforms.uAtmo.value = LOOK.atmo;
     m.uniforms.uAtmoD.value = Math.max(2, LOOK.atmod);
+    m.uniforms.uAtmoC.value = Math.max(0, LOOK.atmoc);
+    m.uniforms.uAtmoK.value = Math.max(0.05, LOOK.atmok);
     m.uniforms.uNear.value = cam.near;
     m.uniforms.uFar.value = cam.far;
     renderer.render(postScene, postCam);
