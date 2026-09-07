@@ -3431,6 +3431,69 @@ const { boot } = require('./harness.cjs');
   // So the gate is CRISPNESS, not coverage — the share of the mark that is
   // committed rather than grey — with coverage kept in a corridor either side
   // so a line that vanishes and a line that floods both fail.
+  // ═══ EVERYBODY IS FACING THE FIGHT (Build 190) ═════════════════════════
+  //
+  // Reported as "Mira is facing the wrong direction", and she was not: every
+  // model faces the camera correctly at a heading of zero, and all three stood
+  // between 57 and 68 degrees, which is toward the enemy line. What was wrong
+  // is that hers was 68 — the most side-on of the three — so the least of her
+  // face was showing, and her silhouette is a hood, a ponytail and a dark
+  // cloak, which gives a player fewer clues about which way she points than
+  // Ash's face or Elin's staff. It read as turned away because it nearly was.
+  //
+  // THE BOUND COMES FROM THE FAULT, and saying so is the honest version: 68
+  // was reported as wrong by someone looking at it, 64 and 57 were not, so the
+  // line sits at 66. A cast entry added later with a `turn` that leaves its
+  // owner more side-on than that will fail here rather than in a screenshot.
+  console.log('\n── everybody is facing the fight ──');
+  {
+    const facing = await J(() => {
+      const C3 = window.Cast3D, out = {};
+      for (const id of ['ash', 'elin', 'mira']) {
+        const f = C3._figure(id); if (!f) continue;
+        f.root.updateWorldMatrix(true, true);
+        const V = f.root.position.constructor;
+        const g = n => f.bones[n] ? f.bones[n].getWorldPosition(new V()) : null;
+        const L = g('LeftShoulder') || g('LeftUpLeg');
+        const R = g('RightShoulder') || g('RightUpLeg');
+        if (!L || !R) continue;
+        const fwd = new V().crossVectors(new V(0, 1, 0), new V().subVectors(R, L)).normalize();
+        // 0 looks at the camera, +90 looks along the board at the foes
+        out[id] = +(Math.atan2(fwd.x, fwd.z) * 180 / Math.PI).toFixed(1);
+      }
+      return out;
+    });
+    const ids = Object.keys(facing);
+    check('FACING: every hero is turned toward the enemy line, not away from it',
+      ids.length === 3 && ids.every(k => facing[k] > 20 && facing[k] < 110),
+      JSON.stringify(facing) + ' — degrees off looking at the camera; a body'
+      + ' turned past 90 has started showing its back to the player');
+    // …AND THE SECOND HALF IS READ OFF THE CONFIG, NOT THE POSE.
+    //
+    // The first cut of this bounded the live heading at 66 degrees, and it
+    // failed on Ash at 68.9 while the suite's own older facing check, in the
+    // same run, reported him at 63.9. The idle sways a body about five
+    // degrees, so a static bound tight enough to catch the fault sits inside
+    // the noise and flaps. What was actually wrong is a number in the cast
+    // table — `turn`, how far a body is brought back toward the camera — and
+    // that number does not move at all.
+    const turns = await J(() => {
+      const C3 = window.Cast3D, out = {};
+      for (const id of ['ash', 'elin', 'mira']) {
+        const f = C3._figure(id);
+        if (f && f.tone) out[id] = f.tone.turn;
+      }
+      return out;
+    });
+    const tk = Object.keys(turns);
+    check('FACING: …and no hero is angled further off the camera than the others',
+      tk.length === 3 && tk.every(k => turns[k] >= 25),
+      JSON.stringify(turns) + ' — Mira shipped at 22 against Ash 26 and Elin 34'
+      + ' and was reported as facing the wrong way; the floor is where that fault'
+      + ' was, and it is read off the table rather than the pose because the idle'
+      + ' sways a body five degrees either way');
+  }
+
   console.log('\n── the picture is drawn, not rendered ──');
   {
     const pic = await J(async () => {

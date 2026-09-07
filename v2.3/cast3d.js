@@ -84,7 +84,19 @@ const CAST = {
           turn: 34, tall: 0.97, strike: 'staff', verb: 'cast' },
   mira: { model: 'mira.glb', sel: '.k-hero[data-hero="mira"]',
           paper: 0xeef2ea, shadow: 0x76907c, ink: 0x2b352e,
-          turn: 22, tall: 0.98, strike: 'daggers' },
+          // ── AND SHE OPENS UP LIKE THE OTHER TWO (Build 190) ─────────────
+          //
+          // 22 was the outlier: `turn` is how far a body is brought back
+          // toward the camera off the line it fights along, and hers was four
+          // degrees under Ash and twelve under Elin. Measured in a live fight
+          // the three stood at 64, 57 and 68 degrees — Mira the most side-on
+          // of them, so the least of her face is showing, and she is also the
+          // one whose silhouette gives the fewest clues about which way she
+          // is pointing: a hood, a ponytail and a dark cloak, against Ash's
+          // face and Elin's staff. It reads as her facing away from the fight.
+          // Nothing is turning her the wrong way — she was simply never turned
+          // as far toward us as the people standing either side of her.
+          turn: 31, tall: 0.98, strike: 'daggers' },
   // ── AND EVERYTHING THE PARTY FIGHTS (Build 123) ────────────────────────────
   //
   // A FOE IS NOT A SPECIAL CASE, and that is the return on having done the
@@ -666,7 +678,18 @@ function watercolour(map, tone) {
         // warm so the two actually disagree, and the counter-light is dropped
         // toward the same slate so it stops tinting everything it grazes.
         const vec3 PL_COOL = vec3(0.78, 0.80, 1.00);
-        const vec3 PL_WARM = vec3(1.18, 1.02, 0.78);
+        // ── AND THE LIT SIDE IS NOT AMBER (Build 190) ────────────────────
+        //
+        // 0.78 in blue against 1.18 in red is a strong gold, and it is the
+        // FIRST of three warm stages that multiply: this, then uChroma at
+        // 1.28, then the frame grade's own warm and saturation. Each looked
+        // reasonable alone and the product turned every figure the colour of
+        // brass. Build 188 quietened the last of the three and left this one,
+        // which is the loudest, because it is per-figure and multiplies the
+        // albedo rather than sitting over the finished picture.
+        //
+        // The lit side of a person is still warm — it just is not gold.
+        const vec3 PL_WARM = vec3(1.10, 1.03, 0.92);
         const vec3 PL_RIM  = vec3(0.58, 0.72, 0.96);
         // the top rung's own colour — a restrained warm ivory, not a white
         const vec3 PL_IVOR = vec3(1.24, 1.15, 0.98);
@@ -4223,7 +4246,20 @@ const Cast3D = (() => {
     const hemi = new THREE.HemisphereLight(0xc3d4ea, 0x4b3f34, 0.62 * EXPOSURE);
     scene.add(hemi);
     scene.userData.hemi = hemi;
-    const k = new THREE.DirectionalLight(0xffe3b8, 2.75 * EXPOSURE);
+    // ── AND THE KEY IS A WARM WHITE, NOT AN AMBER (Build 190) ────────────
+    //
+    // 0xffe3b8 is (1.00, 0.89, 0.72) — a third of the blue gone — and it is
+    // the brightest light in the scene at 2.75. That is why every figure read
+    // as brass, and it survived two builds of chasing the fault downstream:
+    // the frame grade's warm was quietened in 188 and the material's own
+    // PL_WARM in 190, and measured on identical crops the second of those
+    // moved the picture's warm share from 23.1% to 22.8%. Nothing downstream
+    // could have fixed it, because a light that is amber makes everything it
+    // touches amber before any of them run.
+    //
+    // A low sun IS warm; it is not orange. This keeps the warmth and gives the
+    // blue back.
+    const k = new THREE.DirectionalLight(0xfff0dc, 2.75 * EXPOSURE);
     // LOW AND ALONG THE STREET, not overhead. At (4.5, 7.5, 5.0) the sun was
     // almost straight above the party, which throws a puddle of shadow under
     // each figure and models nothing. Dropped to a raking angle, the same light
@@ -7618,7 +7654,7 @@ const Cast3D = (() => {
       }
       if (next.cool != null && scene.userData.key && scene.userData.rim) {
         const c = Math.max(0, Math.min(1, next.cool));
-        scene.userData.key.color.setHex(0xffe3b8).lerp(new THREE.Color(0xc2d8f5), c);
+        scene.userData.key.color.setHex(0xfff0dc).lerp(new THREE.Color(0xc2d8f5), c);
         scene.userData.rim.color.setHex(0x8ba6cf).lerp(new THREE.Color(0xffb069), c);
       }
       // A DIAL NAME IS NOT A UNIFORM NAME, and treating it as one is how a
