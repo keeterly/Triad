@@ -86,7 +86,9 @@ const CAST = {
           // blacks Build 202 gave Mira — measured, hers hold at 9.9% through
           // the whole sweep.
           //
-          // ── AND 2.5, NOT 2 (Build 204) ──────────────────────────────────
+          // ── AND 2, AFTER 2.5 WAS SHIPPED AND FAILED (Build 205) ─────────
+          //
+          // On the tuning rig's frame:
           //
           //              med    >0.60   >0.85   <0.10   clip
           //     x2      0.322    14.5%   5.6%   12.8%   0.25%
@@ -94,13 +96,23 @@ const CAST = {
           //     x3      0.344    19.2%   9.7%   10.2%   2.20%
           //     the art 0.273    29.7%  10.6%   11.8%   0
           //
-          // At 2.5 his blacks land exactly on the sheet's and his highlights
-          // gain two points for a percent of clip. Three reaches the sheet's
-          // highlight band and breaks the clip gate this file set itself at 2,
-          // so it is not taken — and photographed at 3.5 his scarf is a white
-          // mass with no fabric left in it, which the numbers alone call an
-          // improvement on two of four counts.
-          expo: 2.5,
+          // 2.5 looked like the buy: his blacks land exactly on the sheet's
+          // and his highlights gain two points for a percent of clip. Then the
+          // suite ran it on ITS frame and read 3.36% clipped — two and a half
+          // times what the rig said, over the gate, and the build went red.
+          //
+          // The rig frames the party wide and the suite stops on a different
+          // shot, and Ash is the body that cares: at x2 the two frames read
+          // 0.25% and 0.52%, at x2.5 they read 1.33% and 3.36%. He is mostly
+          // lit surfaces facing the key, so how much of him the shot shows is
+          // most of his clip. Elin and Mira barely move between the two.
+          //
+          // So 2 is not a compromise, it is the number that survives both
+          // frames — and the two points of highlight 2.5 bought are not worth
+          // a reading that depends on where the camera stopped. This file has
+          // tuned on one shot three times now: once on percentiles, once on a
+          // rectangle that included the mist, and once here.
+          expo: 2.0,
           turn: 41, tall: 1.00, strike: 'sword' },
   // `verb` is which of the fight's four words this person throws when nothing
   // in particular is being asked of them — an all-out, say. Ash and Mira answer
