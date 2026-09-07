@@ -191,6 +191,21 @@ const LOOK = {
   // body is shadow and takes the cool — which is how a warm/cool split turns
   // into an overall blue cast. A lit form should be mostly lit; the shadow is
   // the shape that describes it, not half the picture.
+  // ── THE SURFACE (Build 192) ──────────────────────────────────────────────
+  //
+  // Off by default until they are chosen. `bump` is micro-relief lifted from
+  // the albedo's fine detail; `spec` lets the quiet parts of a texture stop
+  // being perfectly rough so they can hold a highlight.
+  //                       p99    detail
+  //     Lambert (before)   0.554   0.0201
+  //     + environment      0.606   0.0213
+  //     + sheen + relief   0.636   0.0213
+  //   the median does not move at any of them, so this is highlight range
+  //   being added rather than the figure being lifted, which is the whole
+  //   difference between a surface and an exposure.
+  bump:   1.6,   // micro-relief off the albedo's fine detail
+  spec:   0.5,   // …and the quiet parts stop being perfectly rough
+  env:    1.0,   // how much sky a body reflects — 0 is the Lambert it shipped as
   // ── THE RUNGS (Build 187) — the ladder is in the LIGHT, not on the frame ──
   //
   // Off by default until it is chosen; `?look=rung:1` turns it on. The count
@@ -394,6 +409,9 @@ const LOOK_HELP = {
   cool:   ['key scheme', 0, 1, 0.01, '0 warm key / cold counter — 1 swaps them'],
   fill:   ['fill', 0.05, 1.4, 0.01, 'the three fill lamps — lower is a harder key-to-fill ratio'],
   keyx:   ['key', 0.2, 2.5, 0.01, 'the key light on its own'],
+  env:    ['environment', 0, 2, 0.02, 'how much of the sky and ground a body reflects'],
+  bump:   ['surface', 0, 4, 0.02, 'micro-relief taken off the fine detail in the albedo'],
+  spec:   ['sheen', 0, 0.8, 0.01, 'how far the smooth parts drop below perfectly rough'],
   rung:   ['rungs', 0, 1, 0.01, 'how much the light arrives in steps rather than on a slope'],
   rungs:  ['rung count', 2, 7, 1, 'how many steps — 2 is a hard cel, 4 is a painted key'],
   rungl:  ['step line', 0, 0.6, 0.01, 'the interior mark along the edge of a shadow shape'],
@@ -596,6 +614,10 @@ function watercolour(map, tone) {
   const m = new THREE.MeshStandardMaterial({
     map, roughness: 1, metalness: 0, side: THREE.DoubleSide,
   });
+  // …and how much of the environment this body takes. Zero is the Lambert
+  // surface the cast shipped with for its whole life; the dial is what lets
+  // that be compared against having a sky at all.
+  m.envMapIntensity = LOOK.env;
   // ATMOSPHERIC PERSPECTIVE IS THE ROW LADDER. The painted stage sold FRONT /
   // MID / BACK with a CSS filter on the hero's img — saturate and brighten at
   // the front, wash out at the back — and hiding that img to put a figure
@@ -654,12 +676,22 @@ function watercolour(map, tone) {
     // this file has already lost a day to `ink` handing a float to a vec3.
     uRung:  { value: LOOK.rung },  uRungs: { value: LOOK.rungs },
     uRungl: { value: LOOK.rungl }, uIvory: { value: LOOK.ivory },
+    // ── THE SURFACE (Build 192) ──
+    uBump:  { value: LOOK.bump },  uSpec:  { value: LOOK.spec },
+    uTexel2: { value: new THREE.Vector2(1 / 2048, 1 / 2048) },
     uEdge:  { value: LOOK.edge },  uLift:  { value: LOOK.lift },
     uWash:  { value: LOOK.wash },  uAir:   { value: LOOK.air },
     uPaper: { value: new THREE.Color(tone.paper) },
     uShadow: { value: new THREE.Color(tone.shadow) },
     uInk:   { value: new THREE.Color(tone.ink) },
   };
+  // …AND THE TEXEL SIZE IS THE TEXTURE'S OWN, NOT A CONSTANT. Every model in
+  // the cast happens to carry a 2048 square map today, and writing 2048 into
+  // the shader would make the surface detail silently change scale the first
+  // time somebody exports one at 1024 — a bug with no error and no obvious
+  // cause. The loader has the image by now, so it can just be asked.
+  if (map && map.image && map.image.width)
+    m.userData.u.uTexel2.value.set(1 / map.image.width, 1 / map.image.height);
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uDepth = m.userData.depth;
     sh.uniforms.uBurn = m.userData.burn;
@@ -678,6 +710,8 @@ function watercolour(map, tone) {
         // symptom the note above describes — a plaza with weapons floating in
         // it, every figure gone, and no exception anywhere.
         uniform float uRung, uRungs, uRungl, uIvory;
+        uniform float uBump, uSpec;
+        uniform vec2 uTexel2;
         // THE LIGHTING HUES ARE NOT PIGMENT AND NOT DIALS. uPaper/uShadow/uInk
         // are the watercolour's pigments and belong to the figure; these are
         // the colour of the light in this plaza — the sky in the shadows, the
@@ -740,6 +774,52 @@ function watercolour(map, tone) {
       // and exactly one conversion happens at the end: three's, on the canvas;
       // the pass's, when the pass is on. The round trip is then free by
       // construction rather than by a fitted exponent.
+      // ══ A SURFACE, DERIVED FROM THE PAINTING (Build 192) ═══════════════
+      //
+      // These models carry ONE albedo and nothing else: no normal map, no
+      // roughness map, and the material was built at roughness 1, metalness 0
+      // — which is a surface that physically cannot make a highlight. Cloth,
+      // leather, steel and skin all answered the light identically, and every
+      // treatment above this line was shaping light falling on a material with
+      // no response of its own. That is most of what reads as "low quality"
+      // and none of it is the mesh: 18 to 31 thousand triangles is plenty.
+      //
+      // The albedo is the only signal available, so it is the one used — but
+      // ONLY ITS FINE DETAIL. Sampling a texel either side and differencing is
+      // a high-pass by construction: broad painted shading has almost no
+      // gradient at one texel, and stitching, scale, wear and weave have a lot.
+      // That distinction is the whole reason this is not the usual "bump from
+      // diffuse", which turns a painted shadow into a dent.
+      //
+      // The frame comes from the screen-space derivatives of position and UV,
+      // so no tangents are needed — these meshes do not carry any.
+      .replace('#include <normal_fragment_maps>', `
+        #include <normal_fragment_maps>
+        #ifdef USE_MAP
+        {
+          vec3 sfL = vec3(0.299, 0.587, 0.114);
+          float sfXp = dot(texture2D(map, vMapUv + vec2(uTexel2.x, 0.0)).rgb, sfL);
+          float sfXm = dot(texture2D(map, vMapUv - vec2(uTexel2.x, 0.0)).rgb, sfL);
+          float sfYp = dot(texture2D(map, vMapUv + vec2(0.0, uTexel2.y)).rgb, sfL);
+          float sfYm = dot(texture2D(map, vMapUv - vec2(0.0, uTexel2.y)).rgb, sfL);
+          float sfGx = sfXp - sfXm, sfGy = sfYp - sfYm;
+          vec3 sfPx = dFdx(-vViewPosition), sfPy = dFdy(-vViewPosition);
+          vec2 sfUx = dFdx(vMapUv), sfUy = dFdy(vMapUv);
+          float sfDet = sfUx.x * sfUy.y - sfUy.x * sfUx.y;
+          vec3 sfT = (sfUy.y * sfPx - sfUx.y * sfPy) / (abs(sfDet) + 1e-8);
+          sfT = normalize(sfT - normal * dot(normal, sfT));
+          vec3 sfB = cross(normal, sfT);
+          normal = normalize(normal - uBump * (sfGx * sfT + sfGy * sfB));
+          // …AND WHAT IS SMOOTH GETS TO BE SMOOTH. Roughness 1 everywhere is
+          // why nothing has ever caught the light. The detail signal says
+          // which parts of a texture are busy — weave, fur, rubble — and the
+          // quiet parts are the ones that are actually leather, plate or skin.
+          float sfDetail = abs(sfGx) + abs(sfGy);
+          float sfSmooth = 1.0 - smoothstep(0.004, 0.055, sfDetail);
+          roughnessFactor = clamp(roughnessFactor - uSpec * sfSmooth, 0.24, 1.0);
+        }
+        #endif
+      `)
       .replace('#include <colorspace_fragment>', `
         {
           // ══ THE PAINTED LIGHT ═════════════════════════════════════════════
@@ -4219,6 +4299,73 @@ const Cast3D = (() => {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     scene = new THREE.Scene();
+    // ══ SOMETHING TO REFLECT (Build 192) ═══════════════════════════════════
+    //
+    // There has never been an environment in this scene — no envMap, no
+    // scene.environment — and the figures are metalness 0 at roughness 1. That
+    // is a surface with nothing to reflect and no gloss to reflect it with, so
+    // every material in the cast has been pure Lambert since the layer was
+    // written, and the `spec` dial added earlier in this build moved the
+    // picture by almost nothing because there was nothing for it to let in.
+    //
+    // PBR without an environment is Lambert with extra steps. This is the
+    // cheapest possible fix for that: a 64x32 equirectangular painted from the
+    // three colours the scene already uses — the mist band above the horizon,
+    // the wet stone below it, and the warm low sun — run through PMREM once at
+    // startup. No download, no asset, one small texture, and every material in
+    // the world gets a sky, a ground and a light to answer to.
+    //
+    // It also lands where the reference wants it: an environment contributes
+    // DIFFUSE as well as specular, so the shadow side of a body stops being an
+    // absence of light and starts being the colour of what is around it.
+    {
+      const ec = document.createElement('canvas');
+      ec.width = 64; ec.height = 32;
+      const ex = ec.getContext('2d');
+      // ── AND IT IS DARK WITH ONE HOT SPOT, NOT AN EVEN SKY ──────────────
+      //
+      // The first cut painted a bright sky filling the upper hemisphere, and
+      // it cost exactly what it gained. An environment contributes DIFFUSE as
+      // well as specular, and a large bright source is mostly diffuse: it
+      // lifted every shadow in the game and took the share of the frame below
+      // 0.06 luminance from 8.7% down to 0.78%. That is the washed-out look
+      // three builds of grading had just finished removing, reintroduced from
+      // a direction none of those dials could see.
+      //
+      // Turning the intensity down trades the two off against each other —
+      // measured, dark% and the bodies' highlight move together and there is
+      // no setting that gets one without losing the other:
+      //
+      //     env      0.00   0.25   0.40   0.55   0.70   1.00
+      //     dark%    3.74   2.66   2.05   1.63   1.24   0.71
+      //     body p99 0.525  0.532  0.542  0.563  0.585  0.628
+      //
+      // So the fix is not the dial, it is the PICTURE. Diffuse IBL integrates
+      // the whole sphere and specular samples a narrow lobe, so a dark sphere
+      // with one small bright patch gives a highlight to reflect and almost no
+      // ambient to lift with it. Same idea as a photographer's grid: keep the
+      // source, lose the spill.
+      const g = ex.createLinearGradient(0, 0, 0, 32);
+      g.addColorStop(0.00, '#242b38');   // the sky, cool and DARK
+      g.addColorStop(0.44, '#333b49');   // the mist at the horizon
+      g.addColorStop(0.52, '#1d1f26');   // and under it, wet stone
+      g.addColorStop(1.00, '#0c0b10');
+      ex.fillStyle = g; ex.fillRect(0, 0, 64, 32);
+      // the low sun — small, tight and hot. This is the whole specular budget.
+      const sg = ex.createRadialGradient(46, 14, 0, 46, 14, 7);
+      sg.addColorStop(0.0, 'rgba(255,244,222,1)');
+      sg.addColorStop(0.4, 'rgba(255,236,206,0.55)');
+      sg.addColorStop(1.0, 'rgba(255,236,206,0)');
+      ex.fillStyle = sg; ex.beginPath(); ex.arc(46, 14, 7, 0, 7); ex.fill();
+      const et = new THREE.CanvasTexture(ec);
+      et.mapping = THREE.EquirectangularReflectionMapping;
+      et.colorSpace = THREE.SRGBColorSpace;
+      const pm = new THREE.PMREMGenerator(renderer);
+      pm.compileEquirectangularShader();
+      scene.environment = pm.fromEquirectangular(et).texture;
+      scene.userData.envTex = scene.environment;
+      pm.dispose(); et.dispose();
+    }
     // LIT, NOT FLATTENED. Build 112 washed the light out because a paper doll
     // is lit like paper; with the wash off, that same flat ambient turns a
     // painted cloak into a sticker. A key from the front-right and a cool rim
@@ -7644,6 +7791,14 @@ const Cast3D = (() => {
       //
       // So this multiplies what `shade` decided rather than replacing it, and
       // it runs after. The two dials now compose instead of racing.
+      // the environment is a material property, not a uniform, so it is set
+      // where the other non-uniform dials are
+      if (next.env != null) {
+        for (const id of Object.keys(figs)) {
+          const mm = figs[id].root.userData.mat;
+          if (mm) { mm.envMapIntensity = Math.max(0, next.env); mm.needsUpdate = true; }
+        }
+      }
       if (next.keyx != null && scene.userData.key)
         scene.userData.key.intensity *= Math.max(0.05, next.keyx);
       // ── WHICH WAY ROUND THE TWO LAMPS ARE ────────────────────────────

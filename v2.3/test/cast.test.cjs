@@ -3284,6 +3284,27 @@ const { boot } = require('./harness.cjs');
     }
     return out;
   });
+  // ── AND IT WAITS FOR THE FIXED POINT, NOT FOR A CLOCK (Build 192) ──────
+  //
+  // The stand correction is a damped fixed point: it takes a pass every three
+  // still frames and halves the error each time. That is a number of FRAMES,
+  // and this check sampled after a number of SECONDS — which is the same thing
+  // only while the frame rate holds. Build 192 put an environment and four
+  // extra texture fetches into the figure shader, the headless renderer got
+  // slower, fewer frames fitted in the same wall clock, and Mira was caught
+  // 5cm from her mark still converging. Nothing about the placement had
+  // changed; the check was measuring the test machine.
+  //
+  // So it waits for the thing it is about to measure to stop moving, and gives
+  // up after a bounded number of tries rather than hanging. A suite that waits
+  // on a condition survives a slower renderer; one that waits on a stopwatch
+  // has to be re-tuned every time the cost of a frame changes.
+  for (let i = 0; i < 30; i++) {
+    const a = await J(() => JSON.stringify(window.Cast3D._state().stand || {}));
+    await sleep(320);
+    const b = await J(() => JSON.stringify(window.Cast3D._state().stand || {}));
+    if (a === b && a !== '{}') break;
+  }
   const s1 = await standAt();
   await sleep(820);
   const s2 = await standAt();
