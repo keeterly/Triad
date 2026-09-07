@@ -3382,6 +3382,71 @@ const { boot } = require('./harness.cjs');
     && stages['opt-out'].body === false,
     JSON.stringify(stages['opt-out']));
 
+  // ═══ A PLACE THAT IS NOT THE FIGHT (Build 184) ═════════════════════════
+  //
+  // Every mark, every visibility and every DOM follower in this layer has been
+  // read off the COMBAT DOM. A scene is the other way round — the marks come
+  // from a table, nobody claims an element, the world is switched off so the
+  // figures composite over the room that screen is painted as — and the two
+  // things that would break a run are the canvas not moving and the canvas not
+  // coming back. Both are checked, in that order.
+  console.log('\n── a place that is not the fight ──');
+  {
+    const lent = await J(async () => {
+      window.R.newRun({ seed: 5 });
+      await new Promise(r => setTimeout(r, 260));
+      const st = window.R.state();
+      st.embers = 9; st.tier = 2;
+      window.R.sitDown();
+      return true;
+    });
+    await sleep(2600);
+    const at = await J(() => {
+      const cv = document.getElementById('k-cast3d');
+      const S = window.Cast3D._state();
+      const seen = {};
+      for (const id of ['ash', 'elin', 'mira']) {
+        const f = window.Cast3D._figure(id);
+        seen[id] = f ? { vis: f.root.visible,
+                         x: +f.root.position.x.toFixed(2),
+                         z: +f.root.position.z.toFixed(2) } : null;
+      }
+      const door = document.querySelector('#k-camp .k-ctdoor[data-door="mira"]');
+      return { scene: window.Cast3D.sceneName(),
+               host: cv && cv.parentNode ? cv.parentNode.id : null,
+               wide: cv ? Math.round(cv.getBoundingClientRect().width) : 0,
+               mode: document.getElementById('k-camp').classList.contains('k-camp-3d'),
+               seen: seen, foes: S.foes.length,
+               // the room shows through, so the plaza is not drawing
+               worldOn: S.worldOn,
+               follows: door ? door.style.getPropertyValue('--fx') : '' };
+    });
+    check('SCENE: the fire borrows the canvas and stands the three of them in a ring',
+      lent === true && at.scene === 'camp' && at.host === 'k-camp-cast' && at.wide > 400 && at.mode
+      && ['ash', 'elin', 'mira'].every(id => at.seen[id] && at.seen[id].vis)
+      // a ring, not a line: they do not share a depth the way the party does
+      && new Set(['ash', 'elin', 'mira'].map(id => at.seen[id].z)).size === 3
+      && at.foes === 0 && /px$/.test(at.follows) && at.worldOn === false,
+      JSON.stringify(at));
+
+    const back = await J(async () => {
+      window.R.leaveCamp();
+      await new Promise(r => setTimeout(r, 200));
+      const cv = document.getElementById('k-cast3d');
+      return { scene: window.Cast3D.sceneName(),
+               host: cv && cv.parentNode ? cv.parentNode.id : null,
+               mode: document.getElementById('k-camp').classList.contains('k-camp-3d'),
+               worldOn: window.Cast3D._state().worldOn };
+    });
+    // THE ONE THAT WOULD RUIN A RUN. A canvas left parented into a hidden
+    // screen means the next fight opens onto an empty stage — and the way back
+    // is not always `leaveCamp`, so `screen()` does it for every path.
+    check('SCENE: …and the battlefield gets it back, with the world switched on',
+      back.scene === null && back.host === 'k-cast' && !back.mode
+      && back.worldOn === true,
+      JSON.stringify(back));
+  }
+
   await shot('cast3d');
   const out = report();
   await browser.close();

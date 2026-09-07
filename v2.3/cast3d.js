@@ -4434,6 +4434,53 @@ const Cast3D = (() => {
   // The pattern is not carelessness, it is that the list lived in the function
   // that used it, so adding scenery anywhere else could not remind anybody. It
   // is derived now, from the scene as it actually is.
+  // ── A PLACE THAT IS NOT THE FIGHT (Build 184) ────────────────────────────
+  //
+  // Everything about where a body stands has been read off the COMBAT DOM:
+  // `slotOf` asks an element what row it is in, the frame loop iterates foe
+  // plates, and `follow` hands each figure's rectangle back to the element it
+  // came from. That is right for a battlefield and it is the whole reason the
+  // campfire was three painted cut-outs in boxes — the layer had no way to
+  // stand anybody anywhere else.
+  //
+  // A SCENE is the other way round: the marks come from a table, nobody claims
+  // an element, and the world itself is switched off so the figures composite
+  // over whatever that screen is painted on. The fight is `SCENE = null` and
+  // is byte-for-byte the path it always was.
+  //
+  // WHY STANDING AND NOT SITTING. There is no seated clip in the library —
+  // idle, the weapons, cast, heal, ward, parry, hurt, down, get_up — and a sit
+  // is a pose change no additive offset can fake. Three people standing close
+  // around a small fire is a scene the existing idles can actually play, and
+  // it is a long way from three cut-outs in boxes.
+  const SCENES = {
+    // the ring: the fire at the origin, two of them near the camera and one
+    // across it, all three turned inward. Metres, on the same floor plane the
+    // fight uses.
+    camp: {
+      host: 'k-camp-cast', bare: true,
+      // which element belongs to whom, so the caption and the tap target land
+      // on the body rather than on a percentage somebody typed
+      el: '#k-camp .k-ctdoor[data-door="{id}"]',
+      // …and nobody stands directly behind the fire, because two labels on one
+      // x is the collision this screen has now had twice
+      marks: { ash: [-1.40, 0.52], elin: [-0.34, -1.26], mira: [1.38, 0.56] },
+      // everybody faces the middle, which is where the fire is
+      faceAt: [0, 0],
+      // ── MEASURED, NOT EYEBALLED ─────────────────────────────────────────
+      // What the lens has to hold: three figures big enough to be people, with
+      // their heads clear of the header at 46 and their feet clear of the rail
+      // at 374, on a board 430 tall. `dist` is to the FIRE at the origin and
+      // two of them stand a metre nearer than that, so they come out bigger
+      // than the number suggests; `aimY` pitches the lens up, which sits the
+      // whole ring lower in frame. Swept: at 7.0m the heads were eleven pixels
+      // ABOVE the board. This is 200/160/195 tall, heads at 99, feet at 299.
+      shot: { az: 0, dist: 9.0, height: 1.80, aimY: 1.85, fov: 40, at: [0, 0, 0] },
+      // the fire itself is a target too, and it is at the middle of the ring
+      fireEl: '#k-camp .k-ct-all',
+    },
+  };
+  let SCENE = null, sceneName = null, _sceneFog = null;
   function notBodies() {
     const out = ground
       ? [ground, ground.userData.panel, ground.userData.haze,
@@ -4861,6 +4908,44 @@ const Cast3D = (() => {
     const behind = _w.z > -0.05;
     _w.applyMatrix4(cam.projectionMatrix);
     return { x: (_w.x * 0.5 + 0.5) * b.w, y: (-_w.y * 0.5 + 0.5) * b.h, behind };
+  }
+
+  // ── A SCENE'S OWN ELEMENTS FOLLOW ITS OWN FIGURES ────────────────────────
+  //
+  // Same projection the fight uses and the same trap: the canvas draws in
+  // RENDERED pixels and a CSS transform is written in STAGE units, so a number
+  // taken from `getBoundingClientRect` and handed to `left` multiplies by the
+  // zoom twice. `hostBox` reads `offsetWidth`, which is the space the
+  // transform lives in at every window size.
+  //
+  // The scene writes three custom properties per element and lets the
+  // stylesheet decide what to do with them, so the caption under a figure is a
+  // layout concern rather than something this has to know about.
+  function sceneFollow(b) {
+    if (!SCENE) return;
+    for (const id of Object.keys(SCENE.marks)) {
+      const f = figs[id]; if (!f || !f.root.visible) continue;
+      const el = document.querySelector(SCENE.el.replace('{id}', id));
+      if (!el) continue;
+      const foot = toScreen(_foot.copy(f.root.position), b);
+      const crown = toScreen(_crown.set(f.root.position.x,
+        f.root.position.y + (f.worldH || 1.8), f.root.position.z), b);
+      el.style.setProperty('--fx', foot.x.toFixed(1) + 'px');
+      el.style.setProperty('--fy', foot.y.toFixed(1) + 'px');
+      el.style.setProperty('--fh', Math.max(24, foot.y - crown.y).toFixed(1) + 'px');
+    }
+    // …AND THE THING THEY ARE SITTING AROUND. It is not a figure, so nothing
+    // above places it — and left unplaced it inherited `--fy: 0` and printed
+    // its name across the top of the screen.
+    if (SCENE.fireEl) {
+      const el = document.querySelector(SCENE.fireEl);
+      if (el) {
+        const at = SCENE.faceAt || [0, 0];
+        const p = toScreen(_foot.set(at[0], 0, at[1]), b);
+        el.style.setProperty('--fx', p.x.toFixed(1) + 'px');
+        el.style.setProperty('--fy', p.y.toFixed(1) + 'px');
+      }
+    }
   }
 
   function follow(id, f, b) {
@@ -5648,7 +5733,14 @@ const Cast3D = (() => {
   function frame(now) {
     raf = requestAnimationFrame(frame);
     if (!ready || !on) return;
-    const host = document.getElementById('k-cast');
+    // ── THE HOST IS WHEREVER THE CANVAS IS (Build 184) ──────────────────────
+    //
+    // This read `#k-cast` unconditionally, which lives inside the combat
+    // stage — and the stage is `display: none` while the fire is open, so the
+    // box comes back zero-width and the loop bails a few lines down. The
+    // renderer would go on running and draw nothing, which is the failure that
+    // looks like the scene never loaded.
+    const host = document.getElementById(SCENE ? SCENE.host : 'k-cast');
     if (!host) return;
     // THE CLAMP GUARDS A RESTORED TAB, NOT A SLOW ONE. At 0.05 it also ate
     // time on any device running below 20fps — the clips played in slow motion
@@ -5762,7 +5854,12 @@ const Cast3D = (() => {
     // Doing it per frame rather than on a signal is what makes two Hollow Husks
     // work without the fight knowing the 3D layer exists. It is four
     // querySelectors on a board that changes twice a minute.
-    for (let ix = 0; ix < FOE_SLOTS; ix++) {
+    // A SCENE HAS NO OPPONENTS IN IT. Nobody is fighting at the fire, and the
+    // foe slots read the combat DOM, which is not on screen — so they are torn
+    // down rather than left holding whatever the last fight put in them.
+    for (let ix = 0; SCENE && ix < FOE_SLOTS; ix++)
+      if (figs[foeKey(ix)]) unmount(foeKey(ix));
+    for (let ix = 0; !SCENE && ix < FOE_SLOTS; ix++) {
       const key = foeKey(ix);
       const node = ix === 0 ? document.getElementById('k-boss-art')
                             : document.querySelector('#k-cast .k-foe-art[data-ix="' + ix + '"]');
@@ -5783,12 +5880,14 @@ const Cast3D = (() => {
     for (const id of Object.keys(figs)) {
       const f = figs[id];
       f.step(dt);
-      const node = nodeOf(id);
+      const node = SCENE ? null : nodeOf(id);
       // A CREATURE THAT BURNED AWAY STAYS AWAY. Visibility is decided fresh
       // every frame from who is on screen, which is right for everything
       // except a body that no longer exists — without this the ash finishes
       // rising and the corpse blinks back for the rest of the fight.
-      const here = !!node && node.offsetParent !== null;
+      // …AND IN A SCENE IT IS THE TABLE THAT DECIDES. There is no element to
+      // ask; whoever the scene names is standing there, and nobody else is.
+      const here = SCENE ? !!SCENE.marks[id] : (!!node && node.offsetParent !== null);
       const vis = !f.dead && here;
       f.root.visible = vis;
       // ── A BODY THAT BURNED AWAY KEEPS ITS ELEMENT ─────────────────────────
@@ -5802,7 +5901,7 @@ const Cast3D = (() => {
       //
       // Dead still counts as here. The slot goes on holding its element and
       // simply draws nothing into it.
-      if (here) {
+      if (here && node) {
         claimed.push(node);
         if (!node.classList.contains('k-cast3d-on')) node.classList.add('k-cast3d-on');
       }
@@ -5812,7 +5911,7 @@ const Cast3D = (() => {
       // into slid. Easing the WORLD position instead means the model actually
       // crosses the floor — and its shadow crosses with it, which is the tell
       // that it is really over there rather than drawn smaller.
-      const slot = slotOf(id);
+      const slot = SCENE ? SCENE.marks[id] : slotOf(id);
       if (slot) {
         // …AND IT GIVES A LUNGE ROOM TO HAPPEN. Pulling at 5.5 while an action
         // is driving the body forward damps the step into a twitch; the same
@@ -5982,7 +6081,12 @@ const Cast3D = (() => {
     // floor goes on reflecting a texture nobody is updating any more. The
     // setting is pushed first; only the expensive half is gated.
     if (ground.material.userData.u) ground.material.userData.u.uWet.value = LOOK.wet;
-    if (reflect && LOOK.wet > 0.01) {
+    // A BARE SCENE HAS NO PLAZA IN IT. The world is opaque — floor, horizon,
+    // fog, rubble, mist — so leaving it in would paint over the room the
+    // campfire is already painted as. `notBodies` is the same list the
+    // silhouette measurement uses, derived from the scene rather than written
+    // down, so scenery added later cannot forget to be in it.
+    if (reflect && LOOK.wet > 0.01 && !(SCENE && SCENE.bare)) {
       // ── MIRROR THE CAMERA THAT IS ACTUALLY THERE ──────────────────────
       //
       // This rebuilt the mirror from the TRIPOD's mark — the eased eye and aim
@@ -6116,8 +6220,15 @@ const Cast3D = (() => {
       renderer.render(scene, cam);
     }
 
-    for (const id of Object.keys(figs)) follow(id, figs[id], css);
-    followRows(css);
+    // ── WHO FOLLOWS WHAT ──────────────────────────────────────────────────
+    //
+    // In a fight the combat elements follow the figures, which is what makes
+    // the nameplates, the drop zones and the aim targets land on the right
+    // body. A scene has no combat elements on screen; it has its own, and they
+    // follow the same way — projected foot and crown, written as stage units,
+    // never as rendered pixels.
+    if (SCENE) sceneFollow(css);
+    else { for (const id of Object.keys(figs)) follow(id, figs[id], css); followRows(css); }
 
     if (pending) {
       const cv = document.createElement('canvas');
@@ -6205,6 +6316,45 @@ const Cast3D = (() => {
       if (!raf) raf = requestAnimationFrame(frame);
       return true;
     },
+    // ── STAND THE CAST SOMEWHERE THAT IS NOT A FIGHT (Build 184) ────────
+    //
+    // `scene('camp')` moves the canvas into that screen, switches the world
+    // off so the room it is painted on shows through, stands whoever the scene
+    // names on its marks, turns them toward the middle and holds a shot on it.
+    // `scene(null)` puts everything back, and the fight's path is untouched:
+    // with no scene set every line above reads exactly the way it did.
+    scene(name) {
+      const was = sceneName;
+      if (!name) {
+        SCENE = null; sceneName = null;
+        const host = document.getElementById('k-cast');
+        if (canvas && host && canvas.parentNode !== host) host.insertBefore(canvas, host.firstChild);
+        if (was) { for (const o of notBodies()) o.visible = true; scene.fog = _sceneFog; _sceneFog = null; }
+        return true;
+      }
+      const def = SCENES[name]; if (!def || !ready) return false;
+      const host = document.getElementById(def.host);
+      if (!host) return false;
+      SCENE = def; sceneName = name;
+      if (canvas.parentNode !== host) host.insertBefore(canvas, host.firstChild);
+      if (def.bare) {
+        // …AND THE FOG GOES WITH IT. Fog is a property of the scene rather than
+        // of any object in it, so hiding every mesh still leaves the figures
+        // fading into a colour belonging to a plaza that is not on screen.
+        _sceneFog = scene.fog; scene.fog = null;
+        for (const o of notBodies()) o.visible = false;
+      }
+      // everybody turns toward the middle, which is where the fire is
+      for (const id of Object.keys(def.marks)) {
+        const f = figs[id]; if (!f) continue;
+        const m = def.marks[id], at = def.faceAt || [0, 0];
+        aim(f, Math.atan2(at[0] - m[0], at[1] - m[1]) / D);
+        f.standDX = undefined; f._stHold = 0; f._stLast = null;
+      }
+      Cast3D.shot(def.shot, { speed: 6 });
+      return true;
+    },
+    sceneName: () => sceneName,
     disable() {
       on = false;
       document.body.classList.remove('k-cast3d');
@@ -6460,6 +6610,9 @@ const Cast3D = (() => {
       // figure. Three runs of unchanged code disagreed about elin, so the gate
       // that freezes it is readable from outside now rather than inferrable
       // from a pixel measurement.
+      // …and whether the plaza itself is drawing, which is how a bare scene is
+      // told apart from a scene with a world accidentally left switched on
+      scene: sceneName, worldOn: !!(ground && ground.visible),
       stand: Object.fromEntries(Object.keys(figs).map(id => {
         const f = figs[id];
         return [id, { dx: f.standDX === undefined ? null : +f.standDX.toFixed(3),

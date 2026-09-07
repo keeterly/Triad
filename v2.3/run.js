@@ -1293,6 +1293,18 @@
       const el2 = $(SCREENS[k]);
       if (el2) el2.classList.toggle('k-hidden', k !== which);
     }
+    // ── THE CANVAS COMES HOME WHENEVER THE FIRE IS NOT ON SCREEN ───────────
+    //
+    // `sitDown` lends the 3D layer to the campfire and `leaveCamp` gives it
+    // back — but a screen change is not always a leave. A reload, a bond scene
+    // opening off the fire, a run ending: any of those would walk away with
+    // the canvas parented into a hidden screen, and the next fight would open
+    // onto an empty stage. Doing it HERE means every path is covered by the
+    // one function they all go through, and it costs a class check.
+    if (which !== 'camp') {
+      const c = $('k-camp');
+      if (c && c.classList.contains('k-camp-3d')) leaveCampScene();
+    }
     const M = window.K && window.K.MUSIC, SRC = window.K && window.K.MUSIC_SRC;
     if (M && SRC) {
       try {
@@ -2180,6 +2192,19 @@
     _campPick = null;
     _campOpen = null;                 // every fire opens on the four doors
     screen('camp');
+    // ── AND THE REAL CAST STANDS UP IN IT (Build 184) ────────────────────
+    //
+    // Three painted cut-outs in a row is a character-select screen whatever
+    // the words under them say. The layer that already draws these three
+    // people breathing on a battlefield draws them here instead — same rig,
+    // same idles, same light rig — standing in a ring around the fire. It
+    // fails soft: with no 3D layer, or a scene it does not know, the paintings
+    // are still there underneath and nothing else changes.
+    let stood = false;
+    try { const C3 = window.Cast3D; if (C3 && C3.scene) stood = !!C3.scene('camp'); } catch (e) {}
+    // the class is what hands the doors over to the projection; without it the
+    // painted ring is what runs, which is the whole of the fallback
+    document.getElementById('k-camp').classList.toggle('k-camp-3d', stood);
     renderCamp();
   }
 
@@ -2598,8 +2623,17 @@
     if (who) { who.classList.remove('k-ct-flare'); void who.offsetWidth; who.classList.add('k-ct-flare'); }
   }
 
+  // …and the road takes the canvas back, because the battlefield is where it
+  // lives and a fight that opened onto an empty stage would be a worse bug
+  // than the one this fixes.
+  function leaveCampScene() {
+    try { const C3 = window.Cast3D; if (C3 && C3.scene) C3.scene(null); } catch (e) {}
+    const c = document.getElementById('k-camp');
+    if (c) c.classList.remove('k-camp-3d');
+  }
   function leaveCamp() {
     if (RUN.over) return;
+    leaveCampScene();
     RUN.pending = null;
     const bought = RUN.nodes.length;
     RUN.flash = { icon: 'camp', tone: 'gold', title: 'THE FIRE BURNS DOWN',

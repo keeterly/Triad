@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=183" />
+  <link rel="stylesheet" href="styles.css?v=184" />
 </head>
 <body>
   <div id="k-scale">
@@ -307,6 +307,12 @@
         <div class="k-camp-fire"><i></i><i></i><i></i></div>
         <div class="k-camp-sparks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
       </div>
+      <!-- WHERE THE CAST STANDS AT THE FIRE (Build 184). The 3D layer's canvas
+           moves in here while the fire is open and back onto the battlefield
+           when it is not: it is one renderer and one world, pointed at a
+           different place. The world's own floor and horizon are switched off
+           for this, so what shows through is the room above. -->
+      <div id="k-camp-cast" aria-hidden="true"></div>
       <header id="k-camp-top">
         <div class="k-mt-title"><b>THE FIRE</b><span id="k-camp-tier">TIER 1</span></div>
         <p id="k-camp-say">Wounds close. Nobody says much. There is time to remember.</p>
@@ -530,13 +536,13 @@
     setTimeout(check, 2500);
   })();
   </script>
-  <script src="run.js?v=183"></script>
-  <script src="game.js?v=183"></script>
+  <script src="run.js?v=184"></script>
+  <script src="game.js?v=184"></script>
   <!-- THE CAST IN THREE DIMENSIONS — a module, and inert unless ?cast=3d.
        It draws one canvas under the DOM heroes and paints a rigged figure
        into each hero's box; everything above it (rows, drag, aim, popups,
        the party HUD) is untouched. -->
-  <script type="module" src="cast3d.js?v=183"></script>
+  <script type="module" src="cast3d.js?v=184"></script>
   <script>
     // ── FIT THE 932x430 DESIGN SPACE TO THE PART OF THE SCREEN THAT IS ONE ──
     //

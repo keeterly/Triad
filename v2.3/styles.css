@@ -2637,6 +2637,32 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    sentences, no boxes. */
 #k-camp-tree { position: absolute; left: 18px; right: 18px; top: 46px; bottom: 88px; z-index: 3; }
 #k-camp-tree:not(.k-ct-open) { display: block; }
+/* ── AND WHEN THE REAL CAST IS STANDING THERE, THE DOORS FOLLOW IT ────────
+   The 3D layer projects each figure's foot and crown and writes them onto that
+   person's door as `--fx` / `--fy` / `--fh`, in STAGE units — the space a CSS
+   transform lives in, not the rendered pixels `getBoundingClientRect` answers
+   in. The door then IS the body: the tap target is where the person is, and
+   the caption hangs off their feet rather than off a percentage somebody
+   typed. Without the layer the ring below is what runs, unchanged. */
+#k-camp-cast { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+#k-camp-cast:empty { display: none; }
+#k-camp.k-camp-3d .k-ctdoor .k-ct-fig img { opacity: 0; }
+/* the door's top is the crown and its figure box is the body, so the caption
+   in the flex column below lands under the feet — where a name belongs */
+#k-camp.k-camp-3d .k-ctdoor { left: var(--fx, 50%); bottom: auto;
+  top: calc(var(--fy, 200px) - var(--fh, 160px)); margin-bottom: 0; }
+#k-camp.k-camp-3d .k-ctdoor .k-ct-fig { height: var(--fh, 160px); }
+/* ── A FIRE DOES NOT NEED A NAMEPLATE ────────────────────────────────────
+   Its caption and Elin's both solved for the middle of the ring and printed
+   through each other — the same collision this screen has now had twice, once
+   in the painted composition and once in the projected one. The fire keeps its
+   glow and its tap target; the rail names it when you look at it, which is
+   what the rail is for and what happens for the other three anyway. */
+#k-camp.k-camp-3d .k-ct-all { --fh: 58px; }
+#k-camp.k-camp-3d .k-ct-all .k-ctd-cap { display: none; }
+#k-camp.k-camp-3d .k-ct-all .k-ct-fig { height: 58px; opacity: 1;
+  animation: k-camp-emberpulse 3.2s ease-in-out infinite; }
+@keyframes k-camp-emberpulse { 50% { transform: scale(1.09); opacity: 0.86; } }
 .k-ctdoor { position: absolute; bottom: 0; padding: 0; background: none; border: 0;
   color: #cfc8ba; font: inherit; text-align: center; cursor: pointer;
   display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
