@@ -255,13 +255,34 @@ const LOOK = {
   //     expo 5     12.7%     0.822       0.137      0.9%
   //     expo 12    29.4%     0.842       0.146      7.5%    <- the blob
   //
-  // At five the bright band lands on the art's own mean to a thousandth and
-  // keeps more variation than the art has, and nine pixels in a thousand
-  // clip. The frame still carries less of its area above 0.60 than the sheet
-  // does — and it should: the sheet is three figures on a white ground and
-  // this is three figures in a mist. Closing THAT is a fog decision, not an
-  // exposure one, and pretending otherwise is what twelve was.
-  expo:   5.0,
+  // ── AND THREE, NOT FIVE, BECAUSE AN AVERAGE HID ONE BLOWN BODY ──────────
+  //
+  // Five was chosen on the pooled figure mask, where it clipped 0.8% — under
+  // the art and under the wide shot it was tuned on. Then a player looked at
+  // it and said it was over-exposed, which it was. Measured per BODY at the
+  // camera a fight actually uses:
+  //
+  //                 foe      elin      mira      ash
+  //     expo 3      0.00%    0.00%     0.00%     0.12%
+  //     expo 4      0.00%    1.18%     0.00%     0.00%
+  //     expo 5      0.00%    4.44%     0.00%     0.27%
+  //
+  // Elin is bone-white and Mira is black, and a mean over both cannot say
+  // which of them lost its drawing: Elin was clipping four and a half percent
+  // of herself while three dark bodies held the pooled number at 0.8. That is
+  // the same fault as grading on percentiles, one level up — an average over
+  // things that are not alike.
+  //
+  // At three nothing clips at all and the bright band's standard deviation is
+  // 0.118, which is the art's to three decimals. The lift over no exposure at
+  // all is still most of what was wanted: the share of a figure over 0.60 goes
+  // from 0.5% to 5.0%, and the variation inside that band from 0.046 to 0.118.
+  //
+  // The frame still carries less of its area above 0.60 than the sheet does —
+  // and it should: the sheet is three figures on a white ground and this is
+  // three figures in a mist. Closing THAT is a fog decision, not an exposure
+  // one, and pretending otherwise is what twelve was.
+  expo:   3.0,
   // ── THE RUNGS (Build 187) — the ladder is in the LIGHT, not on the frame ──
   //
   // Off by default until it is chosen; `?look=rung:1` turns it on. The count
