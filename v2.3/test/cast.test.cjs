@@ -2905,22 +2905,60 @@ const { boot } = require('./harness.cjs');
     for (let i = 0, j = 0; i < mk.d.length; i += 4, j++)
       if (mk.d[i] > 140 && mk.d[i + 1] < 100 && mk.d[i + 2] > 140) { fig[j] = 1; figN++; }
     C3.look(was);
-    const sharp = async () => {
+    // ── AND THE PLAZA BAND IS NOT THE SKY (Build 209) ──────────────────────
+    //
+    // "How much detail did the far third lose" was averaged over EVERY
+    // non-figure pixel in the top third, and most of that band is sky and
+    // mist, which has no detail to lose. A blur of nothing over nothing is a
+    // ratio of one, so the reading was a weighted average of the architecture
+    // (which the lens genuinely softens) and a large flat area pulling it
+    // toward 1 — and how much of each was in frame depended on where the
+    // camera happened to be standing.
+    //
+    // Measured across boots: 0.67, 0.74, 0.77, 0.86, 0.88, against a gate of
+    // 0.75. That is not a lens changing, it is a shot changing; the same check
+    // passed and failed on consecutive runs of an unchanged build. Confirmed
+    // separately that Build 209 own dials do not move it — off 0.862/0.872,
+    // on 0.884/0.864, interleaved.
+    //
+    // So the band is now the quarter of the far third that actually CARRIES
+    // detail, chosen on the sharp frame and reused for the blurred one — the
+    // same pixels compared to themselves. No threshold is written down: it is
+    // that frame's own 75th percentile.
+    const sharp = async (pm) => {
       const g = await grab(), w = g.w, h = g.h, d = g.d;
       const L = new Float32Array(w * h);
       for (let i = 0, j = 0; i < d.length; i += 4, j++)
         L[j] = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) / 255;
+      const lapAt = (i) =>
+        Math.abs(4 * L[i] - L[i - 1] - L[i + 1] - L[i - w] - L[i + w]);
+      let mask = pm, cut = 0;
+      if (!mask) {
+        const far = [];
+        for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+          const i = y * w + x;
+          if (!fig[i] && y < h / 3) far.push(lapAt(i));
+        }
+        far.sort((a, z) => a - z);
+        cut = far.length ? far[Math.floor(far.length * 0.75)] : 0;
+        mask = new Uint8Array(w * h);
+        for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+          const i = y * w + x;
+          if (!fig[i] && y < h / 3 && lapAt(i) >= cut) mask[i] = 1;
+        }
+      }
       let ps = 0, pn = 0, fs = 0, fn = 0, hi = [];
       for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
         const i = y * w + x;
-        const lap = Math.abs(4 * L[i] - L[i - 1] - L[i + 1] - L[i - w] - L[i + w]);
+        const lap = lapAt(i);
         hi.push(L[i]);
         if (fig[i]) { ps += lap; pn++; }
-        else if (y < h / 3) { fs += lap; fn++; }
+        else if (mask[i]) { fs += lap; fn++; }
       }
       hi.sort((a, z) => a - z);
       return { party: ps / Math.max(1, pn), plaza: fs / Math.max(1, fn),
-               p99: hi[Math.floor(hi.length * 0.99)] };
+               p99: hi[Math.floor(hi.length * 0.99)], pm: mask, cut: +cut.toFixed(4),
+               farN: fn };
     };
     // ── AND THE COMPARISON FRAME HAS TO GO THROUGH THE PASS (Build 191) ──
     //
@@ -2935,17 +2973,21 @@ const { boot } = require('./harness.cjs');
     // Two off-frames now, each turning off only the thing it is about and
     // leaving the other on, so the pass composites in every frame compared.
     C3.look({ dof: 0 });
+    // the detail band is chosen HERE, on the sharp frame, and handed to the
+    // blurred one — otherwise each frame picks its own quarter and the two
+    // numbers are not measured over the same city
     const offLens = await sharp();
     C3.look(was);
     C3.look({ bloom: 0 });
-    const offGlow = await sharp();
+    const offGlow = await sharp(offLens.pm);
     C3.look(was);
-    const on = await sharp();
+    const on = await sharp(offLens.pm);
     return {
       figN,
       party: +(on.party / Math.max(1e-6, offLens.party)).toFixed(2),
       plaza: +(on.plaza / Math.max(1e-6, offLens.plaza)).toFixed(2),
       glow:  +(on.p99 / Math.max(1e-6, offGlow.p99)).toFixed(3),
+      farN: offLens.farN, cut: offLens.cut,
       onByDefault: was.dof > 0.002,
     };
   });
@@ -3177,6 +3219,157 @@ const { boot } = require('./harness.cjs');
       + 'She shipped at 0.1% — lit almost entirely by ambient, one value from '
       + 'hood to boot. A gamma cannot give her this and will silently take it '
       + 'away again: paired with a curve of 1.1 the same black point reads 0%');
+
+  // ══ AND THE SURFACE ANSWERS THE LIGHT (Build 209) ═══════════════════════
+  //
+  // These models carry ONE albedo each — no normal map, no roughness map, no
+  // metalness map — and the material is built at metalness 0, so its F0 is 4%
+  // and no roughness setting can make it catch a highlight. That is the last
+  // structural gap against the art sheet and it is per body:
+  //
+  //                       over 0.85      the art sheet
+  //     elin                12.9%           ~10.6%
+  //     ash                  5.6%           ~10.6%
+  //     mira                 1.6%           ~10.6%
+  //
+  // Elin was already there. Mira had essentially no highlights at all, because
+  // she is a dark albedo lit almost entirely by ambient.
+  //
+  // THIS IS AN A/B OF THE DIAL, NOT A READING OF A FRAME. Every absolute
+  // number in this file has at some point measured which shot the run stopped
+  // on; a toggle cannot, because both halves are the same shot. Take the dial
+  // out of the shader and the two halves come back identical and this fails,
+  // which is the only thing a check on a look is worth.
+  const surf = await J(async () => {
+    const C3 = window.Cast3D, was = C3.look();
+    const grab = async () => {
+      await new Promise(z => requestAnimationFrame(z));
+      await new Promise(z => requestAnimationFrame(z));
+      await C3._snapshot();
+      const c = window.__castShot;
+      return { w: c.width, h: c.height,
+               d: c.getContext('2d').getImageData(0, 0, c.width, c.height).data };
+    };
+    C3.look({ pl: -2 });
+    const mk = await grab();
+    const fig = new Uint8Array(mk.w * mk.h);
+    for (let i = 0, j = 0; i < mk.d.length; i += 4, j++)
+      if (mk.d[i] > 140 && mk.d[i + 1] < 100 && mk.d[i + 2] > 140) fig[j] = 1;
+    C3.look(was);
+    const cr = document.getElementById('k-cast3d').getBoundingClientRect();
+    const el = document.querySelector('.k-hero[data-hero="mira"]');
+    const b = el.getBoundingClientRect();
+    const x0 = Math.round((b.left - cr.left) / cr.width * mk.w);
+    const y0 = Math.round((b.top - cr.top) / cr.height * mk.h);
+    const x1 = Math.round((b.right - cr.left) / cr.width * mk.w);
+    const y1 = Math.round((b.bottom - cr.top) / cr.height * mk.h);
+    const lum = (g, j) => (0.2126 * g.d[j * 4] + 0.7152 * g.d[j * 4 + 1]
+                         + 0.0722 * g.d[j * 4 + 2]) / 255;
+    const read = async (set) => {
+      C3.look(was); C3.look(set);
+      const g = await grab();
+      const q = [];
+      // ── AND THE OTHER READING IS LOCAL CONTRAST, NOT BRIGHTNESS ─────────
+      //
+      // A cavity darkens a crease and leaves the ridge beside it alone. That
+      // is a REDISTRIBUTION: it nets out to almost nothing in a mean, and the
+      // first cut of this check learned that the expensive way — the mean
+      // moved 0.0009 against a frame-to-frame drift of 0.0024, so the dial
+      // was below the noise of the instrument pointed at it. The quantity a
+      // cavity actually changes is how much a pixel differs from the ones
+      // touching it, which is exactly what a Laplacian is.
+      let e = 0, en = 0;
+      for (let y = Math.max(1, y0); y < Math.min(mk.h - 1, y1); y++)
+        for (let x = Math.max(1, x0); x < Math.min(mk.w - 1, x1); x++) {
+          const j = y * mk.w + x;
+          if (!fig[j]) continue;
+          q.push(lum(g, j));
+          // only where the whole cross is on the body, so the silhouette's own
+          // step against the plaza is never counted as surface detail
+          if (!(fig[j - 1] && fig[j + 1] && fig[j - mk.w] && fig[j + mk.w])) continue;
+          e += Math.abs(4 * lum(g, j) - lum(g, j - 1) - lum(g, j + 1)
+                        - lum(g, j - mk.w) - lum(g, j + mk.w));
+          en++;
+        }
+      const mean = q.reduce((a, z) => a + z, 0) / Math.max(1, q.length);
+      return { n: q.length,
+               hi85: +(100 * q.filter(v => v > 0.85).length / Math.max(1, q.length)).toFixed(2),
+               clip: +(100 * q.filter(v => v >= 0.999).length / Math.max(1, q.length)).toFixed(2),
+               mean: +mean.toFixed(4),
+               edge: +(e / Math.max(1, en)).toFixed(5) };
+    };
+    // ── AND THE BASELINE IS READ TWICE, WHICH IS THE WHOLE POINT ──────────
+    //
+    // "The same frame" is a lie by about a fifth of a second: the bodies are
+    // breathing between reads, and headless draws at roughly 1.5fps. So the
+    // baseline is taken at both ends and the gap between those two IS the
+    // noise floor, measured in this run rather than assumed. A dial has to
+    // beat the drift it is being compared against, and the first cut of the
+    // cavity gate passed by 0.0009 of mean — a third of a per cent — which is
+    // a gate on which frame the run happened to stop on.
+    //
+    // `was` carries whatever the dials actually ship at, so this measures the
+    // shipped setting rather than a number written into the check.
+    C3.slow(0.05);
+    const off  = await read({ gloss: 0, cav: 0 });
+    const lit  = await read({ gloss: was.gloss, cav: 0 });
+    const cave = await read({ gloss: 0, cav: was.cav });
+    const off2 = await read({ gloss: 0, cav: 0 });
+    C3.look(was); C3.slow(1);
+    const base = (off.mean + off2.mean) / 2;
+    const baseE = (off.edge + off2.edge) / 2;
+    return { off, lit, cave, off2,
+             base: +base.toFixed(4),
+             drift: +Math.abs(off2.mean - off.mean).toFixed(4),
+             baseEdge: +baseE.toFixed(5),
+             edgeDrift: +Math.abs(off2.edge - off.edge).toFixed(5),
+             dial: { gloss: was.gloss, cav: was.cav } };
+  });
+  const baseHi = (surf.off.hi85 + surf.off2.hi85) / 2;
+  check('SURFACE: the darkest body catches a highlight, and it costs it no more than it buys',
+    surf.off.n > 400 && surf.lit.hi85 >= baseHi * 1.5 && surf.lit.clip < 2.5,
+    JSON.stringify(surf) + ' — Mira over 0.85, the same frame with the highlight '
+      + 'off and on. Her albedo is dark and the key barely reaches her, so at '
+      + 'metalness 0 she shipped with 1.6% of her over 0.85 against the art '
+      + 'sheet 10.6%. The cost is measured and it is real — a specular on a '
+      + 'dark material converts some of its blacks, 10.7% to 9.4% — which is '
+      + 'why the ceiling here is the clip and not the gain');
+  // ── AND THE CAVITY IS NOT GATED ON WORKING, BECAUSE THIS FRAME CANNOT SEE IT
+  //
+  // Three instruments were pointed at it and all three came back inside the
+  // noise, measured against a baseline read at BOTH ends of the same run:
+  //
+  //     percentiles at 0.10 / 0.60 / 0.85    no movement outside noise
+  //     mean over the body                   0.0009 against a drift of 0.0024
+  //     local contrast over the body         under a drift of 0.0082, and the
+  //                                          two baselines were falling anyway
+  //
+  // The same reading catches the HIGHLIGHT easily in the same run — local
+  // contrast 0.3583 and 0.3502 at the ends, 0.3698 with the gloss on — so the
+  // instrument is not blunt. What it cannot see is a three-texel radius on a
+  // 2048 map at this frame's scale: the harness renders at dpr 1 with MSAA off,
+  // so the entire cavity signal lands under a screen pixel and is averaged away
+  // before it is read. At dpr 2, side by side, it is the difference between
+  // Elin's robe as a soft white mass and Elin's robe with folds in it.
+  //
+  // Build 208 wrote down the rule this follows: a gate on a measurement that
+  // cannot resolve the thing is worse than no gate, because one day it fails
+  // for a reason that has nothing to do with the dial. So the claim that the
+  // cavity WORKS is not gated here. What is gated is the way it could go wrong
+  // without anyone noticing — quietly becoming a brightness control — which
+  // this frame resolves perfectly well.
+  check('SURFACE: …and the cavity stays a redistribution, not a brightness control',
+    Math.abs(surf.base - surf.cave.mean) < surf.base * 0.03,
+    JSON.stringify({ base: surf.base, cav: surf.cave.mean,
+                     ends: [surf.off.mean, surf.off2.mean],
+                     edge: { base: surf.baseEdge, cav: surf.cave.edge,
+                             lit: surf.lit.edge, drift: surf.edgeDrift },
+                     dial: surf.dial })
+      + ' — mean over Mira own pixels, cavity off at both ends of the run and '
+      + 'on in the middle. A cavity darkens a crease and leaves the ridge beside '
+      + 'it, so the mean must barely move; a dial that walked the whole body '
+      + 'down would be an exposure wearing a different name, and nothing else '
+      + 'in this suite would catch it');
 
   // ── AND THE DISTANCE IS A PLACE, NOT A GREY CARD ────────────────────────
   //

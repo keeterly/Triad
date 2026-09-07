@@ -302,6 +302,15 @@ const LOOK = {
   //   difference between a surface and an exposure.
   bump:   1.6,   // micro-relief off the albedo's fine detail
   spec:   0.5,   // …and the quiet parts stop being perfectly rough
+  // ── AND A SURFACE THAT ANSWERS THE LIGHT (Build 209) ──────────────────
+  // `spec` only lowers roughness, which on a metalness-0 material buys a 4%
+  // dielectric F0 and no visible highlight. Measured against the art sheet the
+  // gap that stayed open through four builds of grading is the top band: the
+  // reference puts 10.6% of a character over 0.85 and this scene put Mira at
+  // 1.6% and Ash at 5.6%. That band is PAINTED SPECULAR in the reference, and
+  // no exposure, curve or black point can invent it — they move a whole body.
+  gloss:  0.55,  // an explicit key highlight, on the derived normal, lit side only
+  cav:    0.45,  // …and the creases in the painting darken, so the form reads sculpted
   env:    1.0,   // how much sky a body reflects — 0 is the Lambert it shipped as
   // ── A FAULT ON PURPOSE (Build 195) ───────────────────────────────────────
   //
@@ -679,6 +688,8 @@ const LOOK_HELP = {
   env:    ['environment', 0, 2, 0.02, 'how much of the sky and ground a body reflects'],
   bump:   ['surface', 0, 4, 0.02, 'micro-relief taken off the fine detail in the albedo'],
   spec:   ['sheen', 0, 0.8, 0.01, 'how far the smooth parts drop below perfectly rough'],
+  gloss:  ['highlight', 0, 2, 0.01, 'a key highlight on the smooth parts, following the derived relief'],
+  cav:    ['cavity', 0, 1.5, 0.01, 'how far the creases painted into the albedo darken'],
   // A FAULT INJECTOR IS STILL A SETTING, and the panel's contract is that
   // every one of them is reachable from it. Hiding this one would make the
   // panel a partial view of the state, which is the one thing it must not be.
@@ -953,6 +964,14 @@ function watercolour(map, tone) {
     uRungl: { value: LOOK.rungl }, uIvory: { value: LOOK.ivory },
     // ── THE SURFACE (Build 192) ──
     uBump:  { value: LOOK.bump },  uSpec:  { value: LOOK.spec },
+    // ── THE SURFACE ANSWERS BACK (Build 209) ────────────────────────────
+    // uKeyW is the key light's WORLD direction, written once because the sun
+    // in this plaza does not move — it is placed at (7.5, 4.2, 3.4) and every
+    // build since has kept it there. Reading it out of three's own light
+    // uniforms would work and would break the first time somebody adds a
+    // second directional; this is one vector and it is checked by the suite.
+    uGloss: { value: LOOK.gloss }, uCav:   { value: LOOK.cav },
+    uKeyW:  { value: new THREE.Vector3(7.5, 4.2, 3.4).normalize() },
     uNan:   { value: LOOK.nan },
     // PER BODY, multiplied into the global. See the note on `expo` in CAST:
     // the key barely reaches the dark characters, so their highlights are
@@ -999,6 +1018,8 @@ function watercolour(map, tone) {
         // it, every figure gone, and no exception anywhere.
         uniform float uRung, uRungs, uRungl, uIvory;
         uniform float uBump, uSpec;
+        uniform float uGloss, uCav;
+        uniform vec3 uKeyW;
         uniform float uNan;
         uniform float uExpo;
         uniform float uPlLift;
@@ -1045,7 +1066,17 @@ function watercolour(map, tone) {
                         mix(wcHash(i+vec2(0,1)), wcHash(i+vec2(1,1)), f.x), f.y);
           return a*0.65 + b*0.35;
         }
-        void main() {`)
+        void main() {
+        // ── AND THEY ARE DECLARED OUT HERE FOR ONE REASON ──────────────────
+        // The surface is derived at the normal_fragment_maps splice and spent
+        // at the colorspace_fragment one, and each of those sits inside its own
+        // pair of braces — see the note about the redeclared t that cost a
+        // build. Two carriers in main's own scope is the only way one stage
+        // hands anything to the other, and both default to "do nothing" so a
+        // model with no map renders exactly as it did before.
+        float sfSmoothG = 0.0;   // 1 where the albedo is quiet — plate, skin, leather
+        float sfCavG    = 1.0;   // <1 in a crease painted into the albedo
+        `)
       // ── THE PAINT GOES ON BEFORE THE ENCODE, NOT AFTER IT ────────────────
       //
       // This spliced in at `dithering_fragment`, which three runs AFTER
@@ -1148,6 +1179,32 @@ function watercolour(map, tone) {
           float sfDetail = abs(sfGx) + abs(sfGy);
           float sfSmooth = 1.0 - smoothstep(0.004, 0.055, sfDetail);
           roughnessFactor = clamp(roughnessFactor - uSpec * sfSmooth, 0.24, 1.0);
+          sfSmoothG = sfSmooth;
+          // ══ AND THE CREASES IN THE PAINTING ARE CREASES (Build 209) ══════
+          //
+          // The relief above is a HIGH pass — one texel either side — and that
+          // is deliberate: it must not turn a painted shadow into a dent. But
+          // it also means the thing an artist actually painted to say "this is
+          // a fold, a seam, the gap between two plates" is invisible to it,
+          // because those are drawn several texels wide.
+          //
+          // A cavity is the other end of the same signal. Sample a ring three
+          // texels out, compare it to the centre, and where the centre is the
+          // DARKER of the two there is a crease painted there. That asymmetry
+          // is the whole trick: a painted highlight is the centre brighter than
+          // its ring and it is ignored, because occlusion only ever subtracts.
+          // A plain local-contrast term would take both and read as noise.
+          if (uCav > 0.001) {
+            vec2 sfR = uTexel2 * 3.0;
+            float sfRing = ( dot(texture2D(map, vMapUv + vec2( sfR.x, 0.0)).rgb, sfL)
+                           + dot(texture2D(map, vMapUv - vec2( sfR.x, 0.0)).rgb, sfL)
+                           + dot(texture2D(map, vMapUv + vec2( 0.0, sfR.y)).rgb, sfL)
+                           + dot(texture2D(map, vMapUv - vec2( 0.0, sfR.y)).rgb, sfL) ) * 0.25;
+            float sfCtr = dot(diffuseColor.rgb, sfL);
+            // clamped BEFORE the dial scales it, so no dial setting can drive a
+            // body to black on a texture with one very dark seam in it
+            sfCavG = 1.0 - clamp(sfRing - sfCtr, 0.0, 0.45) * uCav * 1.6;
+          }
         }
         #endif
       `)
@@ -1362,6 +1419,63 @@ function watercolour(map, tone) {
           float plG = dot(plLit, vec3(0.299, 0.587, 0.114));
           plLit = mix(vec3(plG), plLit, uChroma);
           gl_FragColor.rgb = mix(gl_FragColor.rgb, plLit, uPl);
+          // ══ THE HIGHLIGHT THIS SCENE HAS NEVER HAD (Build 209) ═══════════
+          //
+          // WHY IT IS NOT A ROUGHNESS SETTING. The spec dial already drops roughness
+          // on the quiet parts and it bought almost nothing, because these
+          // materials are metalness 0: their F0 is 4%, so even a mirror-smooth
+          // patch returns 4% of the key and lands nowhere near the 0.85 band.
+          // Turning metalness up instead was the other candidate and it is the
+          // wrong one — a derived metal mask cannot tell a bone-white robe from
+          // steel (both are unsaturated, both are smooth, both are bright), and
+          // getting it wrong turns Elin into chrome. There is no signal in a
+          // single albedo that separates them.
+          //
+          // So the highlight is DRAWN rather than inferred: one Blinn lobe off
+          // the derived normal, tightened where the surface is quiet, added on
+          // the lit side of the terminator only. It cannot invent a material —
+          // it lands wherever the painting has relief and the key can reach,
+          // which is exactly where an illustrator puts one.
+          //
+          // Three masks, and each one is load-bearing:
+          //   · sfSmoothG — a highlight on woven cloth is a mistake
+          //   · plT       — a highlight in a shadow is a mistake
+          //   · the lobe  — a highlight everywhere is an exposure
+          if (uGloss > 0.001 && sfSmoothG > 0.001) {
+            vec3 gsV = normalize(vViewPosition);
+            vec3 gsK = normalize((viewMatrix * vec4(uKeyW, 0.0)).xyz);
+            vec3 gsH = normalize(gsK + gsV);
+            // the exponent rides the same smoothness the strength does, so a
+            // quiet surface gets a TIGHT highlight and a busy one gets a broad
+            // faint one rather than the same blob at two brightnesses
+            float gsN = mix(30.0, 130.0, sfSmoothG);
+            float gsS = pow(max(dot(normalize(normal), gsH), 0.0), gsN);
+            // PL_IVOR, not white: this is the sun in this plaza, and it is the
+            // same pigment the top rung already uses
+            gl_FragColor.rgb += PL_IVOR * (gsS * sfSmoothG * plT * uGloss);
+            // ── AND TWO THINGS THAT WERE TRIED AND ARE NOT HERE ─────────────
+            //
+            // The cost of this lobe is measured and it is Mira's blacks: at
+            // gloss 0.55 her band over 0.85 goes 1.5% to 3.2% and her true
+            // blacks go 10.7% to 9.4%. That is not a bug, it is what a
+            // specular IS on a dark material — but both of the obvious ways to
+            // buy it back were tried and neither is worth its complexity.
+            //
+            // SQUARING plT, on the theory that Mira is lit so flatly that the
+            // terminator mask sits near a half over all of her and sprays a
+            // wash rather than a highlight. Measured: 3.2% and 9.7%. Identical.
+            // The wash was never the shadow side.
+            //
+            // THRESHOLDING THE LOBE with a smoothstep over its own value, to
+            // throw away the decaying skirt that lifts a 0.09 pixel over 0.10.
+            // Measured: it concentrates rather than saves — the highlight goes
+            // to 3.6% and the CLIPPING doubles, 0.4% to 0.8%, for the same
+            // 1.4 points of black. A worse trade bought with an extra stage.
+          }
+          // …and the creases go down. Multiplied on the LIT body rather than on
+          // the albedo, because occlusion is a property of the light reaching a
+          // point, not of the pigment sitting there.
+          if (uCav > 0.001) gl_FragColor.rgb *= sfCavG;
           // ── AND A WAY TO SEE THE NUMBER THE TERMINATOR IS THRESHOLDING ───
           //
           // uTerm is a position in the lighting's luminance, and that quantity
