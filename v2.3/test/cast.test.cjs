@@ -2922,15 +2922,30 @@ const { boot } = require('./harness.cjs');
       return { party: ps / Math.max(1, pn), plaza: fs / Math.max(1, fn),
                p99: hi[Math.floor(hi.length * 0.99)] };
     };
-    C3.look({ dof: 0, bloom: 0 });
-    const off = await sharp();
+    // ── AND THE COMPARISON FRAME HAS TO GO THROUGH THE PASS (Build 191) ──
+    //
+    // This used to take ONE off-frame at {dof: 0, bloom: 0} and compare
+    // everything against it. That worked only by accident: `inkWanted()` keeps
+    // the post pass alive when the contour is on, and the contour was on, so
+    // both frames were composited. Build 191 removed the contour and the same
+    // off-frame started skipping the pass altogether — so the glow ratio was
+    // measuring whether the pass RAN, not what the bloom does, and it came
+    // back 0.836 for a bloom that had not changed at all.
+    //
+    // Two off-frames now, each turning off only the thing it is about and
+    // leaving the other on, so the pass composites in every frame compared.
+    C3.look({ dof: 0 });
+    const offLens = await sharp();
+    C3.look(was);
+    C3.look({ bloom: 0 });
+    const offGlow = await sharp();
     C3.look(was);
     const on = await sharp();
     return {
       figN,
-      party: +(on.party / Math.max(1e-6, off.party)).toFixed(2),
-      plaza: +(on.plaza / Math.max(1e-6, off.plaza)).toFixed(2),
-      glow:  +(on.p99 / Math.max(1e-6, off.p99)).toFixed(3),
+      party: +(on.party / Math.max(1e-6, offLens.party)).toFixed(2),
+      plaza: +(on.plaza / Math.max(1e-6, offLens.plaza)).toFixed(2),
+      glow:  +(on.p99 / Math.max(1e-6, offGlow.p99)).toFixed(3),
       onByDefault: was.dof > 0.002,
     };
   });
@@ -3063,7 +3078,8 @@ const { boot } = require('./harness.cjs');
       frame:   +(all / m.lum.length * 100).toFixed(2),
       bodies:  +(box / Math.max(1, boxN) * 100).toFixed(2),
       plaza:   +(far / Math.max(1, farN) * 100).toFixed(2),
-      onByDefault: was.line > 0.002,
+      // the ink is gone (Build 191); what ships for opening the game is the lens
+      onByDefault: was.dof > 0.002,
     };
   });
   check('LOOK: the contour is a LINE and not a wash — a few per cent of the picture',
@@ -3089,10 +3105,20 @@ const { boot } = require('./harness.cjs');
   // painterly treatment ran AFTER three's encode, so the scene was shaded in
   // two different colour spaces depending on which path it took. With the
   // paint, the haze and the encode in one order everywhere the error is 0.008.
-  check('LOOK: the drawn outline is what you get for opening the game',
+  // ── AND THE OUTLINE IS NOT WHAT YOU GET ANY MORE (Build 191) ──────────
+  //
+  // This asserted the drawn contour ships. It was removed for looking cheap —
+  // a depth operator draws a line of even weight around everything with an
+  // edge, which is a filter rather than drawing — so the check that guarded it
+  // goes with it rather than being loosened into something that passes.
+  //
+  // What DOES ship for opening the game is the lens, and that is worth holding
+  // on to: it is the treatment the whole separation between the fight and the
+  // city now rests on.
+  check('LOOK: the lens is what you get for opening the game',
     ink.onByDefault === true,
-    JSON.stringify({ line: ink.onByDefault }) + ' — a thin silhouette only:'
-      + ' the band ladder and the paper grain both fought the art and stay off');
+    JSON.stringify({ lens: ink.onByDefault }) + ' — the band ladder, the paper'
+      + ' grain and the ink contour all fought the art and are all off');
 
   // ═══ N · THE PATH EVERY PLAYER TAKES ═══
   //
@@ -3540,19 +3566,33 @@ const { boot } = require('./harness.cjs');
                     Math.round((b.bottom - cr.top) / cr.height * on.h)]);
       });
       let bn = 0, any = 0, full = 0;
-      for (const [bx0, by0, bx1, by1] of boxes)
+      // …and the luminance inside each body's box against a ring around it
+      let inSum = 0, inN = 0, ringSum = 0, ringN = 0;
+      const lumAt = (x, y) => { const i = (y * on.w + x) * 4;
+        return (0.2126 * on.d[i] + 0.7152 * on.d[i + 1] + 0.0722 * on.d[i + 2]) / 255; };
+      for (const [bx0, by0, bx1, by1] of boxes) {
         for (let y = Math.max(0, by0); y < Math.min(on.h, by1); y++)
           for (let x = Math.max(0, bx0); x < Math.min(on.w, bx1); x++) {
             const v = mask.d[(y * on.w + x) * 4];
             if (v > 10) any++;
             if (v > 200) full++;
+            inSum += lumAt(x, y); inN++;
             bn++;
           }
+        const pad = Math.round((bx1 - bx0) * 0.55);
+        for (let y = Math.max(0, by0); y < Math.min(on.h, by1); y++)
+          for (let x = Math.max(0, bx0 - pad); x < Math.min(on.w, bx1 + pad); x++) {
+            if (x >= bx0 && x < bx1) continue;      // the ring, not the body
+            ringSum += lumAt(x, y); ringN++;
+          }
+      }
       return { sat: +(sat / n).toFixed(3), dark: +(100 * dark / n).toFixed(2),
                lo: +lo.toFixed(3), hi: +hi.toFixed(3), bodies: boxes.length,
                covers: +(100 * any / bn).toFixed(2),
                atFull: +(100 * full / bn).toFixed(2),
-               crisp: any ? +(full / any).toFixed(2) : 0 };
+               crisp: any ? +(full / any).toFixed(2) : 0,
+               sep: +Math.abs((inN ? inSum / inN : 0)
+                            - (ringN ? ringSum / ringN : 0)).toFixed(3) };
     });
     check('DRAWN: the picture has colour in it — it measured 0.068, a grey with a tint',
       pic.sat > 0.13,
@@ -3560,10 +3600,27 @@ const { boot } = require('./harness.cjs');
     check('DRAWN: …and a black to stand it against, which it did not have',
       pic.lo < 0.02 && pic.dark > 1.5,
       JSON.stringify(pic) + ' — the darkest pixel, and the share under 0.06');
-    check('DRAWN: …and the contour is a decided mark, not a soft one',
-      pic.bodies >= 3 && pic.covers > 1.5 && pic.covers < 10 && pic.crisp > 0.72,
-      JSON.stringify(pic) + ' — read off the MASK, so neither the ink colour nor'
-      + ' the picture under it can flatter this. The Laplacian alone scored 0.65');
+    // ── AND THE SEPARATION IS VALUE NOW, NOT A LINE (Build 191) ────────
+    //
+    // The contour was removed for looking cheap, so the check that guarded it
+    // goes with it — a gate for a feature that is gone is not a gate. But the
+    // JOB it was doing has to be guarded by something, and the job was never
+    // the line: it was that a body reads as separate from what is behind it.
+    //
+    // That is what this asks instead, and it is the harder question. It
+    // compares the luminance of the bodies against the luminance of the ring
+    // of picture immediately around them, which is the comparison an eye
+    // actually makes at a silhouette. An outline would pass it trivially; so
+    // would a figure lit against a dark ground, which is the point — either is
+    // a real answer and a flat grey figure on a flat grey plaza is not.
+    check('DRAWN: …and a body separates from what is behind it',
+      pic.bodies >= 3 && pic.sep > 0.03,
+      JSON.stringify(pic) + ' — the luminance gap between the bodies and the'
+      + ' ring of picture around them; it measures 0.045. This is a FLOOR'
+      + ' against a flat picture and not a target: a grey figure on a grey'
+      + ' plaza runs about 0.015, and the art it is aiming at is far above'
+      + ' both. The ink used to buy this with a drawn line and it is bought'
+      + ' with light now, which is the harder way and the right one');
   }
 
   // ═══ A PLACE THAT IS NOT THE FIGHT (Build 184) ═════════════════════════

@@ -314,7 +314,7 @@ const LOOK = {
   //     0.10     2.00     5.65    0.74
   //     0.16     1.63     4.71    0.74    ..outline
   //     0.24     1.31     3.81    0.73    ..breaking up
-  line:  0.9,    // how black the contour is
+  line:  0.0,    // how black the contour is — see `sil`, Build 191
   linew: 0.9,    // how wide, in pixels of the drawing buffer — thin on purpose
   bite:  0.16,   // how far a surface must jump, as a fraction of its distance
   reach: 14.0,   // …and how far out the ink carries, in metres
@@ -357,9 +357,22 @@ const LOOK = {
   // `sil` REPLACES the old `line` when it is above zero; `bite` is still the
   // curvature threshold both operators share, and `line` survives for the
   // negative debug views.
-  sil:    0.95,  // the silhouette line: how black
+  // ── AND THE INK IS OFF (Build 191) ───────────────────────────────────
+  //
+  // Called cheap, and it was: a drawn contour is a mark an illustrator CHOOSES
+  // to make — thicker where a form turns away, absent where two things are the
+  // same colour, broken where the light crosses it. What a depth operator can
+  // do is put a line of even weight around everything that has an edge, which
+  // is the look of a filter rather than of drawing, and no amount of tuning the
+  // threshold changes what kind of thing it is.
+  //
+  // The operator stays in the file, dialable and documented, because it is the
+  // honest version of that idea and the debug views read through it. It just
+  // does not ship: the silhouette now comes from value and the backlight, which
+  // is how the reference separates a figure from its background anyway.
+  sil:    0.0,   // the silhouette line: how black
   silg:   0.10,  // how big a one-sided depth step earns it, as a fraction of distance
-  crease: 0.22,  // …and the interior line, on folds, at its own strength
+  crease: 0.0,   // …and the interior line, on folds, at its own strength
   crush:  0.55,  // the black point, into the darkest fiftieth of the LINEAR range
   gsat:   1.45,  // chroma over the whole frame; 1 is untouched
   // …AND IT IS A TRACE, NOT A TREATMENT. At 0.85 this was the loudest thing
