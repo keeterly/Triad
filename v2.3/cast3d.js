@@ -99,6 +99,25 @@ const CAST = {
           turn: 46, tall: 0.97, strike: 'staff', verb: 'cast' },
   mira: { model: 'mira.glb', sel: '.k-hero[data-hero="mira"]',
           paper: 0xeef2ea, shadow: 0x76907c, ink: 0x2b352e,
+          // ── AND SHE HAD NO BLACK IN HER AT ALL (Build 202) ───────────────
+          //
+          // Her median already landed on the art sheet's to a thousandth —
+          // 0.187 against 0.192 — while 0.1% of her sat under 0.10 against the
+          // sheet's 13%. She is lit almost entirely by ambient: a dark albedo
+          // with the hemisphere putting a floor under it and the key barely
+          // reaching her, so her lit side and her shadow side are nearly one
+          // value and she reads as a flat shape rather than a person in
+          // leather.
+          //
+          // A black point is the only move that puts a true black back into a
+          // body that has none, and it CANNOT be paired with the curve: at
+          // black 0.006 with curve 1.1 the gamma lifts every dark straight
+          // back over the line and she measures 0% under 0.10 again. So this
+          // is the black point alone, and the median it costs is the price —
+          // 0.164 against 0.192, against 10.9% of her under 0.10 against 13%.
+          // Photographed at 0, 0.006 and 0.012: at zero she is one grey-brown
+          // mass, at 0.012 her legs and boots merge into a dark one.
+          black: 0.006,
           // ── AND SHE OPENS UP LIKE THE OTHER TWO (Build 190) ─────────────
           //
           // 22 was the outlier: `turn` is how far a body is brought back
@@ -824,6 +843,7 @@ function watercolour(map, tone) {
     // NOT `lift`, because `lift` is already the watercolour's dial and this
     // file has lost a build to two different things sharing one name.
     uPlLift: { value: tone.curve || 1 },
+    uPlBlack: { value: tone.black || 0 },
     uTexel2: { value: new THREE.Vector2(1 / 2048, 1 / 2048) },
     uEdge:  { value: LOOK.edge },  uLift:  { value: LOOK.lift },
     uWash:  { value: LOOK.wash },  uAir:   { value: LOOK.air },
@@ -860,6 +880,7 @@ function watercolour(map, tone) {
         uniform float uNan;
         uniform float uExpo;
         uniform float uPlLift;
+        uniform float uPlBlack;
         uniform vec2 uTexel2;
         // THE LIGHTING HUES ARE NOT PIGMENT AND NOT DIALS. uPaper/uShadow/uInk
         // are the watercolour's pigments and belong to the figure; these are
@@ -1306,6 +1327,23 @@ function watercolour(map, tone) {
           // exactly 100, the mask test is g < 100, and Elin vanished from every
           // reading while rendering perfectly on screen. The debug outputs are
           // measurements, not pictures, and nothing downstream may touch them.
+          // ── AND A BLACK POINT, WHICH IS THE OTHER HALF OF A LEVELS ──────
+          //
+          // The curve above lifts a midtone and cannot reach a black: it maps
+          // 0 to 0 and 1 to 1, so a body with no dark values in it still has
+          // none afterwards. Mira is that body — measured, her median lands on
+          // the art sheet's to a thousandth while 0.1% of her sits under 0.10
+          // against the sheet's 13%. She is lit almost entirely by ambient:
+          // her albedo is dark, the hemisphere puts a floor under it, and the
+          // key barely reaches her, so her lit side and her shadow side are
+          // nearly the same value and she reads as a flat shape.
+          //
+          // Subtracting a black point in linear light is what a levels control
+          // does, and it is the only move that can put a true black back into
+          // a body that has none. It runs BEFORE the curve so the curve can
+          // put the median back where the sheet wants it.
+          if (uPlBlack > 0.0 && uPl > -0.5)
+            c = max(vec3(0.0), (c - uPlBlack) / max(0.02, 1.0 - uPlBlack));
           if (uPlLift != 1.0 && uPl > -0.5)
             c = pow(max(c, vec3(0.0)), vec3(1.0 / max(0.05, uPlLift)));
           gl_FragColor.rgb = c;
