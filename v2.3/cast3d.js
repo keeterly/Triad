@@ -388,13 +388,41 @@ const LOOK = {
   sil:    0.0,   // the silhouette line: how black
   silg:   0.10,  // how big a one-sided depth step earns it, as a fraction of distance
   crease: 0.0,   // …and the interior line, on folds, at its own strength
-  crush:  0.55,  // the black point, into the darkest fiftieth of the LINEAR range
-  gsat:   1.45,  // chroma over the whole frame; 1 is untouched
+  // …AND THE BLACK POINT IS A COMPROMISE BETWEEN TWO HONEST MEASUREMENTS.
+  // The FIGURES want it near 0.20: at that setting their black share is 2.5%
+  // against the art's 2.1%. The FRAME wants it near 0.45, because this crush
+  // is also what puts deep darks into the plaza, and the suite holds a floor
+  // there. 0.42 clears the frame's floor at 1.85% and leaves the figures a
+  // little darker than the art — which is the right way round to be wrong,
+  // since the art is a character sheet on white and this is a plaza at dusk.
+  //
+  // The real answer is for the scene's blacks to come from the scene being
+  // dark rather than from a curve applied to everybody, and that is a lighting
+  // job rather than a grading one.
+  crush:  0.42,  // the black point, into the darkest fiftieth of the LINEAR range
+  gsat:   1.00,  // chroma over the whole frame; 1 is untouched
   // …AND IT IS A TRACE, NOT A TREATMENT. At 0.85 this was the loudest thing
   // in the frame and the measurement said so: hue diversity fell from the
   // reference's 86.7% two-bucket share to 95.4%. Dropping it to a quarter
   // moved the frame's whole hue profile 20% closer to the reference.
   warm:   0.25,  // warm light against cool shadow, across the picture
+  // ── AND THE GRADE WAS PUSHING THE FIGURES AWAY FROM THE ART (Build 193) ──
+  //
+  // Measured against the finished character art, through each figure's own
+  // mask rather than its box, the cast was wrong on every axis the grade
+  // controls — and wrong in the direction this grade had been pushing:
+  //
+  //                       art     before    after
+  //     median           0.327     0.192    0.218
+  //     black <0.06       2.1%     10.9%     2.5%
+  //     saturation       0.173     0.331    0.187
+  //
+  // Twice the chroma and five times the black. Builds 186 to 188 read "washed
+  // out" as a fault in the FIGURES and answered it with a black point and a
+  // saturation push; the wash was in the scene around them — the grey-card
+  // background and the missing light source — and the same dials applied to
+  // the people made them muddy and lurid. Saturation and the black point land
+  // on the art almost exactly when they are simply turned down.
   atmo:   0.85,  // how far the distance is graded off the grey card it was
   atmod:  22.0,  // …and the metres at which that grade is full
   flat:  0.0,    // the band ladder stays off; it flattened the art it sat on
