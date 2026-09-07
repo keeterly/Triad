@@ -1305,6 +1305,10 @@
       const c = $('k-camp');
       if (c && c.classList.contains('k-camp-3d')) leaveCampScene();
     }
+    if (which !== 'mark') {
+      const m = $('k-mark');
+      if (m && m.classList.contains('k-mark-3d')) leaveMarkScene();
+    }
     const M = window.K && window.K.MUSIC, SRC = window.K && window.K.MUSIC_SRC;
     if (M && SRC) {
       try {
@@ -1907,6 +1911,20 @@
       const b = _reck.beats[_rbeat];
       $('k-reck-who').textContent = b.who ? CAST[b.who].n : '';
       $('k-reck-who').classList.toggle('k-hidden', !b.who);
+      // AND A FACE ON THE LINE. The bodies are the 3D cast on the board; the
+      // bust is what says which of them the words belong to without the player
+      // matching a name in small caps to a silhouette across the screen. It is
+      // rebuilt only when the SPEAKER changes, so two beats from one mouth read
+      // as one person still talking rather than a portrait flashing per tap.
+      const bust = $('k-reck-bust');
+      if (bust) {
+        bust.classList.toggle('k-hidden', !b.who);
+        if (b.who && bust.dataset.who !== b.who) {
+          bust.dataset.who = b.who;
+          bust.innerHTML = '<img src="../art/' + CAST[b.who].art + '-face.webp" alt="">';
+        }
+        if (!b.who) bust.dataset.who = '';
+      }
       $('k-reck-line').className = b.who ? 'k-rk-line' : 'k-rk-line k-rk-narr';
       $('k-reck-line').textContent = b.line;
       $('k-reck-next').textContent = _rbeat === _reck.beats.length - 1 ? 'END' : 'NEXT';
@@ -1959,6 +1977,9 @@
     _reck = null; _rbeat = 0;
     const box = $('k-reck');
     if (box) { box.classList.add('k-hidden'); const f = $('k-reck-fork'); if (f) f.innerHTML = ''; }
+    // the bust forgets who it was, so the next reckoning's first speaker pops
+    const bust = $('k-reck-bust');
+    if (bust) { bust.dataset.who = ''; bust.innerHTML = ''; bust.classList.add('k-hidden'); }
     const stage = $('k-stage');
     if (stage) stage.classList.remove('k-reckoning');
     if (window.Cast3D && window.Cast3D.shot) window.Cast3D.shot('home');
@@ -3638,8 +3659,10 @@
     const bg = $('k-mark-bg-img');
     if (bg) bg.src = '../art/' + regionOf(RUN.region).art + '.webp';
     const figs = $('k-mark-cast').querySelectorAll('.k-mkc-fig');
-    if (figs[0]) { figs[0].src = '../art/' + A.art + '.webp'; figs[0].alt = A.n; }
-    if (figs[1]) { figs[1].src = '../art/' + B.art + '.webp'; figs[1].alt = B.n; }
+    if (figs[0]) { figs[0].src = '../art/' + A.art + '.webp'; figs[0].alt = A.n;
+                   figs[0].dataset.who = heroes[0]; }
+    if (figs[1]) { figs[1].src = '../art/' + B.art + '.webp'; figs[1].alt = B.n;
+                   figs[1].dataset.who = heroes[1]; }
     const gl = $('k-mark-glyph');
     if (gl) gl.innerHTML = K.icon((held ? K.SIGILS[held.sigil] : def).glyph || 'finale');
     $('k-mark-line').textContent = held ? K.SIGILS[held.sigil].line : '';
@@ -3754,8 +3777,13 @@
     leaveMark();
   }
   function leaveMark() {
+    leaveMarkScene();
     RUN.pendingSigil = null; RUN.markPair = null; _markPair = null; _markPick = null; save();
     endBondChain();
+  }
+  function leaveMarkScene() {
+    try { const C3 = window.Cast3D; if (C3 && C3.scene) C3.scene(null); } catch (e) {}
+    const m = $('k-mark'); if (m) m.classList.remove('k-mark-3d');
   }
   function openMark(pair) {
     if (!RUN || !RUN.pendingSigil) return false;
@@ -3764,6 +3792,19 @@
     RUN.markPair = _markPair; save();
     _markPick = null;
     screen('mark'); renderMark();
+    // ── THE TWO OF THEM STAND ON THE ROAD (Build 185) ─────────────────────
+    //
+    // Which pair it is varies, so the marks are handed over at the door: they
+    // stand either side of the thing burning between them, facing it, which is
+    // facing each other. Fails soft to the painted cut-outs, same as the fire.
+    const pair2 = (_markPair || PAIRS[0]).split('|');
+    let stood = false;
+    try {
+      const C3 = window.Cast3D;
+      if (C3 && C3.scene) stood = !!C3.scene('mark', { marks: {
+        [pair2[0]]: [-1.08, 0.15], [pair2[1]]: [1.08, 0.15] } });
+    } catch (e) {}
+    $('k-mark').classList.toggle('k-mark-3d', stood);
     return true;
   }
 

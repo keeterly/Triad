@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=184" />
+  <link rel="stylesheet" href="styles.css?v=185" />
 </head>
 <body>
   <div id="k-scale">
@@ -202,8 +202,17 @@
       <div id="k-reck" class="k-hidden">
         <div id="k-reck-title"></div>
         <div id="k-reck-plate">
-          <b id="k-reck-who"></b>
-          <div id="k-reck-line"></div>
+          <!-- A LINE SOMEBODY SAYS HAS A FACE ON IT. The bodies talking are the
+               3D cast standing on the board they just fought over; the bust is
+               the JRPG convention that says which of them is speaking, and it
+               is the same asset the campfire and the party readout wear. -->
+          <div class="k-rk-row">
+            <span id="k-reck-bust" class="k-rk-bust k-hidden" aria-hidden="true"></span>
+            <div class="k-rk-txt">
+              <b id="k-reck-who"></b>
+              <div id="k-reck-line"></div>
+            </div>
+          </div>
           <div id="k-reck-dots" aria-hidden="true"></div>
           <span id="k-reck-next">NEXT</span>
         </div>
@@ -366,6 +375,11 @@
          cards are the answer to a question the scene has asked. -->
     <section id="k-mark" class="k-hidden" aria-label="What the bond taught">
       <div id="k-mark-bg" aria-hidden="true"><img id="k-mark-bg-img" src="" alt=""></div>
+      <!-- WHERE THE TWO OF THEM STAND (Build 185). Same borrowed canvas the
+           fire uses: the 3D layer moves in here while the mark is being
+           settled, and back onto the battlefield after. The painted cut-outs
+           below are what runs when there is no layer to borrow. -->
+      <div id="k-mark-scene" aria-hidden="true"></div>
       <div id="k-mark-cast" aria-hidden="true">
         <img class="k-mkc-fig k-mkc-a" src="" alt="">
         <span id="k-mark-seal"><i id="k-mark-glyph"></i></span>
@@ -536,13 +550,13 @@
     setTimeout(check, 2500);
   })();
   </script>
-  <script src="run.js?v=184"></script>
-  <script src="game.js?v=184"></script>
+  <script src="run.js?v=185"></script>
+  <script src="game.js?v=185"></script>
   <!-- THE CAST IN THREE DIMENSIONS — a module, and inert unless ?cast=3d.
        It draws one canvas under the DOM heroes and paints a rigged figure
        into each hero's box; everything above it (rows, drag, aim, popups,
        the party HUD) is untouched. -->
-  <script type="module" src="cast3d.js?v=184"></script>
+  <script type="module" src="cast3d.js?v=185"></script>
   <script>
     // ── FIT THE 932x430 DESIGN SPACE TO THE PART OF THE SCREEN THAT IS ONE ──
     //

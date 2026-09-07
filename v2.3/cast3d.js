@@ -4479,6 +4479,30 @@ const Cast3D = (() => {
       // the fire itself is a target too, and it is at the middle of the ring
       fireEl: '#k-camp .k-ct-all',
     },
+    // ── AND THE MARK IS TWO PEOPLE ON A ROAD (Build 185) ────────────────────
+    //
+    // The same problem the fire had and the same fix: two full-body cut-outs
+    // standing in a void is the character-select look, whatever the sentence
+    // between them says. WHICH two varies — a mark belongs to a pair — so this
+    // one is given its marks when it opens rather than carrying them, which is
+    // what `opts.marks` is for.
+    //
+    // They face each other because they are symmetric about the middle and
+    // `faceAt` is that middle, which is also where the mark is burning.
+    mark: {
+      host: 'k-mark-scene', bare: true, el: '#k-mark-cast .k-mkc-fig[data-who="{id}"]',
+      marks: {}, faceAt: [0, 0],
+      // ── AND THEY STAND BEHIND THE ANSWERS ───────────────────────────────
+      // The fan owns the board from 186 down, so a lens that fits two whole
+      // people ABOVE it would have to make them 86px tall. They stand behind
+      // it instead, which is the composition the painted cut-outs already had:
+      // swept, this is 190px tall with heads at 124 — clear of the question —
+      // and feet at 314, where the cards cross their shins. At the first pose
+      // tried they were 225 tall with their crowns 69px off the top edge.
+      shot: { az: 0, dist: 8.8, height: 1.70, aimY: 2.10, fov: 41, at: [0, 0, 0] },
+      // the mark burns between them, at the height they are looking at
+      fireEl: '#k-mark-seal', fireY: 1.15,
+    },
   };
   let SCENE = null, sceneName = null, _sceneFog = null;
   function notBodies() {
@@ -4941,7 +4965,7 @@ const Cast3D = (() => {
       const el = document.querySelector(SCENE.fireEl);
       if (el) {
         const at = SCENE.faceAt || [0, 0];
-        const p = toScreen(_foot.set(at[0], 0, at[1]), b);
+        const p = toScreen(_foot.set(at[0], SCENE.fireY || 0, at[1]), b);
         el.style.setProperty('--fx', p.x.toFixed(1) + 'px');
         el.style.setProperty('--fy', p.y.toFixed(1) + 'px');
       }
@@ -5980,32 +6004,28 @@ const Cast3D = (() => {
         // to rest, which makes it a damped fixed-point iteration rather than
         // the frame-by-frame tail-chase this comment used to warn against —
         // and the deadband is what ends it.
-        if (!f.acting && !f.lunge
-            && f.bones.LeftFoot && f.bones.RightFoot) {
-          // …and the bones are brought up to date first. matrixWorld is only
-          // meaningful once the root's has been recomputed for this frame, and
-          // on the frame a figure is first placed it has not been — which
-          // handed mira a delta half a metre wrong in both axes, frozen for
-          // the rest of the fight. It costs one traversal, once per figure.
-          f.root.updateMatrixWorld(true);
-          const eL = f.bones.LeftFoot.matrixWorld.elements, eR = f.bones.RightFoot.matrixWorld.elements;
-          const fx = (eL[12] + eR[12]) / 2, fz = (eL[14] + eR[14]) / 2;
-          const p = f._stLast;
-          const still = p && Math.abs(fx - p[0]) < 0.003 && Math.abs(fz - p[1]) < 0.003
-                          && Math.abs(f.root.position.x - p[2]) < 0.003
-                          && Math.abs(f.root.position.z - p[3]) < 0.003;
-          f._stHold = still ? (f._stHold || 0) + 1 : 0;
-          f._stLast = [fx, fz, f.root.position.x, f.root.position.z];
-          if (f._stHold >= 3) {
-            const wantX = fx - f.root.position.x, wantZ = fz - f.root.position.z;
-            if (f.standDX === undefined
-                || Math.abs(wantX - f.standDX) > 0.004
-                || Math.abs(wantZ - (f.standDZ || 0)) > 0.004) {
-              f.standDX = wantX; f.standDZ = wantZ;
-              f._stHold = 0;              // …and settle again before the next pass
-            }
-          }
-        }
+        // ── AND IT MEASURES THE FEET THAT GET DRAWN (Build 185) ────────────
+        //
+        // The fixed point above still would not converge, and the instrument
+        // said why: `_stHold` climbed past twenty while `standDX` never moved
+        // once, with the delta it should have been chasing eighteen times the
+        // deadband. A loop that is reached, finds a difference, and declines
+        // to act on it is not looking at the number it thinks it is.
+        //
+        // It was not. This block used to run HERE, before the placement — and
+        // `footLock` runs at the bottom of the figure's turn, after it, because
+        // a foot pinned to a world position is only pinned if that is the
+        // position which gets drawn. So the mixer laid down the clip's raw
+        // pose, this block measured THOSE feet, and then the solver moved them
+        // somewhere else for the frame the player actually sees. Seven
+        // centimetres apart, every frame, consistently — which is why the
+        // residual looked frozen and personal rather than like drift.
+        //
+        // The measurement is now the last thing that happens to a figure,
+        // after the solve, so the delta it freezes is between the root and the
+        // feet that are on screen. It is spent on the NEXT frame's placement,
+        // which costs nothing: the whole point of the freeze is that it is a
+        // settled constant, not a per-frame correction.
         let tx = slot[0] - (f.standDX === undefined ? f.ctrOff : f.standDX);
         let tz = slot[1] - (f.standDZ || 0);
         let k = Math.min(1, dt * (f.acting ? 1.1 : 5.5));
@@ -6049,6 +6069,49 @@ const Cast3D = (() => {
       // only pinned if that is the position which gets drawn. Called here
       // rather than inside `step` for exactly that reason.
       if (footIK()) f.footLock(dt);
+      // …and NOW the stand delta, off the solved feet — see the note above the
+      // placement. Nothing between this and the draw moves either body part.
+      if (!f.acting && !f.lunge && f.bones.LeftFoot && f.bones.RightFoot) {
+        // The bones are brought up to date first: `reachLeg` writes rotations,
+        // and matrixWorld is only meaningful once the root's has been
+        // recomputed after them. It costs one traversal, once per figure.
+        f.root.updateMatrixWorld(true);
+        const eL = f.bones.LeftFoot.matrixWorld.elements, eR = f.bones.RightFoot.matrixWorld.elements;
+        const fx = (eL[12] + eR[12]) / 2, fz = (eL[14] + eR[14]) / 2;
+        const p = f._stLast;
+        const still = p && Math.abs(fx - p[0]) < 0.003 && Math.abs(fz - p[1]) < 0.003
+                        && Math.abs(f.root.position.x - p[2]) < 0.003
+                        && Math.abs(f.root.position.z - p[3]) < 0.003;
+        f._stHold = still ? (f._stHold || 0) + 1 : 0;
+        f._stLast = [fx, fz, f.root.position.x, f.root.position.z];
+        if (f._stHold >= 3) {
+          const wantX = fx - f.root.position.x, wantZ = fz - f.root.position.z;
+          if (f.standDX === undefined
+              || Math.abs(wantX - f.standDX) > 0.004
+              || Math.abs(wantZ - (f.standDZ || 0)) > 0.004) {
+            // ── HALF A STEP AT A TIME ────────────────────────────────────
+            //
+            // Taking the whole correction rang instead of settling: the error
+            // came back the same size with the sign flipped, pass after pass
+            // (0.032, -0.099, -0.048, +0.048, 0.026), which is the signature
+            // of a loop whose gain is above one, not of a loop that is nearly
+            // there. It is above one because the plant does not simply fail to
+            // follow the root — it holds, and then RELEASES, and the foot
+            // arrives past where the arithmetic expected it.
+            //
+            // Halving the step takes the gain back under one and the ringing
+            // becomes decay, at the cost of a few more passes. They are free:
+            // a pass is three still frames, the correction is centimetres, and
+            // nobody is watching a figure's feet in the second after it is
+            // placed. The deadband still ends it.
+            f.standDX = f.standDX === undefined ? wantX
+                                                : f.standDX + (wantX - f.standDX) * 0.5;
+            f.standDZ = f.standDZ === undefined ? wantZ
+                                                : f.standDZ + (wantZ - f.standDZ) * 0.5;
+            f._stHold = 0;                // …and settle again before the next pass
+          }
+        }
+      }
       const mat = f.root.userData.mat;
       if (mat && mat.userData.depth) {
         // the air-and-warmth ladder, from real distance rather than a class
@@ -6323,7 +6386,7 @@ const Cast3D = (() => {
     // names on its marks, turns them toward the middle and holds a shot on it.
     // `scene(null)` puts everything back, and the fight's path is untouched:
     // with no scene set every line above reads exactly the way it did.
-    scene(name) {
+    scene(name, opts) {
       const was = sceneName;
       if (!name) {
         SCENE = null; sceneName = null;
@@ -6333,6 +6396,8 @@ const Cast3D = (() => {
         return true;
       }
       const def = SCENES[name]; if (!def || !ready) return false;
+      // …and a scene whose cast varies is handed its marks at the door
+      if (opts && opts.marks) def.marks = opts.marks;
       const host = document.getElementById(def.host);
       if (!host) return false;
       SCENE = def; sceneName = name;
@@ -6349,7 +6414,7 @@ const Cast3D = (() => {
         const f = figs[id]; if (!f) continue;
         const m = def.marks[id], at = def.faceAt || [0, 0];
         aim(f, Math.atan2(at[0] - m[0], at[1] - m[1]) / D);
-        f.standDX = undefined; f._stHold = 0; f._stLast = null;
+        f.standDX = undefined; f.standDZ = undefined; f._stHold = 0; f._stLast = null;
       }
       Cast3D.shot(def.shot, { speed: 6 });
       return true;

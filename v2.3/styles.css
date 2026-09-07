@@ -3031,6 +3031,25 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    cards — the only thing on this screen the player can actually DO — off the
    bottom edge by seven pixels. The moment still happens; it just happens in
    the top half. */
+/* ── AND WHEN THE REAL TWO ARE STANDING THERE (Build 185) ─────────────────
+   The layer projects each figure's foot and crown onto that person's own
+   cut-out, in STAGE units, and the cut-out goes to zero opacity — so the image
+   becomes a rectangle the right size in the right place with nothing drawn in
+   it, and everything anchored to it (nothing, today, but the pattern is the
+   fight's) keeps working. Without the layer the paintings below are what runs,
+   which is the whole of the fallback. */
+#k-mark-scene { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+#k-mark-scene:empty { display: none; }
+#k-mark.k-mark-3d #k-mark-cast { position: absolute; inset: 0; left: 0; top: 0;
+  transform: none; display: block; gap: 0; z-index: 2; }
+/* the seal follows the point between them rather than a fixed 54px from the
+   top of a box that is now the whole screen */
+#k-mark.k-mark-3d #k-mark-seal { left: var(--fx, 50%); top: var(--fy, 190px);
+  transform: translate(-50%, -50%); }
+#k-mark.k-mark-3d .k-mkc-fig { position: absolute; opacity: 0;
+  left: var(--fx, 50%); top: calc(var(--fy, 240px) - var(--fh, 170px));
+  height: var(--fh, 170px); width: 90px; transform: translateX(-50%);
+  animation: none; }
 #k-mark-cast { position: absolute; left: 50%; top: 84px; z-index: 1;
   transform: translateX(-50%); display: flex; align-items: flex-end; gap: 168px;
   pointer-events: none; }
@@ -4066,23 +4085,46 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
      What it needs is legibility over a bright plaza, and that is what a
      gradient scrim gives: no edges, no corners, no box. The text sits on the
      picture the way a subtitle does. */
+  /* ── AND THE BAND RUNS EDGE TO EDGE (Build 185) ─────────────────────
+     The scrim above says "no edges, no corners, no box" and then drew one:
+     760 pixels of gradient with two hard vertical seams down the middle of
+     the plaza. A subtitle scrim only stops reading as a panel when it has
+     nowhere to end — so the DARKNESS is full-bleed and the WORDS are what
+     is constrained, which is the shape every film subtitle has. */
   display: flex; flex-direction: column; justify-content: flex-end;
   position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
-  width: 760px; min-height: 104px; padding: 26px 24px 30px; border-radius: 0;
+  --rk-pad: 6%;
+  width: 100%; min-height: 104px; padding: 26px var(--rk-pad) 30px; border-radius: 0;
   background: linear-gradient(180deg, rgba(8,7,11,0) 0%, rgba(8,7,11,0.62) 34%,
                               rgba(6,5,9,0.9) 100%);
   border: 0; box-shadow: none;
   animation: k-rk-in 520ms cubic-bezier(0.2,0.8,0.3,1) both; }
+/* THE SPEAKER'S FACE BESIDE THE LINE. The reckoning already happens on the
+   battlefield with the 3D cast standing in it — but a subtitle band with a
+   name in small caps over it makes the player match a word to a body across
+   the screen every beat. A bust is the JRPG answer: the same face the party
+   readout and the campfire wear, at the size a portrait sits beside a line.
+   It is a row, so a narration beat (no speaker, no bust) reflows to the full
+   width rather than leaving a hole where a face would have been. */
+.k-rk-row { display: flex; align-items: flex-end; gap: 14px; max-width: 720px; }
+.k-rk-txt { flex: 1 1 auto; min-width: 0; }
+.k-rk-bust { flex: 0 0 auto; display: block; width: 68px; height: 68px;
+  border-radius: 50%; overflow: hidden; background: rgba(8,7,11,0.6);
+  box-shadow: 0 0 0 1px rgba(201,164,92,0.45), 0 6px 20px rgba(0,0,0,0.75);
+  animation: k-rk-bust-in 320ms var(--ease-out) both; }
+.k-rk-bust img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 14%;
+  filter: brightness(1.25) contrast(1.05); }
+@keyframes k-rk-bust-in { from { opacity: 0; transform: translateY(8px) scale(0.94); } }
 #k-reck-who { display: block; font-size: 10px; letter-spacing: 0.28em; color: #c9a45c;
   margin-bottom: 6px; text-shadow: 0 2px 10px rgba(0,0,0,0.95); }
 .k-rk-line { font-size: 17px; line-height: 1.4; color: #f2e9d8;
   text-shadow: 0 2px 12px rgba(0,0,0,0.95); }
 .k-rk-narr { font-style: italic; color: #a79c88; }
-#k-reck-dots { position: absolute; left: 24px; bottom: 12px; display: flex; gap: 4px; }
+#k-reck-dots { position: absolute; left: var(--rk-pad); bottom: 12px; display: flex; gap: 4px; }
 #k-reck-dots i { width: 12px; height: 2px; background: rgba(255,255,255,0.14); border-radius: 1px; }
 #k-reck-dots i.on { background: rgba(201,164,92,0.5); }
 #k-reck-dots i.now { background: #e0c084; }
-#k-reck-next { position: absolute; right: 24px; bottom: 12px; font-size: 9px;
+#k-reck-next { position: absolute; right: var(--rk-pad); bottom: 12px; font-size: 9px;
   letter-spacing: 0.22em; color: #8d8474; animation: k-rk-blink 1.6s ease-in-out infinite; }
 @keyframes k-rk-blink { 50% { opacity: 0.35; } }
 @keyframes k-rk-in { from { opacity: 0; transform: translate(-50%, 14px); } }

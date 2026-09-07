@@ -3240,8 +3240,20 @@ const { boot } = require('./harness.cjs');
       const feet = px((eL[12] + eR[12]) / 2, 0, (eL[14] + eR[14]) / 2);
       const mark = px(S[0], 0, S[1]);
       out[id] = { dx: feet[0] - mark[0], dy: feet[1] - mark[1],
-                  // where the arithmetic PUTS it, in metres, with no animation in it
-                  settled: +(f.root.position.x + (f.standDX || 0) - S[0]).toFixed(4),
+                  // HOW FAR THE FEET ARE FROM THE MARK, IN METRES — the same
+                  // fault as `dx`/`dy` but in the units the layer thinks in,
+                  // so a placement error and a projection error can be told
+                  // apart.
+                  //
+                  // This used to read `root.x + standDX - mark`, which is the
+                  // placement arithmetic solved for its own input: the layer
+                  // puts the root at `mark - standDX`, so that expression is
+                  // zero however wrong the stand is. It reported 0.0000 for
+                  // all three through every build in which one of them was
+                  // eight pixels off its mark, which is the whole reason that
+                  // fault went four builds without a cause.
+                  settled: +Math.hypot((eL[12] + eR[12]) / 2 - S[0],
+                                       (eL[14] + eR[14]) / 2 - S[1]).toFixed(4),
                   frozen: f.standDX !== undefined };
     }
     return out;
@@ -3265,11 +3277,11 @@ const { boot } = require('./harness.cjs');
   check('LINE: …and each body stands on its own mark, not beside it',
     Object.keys(stand).length === 3
     && Object.keys(stand).every(k => stand[k].frozen
-                                  && Math.abs(stand[k].settled) < 0.01
+                                  && stand[k].settled < 0.04
                                   && stand[k].mean < 4.5),
-    JSON.stringify(stand) + ' — `settled` is metres between the placement and the'
-    + ' mark, `mean` is screen px averaged across the idle, `sway` is how far the'
-    + ' feet moved between the two samples');
+    JSON.stringify(stand) + ' — `settled` is metres between the FEET and the'
+    + ' mark, `mean` is the same fault in screen px averaged across the idle,'
+    + ' `sway` is how far the feet moved between the two samples');
 
   check('LINE: the three ranks stand on one line, not an arc',
     !line.err && line.hero < 0.01 && line.foe < 0.01,
