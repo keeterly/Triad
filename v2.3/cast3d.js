@@ -184,6 +184,10 @@ const LOOK = {
   // Off by default until it is chosen; `?look=rung:1` turns it on. The count
   // is what the eye reads as the style: 2 is a hard cel, 4 is a painted anime
   // key, 6 is barely a ladder at all.
+  // THE LIT STRUCTURE AT THE FAR END, and the lamp that comes with it. Off
+  // until it is chosen, because it puts an object in the world rather than a
+  // filter on the frame.
+  beacon: 0.0,
   cool:   0.0,   // 0 is a warm key against a cold counter; 1 swaps the two
   fill:   1.0,   // the three fill lamps together — this dial IS the key-to-fill ratio
   keyx:   1.0,   // …and the key on its own
@@ -361,6 +365,7 @@ const LOOK = {
 // file does not have to read the shader to find out
 const LOOK_HELP = {
   pl:    ['painted light', 0, 1, 0.01, 'how much the lighting is drawn rather than rendered'],
+  beacon: ['far light', 0, 1.6, 0.01, 'the lit structure behind the fight, and its backlight'],
   cool:   ['key scheme', 0, 1, 0.01, '0 warm key / cold counter — 1 swaps them'],
   fill:   ['fill', 0.05, 1.4, 0.01, 'the three fill lamps — lower is a harder key-to-fill ratio'],
   keyx:   ['key', 0.2, 2.5, 0.01, 'the key light on its own'],
@@ -4243,6 +4248,82 @@ const Cast3D = (() => {
     // scene has a physical reason to expect and did not have
     const b = new THREE.DirectionalLight(0xd8a06a, 0.48 * EXPOSURE);
     b.position.set(1.5, -3, 4);
+    // ══ THE LIGHT THAT IS IN THE PICTURE (Build 189) ═══════════════════════
+    //
+    // Measured against the art target, the three biggest gaps were the same
+    // gap: its centre reaches a luminance of 0.96 and this scene reached 0.52,
+    // it carries 12.8% red against this scene's 4%, and it has architecture
+    // where this one has fog. All three are one missing object — a lit
+    // structure at the far end of the plaza — and none of them could be closed
+    // by any pass over the finished frame, which two builds of grading
+    // established the hard way.
+    //
+    // WHY IT IS EMISSIVE GEOMETRY AND A LAMP, NOT EITHER ALONE. The geometry
+    // is what the eye sees and what the wet floor reflects; the lamp is what
+    // puts a warm edge on the backs of the party. A glowing shape with no lamp
+    // is a sticker on the horizon, and a lamp with no shape is a rim light
+    // coming from nowhere.
+    //
+    // It is a COLONNADE rather than one slab because the second measurement
+    // wanted silhouettes back there: a row of lit openings has verticals in it,
+    // and verticals are what local contrast is made of.
+    const beacon = new THREE.Group();
+    {
+      // ── AND IT HAS TO READ AS A BUILDING, NOT A LIGHT FIXTURE ──────────
+      //
+      // The first cut was eleven evenly spaced bars of the same width at the
+      // same brightness, and it read as a row of fluorescent tubes: even
+      // spacing is the one thing architecture never has. It also ran at 2.6x
+      // and clipped to pure white, which threw away the warmth it was added
+      // for — the frame's red went to 26% and its orange to 26% against a
+      // target of 12.8 and 4.2, because a blown highlight has no hue at all.
+      //
+      // So: narrower openings, irregular heights and gaps from a fixed
+      // sequence rather than a random one (a world that reshuffles itself on
+      // reload is not a place), and dim enough that the light keeps its colour.
+      const R = [0.31, 0.78, 0.12, 0.94, 0.47, 0.66, 0.05, 0.83, 0.39, 0.71,
+                 0.22, 0.58, 0.90, 0.16, 0.63, 0.44, 0.87, 0.28, 0.75, 0.51];
+      const lit = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffcd90),
+                                                fog: false, toneMapped: false });
+      const stone = new THREE.MeshBasicMaterial({ color: 0x14121a, fog: false });
+      // the mass first, so every opening is cut INTO something
+      // …AND IT IS A FOCAL SOURCE, NOT A WALL OF LIGHT. Spanning the horizon
+      // it filled a third of the frame with warm pixels — measured, the red
+      // family went to 32.7% against the target's 12.8 — which is the same
+      // fault as the amber grade two builds ago, arrived at from the other
+      // direction. What the reference does is one bright opening in a lot of
+      // dark, so the structure is narrow and central and the plaza either side
+      // of it stays cold.
+      const wall = new THREE.Mesh(new THREE.PlaneGeometry(17, 15), stone);
+      wall.position.set(0, 6.4, -25.2);
+      beacon.add(wall);
+      let x = -6.4, n = 0;
+      while (x < 6.4) {
+        const r1 = R[n % R.length], r2 = R[(n * 7 + 3) % R.length];
+        const w = 0.34 + r1 * 0.52;
+        const h = 2.1 + r2 * 4.6;
+        const o = new THREE.Mesh(new THREE.PlaneGeometry(w, h), lit);
+        // the sill line is not level either — this is a ruin
+        o.position.set(x + w * 0.5, h * 0.5 + 0.7 + r1 * 0.5, -25.0);
+        beacon.add(o);
+        x += w + 0.30 + r2 * 0.85;
+        n++;
+      }
+      // a taller opening off centre, so the eye has somewhere to go
+      const gate = new THREE.Mesh(new THREE.PlaneGeometry(1.75, 8.4), lit);
+      gate.position.set(-1.6, 4.6, -25.0);
+      beacon.add(gate);
+    }
+    // off until the dial asks for it, so nothing about the shipped picture
+    // changes by adding it to the world
+    beacon.visible = false;
+    scene.add(beacon);
+    scene.userData.beacon = beacon;
+    // the lamp that belongs to it — from behind the fight, warm, low
+    const bk = new THREE.DirectionalLight(0xffc98a, 0);
+    bk.position.set(0, 3.0, -18);
+    scene.add(bk);
+    scene.userData.backlight = bk;
     scene.add(k, r, b);
     scene.userData.key = k;
     scene.userData.rim = r;
@@ -7528,6 +7609,13 @@ const Cast3D = (() => {
       // which is painted as a flooded plaza at low sun. So it is a dial with
       // the two schemes at its ends rather than a constant somebody has to
       // come back and argue about.
+      // the lit structure and its lamp move together — they are one thing
+      if (next.beacon != null && scene.userData.beacon) {
+        const v = Math.max(0, next.beacon);
+        scene.userData.beacon.visible = v > 0.001;
+        if (scene.userData.backlight)
+          scene.userData.backlight.intensity = 1.15 * EXPOSURE * v;
+      }
       if (next.cool != null && scene.userData.key && scene.userData.rim) {
         const c = Math.max(0, Math.min(1, next.cool));
         scene.userData.key.color.setHex(0xffe3b8).lerp(new THREE.Color(0xc2d8f5), c);
