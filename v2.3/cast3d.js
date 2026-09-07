@@ -84,9 +84,23 @@ const CAST = {
           // `expo` per creature, multiplied into the global. It rides the
           // terminator mask, so it lands on the lit side and cannot touch the
           // blacks Build 202 gave Mira — measured, hers hold at 9.9% through
-          // the whole sweep. Ash at 2 doubles his highlight share for a
-          // quarter of a percent clipped.
-          expo: 2.0,
+          // the whole sweep.
+          //
+          // ── AND 2.5, NOT 2 (Build 204) ──────────────────────────────────
+          //
+          //              med    >0.60   >0.85   <0.10   clip
+          //     x2      0.322    14.5%   5.6%   12.8%   0.25%
+          //     x2.5    0.337    16.5%   7.6%   11.8%   1.33%
+          //     x3      0.344    19.2%   9.7%   10.2%   2.20%
+          //     the art 0.273    29.7%  10.6%   11.8%   0
+          //
+          // At 2.5 his blacks land exactly on the sheet's and his highlights
+          // gain two points for a percent of clip. Three reaches the sheet's
+          // highlight band and breaks the clip gate this file set itself at 2,
+          // so it is not taken — and photographed at 3.5 his scarf is a white
+          // mass with no fabric left in it, which the numbers alone call an
+          // improvement on two of four counts.
+          expo: 2.5,
           turn: 41, tall: 1.00, strike: 'sword' },
   // `verb` is which of the fight's four words this person throws when nothing
   // in particular is being asked of them — an all-out, say. Ash and Mira answer
