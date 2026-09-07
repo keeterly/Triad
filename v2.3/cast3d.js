@@ -346,7 +346,11 @@ const LOOK = {
   crease: 0.22,  // …and the interior line, on folds, at its own strength
   crush:  0.55,  // the black point, into the darkest fiftieth of the LINEAR range
   gsat:   1.45,  // chroma over the whole frame; 1 is untouched
-  warm:   0.85,  // warm light against cool shadow, across the picture
+  // …AND IT IS A TRACE, NOT A TREATMENT. At 0.85 this was the loudest thing
+  // in the frame and the measurement said so: hue diversity fell from the
+  // reference's 86.7% two-bucket share to 95.4%. Dropping it to a quarter
+  // moved the frame's whole hue profile 20% closer to the reference.
+  warm:   0.25,  // warm light against cool shadow, across the picture
   atmo:   0.85,  // how far the distance is graded off the grey card it was
   atmod:  22.0,  // …and the metres at which that grade is full
   flat:  0.0,    // the band ladder stays off; it flattened the art it sat on
@@ -5920,7 +5924,20 @@ const Cast3D = (() => {
           // paving and the people are lit by the same afternoon. The ramp sits
           // on the median with its shoulder at the third quartile, which is
           // where "lit" and "in shadow" actually divide in this frame.
-          col *= mix(vec3(0.90, 0.95, 1.12), vec3(1.10, 1.01, 0.88),
+          //
+          // AND THE WARM IS A RED, NOT A GOLD (Build 188). vec3(1.10,1.01,0.88)
+          // is an amber, and measured against the reference it was pulling the
+          // picture the wrong way: the target's warm family is 12.8% RED and
+          // 4.2% orange, and this grade produced 7.7% red and 10.8% orange —
+          // it was converting the crimson that exists into gold. Turned up to
+          // 0.85 it collapsed hue diversity outright, the two largest buckets
+          // going from the target's 86.7% to 95.4%, which is what reads as a
+          // single wash over everything rather than as light.
+          //
+          // A warm highlight in this reference is oxblood and lit skin, so the
+          // green channel comes down and the blue follows it rather than
+          // falling away — the difference between firelight and sunset.
+          col *= mix(vec3(0.90, 0.95, 1.12), vec3(1.12, 0.99, 0.94),
                      smoothstep(0.06, 0.26, glum)) * uWarm + (1.0 - uWarm);
 
           // ── AND THE LIGHT IN THE AIR, LAST ──────────────────────────────
