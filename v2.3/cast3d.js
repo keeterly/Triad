@@ -427,7 +427,23 @@ const LOOK = {
   // painted — so it has exactly two settings: how dark a real contact shadow
   // lands on that painting, and how much painted ground shows under the party.
   shade: 0.46,
-  floor: 0.34,
+  // ── AND THE FLOOR COMES DOWN A LITTLE (Build 207) ────────────────────────
+  //
+  // The game's OWN painted plate is the reference for this one, not the Arcane
+  // frame: its lower third measures median 0.060 with 78.5% under 0.10 and
+  // saturation 0.334, against this floor's 0.183 / 15.9% / 0.182. It is not a
+  // target though — the plate's dark foreground is a framing device, and this
+  // floor is a surface three people stand on and cast reflections into.
+  //
+  //     floor 0.34   near median 0.183   under 0.10 15.9%
+  //     floor 0.20   near median ~0.16   under 0.10 ~20%
+  //     floor 0.10   near median 0.144   under 0.10 23.5%
+  //
+  // Photographed at all three: the reflections read BETTER as it darkens,
+  // because they are bright against it. 0.2 is where the party sits on a stage
+  // and the stone is still stone. This is a small move next to Build 206's
+  // distance grade and it is recorded as one.
+  floor: 0.20,
   // …and a third, Build 122: THE PLAZA IS FLOODED. Half the painting below the
   // horizon is a reflection, so this is not a polish setting — it is most of
   // what makes the ground read as that ground.
