@@ -3019,6 +3019,73 @@ const { boot } = require('./harness.cjs');
     return { dial: 'nan' in was, w: hurt.w, h: hurt.h,
              clean: blocks(clean, 12), poisoned: blocks(hurt, 12) };
   });
+  // ── THE TONE OF THE CAST, AGAINST THE ART SHEET ──────────────────────────
+  //
+  // Measured over the figures' own pixels — the mask is taken at pl:-2, which
+  // paints them flat magenta BEFORE any lighting, so it does not move when the
+  // thing being measured does. Against the target sheet, in sRGB:
+  //
+  //                p25    p50    >0.60   band mean   band std   at 1.0   <0.10
+  //     the art   0.172  0.343   32.3%     0.823       0.118      0.0%    8.4%
+  //     shipped   0.176  0.309   12.7%     0.822       0.137      0.9%    5.2%
+  //
+  // Two properties, and they pull against each other, which is why they are
+  // two checks. A body has to have a lit side AND a shadow side — the picture
+  // before this had neither, every figure inside one 0.17-wide grey band. And
+  // the lit side has to still be DRAWN: a gain that reaches the same
+  // percentiles by clipping everything above the terminator scores identically
+  // on the first check and turns a bone-white robe into a silhouette, which is
+  // exactly what the first tuning pass shipped into a screenshot before the
+  // instrument could see it.
+  console.log('\n── the tone of the cast ──');
+  const tone = await J(async () => {
+    const C3 = window.Cast3D;
+    const was = C3.look();
+    const grab = async () => {
+      await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => requestAnimationFrame(r));
+      await C3._snapshot();
+      const c = window.__castShot;
+      return { w: c.width, h: c.height,
+               d: c.getContext('2d').getImageData(0, 0, c.width, c.height).data };
+    };
+    C3.look({ pl: -2 });
+    const mk = await grab();
+    const fig = new Uint8Array(mk.w * mk.h);
+    let figN = 0;
+    for (let i = 0, j = 0; i < mk.d.length; i += 4, j++)
+      if (mk.d[i] > 140 && mk.d[i + 1] < 100 && mk.d[i + 2] > 140) { fig[j] = 1; figN++; }
+    C3.look(was);
+    const g = await grab();
+    const L = [];
+    for (let i = 0, j = 0; i < g.d.length; i += 4, j++) {
+      if (!fig[j]) continue;
+      L.push((0.2126 * g.d[i] + 0.7152 * g.d[i + 1] + 0.0722 * g.d[i + 2]) / 255);
+    }
+    L.sort((a, z) => a - z);
+    const pct = (f) => +(L.filter(f).length / Math.max(1, L.length) * 100).toFixed(1);
+    const band = L.filter(v => v > 0.60);
+    const bm = band.length ? band.reduce((a, z) => a + z, 0) / band.length : 0;
+    const bs = band.length
+      ? Math.sqrt(band.reduce((a, z) => a + (z - bm) * (z - bm), 0) / band.length) : 0;
+    return { figN,
+      p25: +L[Math.floor(L.length * 0.25)].toFixed(3),
+      p50: +L[Math.floor(L.length * 0.50)].toFixed(3),
+      hi60: pct(v => v > 0.60), lo10: pct(v => v < 0.10),
+      bandMean: +bm.toFixed(3), bandStd: +bs.toFixed(3), clip: pct(v => v >= 0.999),
+      expo: was.expo };
+  });
+  check('TONE: a body has a lit side and a shadow side, not one grey band',
+    tone.figN > 500 && tone.hi60 > 6 && tone.lo10 > 2,
+    JSON.stringify(tone) + ' — over the figures own pixels in sRGB; the art sheet '
+      + 'reads 32.3% over 0.60 and 8.4% under 0.10, and this picture had 0.7% and 6.8% '
+      + 'before the cast got an exposure of its own');
+  check('TONE: …and the lit side is still drawn, not clipped flat',
+    tone.figN > 500 && tone.clip < 2.5 && tone.bandStd > 0.09,
+    JSON.stringify(tone) + ' — how much of the figure sits at 1.0, and how much '
+      + 'variation is left above 0.60; the art carries 0.118 and clips nothing, and a '
+      + 'gain tuned on percentiles alone reached 7.5% clipped with no folds left in it');
+
   check('LENS: one bad pixel does not become a block on the screen',
     nan.dial && nan.poisoned === 0 && nan.clean === 0,
     JSON.stringify(nan) + ' — 24px all-black or all-white squares counted over the '

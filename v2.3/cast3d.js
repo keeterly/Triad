@@ -214,6 +214,54 @@ const LOOK = {
   // 56-pixel block — and the only honest way to check a guard against that is
   // to hand it the fault it is meant to catch.
   nan:    0,
+  // ── EXPOSURE, ON THE CAST AND NOT ON THE SUN (Build 196) ────────────────
+  //
+  // Measured over the figures' own pixels against the art sheet, in sRGB, the
+  // shipped picture already agrees with the target on the half nobody was
+  // complaining about:
+  //
+  //                  p25     p50     p75    spread   >0.85   <0.10   sat
+  //     the art     0.172   0.343   0.721   0.549    12.7%    8.4%  0.174
+  //     the game    0.152   0.227   0.319   0.167     0.1%    6.9%  0.173
+  //
+  // The blacks are right and the colour is right to three decimal places. The
+  // whole gap is the LIT side: the top quartile has to travel from 0.32 to
+  // 0.72 and the picture has no whites at all.
+  //
+  // Turning up the sun does not do it. Swept to twenty times the key, the
+  // distribution SHIFTS rather than opens — p25 goes to 0.397 with p75 — and
+  // the reason is that uTerm is an absolute threshold in the lighting's own
+  // luminance, so a brighter key drowns the terminator and the whole body
+  // counts as lit. It would also blow out the plaza, which is lit by the same
+  // lamp and is not what anybody is grading.
+  //
+  // So the exposure goes where the complaint is. This rides the terminator
+  // mask the shader has already computed: the shadow side is multiplied by 1
+  // and keeps the blacks that are already correct, and only the lit side is
+  // opened up.
+  //
+  // AND FIVE, NOT TWELVE, BECAUSE A HISTOGRAM IS NOT A PICTURE. Swept against
+  // the art's percentiles alone, twelve was the answer — p25 0.209, p50 0.376,
+  // >0.85 at 14.8% against the target's 12.7%, every number in range. It was
+  // also unshippable: Elin came back as a white silhouette with no folds in
+  // her, because a constant gain on the lit side does not lift it, it CLIPS
+  // it. The percentiles cannot see that, so the instrument gained two numbers
+  // that can — how much of the figure sits at 1.0, and how much variation is
+  // left inside the bright band, which is the modelling:
+  //
+  //                >0.60   band mean   band std   at 1.0
+  //     the art    32.3%     0.823       0.118      0.00%   (1.4% at this scale)
+  //     expo 1      0.7%     0.656       0.099      0.0%
+  //     expo 5     12.7%     0.822       0.137      0.9%
+  //     expo 12    29.4%     0.842       0.146      7.5%    <- the blob
+  //
+  // At five the bright band lands on the art's own mean to a thousandth and
+  // keeps more variation than the art has, and nine pixels in a thousand
+  // clip. The frame still carries less of its area above 0.60 than the sheet
+  // does — and it should: the sheet is three figures on a white ground and
+  // this is three figures in a mist. Closing THAT is a fog decision, not an
+  // exposure one, and pretending otherwise is what twelve was.
+  expo:   5.0,
   // ── THE RUNGS (Build 187) — the ladder is in the LIGHT, not on the frame ──
   //
   // Off by default until it is chosen; `?look=rung:1` turns it on. The count
@@ -448,6 +496,11 @@ const LOOK_HELP = {
   env:    ['environment', 0, 2, 0.02, 'how much of the sky and ground a body reflects'],
   bump:   ['surface', 0, 4, 0.02, 'micro-relief taken off the fine detail in the albedo'],
   spec:   ['sheen', 0, 0.8, 0.01, 'how far the smooth parts drop below perfectly rough'],
+  // A FAULT INJECTOR IS STILL A SETTING, and the panel's contract is that
+  // every one of them is reachable from it. Hiding this one would make the
+  // panel a partial view of the state, which is the one thing it must not be.
+  nan:    ['bad pixel', 0, 1, 1, 'writes a NaN into one pixel in 71 — proves the guard in the cut pass'],
+  expo:   ['cast exposure', 1, 8, 0.05, 'opens the lit side of a body without moving its shadow'],
   rung:   ['rungs', 0, 1, 0.01, 'how much the light arrives in steps rather than on a slope'],
   rungs:  ['rung count', 2, 7, 1, 'how many steps — 2 is a hard cel, 4 is a painted key'],
   rungl:  ['step line', 0, 0.6, 0.01, 'the interior mark along the edge of a shadow shape'],
@@ -715,6 +768,7 @@ function watercolour(map, tone) {
     // ── THE SURFACE (Build 192) ──
     uBump:  { value: LOOK.bump },  uSpec:  { value: LOOK.spec },
     uNan:   { value: LOOK.nan },
+    uExpo:  { value: LOOK.expo },
     uTexel2: { value: new THREE.Vector2(1 / 2048, 1 / 2048) },
     uEdge:  { value: LOOK.edge },  uLift:  { value: LOOK.lift },
     uWash:  { value: LOOK.wash },  uAir:   { value: LOOK.air },
@@ -749,6 +803,7 @@ function watercolour(map, tone) {
         uniform float uRung, uRungs, uRungl, uIvory;
         uniform float uBump, uSpec;
         uniform float uNan;
+        uniform float uExpo;
         uniform vec2 uTexel2;
         // THE LIGHTING HUES ARE NOT PIGMENT AND NOT DIALS. uPaper/uShadow/uInk
         // are the watercolour's pigments and belong to the figure; these are
@@ -1014,6 +1069,14 @@ function watercolour(map, tone) {
           float plFoldA = uFold * (1.0 - uRung * 0.75);
           float plLvq = mix(plLvS, uTerm * 0.45, plFoldA);
           float plLv2 = mix(plLvq, plLvS, plT);
+          // ── AND THE LIT SIDE HAS ITS OWN STOP ────────────────────────────
+          //
+          // plT is the terminator: 0 where the light stopped, 1 where it did
+          // not, already smoothed by uSoft. Riding the gain on it is the whole
+          // difference between an exposure and a brightness — a brightness
+          // moves the blacks, and the blacks in this picture are the one thing
+          // that already matches the art.
+          plLv2 *= 1.0 + (uExpo - 1.0) * plT;
           // the divisor stays the TRUE lighting: this is a ratio that carries
           // the shaped value back onto the real light, and dividing by the
           // shaped one would cancel the shaping it just did
