@@ -73,7 +73,7 @@ import { clone as cloneSkinned } from './lib/SkeletonUtils.js';
 const CAST = {
   ash:  { model: 'ash.glb',  sel: '.k-hero[data-hero="ash"]',
           paper: 0xf7efe2, shadow: 0x9a7f6e, ink: 0x3d2f28,
-          turn: 26, tall: 1.00, strike: 'sword' },
+          turn: 41, tall: 1.00, strike: 'sword' },
   // `verb` is which of the fight's four words this person throws when nothing
   // in particular is being asked of them — an all-out, say. Ash and Mira answer
   // with the weapon in their hands and do not need to say so; Elin is the one
@@ -81,7 +81,7 @@ const CAST = {
   // club is a finisher that has forgotten who she is.
   elin: { model: 'elin.glb', sel: '.k-hero[data-hero="elin"]',
           paper: 0xf2f4f7, shadow: 0x8d9ab4, ink: 0x343b4a,
-          turn: 34, tall: 0.97, strike: 'staff', verb: 'cast' },
+          turn: 46, tall: 0.97, strike: 'staff', verb: 'cast' },
   mira: { model: 'mira.glb', sel: '.k-hero[data-hero="mira"]',
           paper: 0xeef2ea, shadow: 0x76907c, ink: 0x2b352e,
           // ── AND SHE OPENS UP LIKE THE OTHER TWO (Build 190) ─────────────
@@ -96,7 +96,20 @@ const CAST = {
           // face and Elin's staff. It reads as her facing away from the fight.
           // Nothing is turning her the wrong way — she was simply never turned
           // as far toward us as the people standing either side of her.
-          turn: 31, tall: 0.98, strike: 'daggers' },
+          // ── AND ALL THREE OPEN UP AGAIN (Build 199) ─────────────────────
+          //
+          // Levelling Mira against the other two fixed the odd one out and
+          // left the SET wrong: 26/34/31 stands the party at 64, 56 and 59
+          // degrees, and 90 is full profile. At that angle a player sees three
+          // backs — which is what "rotated oddly" meant. Not a body pointing
+          // the wrong way, which every measurement said it was not: headings
+          // hold to the table through lunge, shove, react, ready and revive.
+          // A body pointing the right way and showing almost nothing of
+          // itself. Rendered against a more frontal set, the middle reads as
+          // the art sheet does — a three-quarter view, facing the enemy and
+          // presented to the viewer. Fifteen degrees on each, so the
+          // differences between the three, which were tuned, survive it.
+          turn: 44, tall: 0.98, strike: 'daggers' },
   // ── AND EVERYTHING THE PARTY FIGHTS (Build 123) ────────────────────────────
   //
   // A FOE IS NOT A SPECIAL CASE, and that is the return on having done the
