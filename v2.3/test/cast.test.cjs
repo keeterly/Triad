@@ -2962,6 +2962,69 @@ const { boot } = require('./harness.cjs');
     JSON.stringify(glass) + ' — the brightest percentile lifts; a glow that raised '
       + 'the whole frame would be a fog, and the mean does not move');
 
+  // ── ONE BAD PIXEL MUST NOT BECOME A BLOCK ─────────────────────────────────
+  //
+  // Build 192 put black squares on the phone: hard-edged, axis-aligned, 56
+  // device pixels on a side, sitting on the figures and flashing. They were
+  // read three ways before they were read right — a GPU tile, a DOM element,
+  // the tangent frame — and none of those survived the measurements. What
+  // fitted every one of them is that a SINGLE fragment went NaN and the bloom
+  // chain grew it: the cut halves, nine gaussian taps reach four texels, the
+  // cut halves again, nine more reach four more, and fourteen quarter-res
+  // texels is fifty-six device pixels. That is not an estimate that happens to
+  // be close, it is the number the flood fill measured off the screenshot.
+  //
+  // So this does not check the shading, and it does not check that the shader
+  // text contains a guard, which would be a check on itself. It hands the
+  // renderer the fault — one poisoned pixel per 97-square lattice cell, from a
+  // dial that is zero in every shipped frame — and asks whether the picture
+  // that comes back has a block in it. A dead uniform, a folded-away guard or
+  // a chain that grows the fault some other way all fail this the same way.
+  console.log('\n── one bad pixel ──');
+  const nan = await J(async () => {
+    const C3 = window.Cast3D;
+    const was = C3.look();
+    const grab = async () => {
+      await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => requestAnimationFrame(r));
+      await C3._snapshot();
+      const c = window.__castShot;
+      return { w: c.width, h: c.height,
+               d: c.getContext('2d').getImageData(0, 0, c.width, c.height).data };
+    };
+    // THE BLOCK IS BLACK OR IT IS WHITE, and which one is not this check's
+    // business. A NaN written to eight bits comes out 0; an Inf comes out 255.
+    // Both are the same fault and both are equally unshippable.
+    const blocks = (f, step) => {
+      let n = 0;
+      for (let y = 8; y < f.h - 24; y += step) {
+        for (let x = 8; x < f.w - 24; x += step) {
+          let lo = 0, hi = 0;
+          for (let j = 0; j < 24; j += 3) for (let i = 0; i < 24; i += 3) {
+            const k = ((y + j) * f.w + (x + i)) * 4;
+            const m = Math.max(f.d[k], f.d[k + 1], f.d[k + 2]);
+            if (m <= 2) lo++; else if (m >= 253) hi++;
+          }
+          if (lo === 64 || hi === 64) n++;
+        }
+      }
+      return n;
+    };
+    C3.look({ nan: 0 });
+    const clean = await grab();
+    C3.look({ nan: 1 });
+    const hurt = await grab();
+    C3.look(was);
+    C3.look({ nan: 0 });
+    return { dial: 'nan' in was, w: hurt.w, h: hurt.h,
+             clean: blocks(clean, 12), poisoned: blocks(hurt, 12) };
+  });
+  check('LENS: one bad pixel does not become a block on the screen',
+    nan.dial && nan.poisoned === 0 && nan.clean === 0,
+    JSON.stringify(nan) + ' — 24px all-black or all-white squares counted over the '
+      + 'frame, with a NaN deliberately written into one pixel in 97; without the '
+      + 'gate in the cut pass this reads dozens');
+
   // THE PAINTED ELLIPSE UNDER A FIGURE BELONGS TO THE 2D STAGE. In three
   // dimensions there is a real shadow from a real light, and the painted one
   // was switched off for the HEROES and nobody else — so the foe kept a blob

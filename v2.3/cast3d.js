@@ -206,6 +206,14 @@ const LOOK = {
   bump:   1.6,   // micro-relief off the albedo's fine detail
   spec:   0.5,   // …and the quiet parts stop being perfectly rough
   env:    1.0,   // how much sky a body reflects — 0 is the Lambert it shipped as
+  // ── A FAULT ON PURPOSE (Build 195) ───────────────────────────────────────
+  //
+  // Off, and it has to stay off: at 1 every figure writes a NaN into a sparse
+  // lattice of pixels. It exists because the black squares reported off a phone
+  // were ONE bad pixel each — the bloom chain is what turns one of those into a
+  // 56-pixel block — and the only honest way to check a guard against that is
+  // to hand it the fault it is meant to catch.
+  nan:    0,
   // ── THE RUNGS (Build 187) — the ladder is in the LIGHT, not on the frame ──
   //
   // Off by default until it is chosen; `?look=rung:1` turns it on. The count
@@ -706,6 +714,7 @@ function watercolour(map, tone) {
     uRungl: { value: LOOK.rungl }, uIvory: { value: LOOK.ivory },
     // ── THE SURFACE (Build 192) ──
     uBump:  { value: LOOK.bump },  uSpec:  { value: LOOK.spec },
+    uNan:   { value: LOOK.nan },
     uTexel2: { value: new THREE.Vector2(1 / 2048, 1 / 2048) },
     uEdge:  { value: LOOK.edge },  uLift:  { value: LOOK.lift },
     uWash:  { value: LOOK.wash },  uAir:   { value: LOOK.air },
@@ -739,6 +748,7 @@ function watercolour(map, tone) {
         // it, every figure gone, and no exception anywhere.
         uniform float uRung, uRungs, uRungl, uIvory;
         uniform float uBump, uSpec;
+        uniform float uNan;
         uniform vec2 uTexel2;
         // THE LIGHTING HUES ARE NOT PIGMENT AND NOT DIALS. uPaper/uShadow/uInk
         // are the watercolour's pigments and belong to the figure; these are
@@ -1188,6 +1198,30 @@ function watercolour(map, tone) {
                                          smoothstep( 0.35, 1.0, glow ) ),
                                     glow * 0.94 );
             gl_FragColor.rgb += vec3( 1.0, 0.78, 0.42 ) * pow( glow, 3.0 ) * 1.5;
+          }
+
+          // ── AND A BAD PIXEL, IF ONE WAS ASKED FOR ───────────────────────
+          //
+          // uNan is 0 in every frame a player will ever see. At 1 this poisons
+          // one pixel in a 71-square lattice, which is the shape of the real
+          // fault: the squares photographed off the phone were not squares in
+          // the shading at all, they were single bad pixels that the bloom
+          // chain grew. Written as Inf multiplied by zero rather than as a
+          // literal, because a compiler will happily fold a constant NaN out
+          // of a shader and then the check would be testing nothing.
+          if ( uNan > 0.5 && mod( gl_FragCoord.x, 71.0 ) < 1.0
+                          && mod( gl_FragCoord.y, 71.0 ) < 1.0 ) {
+            // BOTH ZEROES ARE REAL, AND THEY ARE NOT THE SAME EXPRESSION.
+            // The first cut of this wrote (1.0 / z) * z off one uniform and
+            // the compiler folded the whole thing to 1.0 — the frame came back
+            // with no squares in it and the check passed with the guard turned
+            // OFF, which is the exact failure this file keeps finding in its
+            // own instruments. These two come from the fragment's coordinate,
+            // so nothing can prove them equal at compile time, and infinity
+            // times a different zero is a NaN on any conforming device.
+            float za = floor( mod( gl_FragCoord.x, 71.0 ) );
+            float zb = floor( mod( gl_FragCoord.y, 71.0 ) );
+            gl_FragColor.rgb += vec3( ( 1.0 / za ) * zb );
           }
         }`)
       // ── AND THE ENCODE GOES LAST, AFTER THE FOG ──
@@ -5801,6 +5835,23 @@ const Cast3D = (() => {
     n.texture.colorSpace = THREE.LinearSRGBColorSpace;
     return n;
   }
+  // ── WHAT A NUMBER IS, SINCE GLSL ES 1.0 WILL NOT SAY ────────────────────
+  //
+  // There is no isnan here — it arrives in ES 3.0 — and the usual stand-in,
+  // x != x, is exactly the identity a compiler is allowed to fold to false.
+  // Three comparisons is the form that survives: a NaN is not less than
+  // zero, not greater than zero, and not equal to it, and no reordering of
+  // those three makes it look like a number.
+  //
+  // The ceiling is here for the same reason. This buffer is half-float, so
+  // anything over 65504 lands as an Inf — which passes the > 0.0 arm, and
+  // then paints a WHITE block instead of a black one. 256 in linear light is
+  // sixteen stops over white: nothing legitimate is up there, and clipping
+  // it costs a picture nothing.
+  const SANE = 'float sane(float x) {\n'
+    + '  return (x < 0.0 || x > 0.0 || x == 0.0) ? clamp(x, 0.0, 256.0) : 0.0;\n'
+    + '}\n'
+    + 'vec3 sane(vec3 v) { return vec3(sane(v.r), sane(v.g), sane(v.b)); }\n';
   function lensPass() {
     if (cutMat) return;
     const VS = 'varying vec2 vUv;\nvoid main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
@@ -5815,12 +5866,27 @@ const Cast3D = (() => {
       fragmentShader: `
         uniform sampler2D tSrc; uniform vec2 uTexel; uniform float uThresh;
         varying vec2 vUv;
+        ${SANE}
         void main() {
           vec2 o = uTexel * 0.5;
-          vec3 c = texture2D(tSrc, vUv + vec2( o.x,  o.y)).rgb
-                 + texture2D(tSrc, vUv + vec2(-o.x,  o.y)).rgb
-                 + texture2D(tSrc, vUv + vec2( o.x, -o.y)).rgb
-                 + texture2D(tSrc, vUv + vec2(-o.x, -o.y)).rgb;
+          // ── AND EVERY TAP IS CHECKED, WHICH IS THE WHOLE POINT ──────────
+          //
+          // THIS IS THE GATE. Both blur chains start here — the lens blur and
+          // the glow — so one bad texel that gets past this line is a BLOCK on
+          // the screen, not a pixel. A phone shipped that picture: single NaN
+          // fragments on the figures, grown by the two chains into 56-pixel
+          // squares that came out pure black on an eight-bit canvas, and the
+          // arithmetic of the growth is exact — the cut halves, nine taps
+          // reach four texels, the cut halves again, nine more taps reach four
+          // more, and fourteen quarter-res texels is fifty-six device pixels,
+          // which is the number measured off the phone.
+          //
+          // Each tap is sanitised rather than the sum, so a bad pixel is
+          // DROPPED rather than taking its three neighbours with it.
+          vec3 c = sane(texture2D(tSrc, vUv + vec2( o.x,  o.y)).rgb)
+                 + sane(texture2D(tSrc, vUv + vec2(-o.x,  o.y)).rgb)
+                 + sane(texture2D(tSrc, vUv + vec2( o.x, -o.y)).rgb)
+                 + sane(texture2D(tSrc, vUv + vec2(-o.x, -o.y)).rgb);
           c *= 0.25;
           if (uThresh >= 0.0) {
             // A SOFT KNEE, NOT A CUT. A hard threshold makes bloom pop on and
@@ -5991,7 +6057,7 @@ const Cast3D = (() => {
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
         }
-
+        ${SANE}
         void main() {
           vec4 src = texture2D(tDiffuse, vUv);
           // A LINE DIAL BELOW -4.5 HANDS THE TEXEL STRAIGHT BACK, doing no
@@ -6008,7 +6074,12 @@ const Cast3D = (() => {
           if (uLine < -6.5) { gl_FragColor = vec4(pow(max(src.rgb, vec3(0.0)), vec3(1.0 / 2.2)), src.a); return; }
           if (uLine < -5.5) { gl_FragColor = vec4(src.rgb * src.a, src.a); return; }
           if (uLine < -4.5) { gl_FragColor = src; return; }
-          vec3 col = src.rgb;
+          // …AND THE FRAME ITSELF, so a bad texel is one dropped pixel here
+          // rather than something the rest of this shader carries forward. The
+          // block on the phone was never made in this pass — it was made in the
+          // glow chain, which is gated in the cut pass — but a frame that can
+          // still hold a NaN is a frame nobody can measure honestly.
+          vec3 col = sane(src.rgb);
 
           // ══ THE LENS ══════════════════════════════════════════════════════
           //
@@ -7995,9 +8066,36 @@ function tunePanel() {
 }
 
 window.Cast3D = Cast3D;
+// ── ?look=pl:-1,bump:0 — AND IT HAD TO ACTUALLY BE READ ────────────────────
+//
+// Nine notes in this file tell a reader to load the page with `?look=...` to
+// see a dial's debug view or to bisect a fault, and until this function there
+// was nothing anywhere that parsed it. Every one of those instructions loaded
+// the game with the shipped defaults and reported back that nothing changed —
+// which is not a null result, it is no result, and one of them was used to
+// rule out a hypothesis that was never tested.
+function urlLook() {
+  const m = /(^|[?&])look=([^&]*)/.exec(location.search);
+  if (!m) return null;
+  const out = {};
+  for (const pair of decodeURIComponent(m[2]).split(',')) {
+    const i = pair.indexOf(':');
+    if (i < 0) continue;
+    const k = pair.slice(0, i).trim();
+    const v = parseFloat(pair.slice(i + 1));
+    // A DIAL THAT IS NOT ON THE TABLE IS A TYPO, and swallowing it silently is
+    // how a bisect comes back clean for the wrong reason.
+    if (!k || !isFinite(v)) continue;
+    if (!(k in LOOK)) { console.warn('[cast3d] no such look dial:', k); continue; }
+    out[k] = v;
+  }
+  return Object.keys(out).length ? out : null;
+}
 if (Cast3D.wanted()) {
   const go = () => Cast3D.enable().then(ok => {
     if (!ok) { console.warn('[cast3d] stayed on the painted stage:', Cast3D._state().failed); return; }
+    const dials = urlLook();
+    if (dials) Cast3D.look(dials);
     if (/(^|[?&])tune=1(&|$)/.test(location.search)) tunePanel();
   });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go);
