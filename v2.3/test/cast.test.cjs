@@ -721,6 +721,35 @@ const { boot } = require('./harness.cjs');
     !!panel && panel.dials === panel.settings && panel.clips === 8 && panel.startsClosed,
     JSON.stringify(panel));
 
+  // ── …AND EVERY SLIDER CAN REACH THE VALUE THE GAME IS RUNNING (Build 212) ──
+  //
+  // Build 211 took `bloom` to 2.8 against a slider that stopped at 2. The panel
+  // therefore could not display the setting the game was actually using, and
+  // the first drag of that control would have silently CHANGED it — a tuning
+  // surface that lies about the state and then corrupts it.
+  //
+  // The check above counts dials against settings and cannot see this: the
+  // slider existed and was counted. The range is part of the same contract.
+  // Read off the real inputs, so it is the DOM's bounds against the layer's own
+  // values rather than two tables compared to each other.
+  const bounds = await J(() => {
+    const b = document.getElementById('k-cast-tune');
+    if (!b) return null;
+    const look = window.Cast3D.look(), bad = [];
+    for (const r of b.querySelectorAll('input[type=range][data-k]')) {
+      const k = r.dataset.k, v = look[k];
+      if (v == null) continue;
+      const lo = parseFloat(r.min), hi = parseFloat(r.max);
+      if (!(v >= lo && v <= hi)) bad.push({ k: k, value: v, min: lo, max: hi });
+    }
+    return { n: b.querySelectorAll('input[type=range][data-k]').length, bad: bad };
+  });
+  check('PANEL: …and every slider can reach the value the game is actually running',
+    !!bounds && bounds.n > 20 && bounds.bad.length === 0,
+    JSON.stringify(bounds) + ' — each dial default against its own slider bounds. '
+      + 'Build 211 shipped bloom at 2.8 on a slider that stopped at 2, and the '
+      + 'dial-count check passed the whole time because the slider was there');
+
   // …and a dial has to reach the shader, not just move a number in a readout
   const dial = await J(() => {
     document.getElementById('k-cast-tab').click();

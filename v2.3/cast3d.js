@@ -768,7 +768,13 @@ const LOOK_HELP = {
   chroma: ['chroma', 0.5, 2.2, 0.01, 'how rich the colour runs — 1 is untouched'],
   dof:    ['depth of field', 0, 1, 0.01, 'how far the world falls out of focus behind the fight'],
   frange: ['focal depth', 1, 20, 0.25, 'metres either side of the subject that stay sharp'],
-  bloom:  ['bloom', 0, 2, 0.01, 'how much light spills into the air'],
+  // …AND ITS RANGE HAS TO CONTAIN ITS OWN DEFAULT (Build 212). Build 211 took
+  // the shipped value to 2.8 against a slider that stopped at 2, so the panel
+  // could not show the setting the game was running and dragging the control
+  // silently CHANGED it. The PANEL check counts dials against settings and
+  // cannot see this; the range is part of the contract that the panel is a
+  // complete view of the state, not just the list of names.
+  bloom:  ['bloom', 0, 4, 0.01, 'how much light spills into the air'],
   glowT:  ['glow floor', 0, 3, 0.01, 'how bright a thing must be to bloom — linear, not screen'],
   line:  ['ink line', 0, 1, 0.01, 'the contour drawn where two surfaces meet'],
   linew: ['line width', 0.5, 3, 0.05, 'how wide that contour is, in buffer pixels'],
