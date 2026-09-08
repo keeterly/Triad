@@ -401,8 +401,24 @@ const MAX_TURNS = 24;
         // THE RECKONING stands between the fight and the road now: the foe is
         // on the ground and the two of them who did something say so. Answer
         // it at random, the way this soak answers everything.
-        await sleep(1400);
-        const said = await J(() => {
+        //
+        // WAITED FOR, NOT SLEPT THROUGH (Build 216). This slept a flat 1400ms
+        // and then asked once. Build 214 deliberately slowed the kill — the
+        // beat suite measures 1786ms from the last blow to the reckoning
+        // opening — so on the slower runs the screen had simply not arrived
+        // yet, the soak walked on without answering it, and the stop came back
+        // as "a fight did not hand the road back (k-stage)". FIVE of ten runs
+        // died on that, which reads as a broken road and is a harness holding a
+        // stopwatch the game owns. It waits for the screen now, and gives up
+        // only if the road came back on its own.
+        const said = await J(async () => {
+          const shown = (id) => { const e = document.getElementById(id);
+                                  return e && !e.classList.contains('k-hidden'); };
+          for (let i = 0; i < 140; i++) {
+            if (window.R.reckoning && window.R.reckoning()) break;
+            if (shown('k-map')) break;
+            await new Promise(r => setTimeout(r, 60));
+          }
           const rk = window.R.reckoning && window.R.reckoning();
           if (!rk) return null;
           for (let i = 0; i < 20 && window.R.reckoning(); i++) {
