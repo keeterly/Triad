@@ -388,7 +388,7 @@ const LOOK = {
   // and it should: the sheet is three figures on a white ground and this is
   // three figures in a mist. Closing THAT is a fog decision, not an exposure
   // one, and pretending otherwise is what twelve was.
-  expo:   3.0,
+  expo:   1.8,
   // ── THE RUNGS (Build 187) — the ladder is in the LIGHT, not on the frame ──
   //
   // Off by default until it is chosen; `?look=rung:1` turns it on. The count
@@ -558,14 +558,28 @@ const LOOK = {
   // what got reported. Measured: at 0.33 the composite lifted the whole frame's
   // mean by 1.5 (x1000), which is the fog this file's own LENS note warns
   // about; from 0.42 up that lift is zero to within noise.
-  bloom:  2.8,   // how much light gets into the air
+  bloom:  0.45,  // how much light gets into the air
   // MEASURED OFF THE FRAME, not picked. The buffer this thresholds holds
   // LINEAR light, where the whole picture's 99th percentile was about 0.41 —
   // so the first setting, 0.62, was above every pixel in the game and the
   // glow buffer came back empty and black at every bloom strength. Read it
   // again with ?look=bloom:-1, which shows the glow alone.
   //
-  // ══ AND THAT SCENE NO LONGER EXISTS (Build 211) ════════════════════════
+  // ══ AND IT MOVES WITH THE CAST EXPOSURE (Build 213) ════════════════════
+  //
+  // 0.70 was right for a cast at expo 3. Build 213 took the exposure to 1.8
+  // because the glow was still reported as too strong on a real phone, and at
+  // that exposure almost nothing on a body clears 0.70: the glow buffer
+  // measured EXACTLY ZERO and the suite caught it — which is the same empty
+  // buffer the note below records from the first 0.62 attempt.
+  //
+  // The floor is not an absolute; it is the top of the BODY'S OWN range, and
+  // that range is what `expo` moves. Measured at expo 1.8, glow buffer mean by
+  // floor: 0.20 -> 15.55, 0.28 -> 5.02, 0.36 -> 0.49, 0.44 -> 0.11,
+  // 0.55 -> 0.01, 0.70 -> 0.00. 0.44 is where it carries what 0.70 carried at
+  // expo 3, so the pair tracks: lower the exposure, lower the floor with it.
+  //
+  // ══ THE MEASUREMENT THAT PUT IT AT 0.70 (Build 211) ════════════════════
   //
   // 0.33 was correct at Build 186 and wrong from Build 196, and nothing in
   // between noticed, because the two settings were tuned ten builds apart and
@@ -611,7 +625,7 @@ const LOOK = {
   // a whole-frame hot-pixel count is drowned by Elin's robe — which is the very
   // thing the dial moves. Dilated, and counted in a box on the target, the
   // answer is stable and repeats.
-  glowT:  0.70,  // …and how bright a thing has to be to put it there, LINEAR
+  glowT:  0.44,  // …and how bright a thing has to be to put it there, LINEAR
   // ── THE DRAWN PASS (Build 186) ───────────────────────────────────────────
   //
   // Three faults, each measured on the frame the player sees, each with its
