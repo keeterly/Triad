@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 213;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 214;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -3740,7 +3740,17 @@ const MUSIC = (() => {
 })();
 
 const beatWait = (ms) => new Promise(r => setTimeout(r, Math.max(0, ms)));
-const BEAT_MS = 500;             // 120 BPM
+// ── AND IT SLOWED DOWN, BECAUSE THE FIGHT WAS RUSHED (Build 214) ──────────
+//
+// Playtested: "gameplay feels very rushed, need more room to breathe" and
+// "animations are too fast, so it's hard to take in".
+//
+// This is the clock the whole rhythm layer hangs off, so slowing it moves the
+// note spacing, the blow spacing and the bar length together while leaving the
+// RELATIVE rhythm — which notes fall where — exactly as authored. 12% is a
+// deliberate first step rather than a rewrite: the beat suite measures the real
+// gaps in realtime, so this can be moved again on evidence.
+const BEAT_MS = 560;             // ~107 BPM
 // Beats of empty runway before the first note. It was 2 — a full second of an
 // enemy turn spent looking at a bar with nothing in it, before a telegraph the
 // player has already been reading all through their own turn. It is 1.5 now,
@@ -4020,7 +4030,23 @@ const BURST_REST = 1;
 // apart asks for two different gestures inside 250ms, which is not a hard read,
 // it is an impossible one. The scheduler enforces this so no future string can
 // re-create it, whatever the data says.
-const MIN_GAP_AFTER = { tap: 0.5, feint: 1, bait: 1, slide: 1.5, hold: 1.5, burst: 2 };
+// ══ AND A NOTE MAY NOT LAND INSIDE THE NOTE BEFORE IT (Build 214) ═════════
+//
+// `tap` was 0.5 beats. At the old 500ms clock that is 250ms between two taps,
+// measured on a real volley at 252 and 236 — and PARRY_GOOD_MS is 260, so the
+// window that grades one note REACHED PAST THE NEXT ONE. Consecutive taps were
+// graded on overlapping windows for the whole life of the parry.
+//
+// That is one fault wearing two of the playtest's complaints. It is "rushed",
+// because the most common note in the game came twice a quarter-second. And it
+// is "hard to tell if parrying worked", because when the windows overlap a
+// press cannot be attributed to the note the player meant it for — so the
+// feedback they got was genuinely not always about the note they played.
+//
+// One beat is 560ms at the new clock, against 2 x 260 = 520ms of window. The
+// notes stop colliding, with room to spare, and the rule is now a property of
+// the table rather than a coincidence of two numbers set in different builds.
+const MIN_GAP_AFTER = { tap: 1, feint: 1, bait: 1, slide: 1.5, hold: 1.5, burst: 2 };
 
 // ═════════════════════════════════════════════════════════════════════════════
 // ONE PRESS ANSWERS ONE NOTE.
@@ -5726,7 +5752,9 @@ async function fxSweepHand() {
       flyCard(from, target, { spin: -16 - i * 7, arc: 46 + i * 8, ms: 460, html });
       pileThump('discard');
     }
-    await sleep(fastFx() ? 4 : 95);
+    // …AND THE SWEEP IS NOT A FLICK. Measured at 93 to 121ms a card, which is
+    // ten cards a second — the hand emptied faster than it could be watched.
+    await sleep(fastFx() ? 4 : 135);
   }
   await sleep(fastFx() ? 6 : 260);
   if (!C || C.id !== mine) return;
@@ -5936,7 +5964,16 @@ async function fxHitResolved(tgtId, taken, negated, flawless) {
   // That is the right way round: in this game skill is supposed to buy tempo,
   // and until now a perfect parry and a whiffed one cost exactly the same
   // wall-clock.
-  await sleep(taken > 0 ? 330 : 170);
+  // …AND 330 WAS NOT LONG ENOUGH TO READ (Build 214). Measured on a real
+  // volley, consecutive heroes lost health 236 to 252ms apart — a number, a
+  // draining bar and a recoil arriving four times a second. Playtested as
+  // "gameplay feels very rushed" and "animations are too fast, so it's hard to
+  // take in".
+  //
+  // The curves were never the problem: the stylesheet already eases 56 of them,
+  // this one included. What was too fast was the DURATION, and this is the one
+  // that spaces the blows.
+  await sleep(taken > 0 ? 460 : 240);
 }
 // AP COMES BACK. A refund that only shows up as a mark quietly re-lighting is a
 // rule the player has to be told; this is the mark arriving from the card that
@@ -6760,7 +6797,22 @@ function renderHand() {
       + cardFaceHTML(c, ev, gem, ownerArt)
       + '</button>';
   }).join('');
-  hand.querySelectorAll('.k-card:not(.k-card-dead)').forEach(b => attachCardInput(b));
+  // ── A FALLEN HERO'S CARD IS STILL A CARD YOU CAN THROW AWAY (Build 214) ──
+  //
+  // Reported: Mira's draw-1-discard-1 could not discard a greyed-out card. This
+  // read `:not(.k-card-dead)`, so a card whose owner is down never got an input
+  // handler AT ALL — and a card with no handler cannot be discarded, cycled, or
+  // even picked up.
+  //
+  // The greying was doing the refusing, and it was the wrong layer to do it in.
+  // `playCard` has refused a downed owner since it was written — "the fallen
+  // play nothing", line 2427 — so the rule is already enforced where it belongs
+  // and this was a second, blunter copy of it that also caught two things that
+  // are NOT playing a card. Discarding is not playing; neither is cycling.
+  //
+  // Every card in hand gets a handler now. The only path that can act on a
+  // fallen hero's card is still refused, by the one guard that knows why.
+  hand.querySelectorAll('.k-card').forEach(b => attachCardInput(b));
   // Rebuilding the hand orphans whatever was being dragged, so no beam can
   // still belong to anything. Leaving one alive is how it got stranded in the
   // corner of the screen with nothing holding the other end.

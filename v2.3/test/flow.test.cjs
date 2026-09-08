@@ -3404,8 +3404,24 @@ const { boot } = require('./harness.cjs');
     // ONE GRID, HALF-BEATS ALLOWED. The strings syncopate now — a hesitation
     // before the last blow, a jab on the off-beat — so the unit is the eighth
     // note. Everything still lands on the same clock; nothing floats.
-    const onGrid = beat.gaps.length && beat.gaps.every(g => Math.abs(g / 250 - Math.round(g / 250)) < 0.08);
-    const syncopated = beat.gaps.some(g => Math.abs(g / 500 - Math.round(g / 500)) > 0.08);
+    // ══ THE GRID IS THE GAME'S OWN BEAT, NOT A LITERAL (Build 214) ═════════
+    //
+    // This read the beat off the page and then compared the gaps against a
+    // hardcoded 250 and 500, and asserted `beatMs === '500ms'`. So it did not
+    // check that the volley runs on ONE CLOCK — it checked that the clock was
+    // the specific tempo somebody typed here, and it failed the moment the
+    // tempo was deliberately slowed for pacing while every gap still landed
+    // exactly on the new grid (559, 560, 562, 279, 280 against a 560 beat).
+    //
+    // Same shape as the panel slider that could not reach its own dial's
+    // value: a check that hardcodes a number the game owns is measuring the
+    // literal, not the behaviour. The beat comes from the page, the eighth is
+    // half of it, and the rest threshold scales with it.
+    const ms = parseFloat(beat.beatMs) || 0;
+    const half = ms / 2;
+    const onGrid = ms > 0 && beat.gaps.length
+      && beat.gaps.every(g => Math.abs(g / half - Math.round(g / half)) < 0.08);
+    const syncopated = beat.gaps.some(g => Math.abs(g / ms - Math.round(g / ms)) > 0.08);
     // …and it BREATHES: six notes end to end is a wall, six in phrases with a
     // rest between hits is a bar you can read your way through.
     //
@@ -3418,11 +3434,13 @@ const { boot } = require('./harness.cjs');
     // MIN_GAP_AFTER floor that governs two notes inside a hit, never less than
     // one beat. So the threshold moves with it — a rest is still a rest, it is
     // just no longer twice as long as the thing it separates.
-    const rests = beat.gaps.filter(g => g > 450).length;
-    check('BEAT: the whole volley runs on one 120 BPM clock, and the strings syncopate on it',
-      beat.pulse && beat.beatMs === '500ms' && onGrid && syncopated && beat.noTracker,
+    const rests = beat.gaps.filter(g => g > ms * 0.9).length;
+    check('BEAT: the whole volley runs on ONE clock, and the strings syncopate on it',
+      beat.pulse && ms > 0 && onGrid && syncopated && beat.noTracker,
       JSON.stringify({ pulse: beat.pulse, beat: beat.beatMs, gaps: beat.gaps,
-        onGrid, syncopated, noTracker: beat.noTracker }));
+        onGrid, syncopated, noTracker: beat.noTracker })
+        + ' \u2014 every gap a whole number of eighths of the beat the GAME reports, '
+        + 'whatever tempo that is');
     check('BEAT: the volley breathes — a rest beat separates one hit from the next',
       rests >= 1, JSON.stringify({ gaps: beat.gaps, rests }));
   }
@@ -5395,6 +5413,89 @@ const { boot } = require('./harness.cjs');
   check('SCREEN: six blows back to back leave one wash, not six',
     !!wash && wash.flashes === 1 && wash.pulses === 1,
     JSON.stringify(wash) + ' \u2014 Build 130 stacked all six');
+
+  // ══ A FALLEN HERO'S CARD IS STILL DISCARDABLE (Build 214) ═══════════════
+  //
+  // Reported from a playtest: Quick Throw is draw 1 THEN discard 1, and when a
+  // hero was down the greyed card in hand could not be discarded — so the
+  // prompt could not be answered with the card the player wanted to be rid of.
+  //
+  // `renderHand` attached input to `.k-card:not(.k-card-dead)`, so a downed
+  // hero's card had NO handler and could not be clicked at all. The rule it was
+  // standing in for lives in `playCard` — "the fallen play nothing" — and that
+  // one is still there, so this check has two halves: the discard goes through,
+  // and playing still does not.
+  //
+  // IT GOES THROUGH THE DOM ON PURPOSE. `K.pickDiscard` would pass with the bug
+  // still present: the fault was never in the rule, it was in the button not
+  // existing as a button. So the check dispatches the real pointer pair the
+  // hand listens for.
+  const fallen = await J(async () => {
+    const K = window.K, C = K.state();
+    K.startCombat && 0;
+    C.heroes.ash.downed = true;                 // Ash is on the ground
+    K.forceHand(['qthrow', 'cleave', 'mend', 'serrate', 'frostbind']);
+    K.render();
+    const press = (el) => {
+      const r = el.getBoundingClientRect();
+      const o = { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse',
+                  clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+      el.dispatchEvent(new PointerEvent('pointerdown', o));
+      el.dispatchEvent(new PointerEvent('pointerup', o));
+    };
+    const face = (id) => document.querySelector('#k-hand .k-card[data-card="' + id + '"]');
+    // `cleave` is Ash's, and Ash is down, so it renders greyed
+    const greyed = face('cleave');
+    const wasDead = !!(greyed && greyed.classList.contains('k-card-dead'));
+    // half one: it cannot be PLAYED, which is the rule that must survive
+    const playedDown = K.playCard('cleave');
+    // half two: Mira throws, which asks for a discard, and the greyed card answers
+    const threw = K.playCard('qthrow');
+    const pending = !!K.state().pendingDiscard;
+    const before = K.state().hand.length;
+    press(face('cleave'));
+    const after = K.state().hand.length;
+    return { wasDead, playedDown, threw, pending, before, after,
+             gone: K.state().hand.indexOf('cleave') < 0,
+             inDiscard: K.state().discard.indexOf('cleave') >= 0 };
+  });
+  check('HAND: a fallen hero\u2019s card can be discarded, and still cannot be played',
+    fallen.wasDead && fallen.playedDown === false && fallen.threw === true
+      && fallen.pending && fallen.gone && fallen.inDiscard
+      && fallen.after === fallen.before - 1,
+    JSON.stringify(fallen) + ' \u2014 Ash is down, Mira throws, and the greyed card '
+      + 'answers the discard. Before this the hand attached input only to cards '
+      + 'that were not greyed, so a downed hero\u2019s card had no handler at all');
+
+  // ══ A WON CARD GOES TO WHOEVER OWNS IT (Build 214) ══════════════════════
+  //
+  // Reported: winning one of Mira's cards offered to put it in ASH's deck. The
+  // swap screen asked `pairOf`, which answers with two heroes for a DUO card
+  // and null for a card one person owns — and the fallback was the literal
+  // ['ash']. Every solo card in the game, Mira's eight and Elin's eight, opened
+  // that screen on Ash's roster.
+  //
+  // Read off `ownerHeroes`, which is the function the rest of the game already
+  // uses for this question, so a solo card offers one column, a duo two.
+  const owns = await J(() => {
+    const K = window.K, out = {};
+    for (const id of Object.keys(K.CARD_DEFS)) {
+      const c = K.CARD_DEFS[id];
+      const who = K.ownerHeroes(c);
+      const solo = c.owner.indexOf('|') < 0 && c.owner !== 'bond';
+      if (solo && (who.length !== 1 || who[0] !== c.owner)) out[id] = who;
+      if (!solo && who.length !== 2) out[id] = who;
+    }
+    return { wrong: out, n: Object.keys(K.CARD_DEFS).length,
+             mira: K.ownerHeroes(K.CARD_DEFS.serrate),
+             duo:  K.ownerHeroes(K.CARD_DEFS.shieldblade) };
+  });
+  check('DECK: a won card is offered to the hero who owns it, not always to Ash',
+    Object.keys(owns.wrong).length === 0 && owns.n > 20
+      && owns.mira.length === 1 && owns.mira[0] === 'mira' && owns.duo.length === 2,
+    JSON.stringify(owns) + ' \u2014 every card in the set against its own owner. '
+      + 'The swap screen fell back to a hardcoded Ash whenever the card was not '
+      + 'a duo, which is every solo card in the game');
 
   const summary = report();
   await H.browser.close();

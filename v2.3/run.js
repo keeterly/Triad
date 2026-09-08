@@ -3098,7 +3098,20 @@
   function renderSwap() {
     const K = window.K;
     const card = K.CARD_DEFS[_pendingCard]; if (!card) return toMap();
-    const pair = K.pairOf(_pendingCard) || ['ash'];
+    // ── THE CARD GOES TO WHOEVER OWNS IT (Build 214) ────────────────────────
+    //
+    // Reported: winning one of Mira's cards offered to put it in ASH's deck.
+    //
+    // `pairOf` answers with the two heroes of a DUO card and with null for a
+    // card one person owns — and the fallback here was the literal ['ash'].
+    // So every single-owner card in the game, Mira's eight and Elin's eight,
+    // opened this screen showing Ash's five and asked which of them to trade.
+    // A duo card was the only case that ever worked.
+    //
+    // `ownerHeroes` is the function that already answers this for the whole
+    // game — one name for a solo card, two for a duo, and the authored pair for
+    // the bond card — so the screen asks it instead of guessing.
+    const pair = K.ownerHeroes(card);
     $('k-swap-line').textContent = _pendingAfter || '';
     // WRAPPED. swapCardHTML returns three sibling spans, and dropping them
     // straight into a flex container made `#k-swap-new > span` match all three
