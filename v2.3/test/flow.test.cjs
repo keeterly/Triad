@@ -4775,318 +4775,42 @@ const { boot } = require('./harness.cjs');
   }
 
 
-  // ── THE PAINTED IDLE (Build 50) ─────────────────────────────────────────────
-  // The Regent's idle is six real frames cut out of a generated clip, stepped
-  // across one strip. Every check here asks for a PROPERTY, never for presence:
-  // a layer that exists but never advances, or advances while the plate is still
-  // showing through underneath, would satisfy "is the sheet wired up?" and still
-  // be broken on screen.
+  // ── THE PAINTED IDLE IS RETIRED (Build 219) ───────────────────────────────
+  //
+  // Fifteen checks stood here, and they were good checks: they asked whether
+  // the sprite strip advanced, whether it bounced rather than snapping, whether
+  // the plate underneath had really stepped aside, whether all five foes wore
+  // their own sheet. What they were checking no longer exists. Every creature
+  // in the bestiary has a body in the world now, and the strip was only ever
+  // what covered the gap until it did — 5.5 MB of art, and the thing a player
+  // saw whenever a model arrived after the creature it belonged to.
+  //
+  // What replaces them is one check, and it is the opposite question: that the
+  // painted art is never on screen at all.
   {
     await J(() => { window.K.startCombat({ seed: 7 }); });
-    await H.sleep(900);
-    const on = await J(() => {
+    await H.sleep(700);
+    const gone = await J(() => {
       const box = document.getElementById('k-boss-art');
-      const l = box && box.querySelector('.k-fanim');
-      const img = box && box.querySelector('img');
-      const fig = box && box.querySelector('.k-fig');
-      const cs = l && getComputedStyle(l);
-      const br = box && box.getBoundingClientRect();
-      const lr = l && l.getBoundingClientRect();
       return {
-        armed: !!(box && box.classList.contains('k-has-anim')),
-        shown: cs && cs.display,
-        grid: cs && cs.backgroundSize,
-        plate: img && getComputedStyle(img).display,
-        figIdle: fig && getComputedStyle(fig).animationName,
-        w: lr && lr.width, h: lr && lr.height, boxW: br && br.width,
-        // MEASURED IN LAYOUT SPACE, NOT ON SCREEN. The Regent stands inside the
-        // field's perspective volume, so a client rect is a PROJECTED rect — and
-        // the projection is not uniform: at this position the box measures 0.996x
-        // across and 1.024x down, and the layer, sitting lower in the frustum,
-        // 0.990x and 1.041x. Comparing two projected numbers taken at different
-        // heights says nothing about whether they are the same size. offsetHeight
-        // is the layout box, which is what the sizing maths actually controls.
-        lay: l && l.offsetHeight,
-        gap: l && (box.clientHeight - (l.offsetTop + l.offsetHeight)),
-        plateH: img && img.naturalWidth
-          ? Math.min(box.clientHeight, box.clientWidth * img.naturalHeight / img.naturalWidth)
-          : null,
-        sheet: window.K.FOE_SHEETS.mourner,
+        strips: document.querySelectorAll('.k-fanim').length,
+        armed: document.querySelectorAll('.k-has-anim').length,
+        sheets: typeof window.K.FOE_SHEETS,
+        plates: document.querySelectorAll('#k-cast .k-fig img').length,
       };
     });
-    check('FOE ANIM: the Regent wears her sheet, and it is really on screen',
-      on.armed === true && on.shown === 'block' && on.w > 100 && on.h > 60,
-      JSON.stringify(on));
-    // ONE FOE, ONE FIGURE. The sheet REPLACES the plate; if the plate were still
-    // painted underneath, the two would show as a doubled, ghosting Regent.
-    check('FOE ANIM: the painted plate steps aside rather than showing through',
-      on.plate === 'none', JSON.stringify({ plate: on.plate }));
-    // …and the CSS breathe goes quiet, because the frames ARE the breathing.
-    // This one is here because the first version lost it: the per-foe idles are
-    // declared far below at equal specificity, and source order handed them the
-    // win, so the Regent was being animated twice.
-    check('FOE ANIM: the CSS idle underneath is switched off, not left doubling up',
-      on.figIdle === 'none', JSON.stringify({ figIdle: on.figIdle }));
-    // THE RULE MOVED IN BUILD 51, and this check moved with it. It used to ask
-    // that the layer be the width of the box, which was right while the sheet
-    // held one state: the cell was the idle and nothing else. Now the cell also
-    // has to hold the acts, which reach further, and each foe's clip framed it
-    // differently — so a box-width layer renders a visibly smaller creature, by
-    // a different amount per foe. The layer is sized by the FIGURE now, so what
-    // is asked here is the thing that actually matters: the creature inside the
-    // cell stands as tall as the painting it replaced, and on the same line.
-    const figLaidOut = on.lay * on.sheet.figH / on.sheet.cellH;
-    check('FOE ANIM: the creature stands at the plate\'s size, on the plate\'s ground line',
-      on.plateH > 0 && Math.abs(figLaidOut - on.plateH) < 3 && Math.abs(on.gap - 8) <= 1,
-      JSON.stringify({ figure: +figLaidOut.toFixed(1), plate: +on.plateH.toFixed(1),
-                       layerH: on.lay, groundGap: on.gap }));
-
-    // IT MOVES. A still layer showing frame 0 forever passes every check above.
-    const moved = await J(async () => {
-      const l = document.querySelector('.k-fanim');
-      const seen = new Set();
-      for (let i = 0; i < 14; i++) {
-        seen.add(l.style.backgroundPositionX);
-        await new Promise(r => setTimeout(r, 90));
-      }
-      return { frames: [...seen], n: seen.size };
-    });
-    check('FOE ANIM: the frames actually advance — it is animation, not one still',
-      moved.n >= 4, JSON.stringify(moved));
-    // BOUNCE, NOT WRAP. Six frames of drift do not close into a ring, so a wrap
-    // snaps the robes back across the whole excursion. Played out and back, the
-    // walk returns through the middle instead of jumping the ends.
-    const bounce = await J(async () => {
-      const l = document.querySelector('.k-fanim');
-      const seq = [];
-      for (let i = 0; i < 26; i++) {
-        const v = parseFloat(l.style.backgroundPositionX) || 0;
-        if (!seq.length || seq[seq.length - 1] !== v) seq.push(v);
-        await new Promise(r => setTimeout(r, 70));
-      }
-      let jump = 0;
-      for (let i = 1; i < seq.length; i++) jump = Math.max(jump, Math.abs(seq[i] - seq[i - 1]));
-      return { seq, jump };
-    });
-    check('FOE ANIM: the loop bounces back through its frames, never snapping end to end',
-      bounce.seq.length >= 4 && bounce.jump <= 21,
-      JSON.stringify(bounce));
-
-    // THE DEGRADATION CONTRACT. In Build 50 this was checked by switching to a
-    // foe that had no entry at all — but every foe has a sheet now, so the only
-    // way left to reach the path is the one that still matters in the wild: an
-    // entry whose FILE does not load. Naming a foe changes NOTHING until its
-    // sheet really arrives; a missing or broken file leaves the painted plate
-    // up rather than an empty box, which is what lets art land one foe at a
-    // time and what protects a build against a bad deploy.
-    const bare = await J(async () => {
-      const real = window.K.FOE_SHEETS.husk.file;
-      window.K.FOE_SHEETS.husk.file = 'foe-husk-anim-THIS-DOES-NOT-EXIST.webp';
-      window.K.startCombat({ seed: 7, foe: window.K.FOES.husk });
-      await new Promise(r => setTimeout(r, 800));
-      const box = document.getElementById('k-boss-art');
-      const img = box.querySelector('img');
-      const out = { armed: box.classList.contains('k-has-anim'),
-                    layer: !!box.querySelector('.k-fanim'),
-                    plate: getComputedStyle(img).display,
-                    src: (img.getAttribute('src') || '') };
-      window.K.FOE_SHEETS.husk.file = real;
-      return out;
-    });
-    check('FOE ANIM: a sheet that fails to load leaves the painted plate standing',
-      bare.armed === false && bare.layer === false && bare.plate !== 'none'
-      && /foe-husk/.test(bare.src), JSON.stringify(bare));
-
-    // EVERY FOE, not just the one that was piloted. A sheet that loads for the
-    // Regent and quietly fails for the other four would pass every check above.
-    const all = await J(async () => {
-      const out = {};
-      for (const id of ['husk', 'cultist', 'wraith', 'revenant', 'mourner']) {
-        window.K.startCombat({ seed: 7, foe: window.K.FOES[id] });
-        await new Promise(r => setTimeout(r, 700));
-        const box = document.getElementById('k-boss-art');
-        const l = box.querySelector('.k-fanim');
-        out[id] = !!(box.classList.contains('k-has-anim') && l
-                     && getComputedStyle(l).display === 'block'
-                     && l.getBoundingClientRect().height > 60
-                     && l.style.backgroundImage.indexOf('foe-' + id + '-anim') >= 0);
-      }
-      return out;
-    });
-    check('FOE ANIM: all five foes wear their own sheet, each the right one',
-      Object.values(all).every(Boolean), JSON.stringify(all));
-
-    // THE ACTS DRIVE THE FRAMES. The Regent's sheet carries a wind-up and four
-    // acts beyond the idle, and the whole point is that the intent picks them —
-    // a sheet stuck on its idle while the CSS pose does all the work would look
-    // exactly like Build 50 and pass everything written for it.
-    const acts = await J(async () => {
-      window.K.startCombat({ seed: 7 });
-      await new Promise(r => setTimeout(r, 700));
-      const l = document.querySelector('.k-fanim');
-      const sh = window.K.FOE_SHEETS.mourner;
-      const frameNow = () => {
-        const x = parseFloat(l.style.backgroundPositionX) || 0;
-        const y = parseFloat(l.style.backgroundPositionY) || 0;
-        return Math.round(x / 100 * (sh.cols - 1)) + Math.round(y / 100 * (sh.rows - 1)) * sh.cols;
-      };
-      const seen = {};
-      // drive the real hooks the fight drives, one intent at a time
-      const idle = frameNow();
-      window.K._fxFoeWind();
-      await new Promise(r => setTimeout(r, 60));
-      seen.wind = frameNow();
-      for (const [intent, state] of [['hymn', 'toll'], ['scythe', 'sweep'],
-                                     ['rain', 'rain'], ['dirgesong', 'gather']]) {
-        window.K._fxFoeAct(intent);
-        await new Promise(r => setTimeout(r, 60));
-        seen[state] = frameNow();
-      }
-      window.K._fxFoeSettle();
-      await new Promise(r => setTimeout(r, 60));
-      seen.settled = frameNow();
-      return { idle, seen, sheet: sh.states };
-    });
-    const inState = (f, st) => acts.sheet[st].indexOf(f) >= 0;
-    check('FOE ANIM: the wind-up and all four acts each pull their own frames',
-      inState(acts.seen.wind, 'wind') && inState(acts.seen.toll, 'toll')
-      && inState(acts.seen.sweep, 'sweep') && inState(acts.seen.rain, 'rain')
-      && inState(acts.seen.gather, 'gather'),
-      JSON.stringify(acts.seen));
-    // …and the foe comes back to rest when the turn does, rather than holding
-    // its last swing for the remainder of the fight.
-    check('FOE ANIM: settling drops the foe back onto its idle frames',
-      inState(acts.seen.settled, 'idle'), JSON.stringify({ settled: acts.seen.settled }));
-
-    // …and coming back to the Regent re-arms it, rather than leaving the last
-    // encounter's layer behind or stacking a second one on top. TWO FIGHTS IN
-    // ONE FRAME is the case that caught the real bug: both arms fire a probe,
-    // a cached sheet resolves both, and each mounted its own layer while the
-    // teardown retired only the first — so switching to a sheetless foe left an
-    // orphan behind, holding its own clock, one class away from a doubled foe.
-    const back = await J(async () => {
-      window.K.startCombat({ seed: 7 });
-      window.K.startCombat({ seed: 7 });
-      await new Promise(r => setTimeout(r, 700));
-      const box = document.getElementById('k-boss-art');
-      const layers = box.querySelectorAll('.k-fanim').length;
-      // and it survives being handed off to a foe with no sheet at all
-      window.K.startCombat({ seed: 7, foe: window.K.FOES.husk });
-      await new Promise(r => setTimeout(r, 800));
-      return { layers, armed: box.classList.contains('k-has-anim'),
-               orphans: box.querySelectorAll('.k-fanim').length };
-    });
-    // The Husk has a sheet of its own now, so handing off no longer means going
-    // bare — but the thing being guarded is unchanged: ONE layer, never two.
-    check('FOE ANIM: two fights in one frame still leave exactly one layer, and no orphan',
-      back.layers === 1 && back.orphans === 1 && back.armed === true,
-      JSON.stringify(back));
-
-    // EVERY FOE'S OWN ACTS. Each of the five carries only the states its intent
-    // list can actually ask for — the Husk has no rain, the Wraith no toll — so
-    // this walks each foe's real intents through the real hook and asks that the
-    // frames it landed on belong to the state that intent maps to. A sheet with
-    // an act missing, or a mapping pointing at the wrong block, reads on screen
-    // as a foe that goes oddly still at the exact moment it should swing.
-    const everyAct = await J(async () => {
-      // RESTATED ON PURPOSE, not read out of FOE_ACT. Deriving it from the
-      // table under test would only prove the lookup works; written out, it
-      // also pins the design decision — a crescendo is a RAIN, not a toll,
-      // which is exactly the entry this check first got wrong.
-      // …and it is restated for the CURRENT design, which changed: the opening
-      // posture is the first BLOW's act rather than a per-intent label, so the
-      // Rising Dirge — which opens on two thrusts — stands in the toll shape
-      // and not the rain one. That is the entry this check caught, and it was
-      // right to: a foe that opens in a posture it is not about to throw is
-      // the mismatch this whole build exists to remove.
-      // …AND IT IS DERIVED, NOT RESTATED. This was a hand-written table of nine
-      // intents mapped to nine poses, which is a copy of a rule that lives in
-      // `fxFoeAct` — so it went stale the moment Build 94 added two intents to
-      // the bestiary, and the failure it reported ("lash:no-undefined") was the
-      // check being out of date rather than the game being wrong. It now asks
-      // the same two tables the game asks: the intent's FIRST act, and that
-      // act's pose. A new intent is covered the day it is authored.
-      const ACTS = window.K.ACTS, INTENTS = window.K.INTENTS();
-      const poseOf = (iid) => {
-        const it = INTENTS.find(x => x.id === iid);
-        const spec = it && it.hits[0] && it.hits[0].acts && it.hits[0].acts[0];
-        const def = spec && ACTS[String(spec).split(':')[0]];
-        return def ? def.pose.replace('k-foe-', '') : null;
-      };
-      const map = INTENTS.reduce((a, it) => { a[it.id] = poseOf(it.id); return a; }, {});
-      const out = {};
-      for (const id of ['husk', 'cultist', 'wraith', 'revenant', 'mourner']) {
-        window.K.startCombat({ seed: 7, foe: window.K.FOES[id] });
-        await new Promise(r => setTimeout(r, 700));
-        const l = document.querySelector('.k-fanim');
-        const sh = window.K.FOE_SHEETS[id];
-        const frameNow = () => {
-          const x = parseFloat(l.style.backgroundPositionX) || 0;
-          const y = parseFloat(l.style.backgroundPositionY) || 0;
-          return Math.round(x / 100 * (sh.cols - 1))
-               + Math.round(y / 100 * (sh.rows - 1)) * sh.cols;
-        };
-        const bad = [];
-        for (const intent of window.K.FOES[id].intents) {
-          const want = map[intent];
-          window.K._fxFoeAct(intent);
-          await new Promise(r => setTimeout(r, 60));
-          if (!sh.states[want]) { bad.push(intent + ':no-' + want); continue; }
-          if (sh.states[want].indexOf(frameNow()) < 0) bad.push(intent + ':wrong');
-        }
-        out[id] = bad;
-      }
-      return out;
-    });
-    check('FOE ANIM: every foe pulls its own frames for every intent it can throw',
-      Object.values(everyAct).every(v => v.length === 0), JSON.stringify(everyAct));
-
-    // REACTIONS INTERRUPT, AND GIVE THE STATE BACK. Being hit does not change
-    // what a foe is DOING — it was coiled before the blow and is still coiled
-    // after — so a reaction that dumped the creature onto its idle would undo
-    // the wind-up in the middle of a volley, and the telegraph would vanish at
-    // the moment it matters most.
-    const react = await J(async () => {
-      window.K.startCombat({ seed: 7 });
-      await new Promise(r => setTimeout(r, 700));
-      const l = document.querySelector('.k-fanim');
-      const sh = window.K.FOE_SHEETS.mourner;
-      const frameNow = () => {
-        const x = parseFloat(l.style.backgroundPositionX) || 0;
-        const y = parseFloat(l.style.backgroundPositionY) || 0;
-        return Math.round(x / 100 * (sh.cols - 1))
-             + Math.round(y / 100 * (sh.rows - 1)) * sh.cols;
-      };
-      window.K._fxFoeAct('scythe');                 // it is mid wind-up
-      await new Promise(r => setTimeout(r, 60));
-      const acting = frameNow();
-      window.K._fxStrikeBoss(9, 'hit');             // and it takes a blow
-      await new Promise(r => setTimeout(r, 80));
-      const struck = frameNow();
-      await new Promise(r => setTimeout(r, 420));   // past the 340ms window
-      const after = frameNow();
-      // and a break reels for its own, longer window
-      window.K._fxInterrupt();
-      await new Promise(r => setTimeout(r, 120));
-      const broke = frameNow();
-      await new Promise(r => setTimeout(r, 900));
-      const settled = frameNow();
-      return { acting, struck, after, broke, settled, st: sh.states };
-    });
-    const inS = (f, st) => react.st[st].indexOf(f) >= 0;
-    check('FOE ANIM: a blow lands on struck frames, not on a shake alone',
-      inS(react.acting, 'sweep') && inS(react.struck, 'hit'),
-      JSON.stringify({ acting: react.acting, struck: react.struck }));
-    check('FOE ANIM: and the foe goes back to the act it was interrupted mid-way through',
-      inS(react.after, 'sweep'),
-      JSON.stringify({ after: react.after, wanted: react.st.sweep }));
-    check('FOE ANIM: a break reels on its own frames, then hands the act back',
-      inS(react.broke, 'broken') && inS(react.settled, 'sweep'),
-      JSON.stringify({ broke: react.broke, settled: react.settled }));
-
-    // leave the page on a clean Regent fight for whatever runs after this block
+    // …AND THIS SUITE ASKS ONLY HALF THE QUESTION, on purpose. It boots the
+    // test-only 2D path, where the plates ARE the picture and should be — so
+    // "the painted art is never lit" cannot be asked here and is asked in the
+    // cast suite, which boots the stage players get. What belongs here is that
+    // the sprite-strip machinery is gone from the game's own code.
+    check('STAGE: the painted sprite strips are gone, and nothing can mount one',
+      gone.strips === 0 && gone.armed === 0 && gone.sheets === 'undefined'
+      && gone.plates > 0,
+      JSON.stringify(gone) + ' \u2014 the plates stay in the DOM because they are '
+        + 'what a figure is positioned BY');
     await J(() => { window.K.startCombat({ seed: 7 }); });
-    await H.sleep(400);
+    await H.sleep(300);
   }
 
 

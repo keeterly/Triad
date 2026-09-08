@@ -241,8 +241,7 @@ const { boot } = require('./harness.cjs');
       // painting bottom-anchored inside it, so a plate measured against the
       // BOX reads sixty pixels of overlap with sky. Measure what is drawn —
       // the same element `bodyAnchor` anchors to.
-      const drawn = (b) => b.querySelector('.k-fanim')
-                        || b.querySelector('img') || b;
+      const drawn = (b) => b.querySelector('img') || b;
       const bodies = [...document.querySelectorAll('#k-boss-art, #k-cast .k-foe-art')]
         .filter(b => b.offsetParent);
       document.querySelectorAll('.k-vit[data-body]').forEach(v => {

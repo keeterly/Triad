@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 218;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 219;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1493,7 +1493,6 @@ function dressEncounter(foe) {
     // an empty plaza under a banner reading FALLEN.
     const oldLane = box.querySelector('.k-foe-lane');
     if (oldLane) oldLane.remove();
-    foeAnimArm(F.id, ix, box);
   });
   const st = el('k-stage');
   if (st) st.dataset.tier = foe.tier;
@@ -2341,12 +2340,6 @@ function fxFoeDown(F) {
   // the last thing a creature does gets the longest borrow in the game: low,
   // close, and well off the line, held while the body falls
   castShot('fell', { for: 1900, speed: 1.15 });
-  // THE POSE IT DIES IN IS THE POSE IT KEEPS. Not `foeAnimState('broken')` —
-  // that starts the stagger loop at frame 0 and leaves it running, which is
-  // what had the body pulsing on the ground. The frames are walked to the LAST
-  // one of the broken run and then frozen, so the CSS fall lands a still shape
-  // rather than a twitching one.
-  try { foeAnimKill('broken', F ? F.ix : undefined); } catch (e) {}
   foeCast(F ? F.ix : undefined, 'down');
   // …AND THEN IT COMES APART. The CSS fall below is what a painted plate does
   // when it dies; a body does something else. The burn runs under the `down`
@@ -2362,18 +2355,6 @@ function fxFoeDown(F) {
   void box.offsetWidth;
   box.classList.add('k-foe-down');
 }
-// Freeze the sheet on the final frame of `name` and refuse every later state
-// change. `foeAnimArm` builds a fresh `_fanim` per fight, so the flag cannot
-// outlive the corpse that earned it.
-function foeAnimKill(name, ix) {
-  const a = _fanimOf(ix); if (!a) return;
-  const st = a.sheet.states[name];
-  if (st && st.length) { a.state = name; a.frame = st.length - 1; a.dir = 0; }
-  a.dead = true;
-  clearTimeout(a.back); a.back = null; a.resume = null;
-  foeAnimPaint(a.ix);
-}
-
 function checkBossPhase(F) {
   F = F || C.boss;
   if (!F || !F.def || F.def.phases < 2) return;
@@ -3114,9 +3095,7 @@ function foeSet(slot, cls, ms, ix) {
 // accompany — `k-foe-toll` drives the `toll` frames — so an act naming its own
 // pose can never leave the frames pointing somewhere else, and there is no
 // second table to keep in step with the first.
-const sheetStateOf = (cls) => (cls || '').replace('k-foe-', '') || 'idle';
-function fxFoeWind(ix) { foeSet(FOE_POSES, 'k-foe-wind', null, ix); foeAnimState('wind', ix);
-  foeCast(ix, 'ward'); }
+function fxFoeWind(ix) { foeSet(FOE_POSES, 'k-foe-wind', null, ix); foeCast(ix, 'ward'); }
 // THE OPENING POSTURE IS THE FIRST BLOW'S. A second table mapped intent -> pose
 // and could disagree with what the bar then actually threw — Grief in Threes
 // opened in the SWEEP pose and its first blow was a tap. The bar opens in the
@@ -3125,7 +3104,7 @@ function fxFoeAct(intentId, ix) {
   const it = REGENT_INTENTS.find(x => x.id === intentId);
   const first = it && it.hits && it.hits[0] && (it.hits[0].acts || [])[0];
   const cls = first ? parseAct(first).def.pose : 'k-foe-toll';
-  foeSet(FOE_POSES, cls, null, ix); foeAnimState(sheetStateOf(cls), ix);
+  foeSet(FOE_POSES, cls, null, ix);
 }
 // THE BODY FOLLOWS THE ACT, AND IT CHANGES PER BLOW. Two things were wrong
 // here. `fxFoeSwing(kind)` took the NOTE and looked up an animation for it —
@@ -3170,7 +3149,6 @@ function fxFoeSwing(actSpec, ix) {
   foeCast(ix, 'slash');
   fxFoeStep(ix);
   foeSet(FOE_POSES, a.def.pose, null, ix);
-  foeAnimState(sheetStateOf(a.def.pose), ix);
   foeSet(FOE_SWINGS, a.def.swing || 'k-fs-jab', 420, ix);
 }
 // EVERYTHING STANDING GOES BACK TO RESTING, not just the aimed one — a body
@@ -3179,7 +3157,7 @@ function fxFoeSwing(actSpec, ix) {
 function fxFoeSettle() {
   const line = (C && C.foes) ? C.foes.filter(f => !f.dead).map(f => f.ix) : [0];
   line.forEach(ix => { foeSet(FOE_POSES, null, null, ix); foeSet(FOE_SWINGS, null, null, ix);
-                       foeAnimState('idle', ix); foeCast(ix, 'idle'); });
+                       foeCast(ix, 'idle'); });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -3218,222 +3196,6 @@ function fxFoeSettle() {
 //
 // Five foes, five tempos — the same rule the CSS idles follow. The Husk is dead
 // weight, the Revenant moves as little as it can, and the Choir is singing.
-const FOE_SHEETS = {
-  mourner: {
-    file: 'foe-mourner-anim.webp',
-    cols: 6, rows: 4, cellW: 380, cellH: 214, figH: 209,
-    states: { idle: [0, 1, 2, 3, 4, 5], wind: [6, 7], toll: [8, 9, 10],
-              sweep: [11, 12, 13], rain: [14, 15, 16], gather: [17, 18, 19],
-              hit: [20, 21], broken: [22, 23] },
-    play: { idle: { ms: 150, bounce: true },
-            wind: { ms: 130 }, toll: { ms: 95 }, sweep: { ms: 85 },
-            rain: { ms: 110 }, gather: { ms: 130 },
-            hit: { ms: 110 }, broken: { ms: 210, bounce: true } },
-  },
-  husk: {
-    file: 'foe-husk-anim.webp',
-    cols: 6, rows: 3, cellW: 380, cellH: 214, figH: 193,
-    states: { idle: [0, 1, 2, 3, 4, 5], wind: [6, 7], toll: [8, 9, 10],
-              sweep: [11, 12, 13], hit: [14, 15], broken: [16, 17] },
-    play: { idle: { ms: 190, bounce: true },
-            wind: { ms: 140 }, toll: { ms: 100 }, sweep: { ms: 95 },
-            hit: { ms: 110 }, broken: { ms: 230, bounce: true } },
-  },
-  cultist: {
-    // its idle frames come from the FIRST second of its clip, before the bloom:
-    // the Choir's conjured light flares to a wide soft white, and white light on
-    // a white void cannot be told from the backdrop — the key cut it into a
-    // hard-edged disc that read as a bug rather than a spell. Its rain frames
-    // stop before 1.8s for the same reason, where the downpour washes the field.
-    file: 'foe-cultist-anim.webp',
-    cols: 6, rows: 4, cellW: 380, cellH: 214, figH: 211,
-    states: { idle: [0, 1, 2, 3, 4, 5], wind: [6, 7], toll: [8, 9, 10],
-              rain: [11, 12, 13], gather: [14, 15, 16],
-              hit: [17, 18], broken: [19, 20] },
-    play: { idle: { ms: 170, bounce: true },
-            wind: { ms: 140 }, toll: { ms: 100 }, rain: { ms: 115 },
-            gather: { ms: 130 },
-            hit: { ms: 110 }, broken: { ms: 220, bounce: true } },
-  },
-  wraith: {
-    file: 'foe-wraith-anim.webp',
-    cols: 6, rows: 3, cellW: 380, cellH: 214, figH: 205,
-    states: { idle: [0, 1, 2, 3, 4, 5], wind: [6, 7], sweep: [8, 9, 10],
-              rain: [11, 12, 13], hit: [14, 15], broken: [16, 17] },
-    play: { idle: { ms: 165, bounce: true },
-            wind: { ms: 130 }, sweep: { ms: 85 }, rain: { ms: 115 },
-            hit: { ms: 105 }, broken: { ms: 215, bounce: true } },
-  },
-  revenant: {
-    file: 'foe-revenant-anim.webp',
-    cols: 6, rows: 4, cellW: 380, cellH: 214, figH: 208,
-    states: { idle: [0, 1, 2, 3, 4, 5], wind: [6, 7], toll: [8, 9, 10],
-              sweep: [11, 12, 13], gather: [14, 15, 16],
-              hit: [17, 18], broken: [19, 20] },
-    play: { idle: { ms: 220, bounce: true },
-            wind: { ms: 150 }, toll: { ms: 100 }, sweep: { ms: 90 },
-            gather: { ms: 140 },
-            hit: { ms: 115 }, broken: { ms: 240, bounce: true } },
-  },
-};
-// ONE INSTANCE PER BODY. This was a single global — one foe, one sheet, one
-// interval — and every function below read it by name. A line of three needs
-// three creatures breathing on their own clocks, so the state is keyed by the
-// foe's place in the line and every entry point takes that index; passing none
-// means "the one being read", which is the acting foe during a volley and the
-// aimed one otherwise, and is exactly what a one-foe fight meant all along.
-let _fanims = {}, _fanimT = null, _fanimWant = null;
-const _fanimOf = (ix) => _fanims[ix == null ? (C ? (C.act != null ? C.act : C.aim) : 0) : ix];
-
-function foeAnimPaint(ix) {
-  const a = _fanimOf(ix); if (!a || !a.el) return;
-  const st = a.sheet.states[a.state] || a.sheet.states.idle || [0];
-  const i = st[Math.min(a.frame, st.length - 1)];
-  const c = a.sheet.cols, r = a.sheet.rows;
-  // A uniform grid needs no per-frame rects: the cell is picked by stepping the
-  // background across in even fractions, which is why the sheet is packed
-  // square-celled rather than tightly.
-  a.el.style.backgroundPositionX = c > 1 ? ((i % c) / (c - 1) * 100) + '%' : '0%';
-  a.el.style.backgroundPositionY = r > 1 ? (Math.floor(i / c) / (r - 1) * 100) + '%' : '0%';
-}
-function foeAnimTick() {
-  const live = Object.keys(_fanims);
-  if (!live.length) { if (_fanimT) { clearInterval(_fanimT); _fanimT = null; } return; }
-  live.forEach(k => foeAnimTickOne(_fanims[k], k));
-}
-function foeAnimTickOne(a, key) {
-  if (!a || !a.el || !a.el.isConnected) { delete _fanims[key]; return; }
-  if (document.hidden || camReduced()) return;    // reduced motion holds the pose
-  // A CORPSE DOES NOT BREATHE. `broken` is a two-frame BOUNCING loop — it was
-  // authored as a stagger, which is a thing that happens to a foe that is still
-  // alive — and death borrowed it wholesale, so a dead enemy lay on the ground
-  // ping-ponging between two frames forever. Every foe sheet does this, so the
-  // fix belongs here rather than in five `play` blocks: once the fight has
-  // killed it, the frame it landed on is the frame it keeps.
-  if (a.dead) return;
-  const play = a.sheet.play[a.state] || { ms: 150, bounce: true };
-  const n = (a.sheet.states[a.state] || []).length;
-  if (n < 2) return;
-  const now = performance.now();
-  if (now - a.at < play.ms) return;
-  a.at = now;
-  if (play.bounce) {
-    if (a.frame + a.dir < 0 || a.frame + a.dir >= n) a.dir = -a.dir;
-    a.frame += a.dir;
-  } else if (a.frame + 1 < n) {
-    a.frame++;
-  } else if (play.loop) {
-    a.frame = 0;
-  } else if (play.then && a.sheet.states[play.then]) {
-    a.state = play.then; a.frame = 0; a.dir = 1;
-  } else {
-    return;             // HOLD: an act stays coiled on its last frame
-  }
-  foeAnimPaint(a.ix);
-}
-// THE ACTS HOLD, and `fxFoeSettle` is what lets them go — exactly how the CSS
-// poses above already behave. An act that timed itself back to the idle would
-// drop the foe back to resting in the middle of its own volley, because a
-// barrage runs longer than the swing that opens it.
-function foeAnimState(name, ix) {
-  const a = _fanimOf(ix); if (!a || a.dead) return;
-  // A foe whose sheet does not carry this act simply keeps what it is showing.
-  // The CSS pose on the parent still plays over it, so the act still reads —
-  // which is what lets frames land one state at a time.
-  if (!a.sheet.states[name] || a.state === name) return;
-  clearTimeout(a.back); a.back = null; a.resume = null;
-  a.state = name; a.frame = 0; a.dir = 1; a.at = performance.now();
-  foeAnimPaint(a.ix);
-}
-// A REACTION INTERRUPTS, AND THEN GIVES THE STATE BACK. Being hit does not
-// change what a foe is DOING: it was coiled to strike before the blow landed
-// and it is still coiled after. So a reaction remembers the pose it interrupted
-// and returns to it, rather than dumping the creature onto its idle in the
-// middle of its own volley — and it times out against the same window the CSS
-// shake runs for, so the frames and the shudder end together.
-function foeAnimReact(name, ms, ix) {
-  const a = _fanimOf(ix); if (!a || a.dead || !a.sheet.states[name]) return;
-  // Struck again while already reeling: hold it longer and replay, but do NOT
-  // let 'hit' become the thing it goes back to.
-  if (a.state !== name) a.resume = a.state;
-  a.state = name; a.frame = 0; a.dir = 1; a.at = performance.now();
-  foeAnimPaint(a.ix);
-  clearTimeout(a.back);
-  a.back = setTimeout(() => {
-    a.back = null;
-    if (a.state !== name) return;
-    const back = a.resume || 'idle';
-    a.resume = null;
-    foeAnimState(back, a.ix);
-  }, ms);
-}
-// THE DEGRADATION CONTRACT, inherited from v2.2 and worth keeping exactly:
-// naming a foe in FOE_SHEETS does NOTHING until its sheet really loads. The four
-// foes with no sheet keep their painted plate, a missing or broken file leaves
-// the plate up rather than an empty box, and there is no 404 storm — one probe,
-// and silence if it fails.
-function foeAnimArm(foeId, ix, box) {
-  ix = ix || 0;
-  if (ix === 0) {
-    // ARMING THE FRONT OF THE LINE IS ARMING THE FIGHT. A new encounter always
-    // starts from its first body, so that is where every instance and the one
-    // shared clock are cleared — a second foe arming later must not tear down
-    // the first one's sheet.
-    if (_fanimT) { clearInterval(_fanimT); _fanimT = null; }
-    Object.keys(_fanims).forEach(k => clearTimeout(_fanims[k].back));
-    _fanims = {};
-    _fanimWant = foeId;
-  }
-  const want = _fanimWant;
-  box = box || foeBox(ix); if (!box) return;
-  // ALL of them, not the first. Two fights started in the same frame arm two
-  // probes; a cached sheet resolves both, and each one used to mount its own
-  // layer. querySelector then retired one of the pair and left the other behind
-  // — invisible, because the class was off, but one class away from a doubled
-  // Regent, and dragging a stale interval along with it.
-  box.querySelectorAll('.k-fanim').forEach(n => n.remove());
-  box.classList.remove('k-has-anim');
-  const sheet = FOE_SHEETS[foeId]; if (!sheet) return;
-  const src = '../art/' + sheet.file;
-  const probe = new Image();
-  probe.onload = () => {
-    // the encounter may have been swapped out while the sheet was in flight
-    if (_fanimWant !== want || !box.isConnected) return;
-    // idempotent: whatever a racing probe may have mounted goes first, so the
-    // box holds exactly one layer however many resolve. The CLOCK is shared —
-    // one interval walks every body — so it is started, never restarted.
-    box.querySelectorAll('.k-fanim').forEach(n => n.remove());
-    const img = box.querySelector('img');
-    const l = document.createElement('span');
-    l.className = 'k-fanim';
-    l.style.backgroundImage = "url('" + src + "')";
-    l.style.backgroundSize = (sheet.cols * 100) + '% ' + (sheet.rows * 100) + '%';
-    // SIZED BY THE CREATURE, NOT BY ITS CELL. A cell carries margin the painted
-    // plate does not — the Regent's acts reach further than her idle, and each
-    // foe's clip framed it a little differently — so a layer stretched to the
-    // box would swap the plate for a visibly smaller foe, and by a different
-    // amount for each one. Blow the cell up until the figure inside it stands
-    // exactly as tall as the plate it is replacing, and the swap is invisible.
-    const bw = box.clientWidth || 250, bh = box.clientHeight || 264;
-    const pr = (img && img.naturalWidth) ? (img.naturalHeight / img.naturalWidth)
-                                         : (511 / 760);   // every plate's shape
-    const cellH = Math.min(bh, bw * pr) * sheet.cellH / sheet.figH;
-    l.style.height = cellH + 'px';
-    l.style.width = (cellH * sheet.cellW / sheet.cellH) + 'px';
-    box.insertBefore(l, box.firstChild);
-    box.classList.add('k-has-anim');
-    // A LINE MUST NOT BREATHE IN UNISON. Three of the same creature armed in
-    // the same frame would step their idles together and read as one animation
-    // played three times; each starts at its own frame instead.
-    const st = sheet.states.idle || [0];
-    _fanims[ix] = { ix, el: l, sheet, state: 'idle', frame: ix % st.length,
-                    dir: 1, at: performance.now(), back: null };
-    foeAnimPaint(ix);
-    if (!_fanimT) _fanimT = setInterval(foeAnimTick, 60);
-  };
-  probe.onerror = () => {};
-  probe.src = src;
-}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // RHYTHM DEFENSE UI — notes launch from the Regent and travel to the target
@@ -5171,7 +4933,6 @@ function fxStrikeBoss(n, why, F) {
   const staggered = !!(F2 && (F2.broken || F2.cancelNext));
   const power = why === 'bleed' ? 0.12
               : Math.min(1, share * 0.62 + (hands - 1) * 0.22);
-  foeAnimReact(staggered ? 'broken' : 'hit', staggered ? 620 : 340, ix);
   castFoeReact(ix, power, staggered, hands);
   // THE SOUND SAYS WHAT THREW IT, the same way the visual effect does: steel
   // scrapes and rings, a spell blooms, and a bleed tick is the plain impact.
@@ -6101,7 +5862,6 @@ async function fxInterrupt(ix) {
   const b = foeBox(ix == null ? (C ? C.aim : 0) : ix);
   if (!b) return;
   b.classList.add('k-broken');
-  foeAnimReact('broken', 700, ix);
   sfx('brk', 1.4);
   await sleep(700);
   b.classList.remove('k-broken');
@@ -6572,23 +6332,19 @@ const INTENT_ICON = { atk: 'atk', guard: 'guard', charge: 'finale', heal: 'heal'
 //
 // The first cut parented both into the body box on the reasoning that the box
 // is placed by the world's own projection every frame, so a child rides it for
-// free. Measured, the box is not the creature: the painted idle strip
-// (`.k-fanim`) is bottom-anchored inside a 250x264 frame and drawn at its own
-// size, so the Hollow Husk's art began FIFTY PIXELS below its box's top edge
-// and ran wider than it on both sides. A badge at `bottom: 100%` of that box
-// sat sixty-eight pixels over the creature's head, up among the enemy plates.
-// The probe read the badge's textContent, saw the right numbers, and passed.
+// free. Measured, the box is not the creature: the art is drawn at its own size
+// inside a 250x264 frame, so a badge at `bottom: 100%` of that box sat
+// sixty-eight pixels over the creature's head, up among the enemy plates. The
+// probe read the badge's textContent, saw the right numbers, and passed.
 //
 // The stage already solves this for the parry rings and the string track:
 // they live on `#k-stage`, outside the field, and re-anchor every frame from a
 // rect — "three rect reads, and it buys a camera that can move during a bar."
-// Same answer here, and it is the only one that is right in all three ways a
-// body can be drawn: a 3D figure, a painted animation strip, or a still plate.
+// Same answer here.
 const TELL_ICON = { phys: 'swords', arc: 'arcane' };
-// WHATEVER IS ACTUALLY ON SCREEN FOR THIS BODY. `k-has-anim` swaps the still
-// plate for the strip and the 3D layer hides both, so the drawn thing is a
-// different element in each of the three cases and the box is the right answer
-// only in the last one.
+// WHATEVER IS ACTUALLY ON SCREEN FOR THIS BODY. Build 219 retired the painted
+// sprite strip, so there are two cases left: the figure the 3D layer owns, or
+// nothing drawn at all.
 function drawnArt(box) {
   // …AND "ON SCREEN" IS NOT "HAS A WIDTH". The 3D layer stands the painted
   // plate down with `opacity: 0`, never `display: none`, so a claimed body
@@ -6599,8 +6355,6 @@ function drawnArt(box) {
   // box IS the figure: `follow` scales it so its height on screen is the
   // figure's height.
   if (box.classList.contains('k-cast3d-on')) return box;
-  const fa = box.querySelector('.k-fanim');
-  if (fa && fa.offsetWidth) return fa;
   const im = box.querySelector('img');
   if (im && im.offsetWidth) return im;
   return box;
@@ -8710,7 +8464,7 @@ window.K = {
   // the ladder is drivable from a sim and the change can be A/B'd.
   _parryWeights: () => ({ ...PARRY_WEIGHT }),
   _setParryWeights: (o) => { Object.assign(PARRY_WEIGHT, o || {}); },
-  actionKind, attackFlavour, castTone, cardArt, overHand, FOE_SHEETS, fxFoeDown,
+  actionKind, attackFlavour, castTone, cardArt, overHand, fxFoeDown,
   // test-only: drive the foe's performance directly, through the same hooks the
   // fight drives, so a check can ask what each intent actually pulls
   _fxFoeWind: () => fxFoeWind(), _fxFoeAct: (i) => fxFoeAct(i),

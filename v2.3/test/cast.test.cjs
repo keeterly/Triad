@@ -1100,8 +1100,17 @@ const { boot } = require('./harness.cjs');
   });
   check('PLATE: the Regent\u2019s body is drawn for the Regent',
     plate.asRegent.on && plate.asRegent.drawn, JSON.stringify(plate.asRegent));
-  check('PLATE: a creature there is no model of keeps its own painting',
-    !plate.asStranger.on && !plate.asStranger.drawn && plate.asStranger.paintOpacity === '1',
+  // ── AND IT SHOWS NOTHING, WHERE IT USED TO SHOW A PAINTING (Build 219) ───
+  //
+  // This asserted `paintOpacity === '1'`: an element that no model claims falls
+  // back to its painting. That WAS the rule, and it is the rule the painted
+  // stage was retired for — it is the same rule that put the old art on screen
+  // at every boot and every late-arriving creature. A slot nothing is standing
+  // in is now empty, which is honest, and the property being tested is
+  // unchanged: an element gives up its picture only to the model that belongs
+  // on it, and gets nothing else in its place.
+  check('PLATE: a creature there is no model of shows nothing at all',
+    !plate.asStranger.on && !plate.asStranger.drawn && plate.asStranger.paintOpacity === '0',
     JSON.stringify(plate.asStranger));
 
   // …AND "KEEPS ITS PAINTING" IS NOT THE SAME AS "CAN BE SEEN".
@@ -1176,11 +1185,11 @@ const { boot } = require('./harness.cjs');
   };
   const shotA = await grab();
   const shotB = await grab();
-  // HIDE THE WHOLE PLATE, NOT THE `img`. The foe's painting has been a frame
-  // STRIP since Build 50 — `.k-fanim`, stepped across six real frames of the
-  // Regent — and `#k-boss-art.k-has-anim img` is `display: none` in its favour.
-  // A test that hid the img was hiding something that has not been on screen
-  // for seventy builds, and duly reported that hiding it changed nothing.
+  // HIDE THE WHOLE PLATE, NOT THE `img`. A test that hid the img was hiding
+  // something that had not been on screen for seventy builds, and duly reported
+  // that hiding it changed nothing. Build 219 retired the painted cast outright
+  // and the plate is stood down on every body now, so hiding the box is the
+  // only gesture that means anything here.
   await J(() => { document.getElementById('k-boss-art').style.visibility = 'hidden'; });
   const shotC = await grab();
   const claimed = await hold();
@@ -1206,8 +1215,13 @@ const { boot } = require('./harness.cjs');
   const seen = { noise: Math.abs(shotA.length - shotB.length),
                  signal: Math.abs(shotA.length - shotC.length),
                  bytes: shotA.length, claimed };
-  check('PLATE: and the painting is actually ON SCREEN, not behind the world',
-    !seen.claimed && seen.signal > Math.max(400, seen.noise * 3),
+  // …AND THE PICTURE DOES NOT MOVE WHEN THE PLATE IS HIDDEN, which is the same
+  // measurement read the other way round. It used to prove the painting was
+  // really on screen rather than stranded behind an opaque world; now that
+  // there is no painting, hiding the plate must change nothing beyond the
+  // camera's own drift — so the signal has to stay down in the noise.
+  check('PLATE: hiding a plate changes nothing, because nothing was drawn on it',
+    !seen.claimed && seen.signal <= Math.max(1200, seen.noise * 3),
     JSON.stringify(seen) + ' — PNG bytes for the enemy\u2019s whole box');
   check('PLATE: and the body comes back when its own creature does',
     plate.back.on && plate.back.drawn, JSON.stringify(plate.back));
@@ -4413,6 +4427,37 @@ const { boot } = require('./harness.cjs');
   // figures composite over the room that screen is painted as — and the two
   // things that would break a run are the canvas not moving and the canvas not
   // coming back. Both are checked, in that order.
+  // ── AND THE PAINTED CAST IS NEVER THE PICTURE (Build 219) ────────────────
+  //
+  // Only this suite can ask. Every other one boots `cast=2d`, where the plates
+  // are the picture and should be; here the world is drawing, and the rule is
+  // that no painting is ever lit — not while the models are still arriving, not
+  // when a creature's body lands after the creature did, not ever.
+  //
+  // `.k-cast3d-on` was written per body per frame, so the plate WAS the picture
+  // until a model claimed it. `.k-cast3d-only` goes on at boot, before a byte
+  // is fetched, and this is the check that says so.
+  {
+    const dark = await J(async () => {
+      window.K.startCombat({ seed: 7, foes: ['husk'] });
+      const lit = [];
+      // watch across the whole arrival window, not at one convenient instant
+      for (let i = 0; i < 60; i++) {
+        lit.push([...document.querySelectorAll('#k-cast .k-fig img')]
+          .filter(e => +getComputedStyle(e).opacity > 0.02).length);
+        await new Promise(r => setTimeout(r, 50));
+      }
+      return { worstLit: Math.max(...lit), plates: document.querySelectorAll('#k-cast .k-fig img').length,
+               strips: document.querySelectorAll('.k-fanim').length,
+               only: document.body.classList.contains('k-cast3d-only'),
+               on: document.body.classList.contains('k-cast3d') };
+    });
+    check('STAGE: no painting is ever lit on the stage a player gets',
+      dark.only && dark.on && dark.plates > 0 && dark.strips === 0 && dark.worstLit === 0,
+      JSON.stringify(dark) + ' — sampled across three seconds of a fight '
+        + 'starting, which is the window the old art used to fill');
+  }
+
   // ── THE PARRY READOUT, ON THE STAGE PLAYERS ACTUALLY GET ─────────────────
   //
   // Build 217 made a parry prove itself: the receipt names what the hands

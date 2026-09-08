@@ -79,14 +79,6 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
    and carries the plate's shadow and reflection, so the swap is invisible.
    Hidden until the sheet actually loads; when it is on it REPLACES the plate,
    and the CSS breathe underneath goes quiet — the frames are the breathing. */
-.k-fanim { display: none; position: absolute; left: 50%; bottom: 8px;
-  transform: translateX(-50%); pointer-events: none;
-  background-repeat: no-repeat;
-  filter: drop-shadow(0 10px 18px rgba(0,0,0,0.75));
-  -webkit-box-reflect: below -6px linear-gradient(rgba(0,0,0,0) 58%, rgba(255,255,255,0.14)); }
-#k-boss-art.k-has-anim .k-fanim { display: block; }
-#k-boss-art.k-has-anim img { display: none; }
-#k-boss-art.k-has-anim[data-foe] .k-fig { animation: none; }
 
 /* ═══ THE LINE (Build 99) ═══════════════════════════════════════════════════
    More than one thing standing there. `#k-boss-art` is the FIRST body and
@@ -103,9 +95,6 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   height: 100%; width: 100%; object-fit: contain; object-position: bottom;
   filter: drop-shadow(0 10px 18px rgba(0,0,0,0.75));
   -webkit-box-reflect: below -6px linear-gradient(rgba(0,0,0,0) 58%, rgba(255,255,255,0.14)); }
-.k-foe-art.k-has-anim .k-fanim { display: block; }
-.k-foe-art.k-has-anim img { display: none; }
-.k-foe-art.k-has-anim[data-foe] .k-fig { animation: none; }
 
 /* THREE PLACES ON THEIR SIDE TOO (Build 101).
    The party has stood in FRONT / MID / BACK since Build 20 and the things it
@@ -138,9 +127,9 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   opacity: 0.9; z-index: 1; }
 /* …and the same air-and-warmth ladder the hero ranks wear, so a rank reads at a
    glance on both sides of the floor rather than only on one. */
-#k-cast.k-line-many [data-row="back"] img, #k-cast.k-line-many [data-row="back"] .k-fanim {
+#k-cast.k-line-many [data-row="back"] img {
   filter: saturate(0.78) brightness(0.84) drop-shadow(0 8px 12px rgba(0,0,0,0.6)); }
-#k-cast.k-line-many [data-row="mid"] img, #k-cast.k-line-many [data-row="mid"] .k-fanim {
+#k-cast.k-line-many [data-row="mid"] img {
   filter: saturate(0.92) brightness(0.93) drop-shadow(0 8px 12px rgba(0,0,0,0.68)); }
 
 /* WHICH LANE A BODY IS IN, said in the same word the floor uses. Only ever
@@ -409,9 +398,9 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
   30%  { transform: translateX(-11px) rotate(-2deg); }
   55%  { transform: translateX(9px) rotate(1.5deg); }
   100% { transform: none; } }
-#k-boss-art.k-recoil img, #k-boss-art.k-recoil .k-fanim { animation: k-recoil 0.34s var(--ease-out); }
+#k-boss-art.k-recoil img { animation: k-recoil 0.34s var(--ease-out); }
 @keyframes k-recoil { 30% { transform: translateX(-46%) skewX(1.5deg); filter: brightness(1.5); } }
-#k-boss-art.k-broken img, #k-boss-art.k-broken .k-fanim { animation: k-brokenreel 0.7s var(--ease-out); }
+#k-boss-art.k-broken img { animation: k-brokenreel 0.7s var(--ease-out); }
 @keyframes k-brokenreel { 20% { transform: translateX(-54%) rotate(-3deg); } 60% { transform: translateX(-48%) rotate(2deg); } }
 /* THE FREEZE. Pseudo-elements were still running while everything else held,
    so the frame never fully stopped — v2.2 paused ::before and ::after too. */
@@ -497,6 +486,54 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    the camera pulling back gives the back rank real sky of its own. */
 #k-boss-hud { position: absolute; right: calc(16px + var(--ui-r)); left: auto; top: calc(10px + var(--ui-t)); width: 268px;
   display: flex; flex-direction: column; align-items: flex-end; gap: 3px; z-index: 10; }
+/* ── THE READOUT GETS GROUND TO STAND ON (Build 219) ───────────────────────
+   The foe's body box runs from y30 to y294 and this readout sits at y10-53, so
+   they overlap by design — and on the painted stage that was harmless, because
+   the painted foe was dark and low. The 3D Regent is pale and tall, and there
+   was no backing here at all: `background: rgba(0,0,0,0)`, `box-shadow: none`.
+   Measured against the brightest tenth of what is actually behind it, the
+   POISE label came out at 2.06:1 where 4.5:1 is the floor for text this size;
+   the HP value was fine at 4.80:1, which is why this read as "sometimes hard
+   to see" rather than as a fault.
+   A soft scrim rather than a panel: it is darkest under the text and gone by
+   the edges, so the readout still reads as words on the world rather than as a
+   box bolted over it. */
+/* THE FADE HAS TO FINISH INSIDE THE BOX, which is the whole trick and the one
+   thing two cuts of this got wrong. An ellipse sized 115%/135% of the element
+   reaches its transparent stop at ~101% of the box — OUTSIDE it — so the wash
+   was still at full strength when the element ended and the scrim showed as a
+   rectangle with a hard left edge, which is a panel bolted over the world. At
+   92%/115% with the last stop at 90%, the fade lands at ~83% of the box and
+   there is no edge to see. */
+#k-boss-hud::before {
+  content: ''; position: absolute; z-index: -1;
+  inset: -12px -14px -22px -34px;
+  background: radial-gradient(90% 96% at 80% 40%,
+    rgba(10,8,7,0.74) 0%, rgba(10,8,7,0.66) 38%, rgba(10,8,7,0.22) 68%,
+    rgba(10,8,7,0) 88%);
+  pointer-events: none; }
+/* ── AND THE TELEGRAPH NEEDS THE SAME GROUND ──────────────────────────────
+   This is the readout the fight is actually played off — what the foe is about
+   to do — and it sits at y63, lower into the body than the name plate and with
+   no backing of its own: `background: rgba(0,0,0,0)`, and only a 1px shadow on
+   its children. Over a pale figure it was the least legible thing on screen
+   while being the most important. */
+.k-tell.k-lbl-over::before {
+  content: ''; position: absolute; z-index: -1;
+  inset: -16px -22px -17px -24px;
+  background: radial-gradient(76% 88% at 50% 50%,
+    rgba(10,8,7,0.72) 0%, rgba(10,8,7,0.62) 36%, rgba(10,8,7,0.20) 68%,
+    rgba(10,8,7,0) 88%);
+  pointer-events: none; }
+/* …AND THE TWO DIMMEST TONES IN IT COME UP, scoped to this readout alone.
+   `#9a9080` is the UI's quiet grey and it appears in twenty-five places; it is
+   right everywhere it sits on the game's own dark furniture, and wrong only
+   here, where what is behind it is a lit body. Measured over the brightest
+   tenth of that ground WITH the scrim it still came out at 3.70:1, under the
+   4.5:1 floor. Lifting it globally would repaint half the interface to fix one
+   corner, so it is lifted here and nowhere else: 5.31:1 and 5.99:1. */
+#k-boss-hud .k-hpnum { color: #b9ae97; }
+#k-boss-hud .k-break-wrap { color: #c3b9a3; }
 .k-foe-plate { display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
   width: 100%; }
 .k-foe-plate + .k-foe-plate { margin-top: 7px; }
@@ -1471,7 +1508,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-aim .k-aim-r2 { filter: drop-shadow(0 0 4px rgba(240,212,136,0.9)); }
 .k-aim-valid { filter: drop-shadow(0 0 10px rgba(240,212,136,0.28)); }
 .k-aim-snap { filter: drop-shadow(0 0 18px rgba(240,212,136,0.6)) !important; }
-#k-boss-art.k-aim-snap img, #k-boss-art.k-aim-snap .k-fanim, .k-hero.k-aim-snap img { filter: drop-shadow(0 0 16px rgba(240,212,136,0.65)) brightness(1.1); }
+#k-boss-art.k-aim-snap img, .k-hero.k-aim-snap img { filter: drop-shadow(0 0 16px rgba(240,212,136,0.65)) brightness(1.1); }
 /* while aiming, the held card gets out of its own way */
 .k-card.k-dragging { opacity: 0.94; }
 
@@ -4052,15 +4089,12 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    than fades, and keeps enough body to read as a shape on the ground. */
 #k-boss-art.k-foe-down { animation: k-foe-down 1500ms cubic-bezier(0.3,0,0.4,1) both;
   transform-origin: 50% 92%; }
-/* NOTHING ON A CORPSE MOVES. The sheet's frames are frozen in JS (foeAnimKill),
-   but a foe with no sheet is a painted plate wearing `.k-fig`, which carries
-   the 4.4s breathing loop every living figure on this board carries — so the
-   body on the ground kept rising and falling. The reflection goes with it: a
-   still figure with a breathing mirror underneath is worse than either. */
+/* NOTHING ON A CORPSE MOVES. A plate wears `.k-fig`, which carries the 4.4s
+   breathing loop every living figure on this board carries — so the body on the
+   ground kept rising and falling. The reflection goes with it: a still figure
+   with a breathing mirror underneath is worse than either. */
 #k-boss-art.k-foe-down .k-fig,
 #k-boss-art.k-foe-down img,
-#k-boss-art.k-foe-down .k-fanim { animation: none !important; }
-#k-boss-art.k-foe-down .k-fanim { -webkit-box-reflect: none; }
 @keyframes k-foe-down {
   0%   { transform: translateY(0) rotate(0deg); filter: none; opacity: 1; }
   22%  { transform: translateY(-7px) rotate(-2deg); }
@@ -4470,6 +4504,25 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    the Regent and wrong for the other four, so the Kneeling Revenant fought
    the party wearing the boss's body. */
 body.k-cast3d .k-cast3d-on .k-fig img { opacity: 0; }
+/* ── AND THE PLATES ARE NEVER THE PICTURE (Build 219) ──────────────────────
+   `.k-cast3d-on` is written per body per frame, so until a model lands the
+   painting was what a player saw — at boot, and again every time a creature's
+   model arrived after the creature did. `.k-cast3d-only` is set at boot before
+   anything is fetched, so the answer to "what is drawn while the world loads"
+   is NOTHING rather than the art this build retired. */
+body.k-cast3d-only #k-cast .k-fig img,
+body.k-cast3d-only .k-hero .k-shadow,
+body.k-cast3d-only #k-boss-art .k-shadow,
+body.k-cast3d-only .k-foe-art .k-shadow,
+body.k-cast3d-only #k-backdrop { opacity: 0 !important; }
+/* …and if the world genuinely cannot be drawn, the stage says so rather than
+   sitting empty and pretending nothing went wrong. */
+body.k-cast3d-lost #k-field::after {
+  content: 'THIS SCENE NEEDS 3D, AND THIS BROWSER IS NOT GIVING IT.';
+  position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: center; text-align: center; padding: 0 12%;
+  font-size: 11px; letter-spacing: 0.14em; color: #b0a894;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9); }
 /* the canvas is under the DOM heroes, above the painted floor */
 body.k-cast3d #k-cast3d { position: absolute; inset: 0; pointer-events: none; }
 /* ── THE HANDOFF IS A DISSOLVE, NOT A CUT (Build 181) ────────────────────
@@ -4487,7 +4540,7 @@ body.k-cast3d #k-cast3d { position: absolute; inset: 0; pointer-events: none; }
    function this stylesheet is not allowed to use, and the road suite says so */
 #k-cast3d { opacity: 0; transition: opacity 260ms var(--ease-out); }
 body.k-cast3d #k-cast3d { opacity: 1; }
-#k-cast .k-fig img, #k-cast .k-fanim, #k-backdrop,
+#k-cast .k-fig img, #k-backdrop,
 .k-hero .k-shadow, #k-boss-art .k-shadow, .k-foe-art .k-shadow {
   transition: opacity 260ms var(--ease-out); }
 /* THE PAINTED SHADOW RETIRES (Build 119). It was welcome for as long as there
@@ -4512,8 +4565,7 @@ body.k-cast3d .k-foe-art .k-shadow { opacity: 0; }
    Only for a creature there is a model of, though: everything else keeps the
    painting it has always had, which is also what happens to an actor whose
    model failed to load. */
-body.k-cast3d .k-cast3d-on img,
-body.k-cast3d .k-cast3d-on .k-fanim { opacity: 0; }
+body.k-cast3d .k-cast3d-on img { opacity: 0; }
 
 /* ═══ THE WORLD PLACES, THE DOM FOLLOWS (Build 119) ════════════════════════
    Until now this file's lane ladder was the truth and the 3D layer read it:

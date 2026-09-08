@@ -8681,8 +8681,27 @@ function urlLook() {
   return Object.keys(out).length ? out : null;
 }
 if (Cast3D.wanted()) {
+  // ── THE PAINTINGS ARE NOT THE GAME WHILE THE WORLD ARRIVES (Build 219) ────
+  //
+  // `enable()` has to fetch a clip library and eight rigs before anybody can
+  // stand up, and for those hundreds of milliseconds the painted plates were
+  // what a player looked at — then every one of them switched off. Build 181
+  // called that "the 2D pop on load" and made it a 260ms dissolve, which turned
+  // a cut into a fade without changing what was being faded FROM.
+  //
+  // The class goes on at boot, before a single byte is fetched, so the plates
+  // are never the picture. What fills the gap is the stage's own held frame,
+  // which is a fight that has not started yet rather than a fight drawn in an
+  // art style the game retired.
+  document.body.classList.add('k-cast3d-only');
   const go = () => Cast3D.enable().then(ok => {
-    if (!ok) { console.warn('[cast3d] stayed on the painted stage:', Cast3D._state().failed); return; }
+    if (!ok) {
+      // …AND A RENDERER THAT CANNOT RUN SAYS SO. It used to hand the stage back
+      // to the paintings; there are no paintings to hand it back to.
+      console.warn('[cast3d] the world could not be drawn:', Cast3D._state().failed);
+      document.body.classList.add('k-cast3d-lost');
+      return;
+    }
     const dials = urlLook();
     if (dials) Cast3D.look(dials);
     if (/(^|[?&])tune=1(&|$)/.test(location.search)) tunePanel();
