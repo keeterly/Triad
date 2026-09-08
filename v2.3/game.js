@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 217;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 218;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -5097,10 +5097,33 @@ function popupOver(el, text, cls, was) {
   const i = _popSeq++ % 3;
   p.style.setProperty('--pop-dx', (i === 0 ? 0 : i === 1 ? -52 : 52) + 'px');
   p.style.setProperty('--pop-dy', (i === 0 ? 0 : i === 1 ? -14 : 12) + 'px');
-  p.style.left = ((r.left + r.width / 2 - sr.left) / scale) + 'px';
-  p.style.top = ((r.top + r.height * 0.26 - sr.top) / scale) + 'px';
+  const place = () => {
+    const s2 = stage.getBoundingClientRect(), r2 = el.getBoundingClientRect();
+    const k = s2.width / stage.offsetWidth || 1;
+    p.style.left = ((r2.left + r2.width / 2 - s2.left) / k) + 'px';
+    p.style.top = ((r2.top + r2.height * 0.26 - s2.top) / k) + 'px';
+  };
+  place();
   stage.appendChild(p);
-  setTimeout(() => p.remove(), 1100);
+  // ── AND IT FOLLOWS THE PERSON IT IS ABOUT ────────────────────────────────
+  //
+  // The number was planted once, in screen space, and left there for its whole
+  // 1.1s. On the painted stage that is fine — a hero is a plate that does not
+  // move. The stage players actually get is the 3D one, where the plate tracks
+  // a projected figure and the lens is still travelling out of the parry pose
+  // while the number hangs in the air: measured mid-volley, the figures had
+  // gone to elin -397 / mira -155 / ash 78 while Ash's number sat at 376. Three
+  // hundred pixels from the person it was about, which is a number over nobody.
+  //
+  // Every suite but one boots the painted stage, so nothing could see it.
+  let alive = true;
+  const follow = () => {
+    if (!alive || !p.isConnected || !el.isConnected) return;
+    place();
+    requestAnimationFrame(follow);
+  };
+  requestAnimationFrame(follow);
+  setTimeout(() => { alive = false; p.remove(); }, 1100);
 }
 // the blow itself — reels the Regent and shakes the frame, no number
 let _slashN = 0;

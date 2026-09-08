@@ -1303,16 +1303,23 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    AND THE RULE OVERHANGS THE DIGIT. At 0.46em with no padding, a struck-through
    single digit — which most blows are — reads as a minus sign rather than as a
    number crossed out. Slightly larger with side padding, the line runs past
-   both ends of the digit and the gesture is unmistakable. */
+   both ends of the digit and the gesture is unmistakable.
+
+   AND IT TAKES ITS COLOUR FROM THE NUMBER IT QUALIFIES. A fixed warm grey was
+   chosen against the painted stage, which is a dark flooded plaza; the stage
+   players actually get is the 3D one, which is daylight over pale stone, and a
+   light grey figure went nearly invisible on it. Inheriting means the struck
+   number is salmon over a blow that landed and gold over one turned aside —
+   both of which already hold on either ground — and there is one fewer colour
+   in the file that has to be re-picked every time the light changes. */
 .k-pop-was { display: block; font-size: 0.52em; font-weight: 700;
-  color: #cdbca6; opacity: 0.86; letter-spacing: 0; margin-bottom: 1px;
+  color: inherit; opacity: 0.66; letter-spacing: 0; margin-bottom: 1px;
   padding: 0 0.24em;
   text-decoration: line-through; text-decoration-thickness: 2px;
-  text-decoration-color: rgba(255,138,118,0.9); }
+  text-decoration-color: currentColor; }
 /* …and a blow turned aside prints a gold nothing, because the best outcome in
    the game may not be the only one with no readout. */
 .k-pop-none { color: #ffe6a8 !important; }
-.k-pop-none .k-pop-was { text-decoration-color: rgba(255,230,168,0.9); }
 .k-pop-hurt { color: #ff8a76 !important; }
 .k-pop-gold { color: #ffe6a8; }
 .k-pop-heal { color: #b6e39a; }

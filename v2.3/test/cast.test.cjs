@@ -4413,6 +4413,92 @@ const { boot } = require('./harness.cjs');
   // figures composite over the room that screen is painted as — and the two
   // things that would break a run are the canvas not moving and the canvas not
   // coming back. Both are checked, in that order.
+  // ── THE PARRY READOUT, ON THE STAGE PLAYERS ACTUALLY GET ─────────────────
+  //
+  // Build 217 made a parry prove itself: the receipt names what the hands
+  // caught, and the number carries the blow it would have been struck through
+  // above the one that landed. Its checks live in the beat gate, which boots
+  // the PAINTED stage — right for them, because the words and the numbers are
+  // DOM and do not know which stage they are over.
+  //
+  // What is not stage-independent is WHERE the readout lands. Over the painted
+  // stage a hero is a DOM plate; here the figure is projected from a 3D scene
+  // and the plate follows it every frame. A number anchored to a hero who has
+  // moved is a number over nobody, and the beat gate cannot see that.
+  {
+    const aimed = await J(async () => {
+      window.K.startCombat({ seed: 21 });
+      window.K.forceIntent('hymn');
+      await new Promise(r => setTimeout(r, 1200));
+      const st = document.getElementById('k-stage');
+      const sr = st.getBoundingClientRect();
+      const mid = (e) => { const r = e.getBoundingClientRect();
+                           return Math.round(r.left + r.width / 2 - sr.left); };
+      // ── BOTH IN THE SAME TICK, OR IT IS NOT A COMPARISON ───────────────
+      //
+      // The first cut sampled the popup's position while the volley ran and the
+      // figures' position after it finished. Those are different instants, and
+      // on a stage where the lens is still travelling that is not a measurement
+      // of anything: the number read 376 against figures that were at -397,
+      // -154 and 78 by the time anyone asked.
+      const seen = [];
+      const watch = setInterval(() => {
+        const at = {};
+        document.querySelectorAll('.k-hero[data-hero]').forEach(h => { at[h.dataset.hero] = mid(h); });
+        document.querySelectorAll('.k-pop').forEach(p => {
+          const w = p.querySelector('.k-pop-was');
+          if (!w) return;
+          const key = w.textContent + '>' + p.lastChild.textContent;
+          const x = mid(p);
+          const gap = Math.round(Math.min(...Object.values(at).map(hx => Math.abs(hx - x))));
+          const had = seen.find(s => s.key === key);
+          // the WORST frame is the one that matters: a number that is right at
+          // rest and adrift while the camera moves is still adrift
+          if (!had) seen.push({ key, x, gap, worst: gap });
+          else had.worst = Math.max(had.worst, gap);
+        });
+      }, 30);
+      const r = await window.K.endTurn({ grades: (window.K.currentIntent().hits || [])
+        .flatMap(h => h.notes.map(() => 'good')) });
+      clearInterval(watch);
+      const heroes = {}, widths = [];
+      document.querySelectorAll('.k-hero[data-hero]').forEach(h => {
+        heroes[h.dataset.hero] = mid(h);
+        widths.push(Math.round(h.getBoundingClientRect().width));
+      });
+      return { seen, heroes, widths, stageW: Math.round(sr.width), taken: r.taken,
+               struck: (r.hits || []).map(h => h.targetId) };
+    });
+    // ── AND IT PROVES IT HAS SOMETHING TO MEASURE FIRST ────────────────────
+    //
+    // The first cut of this check ran at the END of the suite, after the camp
+    // borrowed the canvas, and the stage was hidden by then: every rect came
+    // back {0,0,0,0}, so every |hero - pop| was |0 - 0| and it passed while
+    // measuring nothing at all. A positional check has to fail when it has no
+    // positions, which is the only reason this reads the widths.
+    const laid = aimed.stageW > 400
+      && Object.keys(aimed.heroes).length === 3
+      && aimed.widths.every(w => w > 40);
+    // …and it is over the hero the blow was aimed at, within half a figure, in
+    // EVERY frame of its life and not merely in the one where it was born.
+    //
+    // HALF A FIGURE, MEASURED, not 60px. The first threshold was a round number
+    // and it passed by eight pixels — because a volley FANS its numbers apart by
+    // up to 52px on purpose (`--pop-dx`, so two 9s never read as "99"), and a
+    // literal that happens to sit just outside a deliberate offset is a literal
+    // about to fail for the one reason that is not a fault.
+    const halfFigure = Math.min(...aimed.widths) / 2;
+    const onTarget = aimed.seen.length > 0 && aimed.seen.every(p => p.worst < halfFigure);
+    check('PARRY: the readout lands on the figure, not where the figure used to be',
+      laid && onTarget && aimed.seen.every(p => {
+        const [was, now] = p.key.split('>');
+        return +was > +now;
+      }),
+      JSON.stringify(aimed) + ' — the numbers and words are DOM and the beat '
+        + 'gate proves what they SAY; only here is there a projected figure for '
+        + 'them to miss');
+  }
+
   console.log('\n── a place that is not the fight ──');
   {
     const lent = await J(async () => {
