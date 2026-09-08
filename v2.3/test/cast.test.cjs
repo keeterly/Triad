@@ -282,6 +282,93 @@ const { boot } = require('./harness.cjs');
     outside.meanAlpha > 0.9 && outside.spread > 12,
     JSON.stringify(outside));
 
+  // ═══ C2 · AND THEY ARE POINTING AT THE ENEMY, AND STAY POINTING (Build 210)
+  //
+  // Reported off a phone: the whole party facing three different wrong ways in
+  // one frame — two in profile, one with its back to the room — in a build
+  // whose headings measure correct on every boot of this harness.
+  //
+  // The heading was pinned ONCE, in `mount`, off a single measurement taken one
+  // 16ms step after the model arrived, and `aim` returned silently when it
+  // could not measure. So a body that started wrong stayed wrong for the run
+  // and nothing anywhere said so. It is an invariant now, eased every frame on
+  // a body at rest.
+  //
+  // THIS IS THE MECHANISM, NOT THE SYMPTOM. It knocks each figure a long way
+  // off and asks whether it comes home, which is a question a boot that happens
+  // to be correct cannot answer.
+  console.log('\n── which way they are facing ──');
+  const aimHold = await J(async () => {
+    const C3 = window.Cast3D;
+    const wait = (n) => new Promise(z => { let i = 0;
+      const t = () => (++i >= n ? z() : requestAnimationFrame(t)); requestAnimationFrame(t); });
+    const readAll = () => {
+      const o = {};
+      for (const id of ['elin', 'mira', 'ash']) {
+        const f = C3._figure(id); if (!f) continue;
+        o[id] = { off: +(f.root.userData.headOff || 0).toFixed(2),
+                  want: f.root.userData.heading,
+                  failed: !!f.root.userData.aimFailed };
+      }
+      return o;
+    };
+    await wait(3);
+    const rest = readAll();
+    // knock every body a long way off its heading
+    for (const id of ['elin', 'mira', 'ash']) {
+      const f = C3._figure(id); if (f) f.root.rotation.y += 130 * Math.PI / 180;
+    }
+    await wait(6);
+    const healed = readAll();
+    // …and a body that is ACTING must be left alone, or a swing is fought.
+    //
+    // `down` AND NOT `slash`, FOR A REASON THIS COST A RUN. Headless draws at
+    // about 1.5fps, so four frames is two and a half seconds and the sword clip
+    // is 1.17 — the swing was over before the knock landed, the figure read
+    // `acting: false`, and the check failed while the code was correct. `down`
+    // is the one clip that HOLDS: a dead hero does not stand back up, so the
+    // body is still acting however long the frame took.
+    C3.play('ash', 'down');
+    await wait(3);
+    const fa = C3._figure('ash');
+    const before = fa.root.rotation.y;
+    fa.root.rotation.y += 60 * Math.PI / 180;
+    const knocked = fa.root.rotation.y;
+    await wait(4);
+    const held = { acting: !!fa.acting,
+                   kept: Math.abs(fa.root.rotation.y - knocked) < 1e-6,
+                   moved: +((fa.root.rotation.y - before) * 180 / Math.PI).toFixed(1) };
+    // ── AND IT PUTS THE BODY BACK, WHICH IS NOT TIDINESS ──────────────────
+    //
+    // The first cut left Ash holding a slash and walked away. Twelve sections
+    // later PACE measures how fast the sword clip plays ON ASH and read 0.488
+    // against 0.876 on the three runs before it — a check failing because of
+    // the state another check left behind, which is the worst kind of failure
+    // to debug because it points at innocent code.
+    C3.play('ash', 'idle');
+    await wait(4);
+    return { rest, healed, held, handedBack: !C3._figure('ash').acting };
+  });
+  check('FACE: every body is pointing where it was aimed, and none of them gave up measuring',
+    Object.keys(aimHold.rest).length === 3
+      && Object.keys(aimHold.rest).every(k => !aimHold.rest[k].failed
+                                          && Math.abs(aimHold.rest[k].off) < 2),
+    JSON.stringify(aimHold.rest) + ' — degrees between the chest normal off the '
+      + 'shoulder line and the heading this body was aimed at. `failed` is `aim` '
+      + 'finding no bones to measure, which used to be a silent return');
+  check('FACE: …and a body knocked off its heading walks back onto it',
+    Object.keys(aimHold.healed).length === 3
+      && Object.keys(aimHold.healed).every(k => Math.abs(aimHold.healed[k].off) < 2),
+    JSON.stringify(aimHold.healed) + ' — every figure rotated 130 degrees off its '
+      + 'heading, then read a few frames later. Before Build 210 nothing in the '
+      + 'game ever re-checked a facing, so this stayed at 130 for the whole run');
+  check('FACE: …and a swing is left alone, because a blow is supposed to turn the body',
+    aimHold.held.acting && aimHold.held.kept && aimHold.handedBack,
+    JSON.stringify(aimHold.held) + ' — the same knock during an action. The '
+      + 'invariant must not touch a body that is acting: a swing winds up and '
+      + 'follows through, and a heading held rigid through one is a body sliding '
+      + 'under its own animation');
+
   // ═══ D · THE IDLE IS ACTUALLY MOVING ═══
   // The single most important clip in a turn-based game: almost all of the
   // fight is spent with nobody acting, and a frozen 3D figure reads as a

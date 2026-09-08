@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 209;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 210;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -4063,7 +4063,18 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy, actSpec) {
     if (!stage) return resolve('miss');
     const note = parseNote(spec), kind = note.kind, dir = note.dir;
     const ring = document.createElement('div');
-    ring.className = 'k-pring k-pring-' + kind + (dir ? ' k-pring-dir' : '');
+    // ── AND IT IS NOT PAINTED UNTIL SOMETHING HAS ANCHORED IT ──────────────
+    //
+    // `ax`/`ay` is a snapshot taken when the bar was SCHEDULED, which is before
+    // any of it plays; the re-anchor loop is what actually puts a ring on a
+    // head. A ring whose snapshot was taken before the 3D layer had placed the
+    // hero boxes therefore opens at whatever the snapshot happened to be — and
+    // when that is the stage's own origin, the ring, its label and its count
+    // all appear stacked in the top-left corner of the board.
+    //
+    // Hidden until the loop has moved it once, that is impossible by
+    // construction: a ring is either on a body or it is not on screen.
+    ring.className = 'k-pring k-pring-unplaced k-pring-' + kind + (dir ? ' k-pring-dir' : '');
     ring.style.left = ax + 'px'; ring.style.top = ay + 'px';
     // whose head this is closing on, and how far off their centre it sits, so
     // a moving lens can never leave the ring behind
@@ -4390,7 +4401,12 @@ async function runVolleyRhythm(hits, answerers, sub) {
     let soonest = null, soonestT = Infinity;
     document.querySelectorAll('.k-pring[data-hero]').forEach(r => {
       const a = anchorFor(r.dataset.hero);
-      if (!a) return;
+      // A RING WHOSE BODY HAS GONE HIDES; IT DOES NOT STAY WHERE IT WAS. This
+      // used to `return`, which leaves the ring painted at its last position
+      // with nothing moving it any more — a note apparently still being asked,
+      // hanging over a patch of floor.
+      if (!a) { r.classList.add('k-pring-unplaced'); return; }
+      r.classList.remove('k-pring-unplaced');
       r.style.left = (a.x + (+r.dataset.ox || 0)) + 'px';
       r.style.top = (a.y + (+r.dataset.oy || 0)) + 'px';
       // whichever note lands next is the one the blow is currently aimed at
@@ -4432,6 +4448,23 @@ async function runVolleyRhythm(hits, answerers, sub) {
   // from "not registered", which is the worst thing a rhythm read can be.
   const onPress = (e) => pressRipple(e.clientX, e.clientY);
   stage.addEventListener('pointerdown', onPress, true);
+  // ══ AND THE BAR TAKES ITSELF DOWN, WHATEVER HAPPENS TO IT (Build 210) ═══
+  //
+  // Everything below used to run to the end of the function and tear the bar
+  // down on the last line. That is a promise that holds only while nothing
+  // goes wrong: one rejected job, one fight that ends on the beat, one hero
+  // who dies mid-volley, and the `await` never returns — so the press listener
+  // stays bound, the re-anchor loop keeps running, `#k-beat` keeps pulsing,
+  // the lens stays held, and every ring the bar had open is stranded on the
+  // stage for the rest of the run.
+  //
+  // Photographed on a phone: a whole second bar's worth of furniture — a
+  // dashed ring, its SIGIL label and an intent chip — parked over the party
+  // stack in the top-left while a live bar played in the middle of the board.
+  // A ring whose anchor stops resolving keeps its last position and the loop
+  // that would have moved it has been cancelled, so a ghost does not drift
+  // gradually; it freezes where the failure happened.
+  try {
   // THE RUNWAY IS THE OPENING NOTE'S, NOT A CONSTANT. A bar that opens on a
   // draw needs 2.3 beats before its ring is honest; one that opens on a tap
   // needs one. Asking for the larger of the two means the leadin can come down
@@ -4522,15 +4555,25 @@ async function runVolleyRhythm(hits, answerers, sub) {
     if (hits[hi].notes.some(n => parseNote(n).kind === 'burst')) slot += BURST_REST;
   }
   const grades = await Promise.all(jobs);
-  tracks.forEach(t => t.done());
-  stage.removeEventListener('pointerdown', onPress, true);
-  cancelAnimationFrame(anchorRaf);
-  camHold(false);
-  if (thread) thread.remove();
-  beatClose();
-  parryFocus(false);
-  document.querySelectorAll('.k-hero').forEach(h => h.classList.remove('k-parrying'));
   return grades;
+  } finally {
+    tracks.forEach(t => t.done());
+    stage.removeEventListener('pointerdown', onPress, true);
+    cancelAnimationFrame(anchorRaf);
+    camHold(false);
+    if (thread) thread.remove();
+    beatClose();
+    parryFocus(false);
+    document.querySelectorAll('.k-hero').forEach(h => h.classList.remove('k-parrying'));
+    // ── AND ANY RING THE BAR DID NOT GRADE GOES WITH IT ──────────────────
+    //
+    // A ring is removed by `fxNoteGrade`, which runs when a note is SCORED.
+    // Every note that is never scored — because the bar was abandoned rather
+    // than played — therefore leaves its ring behind, and nothing else in the
+    // game has ever removed one. This is the sweep: when the bar is over, no
+    // ring belongs to anything, so no ring may still be on the stage.
+    stage.querySelectorAll('.k-pring').forEach(r => r.remove());
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

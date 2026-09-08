@@ -4714,3 +4714,11 @@ body.k-cast3d .k-hero.k-row-front img { filter: none; }
 .k-tell-all { font-style: normal; font-size: 9px; letter-spacing: 0.08em; color: #d8bd7e;
   margin-left: 5px; text-shadow: 0 1px 3px #000; white-space: nowrap; }
 
+
+/* A PARRY RING THAT NOTHING HAS ANCHORED YET IS NOT ON SCREEN (Build 210).
+   The ring opens at a position snapshotted when the bar was scheduled and is
+   moved onto its hero by the re-anchor loop; between those two moments, and
+   any time the hero's box stops resolving, it has no business being painted.
+   `visibility` rather than `display`, because the note's own measurements read
+   the ring's rect and a display:none element reports nothing. */
+.k-pring-unplaced { visibility: hidden !important; }

@@ -223,6 +223,56 @@ const PROBES = `
     JSON.stringify({ blowToReck: reck ? Math.round(reck.t - blow) : null,
                      fallToReck: reck && fell ? Math.round(reck.t - fell.t) : null }));
 
+  // ── 4. A BAR THAT IS ABANDONED TAKES ITSELF DOWN (Build 210) ────────────
+  //
+  // Reported off a phone: a dashed ring and its SIGIL label parked in the
+  // top-left corner of the board, over the party stack, while a live bar played
+  // in the middle of the screen. Ghost furniture from a bar that never finished.
+  //
+  // `runVolleyRhythm` tore itself down on its LAST LINE — the press listener,
+  // the re-anchor loop, the beat pulse, the held lens, the parry focus. That is
+  // a promise that holds only while nothing throws. One rejected note and the
+  // await never returns, so none of it runs: the loop that moves the rings is
+  // cancelled, no ring is ever removed, and every one of them is stranded where
+  // it happened to be.
+  //
+  // MEASURED BOTH WAYS. On the Build 209 file this reads
+  // {rings:1, beat:true, parrying:1, focus:true} — a real ring left on the
+  // stage at a fixed pixel with nothing moving it.
+  //
+  // The bar is abandoned the way it actually breaks: a note throws mid-volley.
+  // The FIRST note plays normally so a ring is open when the second one fails,
+  // which is the state the photograph shows.
+  const ghosts = await J(async () => {
+    if (typeof window.runVolleyRhythm !== 'function') return { noFn: true };
+    const realCast = window.castPlay;
+    let n = 0, threw = false;
+    window.castPlay = function () {
+      if (++n < 2) return realCast.apply(this, arguments);
+      threw = true; throw new Error('abandon the bar');
+    };
+    let rejected = false;
+    try {
+      await window.runVolleyRhythm(
+        [{ notes: ['tap'], src: 0 }, { notes: ['tap'], src: 0 }], ['ash', 'mira'], 1);
+    } catch (e) { rejected = true; }
+    window.castPlay = realCast;
+    await new Promise(z => setTimeout(z, 400));
+    const st = document.getElementById('k-stage');
+    return { rejected, threw,
+             rings: document.querySelectorAll('.k-pring').length,
+             beat: !!document.getElementById('k-beat'),
+             parrying: document.querySelectorAll('.k-hero.k-parrying').length,
+             focus: !!(st && st.classList.contains('k-parry-focus')) };
+  });
+  check('BEAT: a parry bar that is abandoned leaves nothing of itself on the board',
+    ghosts.rejected && ghosts.threw && ghosts.rings === 0 && !ghosts.beat
+      && ghosts.parrying === 0 && !ghosts.focus,
+    JSON.stringify(ghosts) + ' — a note throws mid-volley, so the bar rejects '
+      + 'instead of finishing. Every ring, the beat pulse, the held lens and the '
+      + 'parrying flag must go with it; on the build this was reported against, '
+      + 'all four survived');
+
   const r = report();
   await H.browser.close();
   process.exit(r.passed === r.total && !r.errs ? 0 : 1);

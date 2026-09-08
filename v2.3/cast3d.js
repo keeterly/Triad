@@ -5378,13 +5378,64 @@ const Cast3D = (() => {
   function aim(f, want) {
     f.root.updateWorldMatrix(true, true);
     const now = headingOf(f);
-    if (now == null) return;
+    // ── AND A FAILURE HERE USED TO BE SILENT ────────────────────────────────
+    //
+    // No bones, no measurement, no facing — and the body simply kept whatever
+    // heading its generator happened to point it at, for the rest of the run,
+    // with nothing anywhere saying so. Recorded now so the invariant below can
+    // see it and a check can fail on it.
+    if (now == null) { f.root.userData.aimFailed = true; return; }
+    f.root.userData.aimFailed = false;
     let d = want - now;
     while (d > 180) d -= 360;
     while (d < -180) d += 360;
     f.root.rotation.y += d * D;
     f.root.userData.heading = want;
     f.root.updateWorldMatrix(true, true);
+  }
+  // ══ …AND IT STAYS POINTED THERE (Build 210) ══════════════════════════════
+  //
+  // `aim` ran EXACTLY ONCE per body, in `mount`, off a single measurement taken
+  // one 16ms step after the model arrived. Everything downstream trusted that
+  // one number forever: nothing re-checked a heading, and `aim` failing left no
+  // trace. So any single bad measurement — a skeleton that has not been posed
+  // yet, a rig without shoulders, a mount that lands in a frame the phone threw
+  // away — was permanent, silent, and looked exactly like the model being
+  // authored backwards.
+  //
+  // Photographed on a phone: all three of the party pointing three different
+  // wrong ways at once, two in profile and one with its back to the room, in a
+  // build whose headings measure correct on every boot in this harness. A fault
+  // that cannot be reproduced but can be CORRECTED is a fault to correct
+  // continuously.
+  //
+  // So the resting heading is an invariant rather than an initial condition. A
+  // body at rest eases back onto it every frame; whatever knocked it off, and
+  // however it got knocked, it walks home within a few hundred milliseconds.
+  //
+  // WHAT IT MUST NOT DO IS FIGHT THE ANIMATION. An acting clip turns the body
+  // on purpose — a swing winds up and follows through — so a figure that is
+  // acting is left completely alone, and so is one coming apart. This only ever
+  // touches a body that is standing there.
+  //
+  // The ease is deliberately soft. A snap would be a second way to be wrong:
+  // if the measurement is ever noisy this would drive a body oscillating, and
+  // at this rate the worst it can do is drift by a degree.
+  const HEAD_EASE = 4.5;                 // per second, exponential
+  const HEAD_DEAD = 0.35;                // degrees — under this, leave it alone
+  function holdHeading(f, dt) {
+    const want = f.root.userData.heading;
+    if (want == null) return;            // never aimed; mount owns the first one
+    if (f.acting || f.burn != null) return;
+    const now = headingOf(f);
+    if (now == null) { f.root.userData.aimFailed = true; return; }
+    f.root.userData.aimFailed = false;
+    let d = want - now;
+    while (d > 180) d -= 360;
+    while (d < -180) d += 360;
+    f.root.userData.headOff = d;         // what the invariant is currently seeing
+    if (Math.abs(d) < HEAD_DEAD) return;
+    f.root.rotation.y += d * D * Math.min(1, dt * HEAD_EASE);
   }
 
   // ── EVERYTHING THAT IS NOT A BODY ────────────────────────────────────────
@@ -7088,6 +7139,11 @@ const Cast3D = (() => {
     for (const id of Object.keys(figs)) {
       const f = figs[id];
       f.step(dt);
+      // …and while it is standing there, it is still facing the enemy. AFTER
+      // the step, because the heading is read off the POSED shoulders and a
+      // measurement taken before the mixer has run this frame is a measurement
+      // of last frame's body.
+      holdHeading(f, dt);
       const node = SCENE ? null : nodeOf(id);
       // A CREATURE THAT BURNED AWAY STAYS AWAY. Visibility is decided fresh
       // every frame from who is on screen, which is right for everything
