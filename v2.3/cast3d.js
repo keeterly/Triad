@@ -545,13 +545,73 @@ const LOOK = {
   // every push-in and every parry framing refocuses without a table to keep.
   dof:    0.85,  // how much the out-of-focus world actually softens
   frange: 5.5,   // metres either side of the subject before it is fully soft
-  bloom:  0.55,  // how much light gets into the air
+  // ── AND IT IS STRONG BECAUSE THE FLOOR IS HIGH (Build 211) ──────────────
+  //
+  // 0.55 was the right strength for a floor at 0.33, where the glow buffer
+  // carried a mean of 2.25 (x1000) and most of it was the ordinary tonal range
+  // of three bodies. Raising the floor to 0.70 leaves 0.04 — two per cent of
+  // it — so the same strength over the new floor is not a subtler bloom, it is
+  // no bloom.
+  //
+  // High threshold with a strong bloom is the shape that gives HIGHLIGHTS a
+  // glow; low threshold with a moderate one is a haze machine, and the haze is
+  // what got reported. Measured: at 0.33 the composite lifted the whole frame's
+  // mean by 1.5 (x1000), which is the fog this file's own LENS note warns
+  // about; from 0.42 up that lift is zero to within noise.
+  bloom:  2.8,   // how much light gets into the air
   // MEASURED OFF THE FRAME, not picked. The buffer this thresholds holds
-  // LINEAR light, where the whole picture's 99th percentile is about 0.41 —
+  // LINEAR light, where the whole picture's 99th percentile was about 0.41 —
   // so the first setting, 0.62, was above every pixel in the game and the
   // glow buffer came back empty and black at every bloom strength. Read it
   // again with ?look=bloom:-1, which shows the glow alone.
-  glowT:  0.33,  // …and how bright a thing has to be to put it there, LINEAR
+  //
+  // ══ AND THAT SCENE NO LONGER EXISTS (Build 211) ════════════════════════
+  //
+  // 0.33 was correct at Build 186 and wrong from Build 196, and nothing in
+  // between noticed, because the two settings were tuned ten builds apart and
+  // never in the same frame.
+  //
+  // Build 196 gave the CAST an exposure of its own; 201-205 made it per body,
+  // up to five times on Mira. None of it touched the plaza. So the figures got
+  // three to fifteen times brighter against a glow floor that had been measured
+  // on a picture where nothing was. Reported from a phone as the characters
+  // glowing, and the frame says exactly that:
+  //
+  //                              over the floor
+  //     figure pixels                 21%
+  //     world pixels                  0.6%
+  //     Elin                          42.5%
+  //
+  // The bodies are 4.4% of the frame and were making 65.5% of its bloom. 0.33
+  // LINEAR is sRGB 0.604 — the floor sat at the top of the ordinary tonal
+  // range rather than above it, so a body with the ART SHEET'S OWN histogram
+  // (32.3% over 0.60) would still have put a third of itself into the glow. In
+  // the reference that band is paint. Here it became a light source.
+  //
+  // 0.70 is sRGB 0.86, which is the highlight band and nothing else. Swept
+  // photographically at 0.33 / 0.55 / 0.70 / 0.95: at 0.33 Elin's midriff and
+  // skirt are one fused white mass, at 0.70 the folds are back the whole way
+  // down and her face reads, and 0.95 is barely different from 0.70 while
+  // having more to lose.
+  //
+  // AND IT DOES NOT GO ALONE. Raising the floor removes 98% of the glow
+  // buffer's energy — 2.25 to 0.04 — so `bloom` goes up with it, from 0.55 to
+  // 2.8. See the note on that dial: the pair is the setting, and moving one
+  // without the other is either a haze or nothing at all.
+  //
+  // IT COSTS THE WORLD NOTHING. The plaza's far band moves 0.0947 to 0.0899 and
+  // its p99 does not move at all, because the world never crossed the old floor
+  // either. And it costs the flash Build 208 tuned nothing: measured on the
+  // target alone, under dilation, twice at each setting, the gain is 184 and
+  // 194 hot pixels before against 166 and 171 after, while the creature's own
+  // idle glow comes down from 2195 to 2105 — which is the entire point.
+  //
+  // TWO EARLIER READINGS OF THAT SAID THE FLASH DIED AND BOTH WERE THE
+  // INSTRUMENT. A 140ms flash measured at 1.5fps lands on a frame by luck, and
+  // a whole-frame hot-pixel count is drowned by Elin's robe — which is the very
+  // thing the dial moves. Dilated, and counted in a box on the target, the
+  // answer is stable and repeats.
+  glowT:  0.70,  // …and how bright a thing has to be to put it there, LINEAR
   // ── THE DRAWN PASS (Build 186) ───────────────────────────────────────────
   //
   // Three faults, each measured on the frame the player sees, each with its

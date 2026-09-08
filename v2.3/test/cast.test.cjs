@@ -3043,9 +3043,11 @@ const { boot } = require('./harness.cjs');
         else if (mask[i]) { fs += lap; fn++; }
       }
       hi.sort((a, z) => a - z);
+      let msum = 0;
+      for (let j = 0; j < L.length; j++) msum += L[j];
       return { party: ps / Math.max(1, pn), plaza: fs / Math.max(1, fn),
                p99: hi[Math.floor(hi.length * 0.99)], pm: mask, cut: +cut.toFixed(4),
-               farN: fn };
+               mean: msum / Math.max(1, L.length), farN: fn };
     };
     // ── AND THE COMPARISON FRAME HAS TO GO THROUGH THE PASS (Build 191) ──
     //
@@ -3069,11 +3071,35 @@ const { boot } = require('./harness.cjs');
     const offGlow = await sharp(offLens.pm);
     C3.look(was);
     const on = await sharp(offLens.pm);
+    // ══ AND THE GLOW IS READ OFF THE GLOW BUFFER (Build 211) ═══════════════
+    //
+    // `on.p99 / offGlow.p99` was the old measurement and it does not work. Run
+    // six times against SETTINGS THAT DID NOT CHANGE, it returns 0.978, 0.9767,
+    // 1.0031, 1.0163, 1.0085 and 0.9987 — noise of about 0.04 against a gate of
+    // 1.005. The currently shipped dials read 0.9901 on one frame and 1.02 on
+    // the next, so this check has been reporting which frame the run stopped on
+    // and passing since Build 191 on luck.
+    //
+    // The frame's 99th percentile is the wrong estimator: it is dominated by
+    // pixels that are already at the top of the range, where an additive bloom
+    // has nothing left to add.
+    //
+    // `bloom: -1` outputs tGlow ALONE — the layer has supported it since the
+    // dial was written and the dial's own note tells the reader to use it. That
+    // is the light going into the air, with no estimator in between, and it
+    // repeats: 2.25 / 2.24 at the old floor, 0.18 / 0.18 at 0.55, 0.04 / 0.03
+    // at 0.70, monotonic the whole way.
+    C3.look(was);
+    C3.look({ bloom: -1 });
+    const air = await sharp(offLens.pm);
+    C3.look(was);
     return {
       figN,
       party: +(on.party / Math.max(1e-6, offLens.party)).toFixed(2),
       plaza: +(on.plaza / Math.max(1e-6, offLens.plaza)).toFixed(2),
       glow:  +(on.p99 / Math.max(1e-6, offGlow.p99)).toFixed(3),
+      air:   +(air.mean * 1000).toFixed(2),
+      fog:   +((on.mean - offGlow.mean) * 1000).toFixed(2),
       farN: offLens.farN, cut: offLens.cut,
       onByDefault: was.dof > 0.002,
     };
@@ -3086,10 +3112,23 @@ const { boot } = require('./harness.cjs');
     glass.figN > 500 && glass.party > 0.9,
     JSON.stringify(glass) + ' — measured through the figures own mask; over their '
       + 'boxes this reads 0.78 and the boxes are mostly plaza');
-  check('LENS: light gets into the air without fogging the picture',
-    glass.glow > 1.005,
-    JSON.stringify(glass) + ' — the brightest percentile lifts; a glow that raised '
-      + 'the whole frame would be a fog, and the mean does not move');
+  // BOTH HALVES OF THE OLD SENTENCE, EACH ON AN INSTRUMENT THAT CAN SEE IT.
+  // `air` is the glow buffer's own mean, so "light gets into the air" is read
+  // where the light actually is; `fog` is what the composite adds to the frame
+  // MEAN, which is the half the old check named and never measured. At the
+  // reported dials the fog was real and running at 1.5.
+  check('LENS: light gets into the air',
+    glass.air > 0.008,
+    JSON.stringify(glass) + ' — the mean of the glow buffer alone, x1000, via '
+      + 'bloom:-1. The old measurement was the frame p99 with bloom over without, '
+      + 'which returned 0.978 to 1.016 across six runs of UNCHANGED settings — '
+      + 'noise of 0.04 against a gate of 1.005');
+  check('LENS: …without fogging the picture',
+    Math.abs(glass.fog) < 0.6,
+    JSON.stringify(glass) + ' — what the bloom adds to the whole frame mean, '
+      + 'x1000. A bloom that lifts the picture is a haze, not a highlight: at '
+      + 'the floor this shipped with it read 1.5 to 1.7, and from 0.42 up it is '
+      + 'zero to within noise');
 
   // ── ONE BAD PIXEL MUST NOT BECOME A BLOCK ─────────────────────────────────
   //
@@ -3457,6 +3496,86 @@ const { boot } = require('./harness.cjs');
       + 'it, so the mean must barely move; a dial that walked the whole body '
       + 'down would be an exposure wearing a different name, and nothing else '
       + 'in this suite would catch it');
+
+  // ══ AND A BODY IS A LIT SURFACE, NOT A LAMP (Build 211) ════════════════
+  //
+  // `glowT` is a threshold in LINEAR light applied to the WHOLE frame; `expo`
+  // multiplies the CAST and nothing else. The two were set ten builds apart and
+  // never read in the same picture, so when Build 196 gave the figures an
+  // exposure — and 201-205 took it to five times on Mira — nothing moved the
+  // floor with them. Reported from a phone as the characters glowing:
+  //
+  //                      over the floor      after
+  //     figure pixels          21%            5.8%
+  //     world pixels           0.6%           0.1%
+  //     Elin                   42.5%         10.2%
+  //
+  // 0.33 linear is sRGB 0.604 — the top of the ORDINARY tonal range, not above
+  // it. A body carrying the art sheet's own histogram (32.3% over 0.60) would
+  // have put a third of itself into an additive bloom. In the painting that
+  // band is paint. 0.70 is sRGB 0.86, and Elin now lands on 10.2% against the
+  // sheet's 10.6% highlight band.
+  //
+  // The floor is placed between the two populations rather than under the
+  // reading: the fault measured 42.5% on one body and 21% over all of them, and
+  // this passes at 5.8%.
+  const lamp = await J(async () => {
+    const C3 = window.Cast3D, was = C3.look();
+    const grab = async () => {
+      await new Promise(z => requestAnimationFrame(z));
+      await new Promise(z => requestAnimationFrame(z));
+      await C3._snapshot();
+      const c = window.__castShot;
+      return { w: c.width, h: c.height,
+               d: c.getContext('2d').getImageData(0, 0, c.width, c.height).data };
+    };
+    C3.look({ pl: -2 });
+    const mk = await grab();
+    const fig = new Uint8Array(mk.w * mk.h);
+    for (let i = 0, j = 0; i < mk.d.length; i += 4, j++)
+      if (mk.d[i] > 140 && mk.d[i + 1] < 100 && mk.d[i + 2] > 140) fig[j] = 1;
+    C3.look(was);
+    const cr = document.getElementById('k-cast3d').getBoundingClientRect();
+    const g = await grab();
+    // the SAME conversion the threshold sees: the glow floor is in linear light
+    // and the snapshot is sRGB, and reading one as the other is how this file
+    // has mis-set a threshold before
+    const lin = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92
+                                    : Math.pow((v + 0.055) / 1.055, 2.4); };
+    const L = (j) => 0.2126 * lin(g.d[j * 4]) + 0.7152 * lin(g.d[j * 4 + 1])
+                   + 0.0722 * lin(g.d[j * 4 + 2]);
+    let nFig = 0, overFig = 0;
+    for (let j = 0; j < mk.w * mk.h; j++)
+      if (fig[j]) { nFig++; if (L(j) > was.glowT) overFig++; }
+    const per = {};
+    for (const id of ['elin', 'mira', 'ash']) {
+      const e = document.querySelector('.k-hero[data-hero="' + id + '"]');
+      if (!e) continue;
+      const b = e.getBoundingClientRect();
+      const x0 = Math.round((b.left - cr.left) / cr.width * mk.w);
+      const y0 = Math.round((b.top - cr.top) / cr.height * mk.h);
+      const x1 = Math.round((b.right - cr.left) / cr.width * mk.w);
+      const y1 = Math.round((b.bottom - cr.top) / cr.height * mk.h);
+      let n = 0, o = 0;
+      for (let y = Math.max(0, y0); y < Math.min(mk.h, y1); y++)
+        for (let x = Math.max(0, x0); x < Math.min(mk.w, x1); x++) {
+          const j = y * mk.w + x; if (!fig[j]) continue;
+          n++; if (L(j) > was.glowT) o++;
+        }
+      if (n > 200) per[id] = +(100 * o / n).toFixed(1);
+    }
+    return { glowT: was.glowT, floorInSRGB: +Math.pow(was.glowT, 1 / 2.2).toFixed(3),
+             figN: nFig, figOverFloor: +(100 * overFig / Math.max(1, nFig)).toFixed(1),
+             perBody: per };
+  });
+  check('GLOW: a body is a lit surface, not a lamp — only its highlights reach the bloom',
+    lamp.figN > 500 && lamp.figOverFloor < 12
+      && Object.keys(lamp.perBody).length === 3
+      && Object.keys(lamp.perBody).every(k => lamp.perBody[k] < 20),
+    JSON.stringify(lamp) + ' — share of each body over the glow floor, in the '
+      + 'LINEAR light the threshold is expressed in. At the reported setting '
+      + 'Elin read 42.5% and the party 21%, and the bodies — 4.4% of the frame '
+      + '— were making 65.5% of its bloom');
 
   // ── AND THE DISTANCE IS A PLACE, NOT A GREY CARD ────────────────────────
   //
