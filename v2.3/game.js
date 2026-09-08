@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 214;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 215;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -109,12 +109,17 @@ const CARD_DEFS = {
   // this for free, then the finisher, and there is still an AP for a fourth
   // card. That is the turn this game wanted and could not pay for.
   lcascade:    { owner: 'elin', name: 'Lumen Cascade', cost: 1, target: 'enemy',
-                 base: [{ dmg: 4 }, { guardLowest: 4 }], cond: null },
+                 base: [{ dmg: 5 }], cond: null },
   lcascade2:   { owner: 'elin', name: 'Lumen Cascade', sameAs: 'lcascade', cost: 1, target: 'enemy',
-                 base: [{ dmg: 4 }, { guardLowest: 4 }], cond: null },
+                 base: [{ dmg: 5 }], cond: null },
   lcascade3:   { owner: 'elin', name: 'Lumen Cascade', sameAs: 'lcascade', cost: 1, target: 'enemy',
-                 base: [{ dmg: 4 }, { guardLowest: 4 }], cond: null },
-  mend:        { owner: 'elin', name: 'Mend',          cost: 1, target: 'party', base: [{ heal: 6 }], cond: null },
+                 base: [{ dmg: 5 }], cond: null },
+  // ── ELIN'S TWO-CARD IDEA (Build 215) ─────────────────────────────────────
+  // The ward puts guard on somebody; the mend pays for it. Held together they
+  // are one thought a player can have on turn one, and neither of them asks
+  // anything of the other two heroes.
+  ward:        { owner: 'elin', name: 'Ward',          cost: 1, target: 'ally',  base: [{ guardAlly: 6 }], cond: null },
+  mend:        { owner: 'elin', name: 'Mend',          cost: 1, target: 'ally',  base: [{ healWard: 6 }], cond: null },
   frostbind:   { owner: 'elin', name: 'Frost Bind',    cost: 1, target: 'enemy', base: [{ dmg: 4 }, { chill: 4 }], cond: null },
   // The setup card: the thing you play mid-combo to arm next turn's BROKEN
   // payoffs. Its Follow-Up landed 94% of the time, so the clause was a tax on
@@ -150,9 +155,9 @@ const CARD_DEFS = {
                  cond: { type: 'FOLLOW_UP', reward: 'ap', ap: 1 } },
   intercession:{ owner: 'elin', name: 'Intercession',  cost: 1, target: 'ally',  base: [{ guardSelf: 3 }, { guardAlly: 3 }, { intercede: true }], cond: null },
   // ── Mira — Shade ──
-  serrate:     { owner: 'mira', name: 'Serrate',       cost: 1, target: 'enemy', base: [{ dmg: 4 }, { bleed: 3 }], cond: null },
-  serrate2:    { owner: 'mira', name: 'Serrate', sameAs: 'serrate', cost: 1, target: 'enemy', base: [{ dmg: 4 }, { bleed: 3 }], cond: null },
-  serrate3:    { owner: 'mira', name: 'Serrate', sameAs: 'serrate', cost: 1, target: 'enemy', base: [{ dmg: 4 }, { bleed: 3 }], cond: null },
+  serrate:     { owner: 'mira', name: 'Serrate',       cost: 1, target: 'enemy', base: [{ dmg: 5 }], cond: null },
+  serrate2:    { owner: 'mira', name: 'Serrate', sameAs: 'serrate', cost: 1, target: 'enemy', base: [{ dmg: 5 }], cond: null },
+  serrate3:    { owner: 'mira', name: 'Serrate', sameAs: 'serrate', cost: 1, target: 'enemy', base: [{ dmg: 5 }], cond: null },
   // The deck's only filter: what you play to FIND the hero missing from the
   // round you are building. Nudged to 5 so it is never strictly worse than the
   // vanilla strike while doing that job.
@@ -160,10 +165,18 @@ const CARD_DEFS = {
   // you are building used to cost an AP, which meant the card that finds the
   // combo competed with the combo. Played after an ally it is free, so looking
   // is no longer a turn you spent not acting.
+  // ── MIRA'S TWO-CARD IDEA (Build 215) ────────────────────────────────────
+  // Rend opens the wound; Twin Fang is worth more into one. Same shape as
+  // Elin's ward-then-mend and Ash's guard-then-cut, so a player learns the
+  // pattern once and finds it again in each of the three.
+  rend:        { owner: 'mira', name: 'Rend',          cost: 1, target: 'enemy', base: [{ dmg: 3 }, { bleed: 3 }], cond: null },
+  // …AND QUICK THROW IS HELD FOR THE UPGRADE. Draw-one-discard-one is card
+  // FLOW, which is a second thing to think about on a turn a new player is
+  // still learning what a bleed is. It stays in the pool the road draws from.
   qthrow:      { owner: 'mira', name: 'Quick Throw',   cost: 1, target: 'enemy',
                  base: [{ dmg: 5 }, { drawDiscard: true }], cond: null },
   twinfang:    { owner: 'mira', name: 'Twin Fang',     cost: 1, target: 'enemy',
-                 base: [{ dmg: 4 }, { dmg: 4 }],
+                 base: [{ dmg: 4 }, { dmg: 4 }, { dmgIfBleeding: 4 }],
                  cond: { type: 'FOLLOW_UP', reward: 'output', bonus: [{ dmg: 4 }] } },
   backstab:    { owner: 'mira', name: 'Backstab',      cost: 1, target: 'enemy', base: [{ moveSelf: 'front' }, { dmg: 5 }],
                  cond: { type: 'BACK_ROW', reward: 'output', bonus: [{ dmg: 5 }] } },
@@ -421,8 +434,8 @@ const SLOTS_PER_HERO = 5;
 function baseRoster() {
   return {
     ash:  ['cleave', 'cleave2', 'cleave3', 'guardcut', 'crosssever'],
-    elin: ['lcascade', 'lcascade2', 'lcascade3', 'mend', 'sgrace'],
-    mira: ['serrate', 'serrate2', 'serrate3', 'qthrow', 'twinfang'],
+    elin: ['lcascade', 'lcascade2', 'lcascade3', 'ward', 'mend'],
+    mira: ['serrate', 'serrate2', 'serrate3', 'rend', 'twinfang'],
   };
 }
 
@@ -2004,6 +2017,22 @@ function evalCondition(cond, ownerId, selfId) {
     // BEHIND A GUARD — this hero has been warded this turn, by their own card,
     // by a party-wide Guard, or by somebody stepping in front of them.
     case 'WARDED':       return ts.wardedBy.indexOf(me) >= 0;
+    // ══ AND TWO THAT LIVE INSIDE ONE CHARACTER'S OWN FIVE (Build 215) ═════
+    //
+    // Every other trigger here is about the TURN — who went before, who has
+    // moved, whether all three have acted. Those are the team's combos and they
+    // stay. But a starting deck has to teach one person at a time, and a combo
+    // spanning three heroes is the hardest kind to see on a five-card hand:
+    // playtested as "hard to tell with cards in hand what does what".
+    //
+    // A PAYOFF INSIDE ONE HERO'S SET IS AN EFFECT, NOT A KEYWORD (Build 215).
+    // Ash cutting harder while guarded and Mira hitting harder what she made
+    // bleed were first written as two new triggers here, and the LOAD checks
+    // caught it: this deck teaches FOUR keywords in fifteen cards and exactly
+    // ONE combo word, Chain, learned once and paid off three ways. Adding two
+    // more to make the deck simpler is the opposite of the thing being asked
+    // for. Both payoffs are clauses on their own card instead — see `dmgIfSelfGuarded`
+    // and `dmgIfBleeding` where the effects are applied.
     // A FIFTH KEYWORD WAS DESIGNED HERE AND CUT. `SAME_HERO` — "this hero has
     // already acted, hit again with them" — is the one condition in the deck's
     // vocabulary that CANNOT be true at the same time as FOLLOW_UP or FINALE,
@@ -2354,6 +2383,18 @@ function resolveEffects(effects, ownerId, allyId, selfId) {
 function resolveEffectsInner(effects, ownerId, allyId, selfId) {
   for (const fx of effects) {
     if (fx.dmg)        dealToBoss(fx.dmg, 'hit', ownerId);
+    // ── THE PAYOFF THAT LIVES INSIDE ONE HERO'S OWN FIVE (Build 215) ──────
+    // Extra damage when the state that hero's OTHER card creates is already on
+    // the board: Mira hits harder what she has made bleed. An effect rather
+    // than a trigger, so the deck still teaches one combo keyword and no more.
+    //
+    // ASH'S IS NOT HERE, AND THE REASON IS THE CARD FACE. Cross Sever already
+    // prints two clauses — 9 damage, 2 break — and the face's anatomy is two
+    // clauses plus the combo band. A third made it three rows and clipped. His
+    // break is worth more than the payoff clause would be, so his half of the
+    // pattern waits for a face that can hold it.
+    if (fx.dmgIfBleeding) { const f = aimedFoe(); if (f && f.bleed > 0)
+      dealToBoss(fx.dmgIfBleeding, 'hit', ownerId); }
     if (fx.brk)        breakDamage(fx.brk);
     if (fx.guardSelf)  guardHero(selfId, fx.guardSelf);
     if (fx.guardAlly && allyId) guardHero(allyId, fx.guardAlly);
@@ -2365,6 +2406,30 @@ function resolveEffectsInner(effects, ownerId, allyId, selfId) {
       if (m) { const was = C.heroes[m].hp;
         C.heroes[m].hp = Math.min(C.heroes[m].max, C.heroes[m].hp + fx.heal);
         fxHeal(m, C.heroes[m].hp - was); } }
+    // ── A HEAL THAT GOES WHERE IT WAS AIMED (Build 215) ────────────────────
+    //
+    // `heal` above picks the most wounded hero for you, which is a fine default
+    // and a bad card: the player drops it on somebody and it lands on somebody
+    // else. `healWard` heals the hero it was actually dropped on and adds that
+    // hero's CURRENT guard on top — so Elin's ward and her mend are one idea in
+    // two cards, and the second is worth more because the first was played.
+    //
+    // ONE ATOM AND NOT TWO, and the deck's own budget is why. It was first
+    // written as `healTarget` plus a `healGuard` flag, and the LOAD check —
+    // "eight verbs, down from thirteen; the first fight is a vocabulary, not a
+    // glossary" — read nine. Heal-and-again-for-guard is one thing a player
+    // learns, so it is one word.
+    if (fx.healWard) {
+      const m = (allyId && C.heroes[allyId] && !C.heroes[allyId].downed) ? allyId
+        : livingHeroes().sort((a, b) =>
+            (C.heroes[b].max - C.heroes[b].hp) - (C.heroes[a].max - C.heroes[a].hp))[0];
+      if (m) {
+        const bonus = C.heroes[m].guard || 0;
+        const was = C.heroes[m].hp;
+        C.heroes[m].hp = Math.min(C.heroes[m].max, C.heroes[m].hp + fx.healWard + bonus);
+        fxHeal(m, C.heroes[m].hp - was);
+      }
+    }
     if (fx.healAll)    livingHeroes().forEach(id => {
       const was = C.heroes[id].hp;
       C.heroes[id].hp = Math.min(C.heroes[id].max, C.heroes[id].hp + fx.healAll);
@@ -5065,7 +5130,7 @@ function actionKind(card, effects) {
   const has = (k) => effects.some(fx => fx[k]);
   const heroes = ownerHeroes(card);
   const caster = heroes.indexOf(ORACLE) >= 0;
-  if (has('heal') || has('healAll')) return 'heal';
+  if (has('heal') || has('healAll') || has('healWard')) return 'heal';
   if (has('chill') || caster) return 'cast';
   if (has('dmg')) return 'slash';
   if (has('guardSelf') || has('guardAll') || has('guardAlly') || has('guardLowest')) return 'ward';
@@ -5105,7 +5170,10 @@ function cardFlavour(id) {
 function castTone(effects) {
   const has = (k) => effects.some(fx => fx[k]);
   if (has('chill')) return 'ice';
-  if (has('heal') || has('healAll')) return 'life';
+  // …AND `healWard` IS STILL A HEAL. A new atom that the tone table does not
+  // know about does not read as untinted, it reads as the WRONG tint: Mend
+  // came out 'light' the moment its heal was renamed.
+  if (has('heal') || has('healAll') || has('healWard')) return 'life';
   if (has('guardAll') || has('guardSelf') || has('guardAlly') || has('guardLowest')) return 'ward';
   return 'light';
 }
@@ -6866,6 +6934,9 @@ const COND_RULE = {
 const CARD_ART = {
   cleave: 1, guardcut: 1, cstance: 1, crosssever: 1, lastlight: 1,
   lcascade: 1, mend: 1, frostbind: 1, sgrace: 1, intercession: 1,
+  // A NEW CARD WITH NO PAINTING OF ITS OWN yet borrows the one whose job it
+  // shares, rather than rendering an empty frame.
+  ward: 'intercession', rend: 'serrate',
   serrate: 1, qthrow: 1, twinfang: 1, backstab: 1, execute: 1,
   lightsteel: 1,
   // the copies of a basic are the same card, so they are the same painting
@@ -7252,9 +7323,33 @@ function prose(effects, plain) {
     // `· all` and `· low` also make the three of them parallel, which is the
     // point — they are one verb with three targets, not three phrasings.
     if (fx.guardAll) out.push(I('guard') + '<b>' + fmtN(fx.guardAll) + '</b> Guard \u00b7 all.');
-    if (fx.guardAlly) out.push(I('guard') + '<b>' + fmtN(fx.guardAlly) + '</b> Guard \u00b7 ally.');
+    // ── "· ally" ONLY WHEN THERE IS SOMETHING TO TELL IT APART FROM ────────
+    //
+    // Intercession guards its caster AND an ally, and printing both as "3
+    // Guard." would be a card lying about itself. But on a card whose only
+    // guard clause is the ally one, the qualifier is a word the row cannot
+    // spare — Ward wrapped "6 Guard · ally" onto two lines — and the aim beam
+    // has already said who it is going to.
+    if (fx.guardAlly) out.push(I('guard') + '<b>' + fmtN(fx.guardAlly) + '</b> Guard'
+      + (effects.some(f => f.guardSelf || f.guardAll || f.guardLowest) ? ' \u00b7 ally.' : '.'));
     if (fx.guardLowest) out.push(I('guard') + '<b>' + fmtN(fx.guardLowest) + '</b> Guard \u00b7 low.');
     if (fx.heal) out.push(I('heal') + 'Heal <b>' + fmtN(fx.heal) + '</b>.');
+    // …AND THE ONE THAT GOES WHERE IT WAS AIMED SAYS SO, plus the clause that
+    // makes it Elin's second card rather than a second heal. A card that does
+    // something the face does not print is the one thing this deck may not do.
+    if (fx.dmgIfBleeding) out.push(I('bleed') + '<b>+' + fmtN(fx.dmgIfBleeding) + '</b> if <b>Bleeding</b>.');
+    // TWO ROWS, NOT ONE SQUEEZED ONE. "Heal 6 + Guard" is short enough to look
+    // like it fits and does not: with the icon in front of it the row wrapped,
+    // which puts a number on one line and its word on the next — the exact
+    // thing the face is not allowed to do. Mend carries no combo band, so it
+    // has the room for the clause to be two honest rows.
+    if (fx.healWard) { out.push(I('heal') + 'Heal <b>' + fmtN(fx.healWard) + '</b>.');
+                       // SEVEN CHARACTERS, MEASURED. The clause row is 90px at
+                       // this face's type size and fits about seven — "6 Guard"
+                       // and "4 Guard" pass, "+ their Guard" measured 22.1px of
+                       // inner height against a 14.5 limit, which is two lines.
+                       // Guessed at three times before it was measured once.
+                       out.push(I('guard') + '+ <b>Guard</b>'); }
     if (fx.healAll) out.push(I('heal') + 'Heal <b>' + fmtN(fx.healAll) + '</b> to all.');
     if (fx.bleed) out.push(I('bleed') + '<b>' + fmtN(fx.bleed) + '</b> Bleed.');
     if (fx.chill) out.push(I('chill') + '<b>' + fmtN(fx.chill) + '</b> Chill.');
@@ -7516,8 +7611,21 @@ function dropTargetAt(x, y, cardId) {
       if (C.heroes[h.dataset.hero] && !C.heroes[h.dataset.hero].downed)
         cands.push({ zone: 'party', hero: h.dataset.hero, el: h, r: h.getBoundingClientRect() });
     });
-    const hud = el('k-party-hud');
-    if (hud) cands.push({ zone: 'party', el: hud, r: hud.getBoundingClientRect() });
+    // ── AND THE READOUT IS NOT A PERSON (Build 215) ────────────────────────
+    //
+    // `#k-party-hud` — the whole portrait-and-health-bar stack in the corner —
+    // used to be pushed here as a party candidate with NO hero on it. So a
+    // party card dragged anywhere near the top-left corner snapped its beam
+    // onto a health BAR, drew a reticle on it, and resolved against whatever
+    // `defaultAlly` happened to be rather than against anybody the player had
+    // pointed at.
+    //
+    // Photographed mid-drag: Shared Grace aimed at the row of numbers beside
+    // Elin's portrait, forty pixels of green reticle around an HP readout.
+    //
+    // A target is a BODY. Party-wide cards lose nothing — `guardAll` does not
+    // care which hero it was dropped on — and every card that does care now
+    // gets a person instead of a widget.
   }
   // ── WHEN TWO BODIES OVERLAP, THE POINTER MEANS THE NEARER ONE (Build 131) ──
   //
@@ -7562,7 +7670,17 @@ function dropCommit(id, drop) {
   // other one. `defaultAlly` was fixed for exactly this in Build 68 and this
   // path walks straight past it by passing an ally explicitly.
   const mine = ownerHeroes(cardDef(id));
-  return playCard(id, drop.hero && mine.indexOf(drop.hero) < 0 ? drop.hero : undefined);
+  // ── AND ELIN MAY WARD HERSELF (Build 215) ───────────────────────────────
+  //
+  // This refused to hand a card its own owner as the ally, which is right for a
+  // PAIR card — Shield the Blade's guard belongs to the other one — and wrong
+  // for a solo card that targets an ally. Elin's Ward and Mend are hers alone
+  // and "guard a character" includes her; without this, dropping either on
+  // Elin resolved with no ally at all.
+  const solo = mine.length === 1;
+  const self = drop.hero && mine.indexOf(drop.hero) >= 0;
+  return playCard(id, drop.hero && (!self || (solo && cardDef(id).target === 'ally'))
+    ? drop.hero : undefined);
 }
 // ═════════════════════════════════════════════════════════════════════════════
 // THE AIM BEAM — restored from v2.2. A glowing energy ribbon (soft halo, bright

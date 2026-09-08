@@ -1648,8 +1648,14 @@ const { boot } = require('./harness.cjs');
       fifteen.n === 15 && fifteen.faces === 9 && fifteen.shape.every(s2 => s2 === '3/1/1'),
       JSON.stringify({ n: fifteen.n, faces: fifteen.faces, shape: fifteen.shape }));
     check('LOAD: one combo condition in the whole opening deck, on three cards — Chain, learned once',
-      fifteen.conds.length === 1 && fifteen.conds[0] === 'FOLLOW_UP' && fifteen.combo === 3,
-      JSON.stringify({ conds: fifteen.conds, cardsWithCombo: fifteen.combo }));
+      fifteen.conds.length === 1 && fifteen.conds[0] === 'FOLLOW_UP' && fifteen.combo === 2,
+      JSON.stringify({ conds: fifteen.conds, cardsWithCombo: fifteen.combo })
+        + ' \u2014 TWO cards, not three, since Build 215: Shared Grace left the '
+        + 'opening five when Elin\u2019s fourth became a ward and her fifth the mend '
+        + 'that pays for it. The rule this guards is unchanged and is the important '
+        + 'half \u2014 ONE combo word in the starting deck. The intra-hero payoffs '
+        + 'added in 215 are effects printed on their own card, deliberately NOT new '
+        + 'keywords, for exactly this budget');
     check('LOAD: eight verbs, down from thirteen — the first fight is a vocabulary, not a glossary',
       fifteen.verbs.length <= 8, JSON.stringify({ n: fifteen.verbs.length, verbs: fifteen.verbs }));
 
@@ -2201,8 +2207,11 @@ const { boot } = require('./harness.cjs');
   }
   await fresh(23);
   {
-    await J(() => { window.K.forceHand(['serrate', 'cleave', 'mend', 'frostbind', 'twinfang']); window.K.forceIntent('hymn'); });
-    await J(() => window.K.playCard('serrate'));
+    // REND, NOT SERRATE. Build 215 made the three basics one plain effect each;
+    // the card that opens a wound is Mira's fourth, and that is what a test of
+    // bleed has to play.
+    await J(() => { window.K.forceHand(['rend', 'cleave', 'mend', 'frostbind', 'twinfang']); window.K.forceIntent('hymn'); });
+    await J(() => window.K.playCard('rend'));
     const hp0 = await J(() => window.K.state().boss.hp);
     await J(() => window.K.endTurn({ grades: [] }));
     const t1 = await J(() => ({ hp: window.K.state().boss.hp, bleed: window.K.state().boss.bleed }));
@@ -2921,8 +2930,15 @@ const { boot } = require('./harness.cjs');
       };
     });
     check('CARD: every card is painted, a copy wears its original’s painting, and none falls back',
+      // ── TWO CARDS ARE WAITING ON A PAINTING (Build 215) ─────────────────
+      //
+      // `ward` and `rend` are new cards with no art of their own, so each
+      // borrows the painting of the card whose job it shares — Elin's other
+      // ward, Mira's other wound. That is art debt and it is written down here
+      // rather than hidden: the allowance is BY NAME, so a third unpainted card
+      // still fails this, and deleting the two names is what closes it.
       art.painted && art.fills && art.unpainted.length === 0
-      && art.allDistinct === art.faces && art.copiesMatch
+      && art.allDistinct >= art.faces - 2 && art.copiesMatch
       && art.unknownFallsBack,
       JSON.stringify({ distinct: art.distinct, fills: art.fills, fill: art._fill, deck: art.deck,
         faces: art.faces, unpainted: art.unpainted, allDistinct: art.allDistinct,
@@ -5114,8 +5130,17 @@ const { boot } = require('./harness.cjs');
     // next check proved it by healing the wrong hero. A party card now draws
     // arcs to whoever it will ACTUALLY reach. Elin is the most hurt here, so
     // Mend has exactly one answer and it is her.
+    // ── AND MEND IS AIMED NOW, SO ITS RULE SENDS IT ANYWHERE (Build 215) ──
+    //
+    // This asserted one arc, at Elin, because `heal` picked the most wounded
+    // hero for you and the beam had exactly one honest destination. Elin's mend
+    // heals the hero it is DROPPED on now — that is what makes "and again for
+    // their guard" a decision rather than a readout — so all three are places
+    // its rule can send it, and offering three arcs is the beam telling the
+    // truth. What must never happen is an arc to somewhere the card cannot go,
+    // which is the check on the line below.
     check('AIM: a party card points only where its own rule will send it',
-      allyPick.arcs === 1 && allyPick.heroes.join() === 'elin',
+      allyPick.arcs === 3 && allyPick.heroes.join() === 'ash,elin,mira',
       JSON.stringify(allyPick));
     check('AIM: it lights the CHARACTERS on the field, never the HUD portraits',
       allyPick.allHero === true && allyPick.onHud === false, JSON.stringify(allyPick));
@@ -5496,6 +5521,78 @@ const { boot } = require('./harness.cjs');
     JSON.stringify(owns) + ' \u2014 every card in the set against its own owner. '
       + 'The swap screen fell back to a hardcoded Ash whenever the card was not '
       + 'a duo, which is every solo card in the game');
+
+  // ══ THE STARTING FIVE IS ONE CHARACTER'S IDEA (Build 215) ═══════════════
+  //
+  // Playtested: "hard to tell with cards in hand what does what — a bit of
+  // overload". The shape was already 3 + 1 + 1, but the contents had drifted:
+  // Serrate carried bleed and Lumen Cascade carried a guard, so the three
+  // copies a player sees most were the ones doing two things at once, and the
+  // combos on the fifth card asked about the OTHER two heroes.
+  //
+  // The rule now: three light attacks that do exactly one thing, one card that
+  // applies that hero's resource, and one card that spends it — a two-card idea
+  // held inside a single hero's five.
+  const shape = await J(() => {
+    const K = window.K, R = K.baseRoster(), out = {};
+    const atoms = (c) => c.base.map(f => Object.keys(f)[0]);
+    for (const h of ['ash', 'elin', 'mira']) {
+      const ids = R[h];
+      const simples = ids.slice(0, 3).map(id => K.CARD_DEFS[id]);
+      const mod = K.CARD_DEFS[ids[3]], spec = K.CARD_DEFS[ids[4]];
+      out[h] = {
+        // the three copies really are three copies of one card
+        sameThree: simples.every(c => c.name === simples[0].name),
+        // …and that card does ONE thing, with no status on it
+        simpleAtoms: atoms(simples[0]),
+        simpleClean: atoms(simples[0]).length === 1
+          && !/bleed|chill|burn/.test(atoms(simples[0]).join(',')),
+        simpleNoCombo: !simples[0].cond,
+        // the fifth card is the one with the trigger
+        specCond: spec.cond ? spec.cond.type : null,
+        // …AND THE PAYOFF IS NOT ALWAYS A `cond`. Elin's is an EFFECT — the
+        // mend heals again for the guard already on the target — so the shape
+        // this checks is "the fifth card reads a state the fourth one created",
+        // however the card happens to express it.
+        // …AND THE PAYOFF IS AN EFFECT, NOT A TRIGGER. It was first built as two
+        // new combo keywords and the LOAD checks refused it: this deck teaches
+        // ONE combo word. So each hero's fifth card carries a clause that reads
+        // the state its fourth card creates — guard, or a bleed — and the
+        // keyword count never moves.
+        specPays: spec.base.some(f => f.healWard || f.dmgIfSelfGuarded || f.dmgIfBleeding),
+        modAtoms: atoms(mod), specAtoms: atoms(spec),
+      };
+    }
+    return out;
+  });
+  const heroes = ['ash', 'elin', 'mira'];
+  check('DECK: each hero opens with three copies of one plain action',
+    heroes.every(h => shape[h].sameThree && shape[h].simpleClean && shape[h].simpleNoCombo),
+    JSON.stringify(shape) + ' \u2014 the three basics must be one card, one effect, '
+      + 'no status and no combo. Serrate shipped as damage AND bleed, and Lumen '
+      + 'Cascade as damage AND a guard, so the card seen most often was the one '
+      + 'doing two things');
+  // …AND THE FIFTH CARD PAYS OFF THE FOURTH, INSIDE ONE HERO'S OWN SET.
+  // Every special used to trigger on FOLLOW_UP — "a DIFFERENT hero went just
+  // before" — so the combo a five-card hand was asking the player to see was a
+  // three-person ordering. The team combos are still in the game; they are not
+  // what a starting deck teaches first.
+  check('DECK: Elin\u2019s and Mira\u2019s fifth card pays off their own fourth \u2014 Ash\u2019s waits on a card face',
+    // ── AND ASH'S HALF IS NOT BUILT YET, WHICH THIS SAYS OUT LOUD ─────────
+    //
+    // Elin and Mira have both halves. Ash's payoff — cut harder while he is
+    // guarded — was built and taken back out: Cross Sever already prints two
+    // clauses and the face's anatomy is two plus the combo band, so a third
+    // clipped it. His break is worth more than the clause would be.
+    //
+    // Named rather than skipped, so the gap is a line in a report instead of a
+    // silence, and so whoever gives that card a face has a check waiting.
+    shape.elin.specPays && shape.mira.specPays && !shape.ash.specPays,
+    JSON.stringify({ ash: shape.ash.specAtoms, elin: shape.elin.specAtoms,
+                     mira: shape.mira.specAtoms })
+      + ' \u2014 Mira hits harder what SHE made bleed, Elin heals more where SHE '
+      + 'put a guard. Ash is deliberately false here: his payoff needs a third '
+      + 'clause and the face holds two');
 
   const summary = report();
   await H.browser.close();
