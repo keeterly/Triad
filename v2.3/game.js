@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 216;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 217;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1070,16 +1070,31 @@ const DEMOTE = { perfect: 'great', great: 'good', good: 'good', late: 'late', mi
 //   FLAWLESS  every note PERFECT         -> TURNED, plus the riposte. The
 //             summit, still rare.
 const RIPOSTE_PER_NOTE = 2;
+// ── AND WHAT THE HANDS DID, WHICH IS NOT THE SAME QUESTION ─────────────────
+//
+// `kept` counts GREAT-or-better, because that is what the payout is priced on.
+// The receipt printed it as "N/M turned" — so a player who answered every note
+// of every string and was graded GOOD on all of them read "0/2 turned" three
+// times over, which is the same sentence a player sees for leaving the screen
+// alone. Measured: all-GOOD takes 15 where all-MISS takes 18. The parry worked
+// and the game said it had not.
+//
+// `read` is the honest count of notes the hand actually caught — GOOD or
+// better. It pays differently and it is reported differently, but it is never
+// reported as nothing.
+const READ_OK = { perfect: 1, great: 1, good: 1, late: 0, miss: 0 };
 function readString(grades, notes) {
-  let weight = 0, perfects = 0, greats = 0;
+  let weight = 0, perfects = 0, greats = 0, caught = 0;
   for (const g of grades) {
     weight += PARRY_WEIGHT[g] || 0;
     if (g === 'perfect') perfects++;
     if (g === 'perfect' || g === 'great') greats++;
+    if (READ_OK[g]) caught++;
   }
   const turned = notes > 0 && greats === notes;
   const flawless = notes > 0 && perfects === notes;
-  return { mit: turned ? 1 : (notes ? weight / notes : 0), turned, flawless, kept: greats, notes };
+  return { mit: turned ? 1 : (notes ? weight / notes : 0), turned, flawless,
+           kept: greats, read: caught, notes };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -2915,6 +2930,7 @@ async function endTurn(opts) {
       const read = readString(grades, hit.notes.length);
       const parrier = C.heroes[parrierId];
       let turned = read.turned, negated = false;
+      const rawBlow = dmg;      // what it was worth before any of this
       if (parrier && !parrier.downed && read.notes > 0) {
         let mit = read.mit;
         // RESPONSE LIMIT (deck §5): a hero fully negates only ONE hit per enemy
@@ -2978,7 +2994,7 @@ async function endTurn(opts) {
       C.telemetry.parry.push({ t: C.turn, turned, flawless: read.flawless,
                                kept: read.kept, notes: read.notes });
       result.taken += dmg;
-      await fxHitResolved(tgtId, dmg, turned, read.flawless);
+      await fxHitResolved(tgtId, dmg, turned, read.flawless, rawBlow);
       if (!livingHeroes().length) { setPhase('DEFEAT'); renderAll(); return report('defeat', result); }
     }
   }
@@ -5056,13 +5072,23 @@ function fxImpact(node, power, tone, dir, verb) {
 // up, and successive numbers stagger so a volley does not print over itself.
 const POP_TIER = (n) => n >= 20 ? 'k-pop-xl' : n >= 12 ? 'k-pop-lg' : n >= 6 ? 'k-pop-md' : '';
 let _popSeq = 0;
-function popupOver(el, text, cls) {
+function popupOver(el, text, cls, was) {
   const stage = document.getElementById('k-stage'); if (!stage || !el) return;
   const sr = stage.getBoundingClientRect(), r = el.getBoundingClientRect();
   const scale = sr.width / stage.offsetWidth || 1;
   const p = document.createElement('div');
   p.className = 'k-pop ' + (cls || '');
-  p.textContent = text;
+  // WAS-AND-IS. A number on its own cannot say it is smaller than it would have
+  // been, so a parry that blunts a blow looks exactly like a blow. Given a
+  // `was`, the popup prints it struck through above the number that landed —
+  // the one convention everybody already reads without being taught.
+  if (was != null) {
+    const s0 = document.createElement('s');
+    s0.className = 'k-pop-was';
+    s0.textContent = String(was);
+    p.appendChild(s0);
+    p.appendChild(document.createTextNode(text));
+  } else p.textContent = text;
   // FAN AND STAGGER. A 26px spread was narrower than the digits themselves at
   // the md/lg tiers, so a volley resolving in one frame printed two 9s that
   // read as "99" — the exact smear Build 22 set out to kill, recreated by
@@ -5704,7 +5730,9 @@ function fxParryReceipt(heroId, read) {
     ? '<b>' + crown + '</b><span>' + (read.spent
         ? 'read clean — but this hero already spent their negate'
         : 'the blow is turned aside') + '</span>'
-    : '<b>' + read.kept + '/' + read.notes + ' turned</b><span>the rest gets through</span>';
+    : read.read > 0
+      ? '<b>' + read.read + '/' + read.notes + ' read</b><span>blunted, not turned</span>'
+      : '<b>MISSED</b><span>the blow lands in full</span>';
   tag.style.left = ((r.left + r.width / 2 - sr.left) / scale) + 'px';
   tag.style.top = ((r.top - sr.top) / scale - 26) + 'px';
   stage.appendChild(tag);
@@ -6056,22 +6084,40 @@ async function fxInterrupt(ix) {
   b.classList.remove('k-broken');
 }
 async function fxBossHeal() { popupOver(document.getElementById('k-boss-art'), '+heal', 'k-pop-heal'); await sleep(500); }
-async function fxHitResolved(tgtId, taken, negated, flawless) {
+async function fxHitResolved(tgtId, taken, negated, flawless, raw) {
   // THE BAR DRAINS WITH THE NUMBER. The HP was applied the moment the blow
   // landed but nothing redrew until the whole turn was over, so the popup said
   // "-9" and the party stayed at full health until the next player phase —
   // three hits of a volley arrived as one lump of damage after the fact.
   renderPartyHud();
   const at = tgtId && document.querySelector('.k-hero[data-hero="' + tgtId + '"]');
+  // ── THE PARRY IS PROVED BY THE NUMBER, OR IT IS NOT PROVED ───────────────
+  //
+  // Playtested as "hard to tell if parrying worked", and the screenshots said
+  // exactly why: reading a whole volley late took 15 where doing nothing took
+  // 18, and the two frames were indistinguishable. Six red numbers either way,
+  // and the same three receipts. The player had no reference to measure their
+  // own hands against.
+  //
+  // So whenever the parry moved the number, the number says so: the blow it
+  // WOULD have been, struck through above the one that landed. And a blow
+  // turned aside outright stops being an absence — it was the best outcome in
+  // the game and the only one with no readout at all, which is also what a
+  // dropped frame looks like.
+  const stopped = raw != null && raw > taken ? raw : null;
   if (taken > 0) {
     popupOver(at || document.getElementById('k-party-hud'), fmtN(taken),
-      'k-pop-dmg k-pop-hurt ' + POP_TIER(taken + 4));   // a hero has less HP; the same
-                                                        // number hurts them more
+      'k-pop-dmg k-pop-hurt ' + POP_TIER(taken + 4),     // a hero has less HP; the same
+      stopped == null ? null : fmtN(stopped));            // number hurts them more
     fxImpact(at, Math.min(2.4, taken / 5), 'hurt', 'l');
     sfx('hurt', 0.6 + Math.min(1, taken / 12));
   } else if (negated) {
     fxDeflect(at, !!flawless);
     sfx('guard', flawless ? 1.2 : 0.9);
+    if (stopped != null) {
+      popupOver(at || document.getElementById('k-party-hud'), fmtN(0),
+        'k-pop-none ' + POP_TIER(stopped + 4), fmtN(stopped));
+    }
   }
   // THE BEAT IS AS LONG AS THERE IS SOMETHING TO READ. A blow that landed puts
   // a number over a hero and drains a bar, and 330ms is the time that takes to

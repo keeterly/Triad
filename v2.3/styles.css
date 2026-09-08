@@ -1295,6 +1295,24 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-pop-lg { font-size: 48px; }
 .k-pop-xl { font-size: 60px; letter-spacing: -0.03em; }
 .k-pop-dmg { color: #ffd9c2; }
+/* WAS-AND-IS: the blow the parry stopped, struck through above the one that
+   landed. Half the size and dimmed, so it reads as a footnote to the number
+   rather than as a second number — a volley printing both at full weight was
+   the smear Build 22 set out to kill.
+
+   AND THE RULE OVERHANGS THE DIGIT. At 0.46em with no padding, a struck-through
+   single digit — which most blows are — reads as a minus sign rather than as a
+   number crossed out. Slightly larger with side padding, the line runs past
+   both ends of the digit and the gesture is unmistakable. */
+.k-pop-was { display: block; font-size: 0.52em; font-weight: 700;
+  color: #cdbca6; opacity: 0.86; letter-spacing: 0; margin-bottom: 1px;
+  padding: 0 0.24em;
+  text-decoration: line-through; text-decoration-thickness: 2px;
+  text-decoration-color: rgba(255,138,118,0.9); }
+/* …and a blow turned aside prints a gold nothing, because the best outcome in
+   the game may not be the only one with no readout. */
+.k-pop-none { color: #ffe6a8 !important; }
+.k-pop-none .k-pop-was { text-decoration-color: rgba(255,230,168,0.9); }
 .k-pop-hurt { color: #ff8a76 !important; }
 .k-pop-gold { color: #ffe6a8; }
 .k-pop-heal { color: #b6e39a; }

@@ -273,6 +273,71 @@ const PROBES = `
       + 'parrying flag must go with it; on the build this was reported against, '
       + 'all four survived');
 
+  // ── DID THE PARRY WORK? ───────────────────────────────────────────────────
+  //
+  // Playtested as "hard to tell if parrying worked", and the reason was
+  // measurable rather than a matter of taste. Answering every note of a volley
+  // and being graded GOOD on all of them took 15 where leaving the screen alone
+  // took 18 — and the two frames were indistinguishable: six red numbers either
+  // way, and three receipts that both read "0/2 turned — the rest gets through",
+  // because `kept` counts GREAT-or-better and a whole string read late counts
+  // zero of them.
+  //
+  // Two things now separate them, and this is what holds them apart:
+  //   the RECEIPT names what the hands caught, so a read is never printed as a
+  //   miss; and the NUMBER carries the blow it would have been, struck through
+  //   above the one that landed, so the player has something to measure their
+  //   own hands against. A blow turned aside prints a nothing rather than
+  //   nothing at all.
+  const proof = await J(async () => {
+    const out = {};
+    const run = async (grade) => {
+      window.K.startCombat({ seed: 21 });
+      window.K.forceIntent('hymn');
+      const seen = { receipts: [], was: [], pops: [] };
+      const watch = setInterval(() => {
+        document.querySelectorAll('.k-receipt').forEach(e => {
+          const t = e.querySelector('b').textContent.trim();
+          if (seen.receipts.indexOf(t) < 0) seen.receipts.push(t);
+        });
+        document.querySelectorAll('.k-pop').forEach(e => {
+          const w = e.querySelector('.k-pop-was');
+          const key = (w ? w.textContent + '>' : '') + e.lastChild.textContent;
+          if (seen.pops.indexOf(key) < 0) seen.pops.push(key);
+          if (w && seen.was.indexOf(key) < 0) seen.was.push(key);
+        });
+      }, 30);
+      const r = await window.K.endTurn({ grades: (window.K.currentIntent().hits || [])
+        .flatMap(h => h.notes.map(() => grade)) });
+      await new Promise(z => setTimeout(z, 500));
+      clearInterval(watch);
+      return { taken: r.taken, ...seen };
+    };
+    out.good = await run('good');
+    out.miss = await run('miss');
+    out.great = await run('great');
+    return out;
+  });
+  check('PARRY: a string read late is not reported as a string missed',
+    proof.good.receipts.length > 0 && proof.miss.receipts.length > 0
+    && proof.good.receipts.join() !== proof.miss.receipts.join()
+    && !/^0\//.test(proof.good.receipts[0]),
+    JSON.stringify({ read: proof.good.receipts, missed: proof.miss.receipts })
+      + ' — both of these used to say "0/2 turned"');
+  check('PARRY: the number carries the blow it would have been, struck through',
+    proof.good.was.length > 0 && proof.good.was.every(k => {
+      const [was, now] = k.split('>');
+      return +was > +now;
+    }) && proof.miss.was.length === 0,
+    JSON.stringify({ blunted: proof.good.was, whiffed: proof.miss.pops })
+      + ' — a blow nothing was done about carries no struck-through number, '
+      + 'because there is nothing to compare it to');
+  check('PARRY: a blow turned aside prints a nothing, not nothing at all',
+    proof.great.was.some(k => k.split('>')[1] === '0'),
+    JSON.stringify({ turned: proof.great.was, taken: proof.great.taken })
+      + ' — the best outcome in the game was the only one with no readout, '
+      + 'which is also what a dropped frame looks like');
+
   const r = report();
   await H.browser.close();
   process.exit(r.passed === r.total && !r.errs ? 0 : 1);
