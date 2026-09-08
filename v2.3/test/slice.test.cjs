@@ -231,19 +231,29 @@ const MAX_TURNS = 30;
       const debt = await J(() => {
         const r = window.R.state();
         const owed = r.pendingSigil, pair = r.markPair;
-        // TWO BEATS (Build 104): the moment, then the decision. The walk plays
-        // the moment out, picks a card up, and marks it.
-        // the moment ends on a fork of two marks (Build 110); the walk takes
-        // the second so a default cannot carry the check
-        const forks = [...document.querySelectorAll('#k-mark-fork .k-mkf')];
-        forks[forks.length - 1].click();
+        // ── THE MARK IS ONE SCREEN NOW, AND THIS WAS STILL ON THE OLD ONE ────
+        //
+        // It read `#k-mark-fork .k-mkf` and then a column of ten cards at
+        // `#k-mark-cols .k-mk`, and it finished on a `k-mark-place` button.
+        // None of those three has existed since the moment and the decision
+        // became two BEATS of one screen: there is a fan of two answers,
+        // `#k-mark-fan .k-mka`, each of which IS a card, and the second tap on
+        // the one already lifted is what says it. So this crashed on an
+        // undefined fork — and the same dead selector is still being asked for
+        // by the soak, the pace sim, the filmstrip and the playtest, where it
+        // is guarded and therefore silently skipped the whole screen.
+        //
+        // TWO TAPS, AND THE FAN IS REDRAWN BETWEEN THEM, so the second tap has
+        // to re-query rather than click a detached node.
+        const fan = () => [...document.querySelectorAll('#k-mark-fan .k-mka')];
+        const forks = fan();
+        const ix = forks.length - 1;    // the second answer, so no default carries it
+        forks[ix].click();
         const chose = window.R.state().pendingSigil;
-        const mk = document.querySelector('#k-mark-cols .k-mk:not([disabled])');
-        const id = mk ? mk.dataset.id : null;
-        if (mk) mk.click();
-        const held = window.R.markHeld();
+        const id = window.R.markHeld();
+        const held = id;
         const early = !!(id && window.R.state().sigils[id]);
-        document.getElementById('k-mark-place').click();
+        fan()[ix].click();
         const after = window.R.state();
         return { owed, pair, id, held, early, chose, forks: forks.length,
                  sigil: (id && after.sigils[id]) || null,
@@ -533,8 +543,12 @@ const MAX_TURNS = 30;
       if (!fight) return null;
       window.R.travel(fight);
       // the road enters a stop on its own clock, so wait for a board rather
-      // than assuming one exists the instant `travel` returns
-      for (let i = 0; i < 200 && !K.state(); i++) await new Promise(r => setTimeout(r, 25));
+      // than assuming one exists the instant `travel` returns — AND FOR THE
+      // HAND, not just the board. A combat exists for a beat before its opening
+      // five have flown in, so waiting on `K.state()` alone read two empty
+      // hands and compared them as equal-but-meaningless.
+      const dealt5 = () => { const s = K.state(); return s && s.hand && s.hand.length; };
+      for (let i = 0; i < 200 && !dealt5(); i++) await new Promise(r => setTimeout(r, 25));
       const st = K.state();
       return st && st.hand ? st.hand.join(',') : null;
     };

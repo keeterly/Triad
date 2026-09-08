@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 215;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 216;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -84,13 +84,21 @@ const CARD_DEFS = {
   // no-second-copy rule at every swap door both keep working untouched.
   cleave2:     { owner: 'ash', name: 'Cleave', sameAs: 'cleave', cost: 1, target: 'enemy', base: [{ dmg: 7 }], cond: null },
   cleave3:     { owner: 'ash', name: 'Cleave', sameAs: 'cleave', cost: 1, target: 'enemy', base: [{ dmg: 7 }], cond: null },
-  guardcut:    { owner: 'ash', name: 'Guarding Cut',  cost: 1, target: 'enemy', base: [{ dmg: 4 }, { guardSelf: 4 }], cond: null },
+  // ── ASH'S TWO-CARD IDEA (Build 216) ─────────────────────────────────────
+  // Sunder cracks the poise; Cross Sever goes through what is already cracked.
+  // His resource is BREAK and not guard, because guard is Elin's and two heroes
+  // whose fourth card does the same thing is one identity spent twice. He can
+  // still be guarded — by her, which is the party premise rather than a loss.
+  //
+  // It was 'Guarding Cut' and it guarded him. A card named for a thing it no
+  // longer does is the one thing this deck may not ship, so it is renamed.
+  guardcut:    { owner: 'ash', name: 'Sunder',        cost: 1, target: 'enemy', base: [{ dmg: 4 }, { brk: 3 }], cond: null },
   // A chain that can extend itself is what makes a combo deck play. Counterstance
   // was 0.15 plays a fight: Guard competes with a parry that negates outright,
   // so it had to be worth playing for something other than the Guard.
   cstance:     { owner: 'ash', name: 'Counterstance', cost: 1, target: 'party', base: [{ guardSelf: 5 }, { counterstance: true }],
                  cond: { type: 'FOLLOW_UP', reward: 'output', bonus: [{ draw: 1 }] } },
-  crosssever:  { owner: 'ash', name: 'Cross Sever',   cost: 2, target: 'enemy', base: [{ dmg: 9 }, { brk: 2 }],
+  crosssever:  { owner: 'ash', name: 'Cross Sever',   cost: 2, target: 'enemy', base: [{ dmg: 9 }, { dmgIfBroken: 5 }],
                  cond: { type: 'FOLLOW_UP', reward: 'cost', costTo: 1 } },
   // Priced so the whole line fits in one turn: Elin (1) + Mira (1) + this (1).
   // At 2 AP the finisher could never BE the third card, which is the only
@@ -118,8 +126,13 @@ const CARD_DEFS = {
   // The ward puts guard on somebody; the mend pays for it. Held together they
   // are one thought a player can have on turn one, and neither of them asks
   // anything of the other two heroes.
-  ward:        { owner: 'elin', name: 'Ward',          cost: 1, target: 'ally',  base: [{ guardAlly: 6 }], cond: null },
+  ward:        { owner: 'elin', name: 'Ward',          cost: 1, target: 'ally',  base: [{ guardAlly: 8 }], cond: null },
   mend:        { owner: 'elin', name: 'Mend',          cost: 1, target: 'ally',  base: [{ healWard: 6 }], cond: null },
+  // The second copy Elin's LEARN node takes up. Her combo card used to be
+  // Shared Grace and the node still traded for a second one of those, which is
+  // a card that is no longer in her deck — so the trade handed her a stranger.
+  mend2:       { owner: 'elin', name: 'Mend', sameAs: 'mend', cost: 1, target: 'ally',
+                 base: [{ healWard: 6 }], cond: null },
   frostbind:   { owner: 'elin', name: 'Frost Bind',    cost: 1, target: 'enemy', base: [{ dmg: 4 }, { chill: 4 }], cond: null },
   // The setup card: the thing you play mid-combo to arm next turn's BROKEN
   // payoffs. Its Follow-Up landed 94% of the time, so the clause was a tax on
@@ -169,14 +182,14 @@ const CARD_DEFS = {
   // Rend opens the wound; Twin Fang is worth more into one. Same shape as
   // Elin's ward-then-mend and Ash's guard-then-cut, so a player learns the
   // pattern once and finds it again in each of the three.
-  rend:        { owner: 'mira', name: 'Rend',          cost: 1, target: 'enemy', base: [{ dmg: 3 }, { bleed: 3 }], cond: null },
+  rend:        { owner: 'mira', name: 'Rend',          cost: 1, target: 'enemy', base: [{ dmg: 3 }, { bleed: 5 }], cond: null },
   // …AND QUICK THROW IS HELD FOR THE UPGRADE. Draw-one-discard-one is card
   // FLOW, which is a second thing to think about on a turn a new player is
   // still learning what a bleed is. It stays in the pool the road draws from.
   qthrow:      { owner: 'mira', name: 'Quick Throw',   cost: 1, target: 'enemy',
                  base: [{ dmg: 5 }, { drawDiscard: true }], cond: null },
   twinfang:    { owner: 'mira', name: 'Twin Fang',     cost: 1, target: 'enemy',
-                 base: [{ dmg: 4 }, { dmg: 4 }, { dmgIfBleeding: 4 }],
+                 base: [{ dmg: 4 }, { dmg: 4 }, { dmgIfBleeding: 6 }],
                  cond: { type: 'FOLLOW_UP', reward: 'output', bonus: [{ dmg: 4 }] } },
   backstab:    { owner: 'mira', name: 'Backstab',      cost: 1, target: 'enemy', base: [{ moveSelf: 'front' }, { dmg: 5 }],
                  cond: { type: 'BACK_ROW', reward: 'output', bonus: [{ dmg: 5 }] } },
@@ -224,7 +237,8 @@ const CARD_UPS = {
   // card in the deck expensive enough for `reward: 'cost'` to mean something —
   // so sharpening it sharpens the thing it already does: after an ally the
   // whole 2 AP comes back, and a 2-cost card in a 3 AP turn becomes free.
-  crosssever:  { name: 'Cross Sever+',   cost: 2, target: 'enemy', base: [{ dmg: 9 }, { brk: 2 }],
+  crosssever:  { name: 'Cross Sever+',   cost: 2, target: 'enemy',
+                 base: [{ dmg: 9 }, { dmgIfBroken: 9 }],
                  cond: { type: 'FOLLOW_UP', reward: 'ap', ap: 2 } },
   // THE FINISHER COVERS THE RETREAT. Same closing blow, and the round it closes
   // now ends with the party braced — so spending the whole turn on the line
@@ -236,7 +250,8 @@ const CARD_UPS = {
   // THE MEND CYCLES. Heal 6 to heal 9 is three health; this is a card. Elin
   // becomes the hero who keeps the turn going, which is the role the refund on
   // Lumen Cascade already hints at and nothing else in her hand supported.
-  mend:        { name: 'Mend+',          cost: 1, target: 'party', base: [{ heal: 6 }, { draw: 1 }],
+  mend:        { name: 'Mend+',          cost: 1, target: 'ally',
+                 base: [{ healWard: 6 }, { draw: 1 }],
                  cond: { type: 'FINALE', reward: 'output', bonus: [{ healAll: 5 }] } },
   // THE SETUP SETS UP TWO THINGS. It armed the BROKEN payoffs; now it also
   // slows the blow that is coming, so one card answers both halves of a turn.
@@ -249,31 +264,52 @@ const CARD_UPS = {
   // THE LINE-ENABLER ALSO FINDS THE LINE. It was already the card that makes a
   // three-hero turn affordable; sharpened, the turn it pays for also refills.
   lcascade:    { name: 'Lumen Cascade+', cost: 1, target: 'enemy',
-                 base: [{ dmg: 4 }, { guardLowest: 4 }, { draw: 1 }],
+                 base: [{ dmg: 5 }, { guardLowest: 4 }, { draw: 1 }],
                  cond: { type: 'FOLLOW_UP', reward: 'ap', ap: 1 } },
-  // THE COVER BECOMES A COUNTER. Guarding Cut is Ash's second colour and it was
-  // the one card of his the fire could not touch; sharpened it answers the bar
-  // it survives, so holding the line pays for itself.
-  guardcut:    { name: 'Guarding Cut+',  cost: 1, target: 'enemy',
-                 base: [{ dmg: 4 }, { guardSelf: 4 }, { counterstance: true }], cond: null },
+  // THE OPENER OPENS WIDER, AND THEN COLLECTS. Sunder arms Cross Sever and
+  // every BROKEN payoff in the party; the upgrade that made it a guard card was
+  // written for the old Guarding Cut and took the Break — Ash's whole resource
+  // — off his one cheap way of spending it.
+  //
+  // A bigger Break on its own would be a number going up, which is not a card.
+  // So the swing that takes the last of the poise is also the swing that gets
+  // paid for it: Sunder+ is worth playing TWICE in a turn where the first one
+  // staggers, which is a turn Ash could not previously have.
+  guardcut:    { name: 'Sunder+',        cost: 1, target: 'enemy',
+                 base: [{ dmg: 5 }, { brk: 4 }, { dmgIfBroken: 4 }], cond: null },
+  // SHE STOPS STANDING BEHIND IT. Ward is the one card Elin plays that does
+  // nothing for the person casting it, which makes it the card she cannot
+  // afford on the turn she is the one being hit. Sharpened it covers both ends
+  // of the line — and because Mend heals for the guard already on its target,
+  // a bigger number here is a bigger number on TWO of her five cards.
+  ward:        { name: 'Ward+',          cost: 1, target: 'ally',
+                 base: [{ guardAlly: 10 }, { guardSelf: 4 }], cond: null },
   // ── MIRA ──
-  // THE DOUBLE LEARNS TO SMELL BLOOD. 4x2 to 6x2 is four damage; this is the
-  // card that turns Ash's stagger into a payoff, and it is the second half of
-  // the loop Cleave+ opens. Its base face is unchanged, so it is still the
-  // plain double when nothing is broken — the clause is upside, not a tax.
   // THE WOUND LEARNS TO SPREAD. Serrate is the card Mira draws most, so this is
-  // the upgrade her whole hand feels: the bleed arrives at the top of the enemy
-  // phase, and a second stack of it is a second tick on every bar after.
+  // the upgrade her whole hand feels: her plain swing starts leaving a bleed,
+  // which is damage that arrives at the top of the enemy phase and a Twin Fang
+  // that collects without waiting for a Rend.
   serrate:     { name: 'Serrate+',       cost: 1, target: 'enemy',
-                 base: [{ dmg: 4 }, { bleed: 3 }, { bleed: 3 }], cond: null },
+                 base: [{ dmg: 5 }, { bleed: 3 }], cond: null },
+  // THE WOUND GOES DEEPER, AND THEN READS ITSELF. Rend is the card that arms
+  // Twin Fang, so its bleed is really two numbers. Sharpened it also collects
+  // its own extra on the second Rend of a fight, which is what makes Mira's
+  // fourth card worth drawing twice.
+  rend:        { name: 'Rend+',          cost: 1, target: 'enemy',
+                 base: [{ dmg: 4 }, { bleed: 6 }, { dmgIfBleeding: 4 }], cond: null },
   // THE CYCLE STOPS COSTING A CARD. Draw one discard one is a filter; draw one
   // is a card. It is the smallest-looking node on the tree and the one that
   // makes a three-hero turn reachable twice in a fight.
   qthrow:      { name: 'Quick Throw+',   cost: 1, target: 'enemy',
                  base: [{ dmg: 5 }, { draw: 1 }], cond: null },
+  // THE CHAIN LEAVES THE WOUND IT WAS LOOKING FOR. The base card pays extra
+  // into a foe that is already bleeding, which means on the turn it opens the
+  // fight it pays nothing. Sharpened, the Chain that sets it up also opens the
+  // wound — so the second Twin Fang of a run of turns always collects.
   twinfang:    { name: 'Twin Fang+',     cost: 1, target: 'enemy',
-                 base: [{ dmg: 4 }, { dmg: 4 }],
-                 cond: { type: 'BROKEN_OR_LOW', reward: 'output', bonus: [{ dmg: 6 }] } },
+                 base: [{ dmg: 5 }, { dmg: 5 }, { dmgIfBleeding: 6 }],
+                 cond: { type: 'FOLLOW_UP', reward: 'output',
+                         bonus: [{ dmg: 4 }, { bleed: 4 }] } },
   // THE TWO-BEAT PLAN LEAVES A WOUND. The bonus was five more damage; it is
   // bleed now, which is damage that arrives at the TOP of the enemy phase — so
   // stepping out of the back row pays again a turn later.
@@ -532,7 +568,21 @@ const RESONANCE_PAIR = ['ash', 'elin'];
 // The median winning fight stays at 8 rounds across the whole sweep, which is
 // why this knob and not `bossHp`: more health buys the same winrate by making
 // fights LONGER, and the deck's target is 7-9 rounds.
-const TUNE = { dmgScale: 1.16, dirge: [3, 3], heal: [7, 9], parryKeep: 0.3, bossHp: 168,
+// ── THE ENCOUNTER FOLLOWS THE DECK (Build 216) ──────────────────────────────
+// `dmgScale` was 1.16, and it was tuned against a deck where every basic did
+// two things: Serrate hit AND bled, Lumen Cascade hit AND guarded, Guarding Cut
+// hit AND braced. Build 215 took all of that off the three cards a hero sees
+// most, on purpose — a starting hand should ask one question — and the party
+// that came out the other side has far less Guard and far less chip damage.
+//
+// Measured, not guessed. At 1.16 a party parrying half its strings won 6.7% of
+// the Regent against a 25–55% gate; swept down in steps, 0.82 reaches 25%, 0.70
+// reaches 38%, 0.58 overshoots to 53%. 0.70 is the middle of the band and the
+// only point that also lands inside the deck's own stated 25–40%.
+//
+// It is global rather than the Regent's alone because the whole road was tuned
+// against the old deck, and the whole road is now fought with the new one.
+const TUNE = { dmgScale: 0.70, dirge: [3, 3], heal: [7, 9], parryKeep: 0.3, bossHp: 168,
   alloutDmg: 26, alloutBrk: 4, alloutAp: 1 };
 
 const ALLOUT_BASE = { dmg: TUNE.alloutDmg, brk: TUNE.alloutBrk };
@@ -2395,6 +2445,7 @@ function resolveEffectsInner(effects, ownerId, allyId, selfId) {
     // pattern waits for a face that can hold it.
     if (fx.dmgIfBleeding) { const f = aimedFoe(); if (f && f.bleed > 0)
       dealToBoss(fx.dmgIfBleeding, 'hit', ownerId); }
+    if (fx.dmgIfBroken && C.boss.broken) dealToBoss(fx.dmgIfBroken, 'hit', ownerId);
     if (fx.brk)        breakDamage(fx.brk);
     if (fx.guardSelf)  guardHero(selfId, fx.guardSelf);
     if (fx.guardAlly && allyId) guardHero(allyId, fx.guardAlly);
@@ -6941,7 +6992,7 @@ const CARD_ART = {
   lightsteel: 1,
   // the copies of a basic are the same card, so they are the same painting
   cleave2: 'cleave', cleave3: 'cleave',
-  crosssever2: 'crosssever', sgrace2: 'sgrace', twinfang2: 'twinfang',
+  crosssever2: 'crosssever', sgrace2: 'sgrace', twinfang2: 'twinfang', mend2: 'mend',
   lcascade2: 'lcascade', lcascade3: 'lcascade',
   serrate2: 'serrate', serrate3: 'serrate',
   // THE TWELVE BOND CARDS, and every one of them is a TWO-FIGURE painting —
@@ -7337,7 +7388,13 @@ function prose(effects, plain) {
     // …AND THE ONE THAT GOES WHERE IT WAS AIMED SAYS SO, plus the clause that
     // makes it Elin's second card rather than a second heal. A card that does
     // something the face does not print is the one thing this deck may not do.
-    if (fx.dmgIfBleeding) out.push(I('bleed') + '<b>+' + fmtN(fx.dmgIfBleeding) + '</b> if <b>Bleeding</b>.');
+    // THE NUMBER IS BOLD AND THE KEYWORD IS NOT — like every other row. Bold
+    // was on the status word too, and bold is the one span the face's small-caps
+    // transform does not reach, so the card printed "+5 IF Broken": one word in
+    // caps, the next in title case, on the same line. Every other clause in the
+    // deck bolds the number alone.
+    if (fx.dmgIfBleeding) out.push(I('bleed') + '<b>+' + fmtN(fx.dmgIfBleeding) + '</b> if Bleeding.');
+    if (fx.dmgIfBroken) out.push(I('brk') + '<b>+' + fmtN(fx.dmgIfBroken) + '</b> if Broken.');
     // TWO ROWS, NOT ONE SQUEEZED ONE. "Heal 6 + Guard" is short enough to look
     // like it fits and does not: with the icon in front of it the row wrapped,
     // which puts a number on one line and its word on the next — the exact

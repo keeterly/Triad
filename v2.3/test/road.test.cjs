@@ -813,7 +813,7 @@ const { boot } = require('./harness.cjs');
       // THE RELEASE FIRES A CLICK. If it is not swallowed, holding a card to
       // read it also selects it — the gesture quietly doing a second thing.
       check('DECK: a hold opens that card\u2019s blow-up, and the release does not also select it',
-        during.open && /guarding/i.test(during.name)
+        during.open && /sunder/i.test(during.name)
         && after.shut && after.pick && after.pick.hero === 'mira',
         JSON.stringify({ during, after }));
     }

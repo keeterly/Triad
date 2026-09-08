@@ -1387,7 +1387,8 @@ const { boot } = require('./harness.cjs');
   {
     const load = await J(() => {
       const ALL = ['cleave','guardcut','cstance','crosssever','lastlight','lcascade','mend',
-        'frostbind','sgrace','intercession','serrate','qthrow','twinfang','backstab','execute'];
+        'ward','frostbind','sgrace','intercession','serrate','rend','qthrow','twinfang',
+        'backstab','execute'];
       const conds = ALL.map(id => window.K.evaluateCard(id).card.cond)
         .filter(Boolean).map(c => c.type);
       const perHero = {};
@@ -1451,7 +1452,8 @@ const { boot } = require('./harness.cjs');
       const ids = Object.keys(window.K.CARD_UPS);
       window.K.startCombat({ seed: 5, upgrades: ids });      // every node bought
       const ALL = ['cleave','guardcut','cstance','crosssever','lastlight','lcascade','mend',
-        'frostbind','sgrace','intercession','serrate','qthrow','twinfang','backstab','execute'];
+        'ward','frostbind','sgrace','intercession','serrate','rend','qthrow','twinfang',
+        'backstab','execute'];
       const perHero = {}, kinds = new Set();
       let count = 0, changed = 0;
       for (const id of ALL) {
@@ -1484,7 +1486,21 @@ const { boot } = require('./harness.cjs');
           if (shape(up) !== shape(base) || cold(up) < cold(base)) changed++;
         }
       }
-      return { perHero, count, kinds: [...kinds].sort(), ups: Object.keys(window.K.CARD_UPS).length, changed };
+      // …AND THE LIST ABOVE CAN NO LONGER GO STALE IN SILENCE. It is typed out
+      // by hand because there is no single pool in the game to read it from —
+      // the deck a run is dealt, the cards the road can sharpen, and the bond
+      // cards are three different sets. Build 215 added Ward and Rend to the
+      // first two and nobody added them here, so this block scored twelve of
+      // fourteen upgrades and reported it as the whole set. Anything a run can
+      // actually hold that is missing from ALL is now named, and fails.
+      const st0 = window.K.state();
+      const want = {};
+      for (const id of [].concat(st0.deck, st0.hand, st0.discard))
+        want[(window.K.CARD_DEFS[id] || {}).sameAs || id] = 1;
+      for (const id of ids) want[id] = 1;
+      const missing = Object.keys(want).filter(id => ALL.indexOf(id) < 0);
+      return { perHero, count, kinds: [...kinds].sort(), missing,
+               ups: Object.keys(window.K.CARD_UPS).length, changed };
     });
     check('LOAD: a fully sharpened deck still teaches four keywords and no more',
       grown.kinds.length <= 4 && Object.values(grown.perHero).every(n => n <= 4)
@@ -1494,8 +1510,10 @@ const { boot } = require('./harness.cjs');
     // SHAPE — the atoms it resolves, the condition it asks for, or the kind of
     // reward it pays — rather than only the size of what it already did.
     check('DECK: every sharpened card is a different card, not a bigger one',
-      grown.changed === grown.ups,
-      grown.changed + ' of ' + grown.ups + ' change shape');
+      grown.changed === grown.ups && grown.missing.length === 0,
+      grown.changed + ' of ' + grown.ups + ' change shape'
+      + (grown.missing.length ? ' \u2014 and the deck holds cards this check has '
+         + 'never heard of: ' + grown.missing.join(', ') : ''));
 
     // ── THE VOCABULARY BUDGET, NOW IN TWO PARTS ────────────────────────────
     // Build 97 spends two new keywords, and the case for spending them is
@@ -1694,7 +1712,12 @@ const { boot } = require('./harness.cjs');
       window.K.playCard('cleave');                       // Ash
       const ev = window.K.evaluateCard('mend');          // Elin closes the round
       const before = { ash: st.heroes.ash.hp, elin: st.heroes.elin.hp, mira: st.heroes.mira.hp };
-      window.K.playCard('mend');
+      // MEND NAMES A PERSON NOW. It targets an ally, so played with no hand on
+      // it the engine picks a default — and `defaultAlly` deliberately picks
+      // someone OTHER than the caster. Elin closing the round on herself is
+      // what this check is about, so the check says so rather than relying on
+      // a default that is correct for a different question.
+      window.K.playCard('mend', 'elin');
       const s2 = window.K.state();
       return { armed: ev.condActive,
                ash: s2.heroes.ash.hp - before.ash, elin: s2.heroes.elin.hp - before.elin,
@@ -2182,8 +2205,11 @@ const { boot } = require('./harness.cjs');
   console.log('\n── statuses ──');
   await fresh(21);
   {
-    await J(() => { window.K.forceHand(['guardcut', 'cleave', 'mend', 'serrate', 'frostbind']); window.K.forceIntent('hymn'); });
-    await J(() => window.K.playCard('guardcut'));
+    // WARD, NOT GUARDING CUT. Build 215 made Ash's fourth card a Break card;
+    // the card that puts Guard on a named person is Elin's, and that is what a
+    // test of Guard has to play.
+    await J(() => { window.K.forceHand(['ward', 'cleave', 'mend', 'serrate', 'frostbind']); window.K.forceIntent('hymn'); });
+    await J(() => window.K.playCard('ward', 'ash'));
     const g = await J(() => window.K.state().heroes.ash.guard);
     const v = await volley();
     const r = await J(() => window.K.endTurn({ grades: [] }));   // no input: every string misses
@@ -2191,7 +2217,7 @@ const { boot } = require('./harness.cjs');
     // the whole party loses HP+Guard equal to the volley plus the dirge
     const lost = (42 - s.heroes.ash.hp) + (36 - s.heroes.elin.hp) + (34 - s.heroes.mira.hp);
     check('GUARD ABSORBS FIRST: an unanswered volley spends Guard before flesh',
-      g === 4 && lost === v.total + v.dirge * 3 - 4,
+      g === 8 && lost === v.total + v.dirge * 3 - 8,
       JSON.stringify({ guard: g, volley: v, lost }));
   }
   await fresh(22);
@@ -2217,8 +2243,8 @@ const { boot } = require('./harness.cjs');
     const t1 = await J(() => ({ hp: window.K.state().boss.hp, bleed: window.K.state().boss.bleed }));
     await J(() => window.K.endTurn({ grades: [] }));
     const t2 = await J(() => ({ hp: window.K.state().boss.hp, bleed: window.K.state().boss.bleed }));
-    check('BLEED DECAY: ticks 3 then 2 at enemy-phase start, decreasing by 1',
-      t1.hp === hp0 - 3 && t1.bleed === 2 && t2.hp === t1.hp - 2 && t2.bleed === 1,
+    check('BLEED DECAY: ticks 5 then 4 at enemy-phase start, decreasing by 1',
+      t1.hp === hp0 - 5 && t1.bleed === 4 && t2.hp === t1.hp - 4 && t2.bleed === 3,
       JSON.stringify({ hp0, t1, t2 }));
   }
   await fresh(24);
@@ -2235,9 +2261,11 @@ const { boot } = require('./harness.cjs');
   }
   await fresh(25);
   {
-    await J(() => { window.K.forceHand(['crosssever', 'cleave', 'backstab', 'execute', 'mend']); window.K.forceIntent('hymn');
-      window.K.state().boss.brk = 2; window.K.render(); });
-    await J(() => window.K.playCard('crosssever'));
+    // SUNDER, NOT CROSS SEVER. Cross Sever spends its face on the BROKEN
+    // payoff now; the card that takes poise off the meter is Ash's fourth.
+    await J(() => { window.K.forceHand(['guardcut', 'cleave', 'backstab', 'execute', 'mend']); window.K.forceIntent('hymn');
+      window.K.state().boss.brk = 3; window.K.render(); });
+    await J(() => window.K.playCard('guardcut'));
     const b = await J(() => { const s = window.K.state().boss; return { brk: s.brk, broken: s.broken, cancel: s.cancelNext }; });
     const conds = await J(() => ({ backstab: window.K.evaluateCard('backstab').condActive,
                                    execute: window.K.evaluateCard('execute').condActive }));
@@ -2791,7 +2819,7 @@ const { boot } = require('./harness.cjs');
     const anat = await J(() => {
       window.K.forceHand(['crosssever', 'guardcut', 'mend', 'serrate', 'twinfang']);
       const q = (id) => document.querySelector('.k-card[data-card="' + id + '"]');
-      // guardcut is the card with NO combo band — Cleave earned one in Build 23
+      // guardcut — Sunder — is the card with NO combo band
       const cs = q('crosssever'), cl = q('guardcut');
       const px = (el, p) => el ? parseFloat(getComputedStyle(el)[p]) : 0;
       return {
@@ -2826,9 +2854,9 @@ const { boot } = require('./harness.cjs');
     // holding is unchanged: one clause per row, a mark on each, the number
     // bolded, and the plain card carrying no combo.
     check('CARD: the rules are one clause per row, marked, with the numbers bolded',
-      anat.prose === '9 DAMAGE 2 BREAK' && anat.proseLines === 2
+      anat.prose === '9 DAMAGE +5 IF BROKEN' && anat.proseLines === 2
       && anat.bolded === 2 && anat.icons === 2
-      && anat.plainProse === '4 DAMAGE 4 GUARD' && anat.textBox && anat.noCondOnCore,
+      && anat.plainProse === '4 DAMAGE 3 BREAK' && anat.textBox && anat.noCondOnCore,
       JSON.stringify(anat));
     // The combo must not read as one more grey sentence: it is a named,
     // banded block, and the base line is the biggest type on the face.
@@ -5557,9 +5585,9 @@ const { boot } = require('./harness.cjs');
         // …AND THE PAYOFF IS AN EFFECT, NOT A TRIGGER. It was first built as two
         // new combo keywords and the LOAD checks refused it: this deck teaches
         // ONE combo word. So each hero's fifth card carries a clause that reads
-        // the state its fourth card creates — guard, or a bleed — and the
-        // keyword count never moves.
-        specPays: spec.base.some(f => f.healWard || f.dmgIfSelfGuarded || f.dmgIfBleeding),
+        // the state its fourth card creates and the
+        // keyword count never moves — guard, a bleed, or a break.
+        specPays: spec.base.some(f => f.healWard || f.dmgIfBroken || f.dmgIfBleeding),
         modAtoms: atoms(mod), specAtoms: atoms(spec),
       };
     }
@@ -5577,22 +5605,71 @@ const { boot } = require('./harness.cjs');
   // before" — so the combo a five-card hand was asking the player to see was a
   // three-person ordering. The team combos are still in the game; they are not
   // what a starting deck teaches first.
-  check('DECK: Elin\u2019s and Mira\u2019s fifth card pays off their own fourth \u2014 Ash\u2019s waits on a card face',
-    // ── AND ASH'S HALF IS NOT BUILT YET, WHICH THIS SAYS OUT LOUD ─────────
+  check('DECK: every hero\u2019s fifth card pays off their own fourth',
+    // ── THE FACE HOLDS THREE CLAUSES, WHICH IS HOW ASH GOT HIS ───────────
     //
-    // Elin and Mira have both halves. Ash's payoff — cut harder while he is
-    // guarded — was built and taken back out: Cross Sever already prints two
-    // clauses and the face's anatomy is two plus the combo band, so a third
-    // clipped it. His break is worth more than the clause would be.
+    // Ash's half was deferred once on a guess: that a card face prints two
+    // clauses plus the combo band, so a third would clip. Measured on
+    // Intercession, three clause rows come back 8.7 / 9.7 / 9.5 against an
+    // 11.5 limit — three FIT, three plus a band do not. Cross Sever spends
+    // its band on FOLLOW_UP, so its third row is free, and it now cuts
+    // harder into a foe Sunder already broke.
     //
-    // Named rather than skipped, so the gap is a line in a report instead of a
-    // silence, and so whoever gives that card a face has a check waiting.
-    shape.elin.specPays && shape.mira.specPays && !shape.ash.specPays,
+    // So all three heroes read a state their own fourth card creates:
+    // Ash a Break, Mira a Bleed, Elin a Guard.
+    heroes.every(h => shape[h].specPays),
     JSON.stringify({ ash: shape.ash.specAtoms, elin: shape.elin.specAtoms,
                      mira: shape.mira.specAtoms })
       + ' \u2014 Mira hits harder what SHE made bleed, Elin heals more where SHE '
-      + 'put a guard. Ash is deliberately false here: his payoff needs a third '
-      + 'clause and the face holds two');
+      + 'put a guard, Ash cuts deeper into what HE broke');
+
+  // ── AN UPGRADE IS NEVER A DOWNGRADE ─────────────────────────────────────
+  //
+  // Build 215 rewrote every starting card and left the upgrade tier pointing at
+  // the cards it replaced. Sunder+ still granted Guard and took Ash's Break off
+  // his one cheap Break card; Twin Fang+ dropped the bleeding clause its base
+  // face prints; Mend+ dropped the ward bonus; Lumen Cascade+ hit for 4 where
+  // the plain card hits for 5. Every one of those is a node the player SPENDS
+  // EMBERS ON to make their deck worse, and nothing in 262 checks looked.
+  //
+  // So the rule is stated as a rule: whatever the base card does, the upgrade
+  // does at least as much of it, for no more AP, at the same target. It may add
+  // — that is the whole ramp — it may never take away.
+  const ups = await J(() => {
+    // TWO CARDS TRADE, ON PURPOSE, AND ARE NAMED HERE RATHER THAN EXCUSED.
+    //   qthrow — Quick Throw+ drops `drawDiscard` for a plain `draw`. The atom
+    //     it loses IS the cost of the atom it gains: draw one and discard one
+    //     is a filter, draw one is a card. Strictly better, invisibly so to a
+    //     rule that compares atoms by name.
+    //   execute — Execute+ is 6 cold/14 live becoming 4 cold/19 live. It is the
+    //     one upgrade in the game that is meant to be WORSE in a state: a card
+    //     you hold rather than a card you play. See the LOAD note above.
+    const TRADES = { qthrow: ['drawDiscard'], execute: ['dmg'] };
+    const bad = [];
+    const D = window.K.CARD_DEFS, U = window.K.CARD_UPS;
+    const tot = (card, key) => (card.base || []).reduce(
+      (n, fx) => n + (typeof fx[key] === 'number' ? fx[key] : (fx[key] ? 1 : 0)), 0);
+    for (const id of Object.keys(U)) {
+      const b = D[id], u = U[id];
+      if (!b) { bad.push(id + ': upgrades a card that does not exist'); continue; }
+      if (u.cost > b.cost) bad.push(id + ': costs more (' + b.cost + '→' + u.cost + ')');
+      if (u.target !== b.target) bad.push(id + ': target ' + b.target + '→' + u.target);
+      const keys = {};
+      (b.base || []).forEach(fx => Object.keys(fx).forEach(k => { keys[k] = 1; }));
+      for (const k of Object.keys(keys)) {
+        const was = tot(b, k), now = tot(u, k);
+        if (now < was && (TRADES[id] || []).indexOf(k) < 0)
+          bad.push(id + ': ' + k + ' ' + was + '→' + now);
+      }
+      if (b.cond && !u.cond) bad.push(id + ': loses its combo');
+    }
+    return { bad, n: Object.keys(U).length };
+  });
+  check('UPGRADE: no sharpened card does less than the card it replaces',
+    ups.bad.length === 0,
+    JSON.stringify(ups) + ' — an upgrade may add anything and may take away '
+      + 'nothing: same target, no more AP, and every clause the base card prints '
+      + 'still printed at least as large');
 
   const summary = report();
   await H.browser.close();

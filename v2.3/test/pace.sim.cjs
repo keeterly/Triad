@@ -128,13 +128,19 @@ const SKILLS = process.env.PACE_SKILL
       const payMark = async () => {
         const paid = await J(() => {
           if (document.getElementById('k-mark').classList.contains('k-hidden')) return false;
-          // the moment, which ends on a fork of two marks (Build 110)
-          const f0 = document.querySelector('#k-mark-fork .k-mkf');
-          if (f0) f0.click(); else { const g0 = document.getElementById('k-mark-go'); if (g0) g0.click(); }
-          const mk = [...document.querySelectorAll('#k-mark-cols .k-mk:not([disabled])')];
-          if (!mk.length) return false;
-          mk[Math.floor(Math.random() * mk.length)].click();     // pick it up
-          document.getElementById('k-mark-place').click();       // and mark it
+          // ONE SCREEN, TWO TAPS (Build 216). This asked for a fork page and a
+          // column of ten cards, neither of which has existed for several
+          // builds; it returned false every time and the sim counted zero marks
+          // paid on every road it walked. The screen is a fan of two answers and
+          // the second tap on the lifted one places the mark; the fan is redrawn
+          // between the taps, so the second tap re-queries.
+          const fan = () => [...document.querySelectorAll('#k-mark-fan .k-mka')];
+          const f = fan();
+          if (!f.length) return false;
+          const ix = Math.floor(Math.random() * f.length);
+          f[ix].click();
+          const again = fan()[ix];
+          if (again) again.click();
           return true;
         });
         if (paid) { tally.marks++; await sleep(200); }

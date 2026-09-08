@@ -103,6 +103,36 @@ const { boot } = require('./harness.cjs');
     const ups = await J(() => Object.keys(window.K.CARD_UPS));
     check('TREE: every card a node names has a written-out upgraded face',
       T.filter(n => n.card).every(n => ups.indexOf(n.card) >= 0), ups.join(','));
+    // ── …AND IT IS A CARD THAT HERO ACTUALLY HOLDS ──────────────────────────
+    //
+    // A written-out upgraded face is not the same as a card in the deck. Build
+    // 215 rewrote the fifteen starting cards and left two tier nodes pointing
+    // at Shared Grace and Quick Throw, which no hero opens with any more — four
+    // and four embers, at a fire, for a card the run will never draw. The learn
+    // nodes had the same fault: Elin's traded a Lumen Cascade for a second
+    // Shared Grace, handing her a stranger.
+    const owns = await J(() => {
+      window.K.startCombat({ seed: 3 });
+      const st = window.K.state(), D = window.K.CARD_DEFS, deck = {};
+      for (const id of [].concat(st.deck, st.hand, st.discard))
+        deck[(D[id] || {}).sameAs || id] = D[id].owner;
+      const bad = [];
+      for (const n of window.R.TREE) {
+        if (n.card && deck[n.card] !== n.hero)
+          bad.push(n.id + ' sharpens ' + n.card + ', which ' + n.hero + ' does not open with');
+        if (n.learn) {
+          const take = D[n.learn.take];
+          if (!take) bad.push(n.id + ' takes up ' + n.learn.take + ', which is not a card');
+          else if (take.owner !== n.hero)
+            bad.push(n.id + ' takes up ' + take.name + ', which is ' + take.owner + '\u2019s');
+          if (deck[n.learn.drop] !== n.hero)
+            bad.push(n.id + ' sets down ' + n.learn.drop + ', which is not in ' + n.hero + '\u2019s deck');
+        }
+      }
+      return { bad, deck };
+    });
+    check('TREE: a memory changes a card the hero is actually holding',
+      owns.bad.length === 0, JSON.stringify(owns));
 
     // ── THE ROAD'S RUNG OF THE AP LADDER ────────────────────────────────────
     // The campfire was nine nodes of the same choice: one hero's card for a
@@ -330,7 +360,10 @@ const { boot } = require('./harness.cjs');
     const poor = await J(() => {
       window.R._set({ embers: 2 });
       window.R.openBranch('elin');
-      const b = document.querySelector('[data-node="elin.mend"]');
+      // A TIER-2 NODE, because a tier-3 one is SEALED at this point in a run
+      // and a sealed node greys for a different reason. Mend was tier 2 until
+      // Build 216 moved it to tier 3 behind Ward.
+      const b = document.querySelector('[data-node="elin.ward"]');
       return { poor: b.classList.contains('k-tn-poor'), readable: b.textContent.length > 10 };
     });
     check('FIRE: what you cannot afford greys its PRICE, not its face — you can read what you are saving for',
@@ -729,26 +762,32 @@ const { boot } = require('./harness.cjs');
       const tap = (id) => document.querySelector('[data-node="' + id + '"]').click();
       // move the focus off the node we are about to buy — and to a node in the
       // SAME branch, because one branch is on screen at a time now. This used
-      // Mira's Twin Fang while buying Elin's Mend, which is two doors apart.
-      tap('elin.sgrace');
+      // Mira's Twin Fang while buying Elin's Mend, which is two doors apart;
+      // then Elin's Shared Grace, which Build 216 took off the tree. It buys
+      // Ward now — a TIER-2 node, reachable at this point in a run, where Mend
+      // moved to tier 3 and is sealed.
+      // …AND THE NODE THE FOCUS IS PARKED ON MUST BE ONE A TAP CANNOT BUY, or
+      // the park itself spends embers. Mend is tier 3 and sealed here, which is
+      // exactly what Shared Grace used to be.
+      tap('elin.mend');
       const first = { embers: window.R.state().embers,
-                      focused: !!document.querySelector('[data-node="elin.mend"].k-tn-focus') };
-      tap('elin.mend');
+                      focused: !!document.querySelector('[data-node="elin.ward"].k-tn-focus') };
+      tap('elin.ward');
       const picked = { embers: window.R.state().embers,
-                       focused: !!document.querySelector('[data-node="elin.mend"].k-tn-focus'),
+                       focused: !!document.querySelector('[data-node="elin.ward"].k-tn-focus'),
                        reads: (document.getElementById('k-camp-read').querySelector('b') || {}).textContent };
-      tap('elin.mend');
+      tap('elin.ward');
       const bought = { embers: window.R.state().embers, nodes: window.R.state().nodes.slice() };
       // THE PRICE IS THE TREE'S TO STATE. Written as a literal 3 this went red
       // the moment a node changed tier — which is a fact about the tree, not
       // about the two-tap rule this check is for.
-      return { first, picked, bought, cost: window.R.treeNode('elin.mend').cost };
+      return { first, picked, bought, cost: window.R.treeNode('elin.ward').cost };
     });
     check('FIRE: the first tap picks a memory up and reads it out, the second spends the embers',
       twoTap.first.embers === 12 && !twoTap.first.focused
-      && twoTap.picked.embers === 12 && twoTap.picked.focused && /Mend/i.test(twoTap.picked.reads || '')
+      && twoTap.picked.embers === 12 && twoTap.picked.focused && /Ward/i.test(twoTap.picked.reads || '')
       && twoTap.bought.embers === twoTap.picked.embers - twoTap.cost
-      && twoTap.bought.nodes.indexOf('elin.mend') >= 0,
+      && twoTap.bought.nodes.indexOf('elin.ward') >= 0,
       JSON.stringify(twoTap));
 
     // …and a memory you cannot reach still has to explain itself when you pick

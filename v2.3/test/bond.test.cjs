@@ -1013,8 +1013,13 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       const offered = new Set(window.R.RECALLS.flatMap(r => r.picks.map(p => p.card)));
       return { parked, missed: parked.filter(id => !offered.has(id)) };
     });
+    // COUNTED AS "ALL OF THEM", NOT AS "SIX". This asked for exactly six parked
+    // cards, which is a number the DECK owns: Build 215 rewrote the opening
+    // fifteen, displaced two more, and the literal went red for the one reason
+    // that is not a fault. What matters is that the parked set is non-trivial
+    // and that every card in it has a door — however many that is.
     check('RECALL: nothing the opening fifteen displaced is stranded — every one is remembered by somebody',
-      reach.parked.length === 6 && reach.missed.length === 0, JSON.stringify(reach));
+      reach.parked.length >= 6 && reach.missed.length === 0, JSON.stringify(reach));
 
     // …AND THE TWO ARE A FORK, NOT A RANKING. Two cards that do the same thing
     // to different numbers is the direct-upgrade trap the campfire already

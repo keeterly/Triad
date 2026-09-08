@@ -152,18 +152,23 @@ const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
           if (shot('k-mark')) {
           // TWO BEATS (Build 104): the moment, then the decision, then the mark.
           (() => {
-            // TAKE THE FORK (Build 110): the moment ends on two marks now, and
-            // one of them has to be chosen before the cards are offered.
-            const f = document.querySelector('#k-mark-fork .k-mkf');
-            if (f) { f.click(); return true; }
-            const g = document.getElementById('k-mark-go');
-            if (g) { g.click(); return true; }
-            return false;
+            // ONE SCREEN, TWO TAPS (Build 216). The mark stopped being a fork
+            // page plus a column of ten cards several builds ago; every one of
+            // these harnesses was still asking for `#k-mark-fork .k-mkf` and
+            // `#k-mark-cols .k-mk`, found neither, and — being guarded — walked
+            // straight past the screen without answering it. What is there is a
+            // fan of two answers, and the second tap on the one already lifted
+            // is what places the mark. The fan is redrawn between the taps, so
+            // the second tap re-queries.
+            const fan = () => [...document.querySelectorAll('#k-mark-fan .k-mka')];
+            const f = fan();
+            if (!f.length) return false;
+            const ix = f.length - 1;
+            f[ix].click();
+            const again = fan()[ix];
+            if (again) again.click();
+            return true;
           })();
-          const mk = [...document.querySelectorAll('#k-mark-cols .k-mk:not([disabled])')];
-          if (mk.length) mk[0].click();
-          const pl = document.getElementById('k-mark-place');
-          if (pl && !pl.disabled) pl.click();
             return 'mark';
           }
           return null;
@@ -193,18 +198,23 @@ const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
           if (shot('k-mark')) {
           // TWO BEATS (Build 104): the moment, then the decision, then the mark.
           (() => {
-            // TAKE THE FORK (Build 110): the moment ends on two marks now, and
-            // one of them has to be chosen before the cards are offered.
-            const f = document.querySelector('#k-mark-fork .k-mkf');
-            if (f) { f.click(); return true; }
-            const g = document.getElementById('k-mark-go');
-            if (g) { g.click(); return true; }
-            return false;
+            // ONE SCREEN, TWO TAPS (Build 216). The mark stopped being a fork
+            // page plus a column of ten cards several builds ago; every one of
+            // these harnesses was still asking for `#k-mark-fork .k-mkf` and
+            // `#k-mark-cols .k-mk`, found neither, and — being guarded — walked
+            // straight past the screen without answering it. What is there is a
+            // fan of two answers, and the second tap on the one already lifted
+            // is what places the mark. The fan is redrawn between the taps, so
+            // the second tap re-queries.
+            const fan = () => [...document.querySelectorAll('#k-mark-fan .k-mka')];
+            const f = fan();
+            if (!f.length) return false;
+            const ix = f.length - 1;
+            f[ix].click();
+            const again = fan()[ix];
+            if (again) again.click();
+            return true;
           })();
-          const mk = [...document.querySelectorAll('#k-mark-cols .k-mk:not([disabled])')];
-          if (mk.length) mk[0].click();
-          const pl = document.getElementById('k-mark-place');
-          if (pl && !pl.disabled) pl.click();
             return 'mark';
           }
           return null;

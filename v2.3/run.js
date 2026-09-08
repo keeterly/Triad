@@ -90,12 +90,18 @@
     { id: 'elin.lcascade',   hero: 'elin', tier: 1, cost: 3, card: 'lcascade' },
     { id: 'mira.serrate',    hero: 'mira', tier: 1, cost: 3, card: 'serrate' },
     // tier 2 — one memory · the modifier, a hero's second colour
+    // THE TIERS FOLLOW THE DECK, and Build 215 moved the deck. Every hero's
+    // fourth card is their modifier and their fifth is their special, so tier 2
+    // sharpens the fourth and tier 3 the fifth. Before this, two of the six
+    // pointed at cards that are not in anyone's starting deck any more — Shared
+    // Grace and Quick Throw — so a player could spend four embers at a fire and
+    // change nothing they would ever draw.
     { id: 'ash.guardcut',    hero: 'ash',  tier: 2, cost: 4, card: 'guardcut' },
-    { id: 'elin.mend',       hero: 'elin', tier: 2, cost: 4, card: 'mend' },
-    { id: 'mira.qthrow',     hero: 'mira', tier: 2, cost: 4, card: 'qthrow' },
-    // tier 3 — both memories · the special, the card that already combos
+    { id: 'elin.ward',       hero: 'elin', tier: 2, cost: 4, card: 'ward' },
+    { id: 'mira.rend',       hero: 'mira', tier: 2, cost: 4, card: 'rend' },
+    // tier 3 — both memories · the special, the card that pays off the fourth
     { id: 'ash.crosssever',  hero: 'ash',  tier: 3, cost: 5, card: 'crosssever' },
-    { id: 'elin.sgrace',     hero: 'elin', tier: 3, cost: 5, card: 'sgrace' },
+    { id: 'elin.mend',       hero: 'elin', tier: 3, cost: 5, card: 'mend' },
     { id: 'mira.twinfang',   hero: 'mira', tier: 3, cost: 5, card: 'twinfang' },
     // ── THE LEARN NODES: the only thing here that changes what a deck IS ─────
     //
@@ -121,7 +127,7 @@
     { id: 'ash.learn',  hero: 'ash',  tier: 2, cost: 7,
       learn: { take: 'crosssever2', drop: 'cleave' } },
     { id: 'elin.learn', hero: 'elin', tier: 2, cost: 7,
-      learn: { take: 'sgrace2', drop: 'lcascade' } },
+      learn: { take: 'mend2', drop: 'lcascade' } },
     { id: 'mira.learn', hero: 'mira', tier: 2, cost: 7,
       learn: { take: 'twinfang2', drop: 'serrate' } },
     // ── the shared nodes: what all three of them own together ──
@@ -449,6 +455,43 @@
           after: 'He chose. He can be the one it lands on.' },
         { line: 'The habit of finishing what he started.', card: 'lastlight',
           after: 'A thing chosen is a thing you see through to the end of the round.' },
+      ] },
+    // ── A ROUND NOTHING GOT THROUGH ──
+    // Build 215 took Shared Grace out of Elin's opening five and out of Mira's
+    // hand went Quick Throw. Both are painted, defined, upgraded — and until
+    // these two memories they were also unreachable: a card in the game that no
+    // door in the game opens. A displaced card gets a way back or it gets cut.
+    { id: 'rc-clean', who: 'elin', title: 'NOTHING GOT THROUGH',
+      when: (r) => r.journey.flawless >= 1,
+      beats: [
+        { who: null,   line: 'It ends and all three of them are standing, and none of them says so, because saying so is how it stops being true.' },
+        { who: 'mira', line: 'That was clean.' },
+        { who: 'elin', line: 'That was clean because I had my hand out before the second one moved.' },
+        { who: 'ash',  line: 'You always do.' },
+        { who: 'elin', line: 'I do it for one of you at a time. That is the part I would like to change.' },
+      ],
+      ask: 'What does she work on?',
+      picks: [
+        { line: 'Covering all three at once, or none.', card: 'sgrace',
+          after: 'One light, thinner over each of them, and none of them out from under it.' },
+        { line: 'Standing where the next one lands.', card: 'intercession',
+          after: 'Not thinner. Closer. She picks the one it is going to be.' },
+      ] },
+    // ── A LOT OF DIFFERENT THINGS DEAD ──
+    { id: 'rc-many', who: 'mira', title: 'SHE KEEPS COUNT TOO',
+      when: (r) => r.journey.felled.length >= 3,
+      beats: [
+        { who: 'ash',  line: 'How many kinds of thing have we put down since the gate?' },
+        { who: 'mira', line: 'Enough that I have stopped learning a new way for each of them.' },
+        { who: 'elin', line: 'That sounds like giving up.' },
+        { who: 'mira', line: 'It sounds like carrying less. There is a difference and I am the only one here who has had to know it.' },
+      ],
+      ask: 'What does she carry instead?',
+      picks: [
+        { line: 'Whatever is in her hand, thrown, and the next thing after it.', card: 'qthrow',
+          after: 'She stops choosing the right knife and starts choosing the next one.' },
+        { line: 'One way in, from behind, every time.', card: 'backstab',
+          after: 'One way, learned so far down it is not a decision any more.' },
       ] },
   ];
 
@@ -2318,15 +2361,15 @@
   // card faces, so the promise cannot drift from the outcome.
   const NODE_SAY = {
     'ash.cleave':     '\u201cStop aiming. Just swing.\u201d',
-    'ash.guardcut':   '\u201cTake the hit if you have to.\u201d',
+    'ash.guardcut':   '\u201cFind the crack. Widen it.\u201d',
     'ash.crosssever': '\u201cThen end it in one.\u201d',
     'ash.learn':      '\u201cCarry the heavy one twice.\u201d',
     'elin.lcascade':  '\u201cHold the light steadier.\u201d',
+    'elin.ward':      '\u201cStand behind me. I have this.\u201d',
     'elin.mend':      '\u201cLook after them first.\u201d',
-    'elin.sgrace':    '\u201cCover all three of us, or none.\u201d',
     'elin.learn':     '\u201cThen do it twice a fight.\u201d',
     'mira.serrate':   '\u201cCut so that it keeps cutting.\u201d',
-    'mira.qthrow':    '\u201cDrop whatever slows you down.\u201d',
+    'mira.rend':      '\u201cOpen it. Let it stay open.\u201d',
     'mira.twinfang':  '\u201cTwice. Do not stop to look.\u201d',
     'mira.learn':     '\u201cThen go in twice.\u201d',
     'all.resolve':    '\u201cWe start earlier tomorrow.\u201d',
