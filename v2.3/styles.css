@@ -486,46 +486,18 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    the camera pulling back gives the back rank real sky of its own. */
 #k-boss-hud { position: absolute; right: calc(16px + var(--ui-r)); left: auto; top: calc(10px + var(--ui-t)); width: 268px;
   display: flex; flex-direction: column; align-items: flex-end; gap: 3px; z-index: 10; }
-/* ── THE READOUT GETS GROUND TO STAND ON (Build 219) ───────────────────────
-   The foe's body box runs from y30 to y294 and this readout sits at y10-53, so
-   they overlap by design — and on the painted stage that was harmless, because
-   the painted foe was dark and low. The 3D Regent is pale and tall, and there
-   was no backing here at all: `background: rgba(0,0,0,0)`, `box-shadow: none`.
-   Measured against the brightest tenth of what is actually behind it, the
-   POISE label came out at 2.06:1 where 4.5:1 is the floor for text this size;
-   the HP value was fine at 4.80:1, which is why this read as "sometimes hard
-   to see" rather than as a fault.
-   A soft scrim rather than a panel: it is darkest under the text and gone by
-   the edges, so the readout still reads as words on the world rather than as a
-   box bolted over it. */
-/* THE FADE HAS TO FINISH INSIDE THE BOX, which is the whole trick and the one
-   thing two cuts of this got wrong. An ellipse sized 115%/135% of the element
-   reaches its transparent stop at ~101% of the box — OUTSIDE it — so the wash
-   was still at full strength when the element ended and the scrim showed as a
-   rectangle with a hard left edge, which is a panel bolted over the world. At
-   92%/115% with the last stop at 90%, the fade lands at ~83% of the box and
-   there is no edge to see. */
-#k-boss-hud::before {
-  content: ''; position: absolute; z-index: -1;
-  inset: -12px -14px -22px -34px;
-  background: radial-gradient(90% 96% at 80% 40%,
-    rgba(10,8,7,0.74) 0%, rgba(10,8,7,0.66) 38%, rgba(10,8,7,0.22) 68%,
-    rgba(10,8,7,0) 88%);
-  pointer-events: none; }
-/* ── AND THE TELEGRAPH NEEDS THE SAME GROUND ──────────────────────────────
-   This is the readout the fight is actually played off — what the foe is about
-   to do — and it sits at y63, lower into the body than the name plate and with
-   no backing of its own: `background: rgba(0,0,0,0)`, and only a 1px shadow on
-   its children. Over a pale figure it was the least legible thing on screen
-   while being the most important. */
-.k-tell.k-lbl-over::before {
-  content: ''; position: absolute; z-index: -1;
-  inset: -16px -22px -17px -24px;
-  background: radial-gradient(76% 88% at 50% 50%,
-    rgba(10,8,7,0.72) 0%, rgba(10,8,7,0.62) 36%, rgba(10,8,7,0.20) 68%,
-    rgba(10,8,7,0) 88%);
-  pointer-events: none; }
-/* …AND THE TWO DIMMEST TONES IN IT COME UP, scoped to this readout alone.
+/* ── THE READOUT HOLDS ITSELF, WITH NO GROUND UNDER IT (Build 220) ────────
+   Build 219 put a soft scrim behind this readout and behind the telegraph, and
+   the measurement that called for it was right: the foe's body box runs y30 to
+   y294 against this readout's y10-y53, they overlap by design, and on a lit 3D
+   body the POISE label came out at 2.06:1 where 4.5:1 is the floor.
+   A scrim was the wrong answer to a real problem. This stage is words on the
+   world; a wash behind them — however soft, however well feathered — is
+   furniture, and the readout stops being part of the scene. Taken out again.
+   What holds the text up instead is the text: a tight dark halo carried by the
+   glyphs themselves, which is what every other label on this stage already
+   does (`.k-bname` has carried one since Build 4). It costs no rectangle and
+   it travels with the letters wherever the camera puts the body behind them. *//* …AND THE TWO DIMMEST TONES IN IT COME UP, scoped to this readout alone.
    `#9a9080` is the UI's quiet grey and it appears in twenty-five places; it is
    right everywhere it sits on the game's own dark furniture, and wrong only
    here, where what is behind it is a lit body. Measured over the brightest
@@ -534,6 +506,34 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    corner, so it is lifted here and nowhere else: 5.31:1 and 5.99:1. */
 #k-boss-hud .k-hpnum { color: #b9ae97; }
 #k-boss-hud .k-break-wrap { color: #c3b9a3; }
+/* THE HALO IS ON THE GLYPHS, NOT UNDER THE BLOCK. Four tight offsets make a
+   dark rim a pixel or so wide — that is what does the work, because legibility
+   is decided at the EDGE of a letter, not across the whole box — and one wide
+   soft pass underneath takes the glare off a lit body without painting a shape
+   anybody can see. */
+#k-boss-hud, #k-boss-hud *,
+.k-tell.k-lbl-over, .k-tell.k-lbl-over * {
+  text-shadow:
+    0 0 2px rgba(8,6,5,0.98),
+    0 1px 2px rgba(8,6,5,0.98),
+    1px 0 2px rgba(8,6,5,0.92),
+    -1px 0 2px rgba(8,6,5,0.92),
+    0 0 9px rgba(8,6,5,0.8); }
+/* …AND THE BAR AND THE PIPS ARE NOT TEXT, so a text-shadow does nothing for
+   them. A drop-shadow on the block rims whatever is actually drawn — the HP
+   line, the poise squares, the intent glyph — with no rectangle of its own. */
+#k-boss-hud, .k-tell.k-lbl-over {
+  filter: drop-shadow(0 1px 2px rgba(8,6,5,0.9)) drop-shadow(0 0 3px rgba(8,6,5,0.7)); }
+/* …AND THE QUALIFIERS STOP BEING 8px OF DIM GREY. Measured at the glyph edge
+   against a control — the party HUD, text nobody has trouble reading, scores a
+   5.36:1 median on the same instrument — the telegraph came back at 1.47:1 with
+   85% of its glyph pixels under the floor. It is `.k-ichip i`: the "×2" and the
+   "+3 ALL" set at 8px in #a09889, which is a size and a tone that survive on
+   the game's own dark furniture and nowhere near a lit body. No halo rescues
+   8px of that; the type has to carry itself. Scoped to the telegraph over a
+   body — the same chip in the quiet HUD is left alone. */
+.k-tell.k-lbl-over .k-ichip i { font-size: 9px; color: #d6cdba; letter-spacing: 0.07em; }
+.k-tell.k-lbl-over .k-ichip u { color: #d6cdba; }
 .k-foe-plate { display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
   width: 100%; }
 .k-foe-plate + .k-foe-plate { margin-top: 7px; }
