@@ -937,7 +937,13 @@ const { boot } = require('./harness.cjs');
   // cropped. That lifts every ground line by 17 to 29 px and narrows the
   // party's spread by about 32, which this caught on the first run. The
   // tolerance stays at 22 so the next unintended nudge is caught the same way.
-  const LADDER = { elin: [252, 218], mira: [348, 232], ash: [454, 248] };
+  // RE-BASELINED AGAIN AT BUILD 221, and for the same kind of reason: the home
+  // shot moved back from 8.20 m to 9.60 on purpose, to stop the bodies and the
+  // readouts sharing a corner. Pulling back narrows the party's spread — 202 px
+  // between Elin and Ash becomes 179 — and lifts every ground line by 8 to 17.
+  // The tolerance stays at 22 so the next UNintended nudge is caught the same
+  // way this deliberate one was.
+  const LADDER = { elin: [282, 210], mira: [366, 220], ash: [462, 231] };
   const drift = Object.fromEntries(Object.entries(LADDER).map(([id, [x, y]]) =>
     [id, [+(A[id].screen.x - x).toFixed(1), +(A[id].screen.ground - y).toFixed(1)]]));
   check('WORLD: and it frames the board the painted stage framed',
@@ -4427,6 +4433,73 @@ const { boot } = require('./harness.cjs');
   // figures composite over the room that screen is painted as — and the two
   // things that would break a run are the canvas not moving and the canvas not
   // coming back. Both are checked, in that order.
+  // ── THE BODIES AND THE READOUTS SHARE LESS OF THE CORNER (Build 221) ─────
+  //
+  // The resting frame stood at dist 8.20 and the Regent's body box overlapped
+  // the foe readout by 6702 px². Mocked in this renderer at three distances and
+  // measured rather than eyeballed: 9.6 takes 71% of that out for 16% of figure
+  // height, 11.0 takes 80% for 27% — and 27% is where a character starts
+  // reading as a token on a phone. 9.6 with both readouts at 88%.
+  //
+  // Held as a CEILING, not a number: the camera is free to move and the type is
+  // free to be retuned, but the two may not go back to sitting on each other.
+  {
+    const share = await J(async () => {
+      window.K.startCombat({ seed: 21 });
+      // the plate is 250x264 until the layer scales it to the figure standing
+      // on it — measured before that, the "body" is an empty frame and every
+      // overlap number below is fiction
+      for (let i = 0; i < 300; i++) {
+        const b = document.getElementById('k-boss-art');
+        if (b.classList.contains('k-cast3d-on') && window.K.state()
+            && window.K.state().phase === 'PLAYER_READY') break;
+        await new Promise(r => setTimeout(r, 40));
+      }
+      for (let i = 0; i < 40; i++) await new Promise(r => requestAnimationFrame(r));
+      const st = document.getElementById('k-stage'), sr = st.getBoundingClientRect();
+      const R = (sel) => { const e = document.querySelector(sel); if (!e) return null;
+        const b = e.getBoundingClientRect();
+        return { x: b.left - sr.left, y: b.top - sr.top, w: b.width, h: b.height }; };
+      const hit = (a, b) => { if (!a || !b) return 0;
+        const w = Math.max(0, Math.min(a.x+a.w, b.x+b.w) - Math.max(a.x, b.x));
+        const h = Math.max(0, Math.min(a.y+a.h, b.y+b.h) - Math.max(a.y, b.y));
+        return Math.round(w*h); };
+      const foe = R('#k-boss-art'), ash = R('.k-hero[data-hero="ash"]');
+      const tell = R('.k-tell.k-lbl-over');
+      return { foeH: Math.round(foe.h), ashH: Math.round(ash.h),
+               readout: hit(foe, R('#k-boss-hud')),
+               telegraph: hit(foe, tell),
+               // …AND LESS OVERLAP MUST NOT MEAN "IT WANDERED OFF". The first
+               // cut of the 88% scale used `zoom`, which shrinks an element's
+               // POSITION as well as its size, and dragged the telegraph about
+               // ninety pixels off the creature it names. Overlap went DOWN and
+               // this check was pleased. The badge hangs over a body or it is
+               // not a badge, so the distance is asserted with the area.
+               tellOff: Math.round(Math.abs((tell.x + tell.w / 2) - (foe.x + foe.w / 2))),
+               // …and the party's plate never touched a body, before or after
+               party: hit(ash, R('#k-party-hud')),
+               // nothing has been pushed off the edge by the scale
+               rightEdge: Math.round(R('#k-boss-hud').x + R('#k-boss-hud').w),
+               stageW: Math.round(st.offsetWidth),
+               // …and the heroes still stand clear of the card fan
+               feet: Math.round(ash.y + ash.h), fan: Math.round(R('#k-hand').y) };
+    });
+    // THE TELEGRAPH'S CEILING CAME FROM A BROKEN MEASUREMENT, and it is written
+    // down here because it nearly shipped. 1800 was read off a build where the
+    // badge had been dragged ninety pixels off the creature: less overlap,
+    // because it was in the wrong place. Centred properly it sits at 1928 — a
+    // badge that hangs over a head OVERLAPS that head, and the honest gain from
+    // the 88% scale is 2489 -> 1928, or 23%. The ceiling is set from the number
+    // the correct build actually produces.
+    check('FRAME: the bodies and the readouts are not sitting on each other',
+      share.readout < 2600 && share.telegraph < 2200 && share.party === 0
+      && share.rightEdge <= share.stageW && share.feet < share.fan
+      // …and the cure is not "shrink everybody": a figure this small stops
+      // being a character, so the floor is asserted with the ceiling
+      && share.ashH >= 130 && share.foeH >= 170 && share.tellOff < 60,
+      JSON.stringify(share) + ' — was readout 6702 / telegraph 2489 at dist 8.20');
+  }
+
   // ── AND THE PAINTED CAST IS NEVER THE PICTURE (Build 219) ────────────────
   //
   // Only this suite can ask. Every other one boots `cast=2d`, where the plates

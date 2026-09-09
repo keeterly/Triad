@@ -534,6 +534,34 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    body — the same chip in the quiet HUD is left alone. */
 .k-tell.k-lbl-over .k-ichip i { font-size: 9px; color: #d6cdba; letter-spacing: 0.07em; }
 .k-tell.k-lbl-over .k-ichip u { color: #d6cdba; }
+/* ── THE READOUTS COME DOWN TO 88% (Build 221) ─────────────────────────────
+   The other half of pulling the camera back. Each scales toward its OWN anchor
+   so nothing moves: the party plate from its top-left, the foe's from its
+   top-right, the telegraph from its top-CENTRE, because that is the point it
+   hangs from over a creature's head.
+
+   `transform`, NOT `zoom`, and the first cut of this got it wrong. `zoom`
+   re-lays-out at the smaller size — which is lovely for type — but it scales
+   the element's POSITION too. The two corner plates barely noticed; the
+   telegraph is placed every frame from the body's own rect, so 0.88 of its
+   offset dragged it about ninety pixels off the creature it names. The flow
+   suite caught it on `overHead`, which asks that the badge's centre is the
+   creature's centre.
+   It is also why `zoom` was wrong for the corners even though it looked right:
+   those are pinned with `calc(16px + var(--ui-r))`, and `--ui-r` is the safe-
+   area inset. Scaling the offset scales the notch clearance with it. */
+#k-party-hud { transform: scale(0.88); transform-origin: left top; }
+#k-boss-hud { transform: scale(0.88); transform-origin: right top; }
+/* …AND THIS ONE COMPOSES ITS SCALE, it does not replace it. `.k-tell` centres
+   itself with `transform: translate(-50%, -100%)`, and `transform` is a single
+   property: a more specific rule setting `scale()` alone DELETES the centring
+   and drops the badge half a width right and a full height low. That was the
+   second way this build moved the telegraph off the creature — different cause,
+   identical symptom, caught by the same `overHead` check.
+   The origin is the bottom-centre because that is the point the badge hangs
+   from, so the scale happens around the anchor and the anchor does not move. */
+.k-tell.k-lbl-over { transform: translate(-50%, -100%) scale(0.88);
+  transform-origin: 50% 100%; }
 .k-foe-plate { display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
   width: 100%; }
 .k-foe-plate + .k-foe-plate { margin-top: 7px; }

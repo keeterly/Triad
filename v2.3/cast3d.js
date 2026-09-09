@@ -4537,7 +4537,18 @@ const Cast3D = (() => {
     // figure height (176 from 179) — the cheapest step on the curve, and the
     // reason not to take the next one is the fan: at aimY 1.90 the heroes'
     // feet reach 260 against a fan top of 265.
-    home:      { az:   0, dist: 8.20, height: 1.81, aimY: 1.82, at: 'board' },
+    // ── AND IT STANDS FURTHER BACK NOW (Build 221) ──────────────────────
+    //
+    // 8.20 put the Regent's body box at 221px against a readout occupying the
+    // same corner: 6702 px² of the two sitting on each other. Mocked in the
+    // real renderer at 8.2 / 9.6 / 11.0 and measured, 9.6 takes 71% of that
+    // overlap out for 16% of figure height — 11.0 takes 80% out for 27%, which
+    // is where a character starts reading as a token on a phone.
+    //
+    // Every other shot names its own distance, so this moves the resting frame
+    // and nothing else: the duel, the parry, the all-out and the fell all come
+    // in as close as they ever did.
+    home:      { az:   0, dist: 9.60, height: 1.81, aimY: 1.82, at: 'board' },
     // a finisher: come around the party's shoulder and get low enough that the
     // Regent is above you, which is the whole feeling of fighting one
     duel:      { az: -33, dist: 5.85, height: 1.28, aimY: 1.62, at: 'foe' },
