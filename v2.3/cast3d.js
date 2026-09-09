@@ -4548,7 +4548,20 @@ const Cast3D = (() => {
     // Every other shot names its own distance, so this moves the resting frame
     // and nothing else: the duel, the parry, the all-out and the fell all come
     // in as close as they ever did.
-    home:      { az:   0, dist: 9.60, height: 1.81, aimY: 1.82, at: 'board' },
+    // ── AND THE LENS TILTS UP (Build 222) ───────────────────────────────
+    //
+    // There was a strip of bare floor under the party and unused sky over every
+    // head. `height` is where the camera STANDS and `aimY` is what it LOOKS AT,
+    // and only the second one moves that: at 2.10 with the aim left alone the
+    // floor strip stayed at 35px and the headroom went 17 to 19 — nothing. The
+    // aim is the lever. 1.82 to 2.05 halves the floor to 17px, doubles the
+    // headroom to 36, and drops the readout's overlap with the Regent from 1914
+    // to 720 — for no figure height at all: 186/140 before, 185/139 after.
+    //
+    // 2.20 goes further and takes the overlap to zero, and it is not taken: it
+    // leaves five pixels between the party's feet and the card fan. Every other
+    // shot names its own height and aim, so this is the resting frame alone.
+    home:      { az:   0, dist: 9.60, height: 2.10, aimY: 2.05, at: 'board' },
     // a finisher: come around the party's shoulder and get low enough that the
     // Regent is above you, which is the whole feeling of fighting one
     duel:      { az: -33, dist: 5.85, height: 1.28, aimY: 1.62, at: 'foe' },

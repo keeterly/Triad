@@ -937,13 +937,15 @@ const { boot } = require('./harness.cjs');
   // cropped. That lifts every ground line by 17 to 29 px and narrows the
   // party's spread by about 32, which this caught on the first run. The
   // tolerance stays at 22 so the next unintended nudge is caught the same way.
-  // RE-BASELINED AGAIN AT BUILD 221, and for the same kind of reason: the home
-  // shot moved back from 8.20 m to 9.60 on purpose, to stop the bodies and the
-  // readouts sharing a corner. Pulling back narrows the party's spread — 202 px
-  // between Elin and Ash becomes 179 — and lifts every ground line by 8 to 17.
-  // The tolerance stays at 22 so the next UNintended nudge is caught the same
-  // way this deliberate one was.
-  const LADDER = { elin: [282, 210], mira: [366, 220], ash: [462, 231] };
+  // RE-BASELINED AT 221 AND AGAIN AT 222, both times for a deliberate move of
+  // the home shot: back from 8.20 m to 9.60 to stop the bodies and the readouts
+  // sharing a corner, then the aim tilted up from 1.82 to 2.05 to spend a strip
+  // of bare floor on head space. Pulling back narrowed the party's spread — 202
+  // px between Elin and Ash became 179 — and the tilt put every ground line 14
+  // to 17 px lower again.
+  // The number is re-baselined rather than the tolerance widened, every time,
+  // so that 22 keeps meaning "nobody nudged this by accident".
+  const LADDER = { elin: [283, 224], mira: [366, 236], ash: [462, 248] };
   const drift = Object.fromEntries(Object.entries(LADDER).map(([id, [x, y]]) =>
     [id, [+(A[id].screen.x - x).toFixed(1), +(A[id].screen.ground - y).toFixed(1)]]));
   check('WORLD: and it frames the board the painted stage framed',
@@ -4481,8 +4483,14 @@ const { boot } = require('./harness.cjs');
                // nothing has been pushed off the edge by the scale
                rightEdge: Math.round(R('#k-boss-hud').x + R('#k-boss-hud').w),
                stageW: Math.round(st.offsetWidth),
-               // …and the heroes still stand clear of the card fan
-               feet: Math.round(ash.y + ash.h), fan: Math.round(R('#k-hand').y) };
+               // …and the heroes still stand clear of the card fan. This is the
+               // number that decides how far the lens may tilt up: at aimY 2.20
+               // the strip is five pixels, which is one stylesheet change away
+               // from feet drawn over cards.
+               feet: Math.round(ash.y + ash.h), fan: Math.round(R('#k-hand').y),
+               floorBand: Math.round(R('#k-hand').y - Math.max(
+                 ...['ash','elin','mira'].map(id => {
+                   const h = R('.k-hero[data-hero="' + id + '"]'); return h.y + h.h; }))) };
     });
     // THE TELEGRAPH'S CEILING CAME FROM A BROKEN MEASUREMENT, and it is written
     // down here because it nearly shipped. 1800 was read off a build where the
@@ -4496,7 +4504,8 @@ const { boot } = require('./harness.cjs');
       && share.rightEdge <= share.stageW && share.feet < share.fan
       // …and the cure is not "shrink everybody": a figure this small stops
       // being a character, so the floor is asserted with the ceiling
-      && share.ashH >= 130 && share.foeH >= 170 && share.tellOff < 60,
+      && share.ashH >= 130 && share.foeH >= 170 && share.tellOff < 60
+      && share.floorBand >= 12,
       JSON.stringify(share) + ' — was readout 6702 / telegraph 2489 at dist 8.20');
   }
 
