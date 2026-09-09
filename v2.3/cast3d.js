@@ -4537,31 +4537,44 @@ const Cast3D = (() => {
     // figure height (176 from 179) — the cheapest step on the curve, and the
     // reason not to take the next one is the fan: at aimY 1.90 the heroes'
     // feet reach 260 against a fan top of 265.
-    // ── AND IT STANDS FURTHER BACK NOW (Build 221) ──────────────────────
+    // ── AND IT STANDS FURTHER BACK STILL (Build 223) ────────────────────
     //
-    // 8.20 put the Regent's body box at 221px against a readout occupying the
-    // same corner: 6702 px² of the two sitting on each other. Mocked in the
-    // real renderer at 8.2 / 9.6 / 11.0 and measured, 9.6 takes 71% of that
-    // overlap out for 16% of figure height — 11.0 takes 80% out for 27%, which
-    // is where a character starts reading as a token on a phone.
+    // 221 mocked 8.2 / 9.6 / 11.0 and took 9.6, on the grounds that 11.0 was
+    // "where a character starts reading as a token on a phone". That sentence
+    // was a judgement made from a 932px contact sheet and it was never checked
+    // on a phone; the frame it rejected is the one taken here. 11.0 is a
+    // decision about what this screen is for, and it was made deliberately:
+    // the readouts stop touching the bodies ENTIRELY rather than mostly.
     //
-    // Every other shot names its own distance, so this moves the resting frame
-    // and nothing else: the duel, the parry, the all-out and the fell all come
-    // in as close as they ever did.
-    // ── AND THE LENS TILTS UP (Build 222) ───────────────────────────────
+    // Measured on the built game, not reasoned about. At 9.60 the intent badge
+    // overlapped the Regent by 1928 px² and the health readout by 633; at 11.0
+    // both are ZERO, and they are zero with the UI back at full size — 221 had
+    // shrunk every readout to 88% to buy 2489 -> 1928, and that shrink is now
+    // removed because there is nothing left for it to buy.
     //
-    // There was a strip of bare floor under the party and unused sky over every
-    // head. `height` is where the camera STANDS and `aimY` is what it LOOKS AT,
-    // and only the second one moves that: at 2.10 with the aim left alone the
-    // floor strip stayed at 35px and the headroom went 17 to 19 — nothing. The
-    // aim is the lever. 1.82 to 2.05 halves the floor to 17px, doubles the
-    // headroom to 36, and drops the readout's overlap with the Regent from 1914
-    // to 720 — for no figure height at all: 186/140 before, 185/139 after.
+    // What it costs is figure height, and the cost is real: the Regent goes
+    // 185px to 160 and Ash 139 to 121, about 14% off everyone. That is the
+    // whole trade — presence for separation — and it is the one thing here a
+    // contact sheet cannot settle. It wants a look at hand distance.
     //
-    // 2.20 goes further and takes the overlap to zero, and it is not taken: it
-    // leaves five pixels between the party's feet and the card fan. Every other
-    // shot names its own height and aim, so this is the resting frame alone.
-    home:      { az:   0, dist: 9.60, height: 2.10, aimY: 2.05, at: 'board' },
+    // ── AND THE AIM GOES UP WITH IT ─────────────────────────────────────
+    //
+    // Pulling back puts more world in frame at both ends, so 222's floor strip
+    // came back: 17px at 9.60 became 38 at 11.0. `aimY` is the lever (222
+    // established that `height` alone moves nothing), and there is more of it
+    // to spend out here — at 9.60, aim 2.20 left five pixels between the
+    // party's feet and the card fan; at 11.0 the same aim leaves 28.
+    //
+    // Swept 2.05 / 2.20 / 2.30 / 2.40 / 2.50 with the floor strip and the
+    // badge both measured. 2.50 leaves 8px of floor and breaks the guard. 2.40
+    // is taken: 15px of floor — 222's framing — and it also seats the badge
+    // half a line BELOW the boss readout's baseline, so the two read as two
+    // things. At 2.30 they share a baseline and run together into one strip.
+    //
+    // Every other shot names its own distance, height and aim, so this moves
+    // the resting frame and nothing else: the duel, the parry, the all-out and
+    // the fell all come in as close as they ever did.
+    home:      { az:   0, dist: 11.0, height: 2.10, aimY: 2.40, at: 'board' },
     // a finisher: come around the party's shoulder and get low enough that the
     // Regent is above you, which is the whole feeling of fighting one
     duel:      { az: -33, dist: 5.85, height: 1.28, aimY: 1.62, at: 'foe' },

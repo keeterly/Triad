@@ -943,9 +943,14 @@ const { boot } = require('./harness.cjs');
   // of bare floor on head space. Pulling back narrowed the party's spread — 202
   // px between Elin and Ash became 179 — and the tilt put every ground line 14
   // to 17 px lower again.
+  // AND AGAIN AT 223, for the move out to 11.0 m with the aim at 2.40. This one
+  // it very nearly passed WITHOUT re-baselining — Elin drifted 19.2 px against
+  // a tolerance of 22 — and passing at 87% of the budget is the reason to do
+  // it, not a reason to skip it. Left alone, a 3 px accident in one direction
+  // would trip this and a 20 px accident in the other would not.
   // The number is re-baselined rather than the tolerance widened, every time,
   // so that 22 keeps meaning "nobody nudged this by accident".
-  const LADDER = { elin: [283, 224], mira: [366, 236], ash: [462, 248] };
+  const LADDER = { elin: [302, 233], mira: [378, 242], ash: [462, 251] };
   const drift = Object.fromEntries(Object.entries(LADDER).map(([id, [x, y]]) =>
     [id, [+(A[id].screen.x - x).toFixed(1), +(A[id].screen.ground - y).toFixed(1)]]));
   check('WORLD: and it frames the board the painted stage framed',
@@ -4398,9 +4403,36 @@ const { boot } = require('./harness.cjs');
     check('DRAWN: the picture has colour in it — it measured 0.068, a grey with a tint',
       pic.sat > 0.13,
       JSON.stringify(pic) + ' — mean saturation over the board');
+    // THE SHARE CAME DOWN WITH THE FRAME (Build 223), and it is re-derived
+    // rather than waved through. Pulling the lens to 11.0 m dropped this from
+    // 2.12 to about 1.3 — measured both ways on the same build, everything but
+    // the home shot identical, so the cause is not in doubt. Nor is the
+    // mechanism: the dark things in this picture ARE the figures, they lost 14%
+    // of their height, and 2.12 x 0.74 is 1.57. Most of the drop is simply the
+    // area they stopped covering.
+    //
+    // THE FIRST REPLACEMENT FLOOR WAS 1.2 AND IT WAS WRONG, set from a single
+    // run that read 1.43 — with a comment claiming it cleared by a fifth. Run
+    // five times the same build reads 1.43 / 1.24 / 1.26 / 1.10 / 1.46: a 14%
+    // swing, because this is one frame of moving figures, and 1.2 would have
+    // gone red about one run in three. A threshold off one sample is a guess
+    // with a number on it.
+    //
+    // So the floor is 0.9 — under the lowest of five, not under the luckiest of
+    // one. Read what it is now honestly: at 2.12 this clause had teeth, and at
+    // 1.1-1.5 against a floor of 0.9 it is a smoke alarm for a picture that has
+    // gone properly flat, not a guard on contrast. `lo` is the clause still
+    // doing real work — it asks that a TRUE black exists to stand the picture
+    // against, and it still reads 0.000, so the blacks did not go grey, there
+    // is less of them.
+    //
+    // The contrast this build gave up is real and it is not fixed here. It
+    // wants a grade that puts the depth back at the new distance, and that is
+    // its own piece of work, not a threshold.
     check('DRAWN: …and a black to stand it against, which it did not have',
-      pic.lo < 0.02 && pic.dark > 1.5,
-      JSON.stringify(pic) + ' — the darkest pixel, and the share under 0.06');
+      pic.lo < 0.02 && pic.dark > 0.9,
+      JSON.stringify(pic) + ' — the darkest pixel, and the share under 0.06'
+      + ' — 2.12 at dist 9.60; 1.10 to 1.46 over five runs at 11.0');
     // ── AND THE SEPARATION IS VALUE NOW, NOT A LINE (Build 191) ────────
     //
     // The contour was removed for looking cheap, so the check that guarded it
@@ -4499,12 +4531,31 @@ const { boot } = require('./harness.cjs');
     // badge that hangs over a head OVERLAPS that head, and the honest gain from
     // the 88% scale is 2489 -> 1928, or 23%. The ceiling is set from the number
     // the correct build actually produces.
+    //
+    // AND IT DOES NOT MOVE WITH THE CAMERA (learned at 223). Going from 9.60 m
+    // to 11.0 took the readout's overlap to nothing and left this one where it
+    // was: 1928 to 1985. The badge hangs a fixed distance above the creature's
+    // head, so its bottom edge dips the same ~17 px into the top of the body
+    // box however far away the body is, and the area is just that strip times
+    // the badge's width. Anyone trying to spend camera distance on THIS number
+    // is spending it on nothing; it moves when the badge's anchor moves.
+    //
+    // It is also a box against a box, and at the top of a body the box is
+    // mostly sky either side of a head — so this number reads high for what
+    // the eye sees. That makes it a fair CEILING and a poor target.
     check('FRAME: the bodies and the readouts are not sitting on each other',
       share.readout < 2600 && share.telegraph < 2200 && share.party === 0
       && share.rightEdge <= share.stageW && share.feet < share.fan
       // …and the cure is not "shrink everybody": a figure this small stops
-      // being a character, so the floor is asserted with the ceiling
-      && share.ashH >= 130 && share.foeH >= 170 && share.tellOff < 60
+      // being a character, so the floor is asserted with the ceiling.
+      // RE-DERIVED AT 223, because the frame this guards was deliberately
+      // widened — 11.0 m was chosen over 9.60 knowing it costs 14% of every
+      // figure, and a guard set from the old frame would only be reporting
+      // that the choice was made. 185/140 became 160/122; the floors sit about
+      // 8% under that, which is where the NEXT unintended shrink trips them.
+      // The number to watch on a phone is 122: Ash is the smallest figure on
+      // the board and the first one to stop reading as a person.
+      && share.ashH >= 112 && share.foeH >= 150 && share.tellOff < 60
       && share.floorBand >= 12,
       JSON.stringify(share) + ' — was readout 6702 / telegraph 2489 at dist 8.20');
   }
