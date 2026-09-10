@@ -887,25 +887,24 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    A true half-card hide, which is what was asked for, needs the NAME moved up
    the face first. That is a change to the card's composition rather than a
    number here, and it is not made on the way past. */
-/* ── BIGGER CARDS ARE READY AND NOT SHIPPED (Build 227) ────────────────────
-   Swept 0.9 / 1.0 / 1.1 / 1.2, each against the deepest sink its own name plate
-   still clears — the two are ONE question, because the name's distance from the
-   card's foot scales with the card. Every scale allows about 34% hidden; 1.1
-   would take 109x148 to 133x181, half again the area, with the fan 528 of 932
-   across so it still clears both corner piles. It looked right.
-   It is not here because it breaks a check that has nothing to do with card
-   size, and the honest reason is written at the bottom of this note rather than
-   worked around: the flow suite's AIM block taps `rect.left + 10, top + 10` —
-   a CORNER of a rotated card's bounding box, which is not on the card — and it
-   has been landing on ink by luck. The block also runs on a board the previous
-   test leaves carrying a victory door and a stage stuck mid-kick (`k-frozen`
-   pauses animations, and a kick is one). Bigger cards move that corner under
-   the scrim and the tap hits nothing.
-   Giving that block a clean page fixes it and breaks the two checks after it,
-   which read state from before the reload. That is a knot in the suite worth
-   untying properly, and not on the way past a size change. */
-#k-hand { position: absolute; left: 50%; bottom: calc(-41px + var(--ui-b));
-  --fan-s: 0.9;
+/* ── AND BIGGER, BECAUSE THEY SIT LOWER (Build 228) ────────────────────────
+   The fan was scaled to 0.9 when it had to fit entirely above the bottom edge.
+   A third of it is under that edge now, so the constraint that set 0.9 is gone.
+   Swept 0.9 / 1.0 / 1.1 / 1.2, each paired with the deepest sink its own name
+   plate still clears — the two are ONE question, because the name's distance
+   from the card's foot scales with the card. Every scale allows about 34%
+   hidden; what changes is how much card that leaves above the line.
+   1.1 taken: 109x148 becomes 133x181, half again the area, and the fan is 528
+   of 932 across so it still clears the piles at both corners. 1.2 also fits
+   (576 wide) and is there if the cards want to be louder still.
+   This waited a build. It could not ship at 227 because it tripped the flow
+   suite's AIM block — not on anything to do with card size, but on a tap aimed
+   at the CORNER of a rotated card's bounding box, on a board the previous test
+   left under a victory scrim. Bigger cards moved that corner under the scrim.
+   The block arranges its own board now and taps card centres, so the size is
+   free to be a size. */
+#k-hand { position: absolute; left: 50%; bottom: calc(-51px + var(--ui-b));
+  --fan-s: 1.1;
   transform: translateX(-50%) scale(var(--fan-s)); transform-origin: 50% 100%;
   display: flex; gap: 5px; align-items: flex-end; z-index: 14;
   perspective: 760px; perspective-origin: 50% 130%; }
@@ -969,12 +968,12 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    `_sel` is set by the tap that selects a card, so a finger gets the same lift
    a cursor does, and `.k-dragging` carries the card with the finger after that.
    It is re-derived whenever the fan is resized, because it has to clear the
-   sink and the sink moves with the card: 64 against the 52px sink at scale 0.9,
-   76 against 62 at 1.1. A card being read is never a card cropped at either
+   sink and the sink moves with the card: 76 against the 62px sink at scale 1.1
+   (it was 64 against 52 at 0.9). A card being read is never a card cropped at either
    end, and the flow suite asserts exactly that rather than trusting a number
    written here. */
-.k-card:hover { transform: rotate(0deg) translateY(-64px) scale(1.04); z-index: 6; }
-.k-card-sel { transform: rotate(0deg) translateY(-64px); z-index: 6;
+.k-card:hover { transform: rotate(0deg) translateY(-76px) scale(1.04); z-index: 6; }
+.k-card-sel { transform: rotate(0deg) translateY(-76px); z-index: 6;
   box-shadow: 0 8px 20px rgba(0,0,0,0.7), 0 0 0 2px #e0c084, 0 0 18px rgba(201,164,92,0.4); }
 .k-card.k-dragging { transform: translate(var(--dragx, 0px), var(--dragy, 0px)) rotate(0deg) scale(1.05);
   transition: none; z-index: 30; }

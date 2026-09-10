@@ -3094,8 +3094,18 @@ const { boot } = require('./harness.cjs');
         whoText: c.querySelector('.k-cwho').textContent,
         whoAboveName: who.b <= name.t + 1 && who.t > r2.height * 0.3,
         nameClear: name.t >= gem.b - 1 && name.t >= who.b - 1,
-        nameOneLine: c.querySelector('.k-cname').getBoundingClientRect().height < 26
-          && getComputedStyle(c.querySelector('.k-cname')).whiteSpace === 'nowrap',
+        // ONE LINE IS A RATIO, NOT A PIXEL COUNT. This used to read
+        // `getBoundingClientRect().height < 26` — a literal, measured on a
+        // box the fan scales. Grow the cards and a perfectly good one-line
+        // name goes 24px -> 29px and the check fails for being legible.
+        // Ask the real question instead: is the name's own layout height
+        // one line of its own type?
+        nameOneLine: (() => {
+          const nm = c.querySelector('.k-cname');
+          const cs = getComputedStyle(nm);
+          const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.25;
+          return nm.offsetHeight <= lh * 1.6 && cs.whiteSpace === 'nowrap';
+        })(),
         armedGlow: getComputedStyle(c).animationName,
       };
       window.K.state().ap = 0; window.K.render();      // nothing affordable now
@@ -4884,17 +4894,44 @@ const { boot } = require('./harness.cjs');
   // rather than on the people, and its shape belonged to no other part of this
   // interface. Tap now casts the drag path's own arcs onto the figures.
   {
-    await J(() => { window.K.startCombat({ seed: 7 }); });
+    // ── THIS BLOCK STARTS FROM A CLEAN PAGE (Build 228) ────────────────────
+    //
+    // The test before it leaves a victory door up, and the stage carrying
+    // `k-frozen` on top of a `k-kick`. `k-frozen` pauses CSS ANIMATIONS, and a
+    // kick IS one, so the stage sits stuck mid-shove with the door's scrim over
+    // everything. Neither `startCombat` nor stripping the classes by hand fixes
+    // it — starting a fight arms a fresh kick of its own.
+    //
+    // What it cost: this block taps cards and asks for aim arcs, and the taps
+    // were landing on the scrim. It passed for years only because the tap point
+    // was a CORNER of the card's bounding box, which on a rotated card is not
+    // on the card at all — it fell outside the scrim by luck. Build 227 sized
+    // the fan up, the corner moved under the scrim, and a working aim reported
+    // zero arcs. A reload is two seconds and the block measures aiming instead
+    // of measuring what the test before it left behind.
+    await H.page.reload({ waitUntil: 'networkidle' });
+    await H.page.waitForFunction(() => window.__ready === true, null, { timeout: 8000 });
+    await H.pastTitle();
+    await J(() => {
+      window.__tapCard = (btn, id) => {
+        const b = btn.getBoundingClientRect();
+        const x = b.left + b.width / 2, y = b.top + b.height / 2;
+        btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: id, clientX: x, clientY: y }));
+        btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: id, clientX: x, clientY: y }));
+      };
+      window.K.startCombat({ seed: 7 });
+    });
     await H.sleep(600);
     const enemyPick = await J(() => {
       // an enemy card: one target, and it is the foe
       const ids = window.K.state().hand.slice();
       const eid = ids.filter(i => window.K.cardDef(i).target === 'enemy')[0];
       const btn = document.querySelector('.k-card[data-card="' + eid + '"]');
-      btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 3,
-        clientX: btn.getBoundingClientRect().left + 10, clientY: btn.getBoundingClientRect().top + 10 }));
-      btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 3,
-        clientX: btn.getBoundingClientRect().left + 10, clientY: btn.getBoundingClientRect().top + 10 }));
+      // A CARD IN THE FAN IS ROTATED, so the corner of its bounding box is not
+      // on it. Tap the centre, which is the one point a rotation is guaranteed
+      // to leave on the card. Shared, so the next tap written here cannot go
+      // back to poking at a corner.
+      window.__tapCard(btn, 3);
       const svg = document.getElementById('k-pick');
       const lit = [...document.querySelectorAll('.k-pick-valid')].map(n => n.id || n.dataset.hero);
       return { card: eid, ring: !!document.getElementById('k-target-ring'),
@@ -4926,11 +4963,7 @@ const { boot } = require('./harness.cjs');
       s0.heroes.elin.hp = 12; s0.heroes.ash.hp = 40; s0.heroes.mira.hp = 33;
       window.K.forceHand(['mend', 'cleave', 'serrate', 'guardcut', 'lcascade']);
       const btn = await waitFor('.k-card[data-card="mend"]');
-      const r = btn.getBoundingClientRect();
-      btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 4,
-        clientX: r.left + 10, clientY: r.top + 10 }));
-      btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 4,
-        clientX: r.left + 10, clientY: r.top + 10 }));
+      window.__tapCard(btn, 4);
       const svg = document.getElementById('k-pick');
       const lit = [...document.querySelectorAll('.k-pick-valid')];
       const hud = document.getElementById('k-party-hud');
@@ -4963,11 +4996,40 @@ const { boot } = require('./harness.cjs');
 
     // THE ARC MOVES. A static dotted line is a diagram; the travelling dash is
     // what reads as a thing being thrown.
+    // ── AND IT RAISES ITS OWN ARC (Build 228) ──────────────────────────────
+    // This read a dash the check BEFORE it happened to leave on screen, across
+    // a call boundary, and the arcs do not survive that: the previous block
+    // reads `arcs === 3` and passes, and by the time this ran there was nothing
+    // in `#k-pick` to sample. It reported `a: null, b: null` — a travelling
+    // dash measured as not travelling, because there was no dash.
+    // It taps the card itself now. A check that depends on the leftovers of the
+    // one before it is a check that fails for reasons that are not its subject.
     const moving = await J(async () => {
-      const d = document.querySelector('#k-pick .k-pk-dash');
+      // …and it re-raises MEND's own arc, leaving mend selected, because the
+      // checks after this one commit that selection and would be measuring a
+      // different card otherwise.
+      //
+      // What is going on: the SELECTION survives between calls and the drawn
+      // arcs do not, so by the time this ran `#k-pick` was empty and a dash
+      // that travels perfectly well read as `a: null, b: null`. Tapping mend
+      // once puts it back down; tapping twice takes it up again with its arcs
+      // freshly drawn, and leaves the board exactly as the next check needs it.
+      const btn = document.querySelector('.k-card[data-card="mend"]')
+               || document.querySelector('#k-hand .k-card');
+      if (!btn) return { a: 'no card', b: 'no card' };
+      if (btn.classList.contains('k-card-sel')) window.__tapCard(btn, 5);
+      await new Promise(r => requestAnimationFrame(r));
+      window.__tapCard(btn, 6);
+      let d = null;
+      for (let i = 0; i < 40 && !d; i++) {
+        d = document.querySelector('#k-pick .k-pk-dash');
+        if (!d) await new Promise(r => requestAnimationFrame(r));
+      }
+      if (!d) return { a: 'no arc', b: 'no arc' };
       const a = d.getAttribute('stroke-dashoffset');
       await new Promise(r => setTimeout(r, 180));
-      return { a, b: d.getAttribute('stroke-dashoffset') };
+      const live = document.querySelector('#k-pick .k-pk-dash') || d;
+      return { a, b: live.getAttribute('stroke-dashoffset') };
     });
     check('AIM: the dashes travel along the arc rather than sitting still',
       moving.a !== moving.b, JSON.stringify(moving));
