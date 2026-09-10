@@ -7,10 +7,28 @@ node_modules/
 *.swp
 *.bak
 v2/test/shots/
+v2.1/test/shots/
 v2.2/test/shots/
 v2.3/test/shots/
 v2.3/test/film/
 v2.3/test/film-clips/
+
+# ── 138 OF THESE WERE COMMITTED ONCE, AND WERE 121 MB ────────────────────────
+# Two thirds of everything this repo tracked: 115 under v2.1, which no rule
+# covered until now, and 23 under v2.3 that predate the rule above. They are
+# test OUTPUT — every reference to shots/ in either suite writes one or prints
+# where it wrote it; nothing reads one back, which was checked rather than
+# assumed before they were removed.
+#
+# THEY ARE NOT LOST. Git keeps every one of them in history, and this is the
+# commit to ask:
+#
+#   git show 8fc84d5e643d6d57a794285b534991259a2f3a56:v2.1/test/shots/desktop-combat.png > out.png
+#   git checkout 8fc84d5e643d6d57a794285b534991259a2f3a56 -- v2.1/test/shots v2.3/test/shots
+#
+# The v2.3 ones also regenerate by running the suite. The v2.1 ones do not —
+# that version is not developed any more — so that SHA is the only way back to
+# them, which is why it is written down in a tracked file rather than a tag.
 __pycache__/
 v2.3/test/feel.txt
 
