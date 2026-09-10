@@ -2669,18 +2669,24 @@ const { boot } = require('./harness.cjs');
       const fanned = [...cards].some(c => (c.style.getPropertyValue('--rot') || '0deg') !== '0deg');
       const pips = document.querySelectorAll('#k-break .k-pip').length;
 
-      // ── NO NUMBER MAY HANG OFF THE STAGE (Build 225) ─────────────────────
+      // ── WHAT A CARD OWES YOU AT REST, AND WHAT IT OWES WHEN REACHED FOR
+      //    (Build 226) ────────────────────────────────────────────────────
       //
-      // This measured the CARD's rectangle, which was the same question as the
-      // rule only while the hand rested above the bottom edge. The hand sits
-      // into that edge now, so a few pixels of blank card frame go under it by
-      // design and the rectangle test would fail a hand that reads perfectly.
+      // Build 225 measured the lowest INK and asked that none of it went under
+      // the bottom edge. That was the right rule for a hand resting above the
+      // edge and it is the wrong one for a hand sitting into it: 52px of every
+      // card is deliberately under there now, rules text included.
       //
-      // What may never go under the edge is the TYPE. So that is what is
-      // measured: the lowest inked descendant of each card. This is a stricter
-      // check than the one it replaces, not a looser one — a card could always
-      // have been clipped by exactly enough to eat a damage line while its
-      // rectangle stayed inside, and nothing here would have said so.
+      // The contract has two halves and both are asserted, because half of it
+      // alone is a hand that either cannot be read or cannot be seen:
+      //   AT REST     the NAME PLATE must be fully on screen — that is what
+      //               makes the hand answer "which card is this"
+      //   WHEN TAKEN  every inked part must come back — the lift is the only
+      //               route to a card's numbers now, so a lift that does not
+      //               fully clear the edge is a card with no numbers at all
+      //
+      // The second half is the one that matters most and the one a static
+      // screenshot cannot see, which is exactly why it is measured here.
       const st = document.getElementById('k-stage').getBoundingClientRect();
       const inkBottom = (c) => {
         let low = -Infinity;
@@ -2691,13 +2697,34 @@ const { boot } = require('./harness.cjs');
         });
         return low === -Infinity ? c.getBoundingClientRect().bottom : low;
       };
+      // at rest: the name, and nothing running off the sides or the top
       const over = [...cards].map(c => {
         const b = c.getBoundingClientRect();
-        return Math.max(inkBottom(c) - st.bottom, st.top - b.top,
-                        st.left - b.left, b.right - st.right);
+        const nm = c.querySelector('.k-cname');
+        const nameOver = nm ? nm.getBoundingClientRect().bottom - st.bottom : -999;
+        return Math.max(nameOver, st.top - b.top, st.left - b.left, b.right - st.right);
       });
       const clipped = over.filter(o => o > 0.5).length;
       const worstOver = Math.round(Math.max(...over));
+      // reached for: all of it comes back
+      // THE TRANSITION HAS TO BE TAKEN OUT OF THE WAY, and the first cut of this
+      // did not: `.k-card-sel` eases its transform, so adding the class and
+      // forcing a reflow measures the card still sitting where it started. It
+      // read 45px of ink under the edge on a lift that works perfectly, which
+      // is a check reporting its own impatience as a bug in the game.
+      const one = cards[0];
+      let liftedInkUnder = null, liftedTopOff = null;
+      if (one) {
+        const prev = one.style.transition;
+        one.style.transition = 'none';
+        one.classList.add('k-card-sel');
+        one.getBoundingClientRect();          // flush the class, with no easing
+        liftedInkUnder = Math.round(inkBottom(one) - st.bottom);
+        liftedTopOff = Math.round(st.top - one.getBoundingClientRect().top);
+        one.classList.remove('k-card-sel');
+        one.getBoundingClientRect();
+        one.style.transition = prev;
+      }
 
       return { disjoint, rows, bars, cards: cards.length,
         fanned, pips,
@@ -2758,7 +2785,7 @@ const { boot } = require('./harness.cjs');
                    castCls: cast ? cast.className : '',
                    belowRows, rowsBottom: Math.round(low) };
         })(),
-        clipped, worstOver,
+        clipped, worstOver, liftedInkUnder, liftedTopOff,
         overHead, oneLine, noBanner, iconed, noWords, chipN: chips.length,
         preview: window.K.intentPreviewDmg(),
         // the hymn is a qualifier ON the reading now, not a reading of its own
@@ -2775,11 +2802,12 @@ const { boot } = require('./harness.cjs');
     // `hasTargetFace` INVERTED at Build 171 and the flip is the point: the
     // badge is over the creature throwing the blow, so a lane letter on it
     // would be the readout pointing somewhere other than where it hangs.
-    check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; telegraph is icon chips over each creature and names no lane; no number clipped',
+    check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; telegraph is icon chips over each creature and names no lane; the name reads at rest and the whole face comes back when taken',
       ui.disjoint && ui.rows === 3 && ui.bars === 3 && ui.cards === 5 && ui.fanned
       && ui.pips === 12 && ui.noMove && ui.ap === '3' && ui.apPips === 3 && ui.apLit === 3
       && ui.gone && ui.breakClear && ui.kzClear.ok
-      && ui.clipped === 0 && ui.overHead && ui.oneLine && ui.noBanner
+      && ui.clipped === 0 && ui.liftedInkUnder <= -2 && ui.liftedTopOff <= 0
+      && ui.overHead && ui.oneLine && ui.noBanner
       && ui.iconed && ui.noWords && ui.perTargetSums && !ui.hasTargetFace && ui.hasDirge,
       JSON.stringify(ui));
     const hover = await J(async () => {

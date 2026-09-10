@@ -870,26 +870,24 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    measures rects. From the bottom edge, so the fan grows down into the space
    it was already allowed and gives the board back the sixteen pixels at the
    top plus a tenth of its width. */
-/* ── THE HAND SITS INTO THE BOTTOM EDGE (Build 225) ────────────────────────
-   Slay the Spire's hand rises out of the frame rather than resting above it,
-   and this one rested above it with nine pixels of floor showing underneath.
-   HOW FAR IT CAN GO IS NOT A TASTE QUESTION, and it was measured before it was
-   chosen: the lowest ink on a card face sits SEVEN pixels from the card's
-   bottom edge — the rules text runs almost to the foot. Mocked at 11, 25 and
-   39px of card hidden and photographed, 25 already cuts Twin Fang's `+4 DAMAGE`
-   and Cross Sever's `COSTS 1 AP` — the combo payload, which is the whole reason
-   either card is interesting. A hand you cannot read is not a hand.
-   THE FIRST CUT OF THIS TOOK 20px AND WAS FOUR PIXELS WRONG. The card had nine
-   pixels of clearance under it and its lowest ink sits seven above its foot, so
-   sixteen is everything there is; twenty put the last row of type four pixels
-   through the edge, which the fan check caught and the screenshot did not. It
-   takes 14 — five pixels of card under the edge, two of daylight under the ink.
-   Which is the real answer to the question, and it is not the one that was
-   wanted: this hand CANNOT sink the way Slay the Spire's does while the bottom
-   third of the face is type. Five pixels is not a look, it is a rounding error.
-   The look needs the FACE re-cut first, so that strip is painting — and that is
-   its own build, not a number here. */
-#k-hand { position: absolute; left: 50%; bottom: calc(6px + var(--ui-b));
+/* ── THE HAND SITS INTO THE BOTTOM EDGE (Build 226) ────────────────────────
+   Slay the Spire's hand rises out of the frame rather than resting above it.
+   Build 225 got five pixels under the edge and said so: five pixels is a
+   rounding error, not a look, and the thing in the way was that the rules text
+   runs to within SEVEN pixels of a card's foot.
+   The call taken here is that at rest a card in hand is its PAINTING AND ITS
+   NAME, and its numbers are what you get when you reach for it. That is the
+   trade Spire makes too, and it is a trade rather than a free win: the hand no
+   longer answers "what does this do" at a glance, only "which card is this".
+   HOW DEEP IS SET BY THE NAME, and it was swept rather than guessed — 40, 46,
+   52, 58 and 64px of card under the edge, each measured for whether the name
+   plate still clears. 52 is the last one that does, with six pixels to spare;
+   58 puts the name's baseline exactly on the edge and 64 cuts six pixels off
+   it. So 52 — a little over a third of the card — and not one more.
+   A true half-card hide, which is what was asked for, needs the NAME moved up
+   the face first. That is a change to the card's composition rather than a
+   number here, and it is not made on the way past. */
+#k-hand { position: absolute; left: 50%; bottom: calc(-41px + var(--ui-b));
   transform: translateX(-50%) scale(0.9); transform-origin: 50% 100%;
   display: flex; gap: 5px; align-items: flex-end; z-index: 14;
   perspective: 760px; perspective-origin: 50% 130%; }
@@ -947,14 +945,16 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-card[data-own="elin"] { --own: #8f7439; --ownin: rgba(224,192,132,0.2); }
 .k-card[data-own="mira"] { --own: #8a5340; --ownin: rgba(214,132,102,0.2); }
 .k-card[data-own="bond"] { --own: #7e6a4a; --ownin: rgba(224,200,150,0.24); }
-/* …AND THE ONE BEING CONSIDERED COMES ALL THE WAY BACK. 16px was a flourish
-   on a hand that was fully visible; with the hand in the edge it is the thing
-   that returns the part of the card that is under it. 30 clears the eleven
-   pixels hidden plus its own shadow, so a card you are reading is never the one
-   the frame is cropping. It stays at 30 although the sink came back to 14: a
-   card that lifts clear of its neighbours reads better than one that peeks. */
-.k-card:hover { transform: rotate(0deg) translateY(-30px) scale(1.04); z-index: 6; }
-.k-card-sel { transform: rotate(0deg) translateY(-30px); z-index: 6;
+/* …AND REACHING FOR ONE IS HOW YOU READ IT. This was a flourish when the hand
+   was fully visible. It is the mechanism now: 52px of every card is under the
+   edge at rest, and this is what brings it back. On a phone there is no hover —
+   `_sel` is set by the tap that selects a card, so a finger gets the same lift
+   a cursor does, and `.k-dragging` carries the card with the finger after that.
+   64 was swept alongside the sink: it puts the lowest ink 26px clear of the
+   edge with the card's top still 258px inside the stage, so a card being read
+   is never a card being cropped at either end. */
+.k-card:hover { transform: rotate(0deg) translateY(-64px) scale(1.04); z-index: 6; }
+.k-card-sel { transform: rotate(0deg) translateY(-64px); z-index: 6;
   box-shadow: 0 8px 20px rgba(0,0,0,0.7), 0 0 0 2px #e0c084, 0 0 18px rgba(201,164,92,0.4); }
 .k-card.k-dragging { transform: translate(var(--dragx, 0px), var(--dragy, 0px)) rotate(0deg) scale(1.05);
   transition: none; z-index: 30; }
