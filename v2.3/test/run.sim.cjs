@@ -73,6 +73,8 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
                foeBonus: r.foeBonus || 0, hp: r.hp, bonds: r.bonds };
     }, seed);
     const road = start.map;
+    // the last column the dealt map actually has a node in
+    const DEPTH = road.reduce((m, n) => Math.max(m, n.col), 0);
     const maxhp = {}; for (const k of Object.keys(MAXHP)) maxhp[k] = MAXHP[k] + start.vigor;
     let at = null, hp = start.hp ? { ...start.hp } : { ...maxhp };
     let embers = start.embers, fights = 0, tier = 1, kizuna = start.kizuna;
@@ -83,7 +85,20 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
     const sigils = {};             // cardId → the mark the bond put on it
     let nodes = [];     // what this run has kindled
     const trace = [];   // what the party had left walking away from each stop
-    for (let col = 0; col < 6; col++) {
+    // ── THE ROAD IS AS LONG AS THE ROAD IS (Build 224) ──────────────────────
+    //
+    // This read `col < 6`, and it had been wrong since the road grew to eleven
+    // columns. The boss stands at column 10, so the walk stopped five stops
+    // short of it, fell out of the loop, and returned `{ win: false, diedAt: 5,
+    // kind: 'ran-out' }` — which the report then printed as a DEATH at stop 5.
+    // That is the whole of the "0% completion" this sim had been reporting: a
+    // party that survived everything the walk let it reach was recorded as a
+    // party that was killed. Two of the three tier gates were red on it, and
+    // nothing was wrong with the game.
+    //
+    // The bound comes from the map now, so lengthening the road again cannot
+    // quietly reintroduce it.
+    for (let col = 0; col <= DEPTH; col++) {
       const open = at ? road.find(n => n.id === at).to : road.filter(n => n.col === 0).map(n => n.id);
       const opts = open.map(id => road.find(n => n.id === id));
       const hurt = total(hp) / total(maxhp);
@@ -185,7 +200,10 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
       embers += ({ husk: 2, cultist: 2, wraith: 3, revenant: 5, mourner: 8 })[want.foe] || 2;
       if (want.kind === 'boss') return { win: true, diedAt: null, hp, embers, fights, trace, nodes, traded, marked, roster, woke: start.woke };
     }
-    return { win: false, diedAt: 5, kind: 'ran-out', hp, embers, fights, trace, nodes, traded, marked, roster, woke: start.woke };
+    // Reaching here means the walk ran off the end of the map without meeting a
+    // boss, which is a broken map rather than a dead party — so it is reported
+    // as its own kind and at the stop it really got to.
+    return { win: false, diedAt: DEPTH, kind: 'ran-out', hp, embers, fights, trace, nodes, traded, marked, roster, woke: start.woke };
   }
 
   // asked of the game rather than written down here, so a fourth basic added
@@ -220,9 +238,10 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
     // than one of them — a rotation that quietly collapsed to a single boon
     // would report 120 roads and measure one.
     const unwoken = res.filter(r => !r.woke).length;
+    const ranOut = res.filter(r => r.kind === 'ran-out').length;
     const marks = res.reduce((n, r) => n + (r.marked || 0), 0) / res.length;
     const woke = {}; res.forEach(r => { woke[r.woke] = (woke[r.woke] || 0) + 1; });
-    rows.push({ name: band.name, rate, col0, held, shapeBad, unwoken, woke, marks,
+    rows.push({ name: band.name, rate, col0, held, shapeBad, unwoken, woke, marks, ranOut,
                 purse: purse[Math.floor(purse.length / 2)] });
     console.log(`  ${held ? '✓' : '✗'} ${band.name.padEnd(15)} runs completed ${rate.toFixed(1)}%  `
       + `[gate ${band.glo}–${band.ghi}%]  died at stop ` + JSON.stringify(deaths)
@@ -234,7 +253,10 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
     // attrition trace says which stop made it too hard, which is the only one
     // of the two you can act on.
     if (process.env.SIM_TRACE) {
-      for (let col = 0; col < 6; col++) {
+      // as deep as any run actually walked, rather than a length written down
+      const deepest = res.reduce((m, r) =>
+        Math.max(m, ...(r.trace || []).map(t => t.col), 0), 0);
+      for (let col = 0; col <= deepest; col++) {
         const at = res.flatMap(r => (r.trace || []).filter(t => t.col === col));
         if (!at.length) continue;
         const left = at.map(t => t.left).sort((a, b) => a - b);
@@ -268,10 +290,27 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
   console.log(`  ${wokeOk ? '✓' : '✗'} AWAKENING      every road answered its offer, and the tier walked `
     + `${Object.keys(rows[rows.length - 1].woke).sort().join('/')} `
     + `(${rows.reduce((n, r) => n + r.unwoken, 0)} unanswered of ${RUNS * 3})`);
+  // ── AND THE WALK HAS TO REACH THE END OF THE ROAD ─────────────────────────
+  //
+  // The gate that would have caught this sim lying for six builds. When the road
+  // grew to eleven columns and this walk still stopped at six, every run that
+  // survived fell out of the loop and was recorded as a death at stop 5: two
+  // tier gates went red and stayed red, and the numbers read like a game nobody
+  // could finish. Nothing announced that the walk had simply stopped early,
+  // because "did not reach the boss" and "died" were the same answer.
+  //
+  // They are not the same answer any more. `ran-out` is its own kind, and one of
+  // them anywhere in a tier fails this — loudly, and pointing at the sim rather
+  // than at the game.
+  const ranOut = rows.reduce((n, r) => n + r.ranOut, 0);
+  const reachOk = ranOut === 0;
+  console.log(`  ${reachOk ? '✓' : '✗'} THE FULL ROAD  every walk ended at a boss or a death, never off the end of the map `
+    + `(${ranOut} ran out of ${RUNS * rows.length})`);
   const shapeOk = rows.every(r => r.shapeBad === 0);
   console.log(`  ${shapeOk ? '✓' : '✗'} FIVE SLOTS     every road ends on 5/5/5 with no won card doubled `
     + `(${rows.reduce((n, r) => n + r.shapeBad, 0)} broken of ${RUNS * 3})`);
-  const allOk = rows.every(r => r.held) && fodderOk && monotone && shapeOk && wokeOk && markOk;
+  const allOk = rows.every(r => r.held) && fodderOk && monotone && shapeOk && wokeOk && markOk
+    && reachOk;
   console.log(`\n=== ${rows.filter(r => r.held).length}/${rows.length} run gates held · ${RUNS} roads each ===`);
   await H.browser.close();
   process.exit(allOk ? 0 : 1);
