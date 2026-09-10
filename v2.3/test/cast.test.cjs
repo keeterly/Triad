@@ -950,7 +950,14 @@ const { boot } = require('./harness.cjs');
   // would trip this and a 20 px accident in the other would not.
   // The number is re-baselined rather than the tolerance widened, every time,
   // so that 22 keeps meaning "nobody nudged this by accident".
-  const LADDER = { elin: [302, 233], mira: [378, 242], ash: [462, 251] };
+  // AND AGAIN AT 229, for the move in to 9.0 m with the aim dropped to 2.15.
+  // That one was deliberate too and it was measured rather than picked: at
+  // 11.0/2.40 the party filled 30% of the stage's height with 29% of empty sky
+  // over it, and a sweep of dist x aimY says 9.0/2.15 puts the band at 40%
+  // without cropping the far foe. Coming in widens the party's spread — 160 px
+  // between Elin and Ash becomes 190 — and dropping the aim puts every ground
+  // line 7 to 16 px lower.
+  const LADDER = { elin: [271, 240], mira: [355, 253], ash: [461, 267] };
   const drift = Object.fromEntries(Object.entries(LADDER).map(([id, [x, y]]) =>
     [id, [+(A[id].screen.x - x).toFixed(1), +(A[id].screen.ground - y).toFixed(1)]]));
   check('WORLD: and it frames the board the painted stage framed',
@@ -4510,6 +4517,10 @@ const { boot } = require('./harness.cjs');
                // this check was pleased. The badge hangs over a body or it is
                // not a badge, so the distance is asserted with the area.
                tellOff: Math.round(Math.abs((tell.x + tell.w / 2) - (foe.x + foe.w / 2))),
+               // how far the badge's bottom edge falls below the top of the
+               // body — the reading the area clause could not give once the
+               // badge fitted inside the box (see the note under this block)
+               tellDip: tell ? Math.round((tell.y + tell.h) - foe.y) : 0,
                // …and the party's plate never touched a body, before or after
                party: hit(ash, R('#k-party-hud')),
                // nothing has been pushed off the edge by the scale
@@ -4543,8 +4554,26 @@ const { boot } = require('./harness.cjs');
     // It is also a box against a box, and at the top of a body the box is
     // mostly sky either side of a head — so this number reads high for what
     // the eye sees. That makes it a fair CEILING and a poor target.
+    // ── AND THE AREA CLAUSE WAS SATURATED (Build 229) ────────────────────
+    //
+    // Sweeping the camera from 11.0 m to 8.4 m, the telegraph's overlap AREA
+    // read 2489 at every single distance. That is not a stable frame — it is
+    // the badge's own area, 124 x 20 = 2480. Once the badge sits entirely
+    // inside the body's box the number stops being an overlap at all and pins
+    // to its own ceiling, so it can no longer tell "hanging over a crown" from
+    // "sitting on a chest" — the one distinction it existed to make.
+    //
+    // The DIP is what the eye reads: how far the badge's bottom edge falls
+    // below the top of the body. It is 33 / 39 / 43 / 46 px across that same
+    // sweep — and 0.209 / 0.212 / 0.213 / 0.215 of the body's height, which is
+    // the same badge in the same place on a creature that got bigger. So the
+    // rule is a FRACTION: a badge may hang over the crown, and must stay out
+    // of the top third. Anyone spending camera distance on this is still
+    // spending it on nothing, which was already true of the area; the
+    // difference is that this number moves when the ANCHOR moves, which is the
+    // only thing that should move it.
     check('FRAME: the bodies and the readouts are not sitting on each other',
-      share.readout < 2600 && share.telegraph < 2200 && share.party === 0
+      share.readout < 2600 && share.tellDip <= share.foeH * 0.30 && share.party === 0
       && share.rightEdge <= share.stageW && share.feet < share.fan
       // …and the cure is not "shrink everybody": a figure this small stops
       // being a character, so the floor is asserted with the ceiling.
@@ -4555,9 +4584,13 @@ const { boot } = require('./harness.cjs');
       // 8% under that, which is where the NEXT unintended shrink trips them.
       // The number to watch on a phone is 122: Ash is the smallest figure on
       // the board and the first one to stop reading as a person.
-      && share.ashH >= 112 && share.foeH >= 150 && share.tellOff < 60
+      // AND AGAIN AT 229, in the other direction: 9.0 m buys that 14% back and
+      // more — 199/150 — so the floors move up with it. A guard left at 112
+      // would sit 25% under the frame it guards and would let a quarter of the
+      // figure leak away before saying anything.
+      && share.ashH >= 138 && share.foeH >= 183 && share.tellOff < 60
       && share.floorBand >= 12,
-      JSON.stringify(share) + ' — was readout 6702 / telegraph 2489 at dist 8.20');
+      JSON.stringify(share) + ' — was readout 6702 at dist 8.20; the telegraph area pins at 2489 (the badge itself) and is kept as a reading');
   }
 
   // ── AND THE PAINTED CAST IS NEVER THE PICTURE (Build 219) ────────────────

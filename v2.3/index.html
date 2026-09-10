@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=228" />
+  <link rel="stylesheet" href="styles.css?v=229" />
 </head>
 <body>
   <div id="k-scale">
@@ -56,19 +56,26 @@
 
       <!-- party HUD — upper-left, stacked like a JRPG roster -->
       <div id="k-party-hud">
+        <!-- WHO, THEN HOW MUCH, THEN HOW MUCH IS LEFT (Build 229).
+             The number used to sit to the RIGHT of the bar, which put the one
+             figure a player reads mid-fight at the far end of a row, hanging
+             off the end of a rule that had already answered the same question
+             as a proportion. Name and number share the top line now — the two
+             things that identify a row — and the bar runs the full width of
+             the column beneath them, where a length is easiest to compare
+             against the two lengths above and below it. -->
         <div class="k-pt-hero" data-hero="ash">
           <!-- A FACE, NOT A FIGURE. A full-body plate squeezed into a 36px
                circle is a silhouette: three dark shapes that cannot be told
                apart at a glance, which is the one job this roster has. -->
           <img src="../art/kai-face.webp" alt="">
           <div class="k-pt-info">
-            <span class="k-pt-name">Ash</span>
-            <!-- BAR THEN NUMBER, ON ONE LINE — the same shape the foe
-                 plate uses, so a player reads both sides of the fight the
-                 same way instead of learning two layouts. -->
+            <div class="k-pt-top">
+              <span class="k-pt-name">Ash</span>
+              <span class="k-pt-hp"><b>42</b><i> / 42</i></span>
+            </div>
             <div class="k-pt-row">
               <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
-              <span class="k-pt-hp"><b>42</b> / 42</span>
             </div>
           </div>
         </div>
@@ -78,13 +85,12 @@
                apart at a glance, which is the one job this roster has. -->
           <img src="../art/elin-face.webp" alt="">
           <div class="k-pt-info">
-            <span class="k-pt-name">Elin</span>
-            <!-- BAR THEN NUMBER, ON ONE LINE — the same shape the foe
-                 plate uses, so a player reads both sides of the fight the
-                 same way instead of learning two layouts. -->
+            <div class="k-pt-top">
+              <span class="k-pt-name">Elin</span>
+              <span class="k-pt-hp"><b>36</b><i> / 36</i></span>
+            </div>
             <div class="k-pt-row">
               <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
-              <span class="k-pt-hp"><b>36</b> / 36</span>
             </div>
           </div>
         </div>
@@ -94,13 +100,12 @@
                apart at a glance, which is the one job this roster has. -->
           <img src="../art/mira-face.webp" alt="">
           <div class="k-pt-info">
-            <span class="k-pt-name">Mira</span>
-            <!-- BAR THEN NUMBER, ON ONE LINE — the same shape the foe
-                 plate uses, so a player reads both sides of the fight the
-                 same way instead of learning two layouts. -->
+            <div class="k-pt-top">
+              <span class="k-pt-name">Mira</span>
+              <span class="k-pt-hp"><b>34</b><i> / 34</i></span>
+            </div>
             <div class="k-pt-row">
               <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
-              <span class="k-pt-hp"><b>34</b> / 34</span>
             </div>
           </div>
         </div>
@@ -550,13 +555,13 @@
     setTimeout(check, 2500);
   })();
   </script>
-  <script src="run.js?v=228"></script>
-  <script src="game.js?v=228"></script>
+  <script src="run.js?v=229"></script>
+  <script src="game.js?v=229"></script>
   <!-- THE CAST IN THREE DIMENSIONS — a module, and inert unless ?cast=3d.
        It draws one canvas under the DOM heroes and paints a rigged figure
        into each hero's box; everything above it (rows, drag, aim, popups,
        the party HUD) is untouched. -->
-  <script type="module" src="cast3d.js?v=228"></script>
+  <script type="module" src="cast3d.js?v=229"></script>
   <script>
     // ── FIT THE 932x430 DESIGN SPACE TO THE PART OF THE SCREEN THAT IS ONE ──
     //

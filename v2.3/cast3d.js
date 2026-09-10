@@ -4574,7 +4574,22 @@ const Cast3D = (() => {
     // Every other shot names its own distance, height and aim, so this moves
     // the resting frame and nothing else: the duel, the parry, the all-out and
     // the fell all come in as close as they ever did.
-    home:      { az:   0, dist: 11.0, height: 2.10, aimY: 2.40, at: 'board' },
+    // ── THE BOARD FILLS THE FRAME (Build 229) ────────────────────────────
+    // Measured, not chosen. At dist 11 / aimY 2.40 the tallest head sat 125px
+    // down a 430px stage and the lowest foot at 252 — the people occupied 30%
+    // of the height, with 29% of empty sky above them and a long blurred
+    // stretch of floor between their feet and the hand. That was the right
+    // frame while the AP ticket, the roster and the fan all wanted room; the
+    // ticket moved to the top centre at 228, the roster went lean at 225, and
+    // nothing has needed that sky since.
+    //
+    // A sweep of dist x aimY read heads, feet and the telegraph off the real
+    // board. `dist` sets how big the people are, `aimY` sets where in the
+    // frame they sit — looking LOWER lifts everyone. 9.0 / 2.15 puts the band
+    // at 40% of the height: heads at 96, feet at 267, the badges landing on
+    // their own bodies instead of floating in the sky beside them, and the
+    // far foe still clear of the right edge (8.4 crops it).
+    home:      { az:   0, dist: 9.00, height: 2.10, aimY: 2.15, at: 'board' },
     // a finisher: come around the party's shoulder and get low enough that the
     // Regent is above you, which is the whole feeling of fighting one
     duel:      { az: -33, dist: 5.85, height: 1.28, aimY: 1.62, at: 'foe' },

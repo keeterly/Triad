@@ -867,10 +867,23 @@ const { boot } = require('./harness.cjs');
         const row = document.querySelector('.k-pt-hero[data-hero="' + id + '"]');
         if (!row) return null;
         const bar = row.querySelector('.k-bar'), num = row.querySelector('.k-pt-hp');
-        if (!bar || !num) return null;
+        const name = row.querySelector('.k-pt-name');
+        const fill = row.querySelector('.k-bar-fill');
+        if (!bar || !num || !name || !fill) return null;
         const b = bar.getBoundingClientRect(), n = num.getBoundingClientRect();
-        return { id, right: Math.round(n.left - b.right),
-                 mid: Math.round(Math.abs((n.top + n.bottom) / 2 - (b.top + b.bottom) / 2)) };
+        const nm = name.getBoundingClientRect(), f = fill.getBoundingClientRect();
+        return { id,
+                 // the number shares the NAME's line, at the far end of it
+                 sameLine: Math.round(Math.abs((n.top + n.bottom) / 2 - (nm.top + nm.bottom) / 2)),
+                 afterName: Math.round(n.left - nm.right),
+                 // …and the bar is under both of them, spanning the column
+                 under: Math.round(b.top - nm.bottom),
+                 spans: Math.round(b.width - (Math.max(n.right, nm.right) - nm.left)),
+                 // A WELL WITH INK IN IT. `.k-bar-fill` is inset a pixel on
+                 // every side and `box-sizing: border-box` eats the border out
+                 // of the height too, so a 5px bar carried ONE pixel of colour
+                 // — three full-health heroes reading as three empty grooves.
+                 inkH: Math.round(f.height), wellH: Math.round(b.height) };
       });
       return { by, geom,
                chips: document.querySelectorAll('#k-party-hud .k-pt-inc').length,
@@ -878,8 +891,20 @@ const { boot } = require('./harness.cjs');
     });
     check('HUD: the telegraph chips are off the party health bars',
       rows.chips === 0, 'chips on party rows: ' + rows.chips);
-    check('HUD: each hero reads bar-then-number on one line, the way every foe plate does',
-      rows.geom.length === 3 && rows.geom.every(g => g && g.right >= 0 && g.right <= 14 && g.mid <= 4),
+    // WHO AND HOW MUCH ON ONE LINE, HOW MUCH IS LEFT UNDER BOTH (Build 229).
+    // This used to assert bar-then-number on one line, matching the foe plate.
+    // That shape put the one figure a player reads under pressure at the far
+    // right of a row, past a bar that had already answered the same question
+    // as a proportion — and it left the bar only as wide as the leftovers.
+    // Name and number are the two ends of the top line now; the bar runs the
+    // full width of the column beneath them, which is what makes three of them
+    // comparable at a glance.
+    check('HUD: each hero reads name-and-number on one line, with the bar spanning the column under both',
+      rows.geom.length === 3 && rows.geom.every(g => g
+        && g.sameLine <= 4 && g.afterName > 0 && g.under >= 0 && g.under <= 10
+        && g.spans >= -2
+        // and the fill actually fills the well it sits in
+        && g.wellH >= 6 && g.inkH >= g.wellH - 2),
       JSON.stringify(rows.geom));
 
     check('HUD: the aimed outline means AIMED — not merely alive under a dirge that reaches everyone',

@@ -1292,6 +1292,69 @@
     }
     return r;
   }
+  // ── A STORED RUN MEETS THE CURRENT CARD TABLE ────────────────────────────
+  //
+  // Build 228 deleted the ten clone entries — `cleave2`, `serrate3`,
+  // `crosssever2` and the rest — that existed only so a roster could hold
+  // three of a basic back when a roster was a SET and a set cannot hold the
+  // same name twice. Nothing on the load path had ever checked a stored roster
+  // against the card table, because until that build nothing had ever removed
+  // a card from it.
+  //
+  // So every run saved before 228 came back carrying ids the game no longer
+  // knows, and the first screen to draw one died mid-render: `swapCardHTML`
+  // read `.cost` off `CARD_DEFS['cleave2']`, which is `undefined`. The trade
+  // screen had already written its title, its question and the line the card
+  // arrived with — and then stopped, leaving a page with a header, a sentence,
+  // two buttons and nothing at all in the middle of it. The button still said
+  // CHOOSE A CARD TO GIVE UP because the statement that renames it is four
+  // lines below the one that threw.
+  //
+  // THE RULE, NOT THE TEN NAMES. An id the table no longer knows is asked for
+  // the id it was a copy of — the same name with its trailing number taken off
+  // — and only if that is unknown too is the card let go. This migrates the
+  // clones without a lookup table, and it will migrate the next card that is
+  // renamed the same way.
+  function liveId(id) {
+    const K = window.K;
+    if (!K || !K.CARD_DEFS) return id;
+    if (K.CARD_DEFS[id]) return id;
+    const root = String(id || '').replace(/\d+$/, '');
+    return K.CARD_DEFS[root] ? root : null;
+  }
+  // FIVE SLOTS STAY FIVE. A card the table cannot place at all is dropped, and
+  // the hole is filled from the hero's opening deck rather than left — a
+  // four-card hero is a shape the rest of the game does not expect, and every
+  // screen that trusts `SLOTS_PER_HERO` would be the next thing to break.
+  function withCards(r) {
+    const K = window.K;
+    if (!r || !K || !K.CARD_DEFS || !K.baseRoster) return r;
+    const base = K.baseRoster();
+    const want = K.SLOTS_PER_HERO;
+    ['ash', 'elin', 'mira'].forEach(h => {
+      if (r.roster) {
+        const have = Array.isArray(r.roster[h]) ? r.roster[h] : [];
+        const kept = have.map(liveId).filter(Boolean);
+        const fill = base[h] || [];
+        for (let i = 0; kept.length < want && fill.length; i++) kept.push(fill[i % fill.length]);
+        r.roster[h] = kept.slice(0, want);
+      }
+      if (r.bench && Array.isArray(r.bench[h])) r.bench[h] = r.bench[h].map(liveId).filter(Boolean);
+    });
+    // A MARK FOLLOWS ITS CARD. The sigil map is keyed by card id, so a mark
+    // earned on `lcascade2` belongs to `lcascade` now — dropping it instead
+    // would quietly un-earn a reward the road had already paid for.
+    if (r.sigils) {
+      const out = {};
+      Object.keys(r.sigils).forEach(id => {
+        const live = liveId(id);
+        if (live && !out[live]) out[live] = r.sigils[id];
+      });
+      r.sigils = out;
+    }
+    if (r.pendingCard) r.pendingCard = liveId(r.pendingCard);
+    return r;
+  }
   function load() {
     try {
       const raw = localStorage.getItem(RUN_KEY);
@@ -1302,7 +1365,7 @@
       // for a build, and the road suite caught it: a Build-97 save came back
       // with no `journey` at all, and the first fight it finished would have
       // thrown on `J.felled`.
-      return (r && r.map && r.map.length) ? withJourney(r) : null;
+      return (r && r.map && r.map.length) ? withCards(withJourney(r)) : null;
     } catch (_) { return null; }
   }
   function clear() { try { localStorage.removeItem(RUN_KEY); } catch (_) {} }
@@ -4029,6 +4092,11 @@
   function boot(opts) {
     _bootOpts = opts = opts || {};
     PROFILE = opts.freshProfile ? { heard: [], won: [] } : loadProfile();
+    // …and the profile carries card ids too — the list of what a returning
+    // player has ever won, which is what stops a fork handing over a second
+    // copy. A stale id there never matches anything, so the fork would offer
+    // a card they already earned on an earlier road.
+    PROFILE.won = (PROFILE.won || []).map(liveId).filter(Boolean);
     bindCamp();
     if (opts.title !== false) return toTitle();
     return begin(opts);

@@ -1732,6 +1732,69 @@ const { boot } = require('./harness.cjs');
       JSON.stringify({ before: put, after: back }));
   }
 
+  // ═══ G · A RUN SAVED BY AN OLDER BUILD STILL OPENS ═══
+  // REPORTED FROM A PHONE: the trade screen came up with its title, its
+  // question and the line the card arrived with — and nothing at all between
+  // them and the buttons. Build 228 deleted the ten clone card entries
+  // (`cleave2`, `serrate3`, `crosssever2` …) that existed only so a roster
+  // could hold three of a basic while a roster was a SET; the save on that
+  // phone was written before it and still carried them. `swapCardHTML` read
+  // `.cost` off `CARD_DEFS['cleave2']` — `undefined` — and the render died
+  // half-finished, which is why the button below still wore the label that
+  // ships in the HTML.
+  //
+  // The check is the DOOR, not the screen: a stored run is written by hand
+  // with ids the table no longer knows, loaded the way a returning player
+  // loads it, and every id it comes back with has to be one the game can draw.
+  // Any future screen that reads a roster is covered by the same answer.
+  {
+    await J(() => {
+      const r = JSON.parse(localStorage.getItem('kizuna23.run'));
+      r.roster.ash  = ['cleave', 'cleave2', 'cleave3', 'guardcut', 'crosssever'];
+      r.roster.elin = ['lcascade', 'lcascade2', 'lcascade3', 'mend', 'sgrace'];
+      r.roster.mira = ['serrate', 'serrate2', 'serrate3', 'twinfang', 'sgrace'];
+      r.bench = { ash: ['crosssever2'], elin: [], mira: [] };
+      r.sigils = { cleave2: 'ember' };
+      localStorage.setItem('kizuna23.run', JSON.stringify(r));
+      localStorage.setItem('kizuna23.profile', JSON.stringify({ heard: [], won: ['crosssever2'] }));
+    });
+    await H.page.goto(H.page.url().replace(/#.*$/, '').replace(/&resume=1/g, '') + '&resume=1',
+      { waitUntil: 'networkidle' });
+    await H.page.waitForFunction(() => window.__ready === true, null, { timeout: 8000 });
+    await H.pastTitle();
+    await sleep(200);
+    const old = await J(() => {
+      const st = window.R.state(), K = window.K;
+      const ids = K.rosterIds(st.roster);
+      return { slots: ['ash', 'elin', 'mira'].map(h => st.roster[h].length).join('/'),
+               unknown: ids.filter(id => !K.CARD_DEFS[id]),
+               benchUnknown: ['ash', 'elin', 'mira']
+                 .flatMap(h => st.bench[h] || []).filter(id => !K.CARD_DEFS[id]),
+               sigils: Object.keys(st.sigils).filter(id => !K.CARD_DEFS[id]),
+               won: window.R.profile().won.filter(id => !K.CARD_DEFS[id]),
+               ash: st.roster.ash.slice() };
+    });
+    check('OLD SAVE: a roster written by an older build comes back on cards the game still has',
+      old.slots === '5/5/5' && !old.unknown.length && !old.benchUnknown.length
+      && !old.sigils.length && !old.won.length && old.ash.join() === 'cleave,cleave,cleave,guardcut,crosssever',
+      JSON.stringify(old));
+
+    // …and the screen that broke draws. A migration that leaves the roster
+    // tidy but the trade screen empty has fixed the reading, not the report.
+    const trade = await J(() => {
+      window.R._set({ bonds: { 'ash|elin': 0, 'ash|mira': 99, 'elin|mira': 0 } });
+      if (!window.R.openBondScene()) return { err: 'no bond scene' };
+      window.R.takeBond(0);
+      return { onSwap: !document.getElementById('k-swap').classList.contains('k-hidden'),
+               cards: document.querySelectorAll('#k-swap-cols .k-swapcard').length,
+               panel: !!document.querySelector('#k-swap-cols .k-sw-trade'),
+               go: (document.getElementById('k-swap-go') || {}).textContent };
+    });
+    check('OLD SAVE: …and the trade it opens is a screen with cards on it',
+      trade.onSwap && trade.cards === 10 && trade.panel && /TRADE/.test(trade.go || ''),
+      JSON.stringify(trade));
+  }
+
   const r = report();
   await H.browser.close();
   process.exit(r.passed === r.total && r.errs === 0 ? 0 : 1);
