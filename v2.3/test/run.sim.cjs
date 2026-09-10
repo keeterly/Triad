@@ -188,6 +188,11 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
     return { win: false, diedAt: 5, kind: 'ran-out', hp, embers, fights, trace, nodes, traded, marked, roster, woke: start.woke };
   }
 
+  // asked of the game rather than written down here, so a fourth basic added
+  // tomorrow does not quietly start failing the shape gate
+  const BASICS = await page.evaluate(() =>
+    Object.keys(window.K.CARD_DEFS).filter(id => window.K.CARD_DEFS[id].basic));
+
   console.log(`\n  KIZUNA v2.3 — the road, walked ${RUNS}× per tier\n`);
   const rows = [];
   for (const band of BANDS) {
@@ -201,9 +206,16 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
     const col0 = res.filter(r => r.diedAt === 0).length / res.length * 100;
     const purse = res.map(r => r.embers).sort((a, b) => a - b);
     const held = rate >= band.glo && rate <= band.ghi;
-    const shapeBad = res.filter(r => !r.roster
-      || ['ash', 'elin', 'mira'].some(h => (r.roster[h] || []).length !== 5)
-      || new Set(['ash', 'elin', 'mira'].reduce((a, h) => a.concat(r.roster[h]), [])).size !== 15).length;
+    // 5/5/5, and no card that was WON sitting in the deck twice. It used to
+    // ask for fifteen distinct ids, which stopped being the same question at
+    // Build 224: a hero's three basics are three of one id now, so a healthy
+    // road ends on ten or eleven names.
+    const shapeBad = res.filter(r => {
+      if (!r.roster) return true;
+      if (['ash', 'elin', 'mira'].some(h => (r.roster[h] || []).length !== 5)) return true;
+      const ids = ['ash', 'elin', 'mira'].reduce((a, h) => a.concat(r.roster[h]), []);
+      return ids.some((x, i) => ids.indexOf(x) !== i && BASICS.indexOf(x) < 0);
+    }).length;
     // EVERY ROAD ANSWERED ITS AWAKENING, and the tier as a whole walked more
     // than one of them — a rotation that quietly collapsed to a single boon
     // would report 120 roads and measure one.
@@ -257,7 +269,7 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
     + `${Object.keys(rows[rows.length - 1].woke).sort().join('/')} `
     + `(${rows.reduce((n, r) => n + r.unwoken, 0)} unanswered of ${RUNS * 3})`);
   const shapeOk = rows.every(r => r.shapeBad === 0);
-  console.log(`  ${shapeOk ? '✓' : '✗'} FIVE SLOTS     every road ends on 5/5/5 and fifteen unique cards `
+  console.log(`  ${shapeOk ? '✓' : '✗'} FIVE SLOTS     every road ends on 5/5/5 with no won card doubled `
     + `(${rows.reduce((n, r) => n + r.shapeBad, 0)} broken of ${RUNS * 3})`);
   const allOk = rows.every(r => r.held) && fodderOk && monotone && shapeOk && wokeOk && markOk;
   console.log(`\n=== ${rows.filter(r => r.held).length}/${rows.length} run gates held · ${RUNS} roads each ===`);

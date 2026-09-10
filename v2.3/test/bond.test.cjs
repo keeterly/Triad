@@ -47,13 +47,19 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       && r.valid === true && r.bad === false, JSON.stringify(r));
 
     const dealt = await J(() => {
+      // …AND IT TAKES THE SLOT OF A CARD ASH HOLDS ONE OF (Build 224). This
+      // used to overwrite ash[0], one of three Cleaves, and then ask whether
+      // `cleave` had left the deck — which it had not, because two were still
+      // in there. That passed only while the three were three different ids.
+      // Sunder is a card he holds exactly one of, so its absence is readable.
       const base = window.K.baseRoster();
-      base.ash[0] = 'shieldblade';                   // a pair card in Ash's five
+      const dropped = base.ash[3];                   // 'guardcut' — his only one
+      base.ash[3] = 'shieldblade';                   // a pair card in Ash's five
       window.K.startCombat({ seed: 3, roster: base });
       const c = window.K.state();
       const all = [...c.hand, ...c.deck, ...c.discard];
-      return { n: all.length, has: all.indexOf('shieldblade') >= 0,
-               gone: all.indexOf('cleave') >= 0 };
+      return { n: all.length, dropped, has: all.indexOf('shieldblade') >= 0,
+               gone: all.indexOf(dropped) >= 0 };
     });
     check('ROSTER: a fight is dealt the roster — the bond card is in it, the card it replaced is not',
       dealt.n === 15 && dealt.has && !dealt.gone, JSON.stringify(dealt));
@@ -244,10 +250,10 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       const all = window.K.rosterIds(r.roster);
       return { armed, dropped, hero, gained, sizes, total: all.length,
                has: all.indexOf(gained) >= 0, gone: all.indexOf(dropped) < 0,
-               uniq: new Set(all).size };
+               dupWon: (a => a.filter((x, i) => a.indexOf(x) !== i && !(window.K.CARD_DEFS[x] || {}).basic).length)(all) };
     });
     check('TRADE: the card goes into that hero’s five and the one it replaced leaves',
-      done.armed && done.has && done.gone && done.uniq === 15, JSON.stringify(done));
+      done.armed && done.has && done.gone && done.dupWon === 0, JSON.stringify(done));
     check('TRADE: five slots a hero, fifteen cards — the deck never grows',
       done.sizes.every(n => n === 5) && done.total === 15, JSON.stringify(done.sizes));
 
@@ -415,11 +421,11 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
                marks: Object.keys(r.sigils).length,
                owned: all.indexOf(id) >= 0,
                sizes: [r.roster.ash.length, r.roster.elin.length, r.roster.mira.length],
-               uniq: new Set(all).size };
+               dupWon: (a => a.filter((x, i) => a.indexOf(x) !== i && !(window.K.CARD_DEFS[x] || {}).basic).length)(all) };
     });
     check('MARK: saying it marks exactly one card the party carries, and spends the grant',
       placed.sigil && placed.pending == null && placed.marks === 1 && placed.owned
-      && placed.sizes.every(n => n === 5) && placed.uniq === 15,
+      && placed.sizes.every(n => n === 5) && placed.dupWon === 0,
       JSON.stringify(placed));
 
     // …AND PLACING IT HANDS THE ROAD BACK, with the next stop still unchosen —
@@ -511,7 +517,7 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       return { sigils: Object.keys(r.sigils).length, pending: r.pendingSigil,
                level: r.levels['ash|mira'],
                sizes: ['ash', 'elin', 'mira'].map(h => r.roster[h].length),
-               uniq: new Set(window.K.rosterIds(r.roster)).size };
+               dupWon: (a => a.filter((x, i) => a.indexOf(x) !== i && !(window.K.CARD_DEFS[x] || {}).basic).length)(window.K.rosterIds(r.roster)) };
     });
     check('MARK: each level marks one card, and neither mark rides on the leg that earned it',
       paidFirst && paidSecond && !first.markNow && !second.markNow
@@ -521,7 +527,7 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
                        owed: [first.owed, second.owed], sigils: chain.sigils, pending: chain.pending }));
     check('TRADE: two levels crossed on one road is two conversations on TWO legs, and still 5/5/5',
       opened && first.title !== second.title && chain.level === 2
-      && chain.sizes.every(n => n === 5) && chain.uniq === 15,
+      && chain.sizes.every(n => n === 5) && chain.dupWon === 0,
       JSON.stringify({ titles: [first.title, second.title], opened, ...chain }));
 
   }
@@ -608,13 +614,13 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       const all = [].concat(r.roster.ash, r.roster.elin, r.roster.mira);
       return { dropped, hero, onMap: !hidden('k-map'), woke: r.woke,
                sizes: [r.roster.ash.length, r.roster.elin.length, r.roster.mira.length],
-               uniq: new Set(all).size, has: all.indexOf('shieldsong') >= 0,
+               dupWon: (a => a.filter((x, i) => a.indexOf(x) !== i && !(window.K.CARD_DEFS[x] || {}).basic).length)(all), has: all.indexOf('shieldsong') >= 0,
                gone: all.indexOf(dropped) < 0 };
     });
     // The swap that follows an awakening has no campfire to go back to — the
     // first pass sent it to the camp screen with no fire behind it.
     check('HABIT: the trade is one for one, still five slots a hero, and it lets go onto the road',
-      done.has && done.gone && done.sizes.every(n => n === 5) && done.uniq === 15
+      done.has && done.gone && done.sizes.every(n => n === 5) && done.dupWon === 0
       && done.onMap && done.woke === 'habit',
       JSON.stringify(done));
 
@@ -777,12 +783,13 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       owes: window.R.state().pendingCard,
       onSwap: !document.getElementById('k-swap').classList.contains('k-hidden'),
       carries: window.K.rosterIds(window.R.state().roster),
+      dupWon: (a => a.filter((x, i) => a.indexOf(x) !== i && !(window.K.CARD_DEFS[x] || {}).basic).length)(window.K.rosterIds(window.R.state().roster)),
       slots: ['ash', 'elin', 'mira'].map(h => window.R.state().roster[h].length),
     }));
     check('OWED: once the card has a slot the debt is settled — a reload does not ask again',
       !after.owes && !settled.owes && !settled.onSwap
       && settled.carries.indexOf(owed.card) >= 0
-      && settled.slots.every(n => n === 5) && new Set(settled.carries).size === 15,
+      && settled.slots.every(n => n === 5) && settled.dupWon === 0,
       JSON.stringify({ owes: settled.owes, onSwap: settled.onSwap,
                        hasCard: settled.carries.indexOf(owed.card) >= 0 }));
   }
@@ -825,11 +832,20 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       const go = document.getElementById('k-swap-go');
       if (go && !go.disabled) go.click();
       const ids = window.K.rosterIds(window.R.state().roster);
-      return { took: sc.picks[0].card, n: ids.length, uniq: new Set(ids).size,
+      return { took: sc.picks[0].card, n: ids.length, dupWon: (a => a.filter((x, i) => a.indexOf(x) !== i && !(window.K.CARD_DEFS[x] || {}).basic).length)(ids),
                slots: ['ash', 'elin', 'mira'].map(h => window.R.state().roster[h].length) };
     });
-    check('TWICE: fifteen cards, fifteen names — the swap cannot put a second copy in the deck',
-      after.n === 15 && after.uniq === 15 && after.slots.every(n => n === 5),
+    // ── THE RULE OUTLIVED THE WAY IT WAS COUNTED (Build 224) ──────────────
+    //
+    // This asked for fifteen DISTINCT ids, which was the same thing as the rule
+    // only while a hero's three basics were three different ids. They are three
+    // of one id now, so a healthy roster carries ten or eleven distinct names
+    // and this would have failed every run — while still not testing what it
+    // means. What it means is that a card you WIN cannot be taken twice, so
+    // that is what is counted: doubled ids that are not basics, which must be
+    // none. Three Cleaves is the shape of the deck; two Twin Shadows is the bug.
+    check('TWICE: fifteen cards, and a won card cannot be taken twice',
+      after.n === 15 && after.dupWon === 0 && after.slots.every(n => n === 5),
       JSON.stringify(after));
 
     // BOTH already carried: the conversation still happens and the level still
@@ -863,7 +879,7 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
                owes: st.pendingCard, sigil: st.pendingSigil,
                screen: ['k-stage', 'k-map', 'k-camp', 'k-scene', 'k-swap', 'k-wake', 'k-mark']
                  .filter(id => !document.getElementById(id).classList.contains('k-hidden')),
-               n: ids.length, uniq: new Set(ids).size };
+               n: ids.length, dupWon: (a => a.filter((x, i) => a.indexOf(x) !== i && !(window.K.CARD_DEFS[x] || {}).basic).length)(ids) };
     });
     // The swap is what must not open — there is no card to trade. Where the
     // chain hands back to is a separate question, and this scene was opened
@@ -872,7 +888,7 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     // marking screen" here would have been asserting the absence of the
     // behaviour the build added.
     check('TWICE: …and the level still lands and still owes its mark, with no card owed',
-      paid.levelled && !paid.owes && !!paid.sigil && paid.n === 15 && paid.uniq === 15
+      paid.levelled && !paid.owes && !!paid.sigil && paid.n === 15 && paid.dupWon === 0
       && paid.screen.length === 1 && paid.screen.indexOf('k-swap') < 0,
       JSON.stringify(paid));
   }
@@ -916,7 +932,7 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       return { bench: JSON.parse(JSON.stringify(window.R.bench())),
                owes: r.pendingCard,
                sizes: ['ash', 'elin', 'mira'].map(h => r.roster[h].length),
-               n: ids.length, uniq: new Set(ids).size,
+               n: ids.length, dupWon: (a => a.filter((x, i) => a.indexOf(x) !== i && !(window.K.CARD_DEFS[x] || {}).basic).length)(ids),
                carries: ids.indexOf(window.R.state().pendingCard || '') >= 0,
                // the level is still a level: the mark is still owed
                sigil: r.pendingSigil, level: r.levels['ash|mira'] };
@@ -924,7 +940,7 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     const benched = Object.keys(set.bench).reduce((a, h) => a.concat(set.bench[h]), []);
     check('BENCH: setting it down takes the card and takes nobody’s slot',
       benched.indexOf(offered.card) >= 0 && !set.owes
-      && set.sizes.every(n => n === 5) && set.n === 15 && set.uniq === 15,
+      && set.sizes.every(n => n === 5) && set.n === 15 && set.dupWon === 0,
       JSON.stringify({ benched, sizes: set.sizes, owes: set.owes }));
     check('BENCH: …and it is still a bond level — the mark is owed either way',
       set.level === 1 && !!set.sigil, JSON.stringify({ level: set.level, sigil: set.sigil }));
@@ -950,11 +966,11 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       window.R._set({ roster: r.roster });
       window.R.openDeck(); window.R.closeDeck();
       const ids = window.K.rosterIds(window.R.state().roster);
-      return { n: ids.length, uniq: new Set(ids).size,
+      return { n: ids.length, dupWon: (a => a.filter((x, i) => a.indexOf(x) !== i && !(window.K.CARD_DEFS[x] || {}).basic).length)(ids),
                benchStillHas: window.R.benchFor('ash').indexOf(id) >= 0 };
     }, offered.card);
     check('BENCH: a card being carried is not also offered off the bench',
-      dup.n === 15 && dup.uniq === 15 && !dup.benchStillHas, JSON.stringify(dup));
+      dup.n === 15 && dup.dupWon === 0 && !dup.benchStillHas, JSON.stringify(dup));
   }
 
   // ═══ THE RECALLS ═══
@@ -1007,8 +1023,8 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
     // behind, or those cards are in the game and out of the player's reach
     const reach = await J(() => {
       const K = window.K, D = K.CARD_DEFS;
-      const base = new Set(K.rosterIds(K.baseRoster()).map(id => D[id].sameAs || id));
-      const parked = Object.keys(D).filter(id => !D[id].sameAs && !base.has(id)
+      const base = new Set(K.rosterIds(K.baseRoster()));
+      const parked = Object.keys(D).filter(id => !base.has(id)
         && K.BOND_IDS.indexOf(id) < 0 && id !== 'lightsteel');
       const offered = new Set(window.R.RECALLS.flatMap(r => r.picks.map(p => p.card)));
       return { parked, missed: parked.filter(id => !offered.has(id)) };
@@ -1139,14 +1155,14 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       if (go && !go.disabled) go.click();
       const st = window.R.state();
       const ids = window.K.rosterIds(st.roster);
-      return { n: ids.length, uniq: new Set(ids).size, has: ids.indexOf(st.pendingCard || '') < 0,
+      return { n: ids.length, dupWon: (a => a.filter((x, i) => a.indexOf(x) !== i && !(window.K.CARD_DEFS[x] || {}).basic).length)(ids), has: ids.indexOf(st.pendingCard || '') < 0,
                carries: ids, owes: st.pendingCard, resume: st.bondResume,
                slots: ['ash', 'elin', 'mira'].map(h => st.roster[h].length),
                screen: ['k-stage', 'k-map', 'k-camp', 'k-scene', 'k-swap', 'k-wake', 'k-mark']
                  .filter(id => !document.getElementById(id).classList.contains('k-hidden')) };
     });
     check('RECALL: the trade lands and the road goes on — fifteen cards, one screen, no debt',
-      settled.n === 15 && settled.uniq === 15 && settled.slots.every(n => n === 5)
+      settled.n === 15 && settled.dupWon === 0 && settled.slots.every(n => n === 5)
       && !settled.owes && !settled.resume && settled.screen.length === 1
       && settled.carries.indexOf(took.want) >= 0, JSON.stringify(settled));
 

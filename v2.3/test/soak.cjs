@@ -65,8 +65,15 @@ const MAX_TURNS = 24;
         for (const h of ['ash', 'elin', 'mira']) {
           if ((r.roster[h] || []).length !== 5) out.push(h + ' holds ' + (r.roster[h] || []).length + ' slots, not 5');
         }
+        // A DUPLICATE BASIC IS THE DECK'S SHAPE, NOT A BREACH (Build 224).
+        // Three Cleaves used to be `cleave`/`cleave2`/`cleave3`, so any repeat
+        // at all meant something had gone wrong. They are three of one id now.
+        // What still must never happen is a WON card doubling — that is a slot
+        // silently eaten — so the invariant asks for that and nothing else.
         const ids = window.K.rosterIds(r.roster);
-        if (new Set(ids).size !== ids.length) out.push('the roster holds a duplicate');
+        const dbl = ids.filter((x, i) => ids.indexOf(x) !== i
+          && !(window.K.CARD_DEFS[x] || {}).basic);
+        if (dbl.length) out.push('the roster holds a second ' + dbl[0]);
       }
       // THE ROAD MUST STAY WALKABLE. A run that is not over and has nothing
       // reachable is a run with no way forward — the exact shape of a

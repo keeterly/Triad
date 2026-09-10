@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 223;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 224;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -75,15 +75,13 @@ const CARD_DEFS = {
   // wound that keeps arriving. A player learns ONE rule with three accents
   // rather than three unrelated cards, and three copies of it means the floor
   // of a hand is always something they already understand.
-  cleave:      { owner: 'ash', name: 'Cleave',        cost: 1, target: 'enemy', base: [{ dmg: 7 }], cond: null },
+  cleave:      { owner: 'ash', name: 'Cleave', basic: true,        cost: 1, target: 'enemy', base: [{ dmg: 7 }], cond: null },
   // …AND A COPY IS AN ID, NOT A COUNT. The whole hand layer keys off
   // `data-card` — selection, drag, the flight animations, hold-to-inspect,
   // eight `querySelector` calls — so two cards in one hand sharing an id would
   // collide on every one of them. Three ids wearing one face costs six table
   // rows and changes no machinery: `rosterValid`'s fifteen-unique rule and the
   // no-second-copy rule at every swap door both keep working untouched.
-  cleave2:     { owner: 'ash', name: 'Cleave', sameAs: 'cleave', cost: 1, target: 'enemy', base: [{ dmg: 7 }], cond: null },
-  cleave3:     { owner: 'ash', name: 'Cleave', sameAs: 'cleave', cost: 1, target: 'enemy', base: [{ dmg: 7 }], cond: null },
   // ── ASH'S TWO-CARD IDEA (Build 216) ─────────────────────────────────────
   // Sunder cracks the poise; Cross Sever goes through what is already cracked.
   // His resource is BREAK and not guard, because guard is Elin's and two heroes
@@ -116,11 +114,7 @@ const CARD_DEFS = {
   // the MIDDLE of the line changes the arithmetic of the whole plan: Ash, then
   // this for free, then the finisher, and there is still an AP for a fourth
   // card. That is the turn this game wanted and could not pay for.
-  lcascade:    { owner: 'elin', name: 'Lumen Cascade', cost: 1, target: 'enemy',
-                 base: [{ dmg: 5 }], cond: null },
-  lcascade2:   { owner: 'elin', name: 'Lumen Cascade', sameAs: 'lcascade', cost: 1, target: 'enemy',
-                 base: [{ dmg: 5 }], cond: null },
-  lcascade3:   { owner: 'elin', name: 'Lumen Cascade', sameAs: 'lcascade', cost: 1, target: 'enemy',
+  lcascade:    { owner: 'elin', name: 'Lumen Cascade', basic: true, cost: 1, target: 'enemy',
                  base: [{ dmg: 5 }], cond: null },
   // ── ELIN'S TWO-CARD IDEA (Build 215) ─────────────────────────────────────
   // The ward puts guard on somebody; the mend pays for it. Held together they
@@ -131,8 +125,6 @@ const CARD_DEFS = {
   // The second copy Elin's LEARN node takes up. Her combo card used to be
   // Shared Grace and the node still traded for a second one of those, which is
   // a card that is no longer in her deck — so the trade handed her a stranger.
-  mend2:       { owner: 'elin', name: 'Mend', sameAs: 'mend', cost: 1, target: 'ally',
-                 base: [{ healWard: 6 }], cond: null },
   frostbind:   { owner: 'elin', name: 'Frost Bind',    cost: 1, target: 'enemy', base: [{ dmg: 4 }, { chill: 4 }], cond: null },
   // The setup card: the thing you play mid-combo to arm next turn's BROKEN
   // payoffs. Its Follow-Up landed 94% of the time, so the clause was a tax on
@@ -143,15 +135,6 @@ const CARD_DEFS = {
   // combo, in exchange for one of the three copies of their basic. The deck
   // stays fifteen and becomes less consistent and more pointed, which is the
   // whole trade. Same face, same painting, sharpened by the same node.
-  crosssever2: { owner: 'ash', name: 'Cross Sever', sameAs: 'crosssever', cost: 2, target: 'enemy',
-                 base: [{ dmg: 9 }, { brk: 2 }],
-                 cond: { type: 'FOLLOW_UP', reward: 'cost', costTo: 1 } },
-  sgrace2:     { owner: 'elin', name: 'Shared Grace', sameAs: 'sgrace', cost: 1, target: 'party',
-                 base: [{ guardAll: 3 }, { brk: 2 }],
-                 cond: { type: 'FOLLOW_UP', reward: 'ap', ap: 1 } },
-  twinfang2:   { owner: 'mira', name: 'Twin Fang', sameAs: 'twinfang', cost: 1, target: 'enemy',
-                 base: [{ dmg: 4 }, { dmg: 4 }],
-                 cond: { type: 'FOLLOW_UP', reward: 'output', bonus: [{ dmg: 4 }] } },
   // ONE CONDITION, THREE PAYOFFS. All three specials trigger on CHAIN — the
   // player learns the word once — and then each pays in its own currency:
   // Ash's is the discount (his is the only 2-cost card in the deck, so a
@@ -168,9 +151,7 @@ const CARD_DEFS = {
                  cond: { type: 'FOLLOW_UP', reward: 'ap', ap: 1 } },
   intercession:{ owner: 'elin', name: 'Intercession',  cost: 1, target: 'ally',  base: [{ guardSelf: 3 }, { guardAlly: 3 }, { intercede: true }], cond: null },
   // ── Mira — Shade ──
-  serrate:     { owner: 'mira', name: 'Serrate',       cost: 1, target: 'enemy', base: [{ dmg: 5 }], cond: null },
-  serrate2:    { owner: 'mira', name: 'Serrate', sameAs: 'serrate', cost: 1, target: 'enemy', base: [{ dmg: 5 }], cond: null },
-  serrate3:    { owner: 'mira', name: 'Serrate', sameAs: 'serrate', cost: 1, target: 'enemy', base: [{ dmg: 5 }], cond: null },
+  serrate:     { owner: 'mira', name: 'Serrate', basic: true,       cost: 1, target: 'enemy', base: [{ dmg: 5 }], cond: null },
   // The deck's only filter: what you play to FIND the hero missing from the
   // round you are building. Nudged to 5 so it is never strictly worse than the
   // vanilla strike while doing that job.
@@ -220,8 +201,8 @@ const CARD_UPS = {
   // ── THE THREE BASICS SHARPEN THREE AT A TIME ─────────────────────────────
   // This is the best node on the tree and it is tier one, which is the point:
   // the first thing a player buys changes three of their fifteen cards, so they
-  // learn what an upgrade IS on the card they have seen most. `sameAs` carries
-  // it to the copies (see buildCards).
+  // learn what an upgrade IS on the card they have seen most. All three are one
+  // id, so one entry here sharpens the lot (see buildCards).
   //
   // Each basic gains its hero's SECOND idea rather than a bigger number — the
   // stagger for Ash, the draw for Elin, the wound for Mira — so the floor of
@@ -329,18 +310,22 @@ const CARD_UPS = {
 function cardDef(id) {
   return (C && C.cards && C.cards[id]) || CARD_DEFS[id];
 }
-// A COPY IS SHARPENED WITH ITS ORIGINAL. The three copies of a hero's basic are
-// three ids wearing one face, so buying "Cleave" at the fire has to sharpen all
-// three — otherwise the deck carries two Cleave and one Cleave+ and the player
-// has no way of telling which one they just drew. `sameAs` is that link, and it
-// is the only thing in the engine that knows a copy is a copy.
+// A COPY IS SHARPENED WITH ITS ORIGINAL, and that is now free rather than
+// arranged. Until Build 224 a hero's three Cleaves were three DIFFERENT ids —
+// `cleave`, `cleave2`, `cleave3` — because a roster was a set and a set cannot
+// hold the same thing twice. Each clone carried a `sameAs` pointer home so that
+// buying "Cleave" at the fire sharpened all three rather than leaving the deck
+// with two Cleave and one Cleave+, which the player could not tell apart.
+//
+// A roster holds card INSTANCES now, so three Cleaves are three of one id, and
+// there is nothing left to point home: sharpening `cleave` sharpens every copy
+// because there is only one `cleave`.
 function buildCards(upgrades) {
   const on = upgrades || [];
   const out = {};
   for (const id of Object.keys(CARD_DEFS)) {
     const c = CARD_DEFS[id];
-    const key = c.sameAs || id;
-    const up = on.indexOf(key) >= 0 ? (CARD_UPS[key] || null) : null;
+    const up = on.indexOf(id) >= 0 ? (CARD_UPS[id] || null) : null;
     out[id] = up ? { ...c, ...up, upgraded: true } : c;
   }
   return out;
@@ -444,8 +429,6 @@ function pairOf(id) {
   return c && c.owner && c.owner.indexOf('|') > 0 ? c.owner.split('|') : null;
 }
 
-const DECK_IDS = Object.keys(CARD_DEFS)
-  .filter(id => CARD_DEFS[id].owner !== 'bond' && !isBondCard(id));   // the 15
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE ROSTER — five slots per hero, always.
@@ -469,9 +452,9 @@ const SLOTS_PER_HERO = 5;
 // an upgrade instead, which is where a second rule belongs.
 function baseRoster() {
   return {
-    ash:  ['cleave', 'cleave2', 'cleave3', 'guardcut', 'crosssever'],
-    elin: ['lcascade', 'lcascade2', 'lcascade3', 'ward', 'mend'],
-    mira: ['serrate', 'serrate2', 'serrate3', 'rend', 'twinfang'],
+    ash:  ['cleave', 'cleave', 'cleave', 'guardcut', 'crosssever'],
+    elin: ['lcascade', 'lcascade', 'lcascade', 'ward', 'mend'],
+    mira: ['serrate', 'serrate', 'serrate', 'rend', 'twinfang'],
   };
 }
 
@@ -479,10 +462,31 @@ function rosterIds(roster) {
   const r = roster || baseRoster();
   return ['ash', 'elin', 'mira'].reduce((a, h) => a.concat(r[h] || []), []);
 }
+// ── FIFTEEN SLOTS, AND WHAT A SLOT IS ALLOWED TO HOLD (Build 224) ───────────
+//
+// This used to read "fifteen ids, all different", and that one line is why the
+// deck carried `cleave2` and `cleave3`: a hero holds three of their basic, a
+// set cannot hold three of anything, so the deck grew clone ids with a `sameAs`
+// pointer home and every system that touched a card had to know about it.
+//
+// The uniqueness rule does not move down here to replace it, because it was
+// never true of the roster: the ember tree's learn nodes hand a hero a SECOND
+// Cross Sever on purpose — that is the whole trade, one fewer of the simple
+// thing for one more of the sharp one — and `crosssever2` existed to smuggle
+// that past this check. A rule a feature has to be disguised to get around is
+// not the rule.
+//
+// The real rule is about a card ARRIVING, not about a deck at rest: a bond card
+// or a recalled card taken twice silently costs the party a card they had. That
+// is enforced where such a card enters, at `confirmSwap` and `benchSwap`, which
+// is where it always actually lived. What is structural — and all this is asked
+// to prove — is the shape: three heroes, five slots each, every slot holding a
+// card that exists.
 function rosterValid(roster) {
   if (!roster) return false;
-  return ['ash', 'elin', 'mira'].every(h => Array.isArray(roster[h]) && roster[h].length === SLOTS_PER_HERO)
-    && new Set(rosterIds(roster)).size === SLOTS_PER_HERO * 3;
+  if (!['ash', 'elin', 'mira'].every(h =>
+      Array.isArray(roster[h]) && roster[h].length === SLOTS_PER_HERO)) return false;
+  return rosterIds(roster).every(id => !!CARD_DEFS[id]);
 }
 const RES_ID = 'lightsteel';
 const RESONANCE_PAIR = ['ash', 'elin'];
@@ -6813,11 +6817,6 @@ const CARD_ART = {
   ward: 'intercession', rend: 'serrate',
   serrate: 1, qthrow: 1, twinfang: 1, backstab: 1, execute: 1,
   lightsteel: 1,
-  // the copies of a basic are the same card, so they are the same painting
-  cleave2: 'cleave', cleave3: 'cleave',
-  crosssever2: 'crosssever', sgrace2: 'sgrace', twinfang2: 'twinfang', mend2: 'mend',
-  lcascade2: 'lcascade', lcascade3: 'lcascade',
-  serrate2: 'serrate', serrate3: 'serrate',
   // THE TWELVE BOND CARDS, and every one of them is a TWO-FIGURE painting —
   // which is the whole reason they were worth painting rather than just worth
   // filling in. A bond card is about two people doing one thing: Shield the

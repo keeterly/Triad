@@ -55,8 +55,15 @@ const MAX_TURNS = 30;
         for (const h of ['ash', 'elin', 'mira']) {
           if ((r.roster[h] || []).length !== 5) out.push(h + ' holds ' + (r.roster[h] || []).length + ' slots, not 5');
         }
+        // A DUPLICATE BASIC IS THE DECK'S SHAPE, NOT A BREACH (Build 224).
+        // Three Cleaves used to be `cleave`/`cleave2`/`cleave3`, so any repeat
+        // at all meant something had gone wrong. They are three of one id now.
+        // What still must never happen is a WON card doubling — that is a slot
+        // silently eaten — so the invariant asks for that and nothing else.
         const ids = window.K.rosterIds(r.roster);
-        if (new Set(ids).size !== ids.length) out.push('the roster holds a duplicate');
+        const dbl = ids.filter((x, i) => ids.indexOf(x) !== i
+          && !(window.K.CARD_DEFS[x] || {}).basic);
+        if (dbl.length) out.push('the roster holds a second ' + dbl[0]);
       }
       if (new Set(r.path).size !== r.path.length) out.push('a stop visited twice');
       // The deck may get better; it may never get bigger.
@@ -327,11 +334,11 @@ const MAX_TURNS = 30;
         const r = window.R.state();
         return { card, dropped, marked, owed: r.pendingSigil || null,
                  sizes: ['ash', 'elin', 'mira'].map(h => r.roster[h].length),
-                 uniq: new Set(window.K.rosterIds(r.roster)).size };
+                 dupWon: (a => a.filter((x, i) => a.indexOf(x) !== i && !(window.K.CARD_DEFS[x] || {}).basic).length)(window.K.rosterIds(r.roster)) };
       }, kindNow);
       log.push(`before stop ${col}: ${kindNow} — took ${traded.card}, gave up ${traded.dropped}`);
       check(`SLICE: the ${kindNow} before stop ${col} trades one for one — still five slots a hero`,
-        traded.sizes.every(n => n === 5) && traded.uniq === 15, JSON.stringify(traded));
+        traded.sizes.every(n => n === 5) && traded.dupWon === 0, JSON.stringify(traded));
       check(`SLICE: the ${kindNow} before stop ${col} pays exactly what its kind pays, and stacks no second screen on the road`,
         !traded.marked && (kindNow === 'bond' ? !!traded.owed : !traded.owed),
         JSON.stringify({ kind: kindNow, markedNow: traded.marked, owed: traded.owed }));

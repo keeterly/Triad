@@ -125,11 +125,11 @@
     // two, or learn one", which is a fork at the fire the player is actually
     // standing at rather than a fork at fires they never reach.
     { id: 'ash.learn',  hero: 'ash',  tier: 2, cost: 7,
-      learn: { take: 'crosssever2', drop: 'cleave' } },
+      learn: { take: 'crosssever', drop: 'cleave' } },
     { id: 'elin.learn', hero: 'elin', tier: 2, cost: 7,
-      learn: { take: 'mend2', drop: 'lcascade' } },
+      learn: { take: 'mend', drop: 'lcascade' } },
     { id: 'mira.learn', hero: 'mira', tier: 2, cost: 7,
-      learn: { take: 'twinfang2', drop: 'serrate' } },
+      learn: { take: 'twinfang', drop: 'serrate' } },
     // ── the shared nodes: what all three of them own together ──
     // NINE OF TEN NODES WERE THE SAME CHOICE. Every tier offered one hero's
     // card traded for a bigger version of that card, which is a number going up
@@ -2660,11 +2660,12 @@
     // node that silently takes seven embers and changes nothing is the exact
     // shape of the bug the camp suite found hiding behind a literal, and it
     // costs one line to make impossible.
-    const fam = (cid) => (window.K.CARD_DEFS[cid] || {}).sameAs || cid;
     let swapAt = -1;
     if (n.learn) {
+      // the LAST copy, so the hero keeps the two at the front of their row and
+      // the change reads as "one of these became that" rather than a reshuffle
       const list = RUN.roster[n.hero] || [];
-      swapAt = list.map(fam).lastIndexOf(n.learn.drop);
+      swapAt = list.lastIndexOf(n.learn.drop);
       if (swapAt < 0) return;
     }
     RUN.embers -= n.cost;
@@ -2709,6 +2710,9 @@
   // ── a memory ──────────────────────────────────────────────────────────────
   let _beat = 0, _scene = null;
   let _pendingCard = null, _pendingAfter = '', _swapPick = null;
+  // the card a slot-pick is pointing at; declared here because both the swap
+  // table and the deck panel read it, and the swap table renders first
+  const pickId = (p) => (p && ((RUN.roster[p.hero] || [])[p.ix] || null)) || null;
   // ── the still a scene opens on, and the splash that presents it ──────────
   // ONE RULE FOR ALL THREE KINDS. A memory names its own frame; a bond scene
   // and a crossroads do not have one yet, so they take the run's region — the
@@ -3184,15 +3188,15 @@
     // the two cards that actually matter are looked at.
     $('k-swap-cols').innerHTML = pair.map(h => {
       const art = ({ ash: 'kai', elin: 'elin', mira: 'mira' })[h];
-      const rows = (RUN.roster[h] || []).map(id =>
-        '<button type="button" class="k-swapcard' + (_swapPick && _swapPick.id === id && _swapPick.hero === h ? ' k-sw-on' : '')
-        + '" data-hero="' + h + '" data-id="' + id + '">' + swapCardHTML(id, false) + '</button>').join('');
+      const rows = (RUN.roster[h] || []).map((id, ix) =>
+        '<button type="button" class="k-swapcard' + (_swapPick && _swapPick.ix === ix && _swapPick.hero === h ? ' k-sw-on' : '')
+        + '" data-hero="' + h + '" data-ix="' + ix + '">' + swapCardHTML(id, false) + '</button>').join('');
       return '<div class="k-sw-col"><header><img src="../art/' + art + '-face.webp" alt="">'
         + '<b>' + h.toUpperCase() + '</b><em>' + (RUN.roster[h] || []).length + '/5</em></header>' + rows + '</div>';
     }).join('') + tradePanelHTML(card);
     $('k-swap-cols').querySelectorAll('.k-swapcard').forEach(b =>
       b.addEventListener('click', (e) => { e.stopPropagation();
-        _swapPick = { hero: b.dataset.hero, id: b.dataset.id }; renderSwap(); }));
+        _swapPick = { hero: b.dataset.hero, ix: +b.dataset.ix }; renderSwap(); }));
     const go = $('k-swap-go');
     go.disabled = !_swapPick;
     // TWO CARD NAMES IN ONE BUTTON WRAPPED TO TWO LINES, and both of them are
@@ -3222,7 +3226,7 @@
     // frame and the same weight as the card opposite it, waiting to be turned
     // over by a pick from the lists.
     const out = _swapPick
-      ? '<div class="k-swt-face">' + K.staticCardHTML(_swapPick.id, { cls: 'k-card-swt' }) + '</div>'
+      ? '<div class="k-swt-face">' + K.staticCardHTML(pickId(_swapPick), { cls: 'k-card-swt' }) + '</div>'
       : '<div class="k-swt-back"><i>' + svgIcon('ember') + '</i><span>choose from<br>their fives</span></div>';
     return '<div class="k-sw-trade">'
       + '<div class="k-swt-pair">'
@@ -3294,7 +3298,13 @@
   }
   function closeMenu() { const m = $('k-menu'); if (m) m.classList.add('k-hidden'); }
 
-  let _deckPick = null;             // { hero, id } — the card the panel is reading
+  // A PICK NAMES A SLOT, NOT A CARD (Build 224). It used to be { hero, id },
+  // which was only ever unambiguous because no two slots could hold the same
+  // id — the clone-card rule. A hero holds three real Cleaves now, so an id
+  // picks out three slots at once: `indexOf` would always swap the first, and
+  // the gold selection bar would light all three. The index is the identity;
+  // the card is looked up from it.
+  let _deckPick = null;             // { hero, ix } — the slot the panel is reading
   // THE PANEL IS NEVER EMPTY. It used to open with nothing selected, which left
   // 42% of the board — 395 x 374px, measured — holding nothing at all, and then
   // a tap opened a drawer that was 8% full. Both halves of that are the same
@@ -3311,8 +3321,7 @@
   }
   function firstPick() {
     for (const h of ['ash', 'elin', 'mira']) {
-      const id = (RUN.roster[h] || [])[0];
-      if (id) return { hero: h, id };
+      if ((RUN.roster[h] || [])[0]) return { hero: h, ix: 0 };
     }
     return null;
   }
@@ -3342,10 +3351,10 @@
         + '<div class="k-dk-who"><img src="../art/' + c.art + '.webp" alt="">'
         + '<b>' + c.n + '</b><span class="k-dk-bonds">' + bonds + '</span></div>'
         + '<div class="k-dk-cards">'
-        + (RUN.roster[h] || []).map(id =>
+        + (RUN.roster[h] || []).map((id, ix) =>
             '<button type="button" class="k-dk-slot'
-            + (_deckPick && _deckPick.hero === h && _deckPick.id === id ? ' k-dk-on' : '')
-            + '" data-hero="' + h + '" data-id="' + id + '">'
+            + (_deckPick && _deckPick.hero === h && _deckPick.ix === ix ? ' k-dk-on' : '')
+            + '" data-hero="' + h + '" data-ix="' + ix + '" data-id="' + id + '">'
             + K.staticCardHTML(id, { sigil: (RUN.sigils || {})[id] || null, cls: 'k-card-dk' })
             + '</button>').join('')
         + '</div></div>';
@@ -3354,7 +3363,7 @@
       b.addEventListener('click', (e) => {
         e.stopPropagation();
         if (_held) return;                    // that was a hold, not a tap
-        tapSlot(b.dataset.hero, b.dataset.id);
+        tapSlot(b.dataset.hero, +b.dataset.ix);
       });
       bindHold(b, b.dataset.id);
     });
@@ -3373,9 +3382,9 @@
     if (!_deckPick) { box.classList.add('k-hidden'); box.innerHTML = ''; return; }
     box.classList.remove('k-hidden');
     const alts = benchFor(_deckPick.hero);
-    const name = K.CARD_DEFS[_deckPick.id].name.toUpperCase();
+    const name = K.CARD_DEFS[pickId(_deckPick)].name.toUpperCase();
     box.innerHTML = '<div class="k-dk-read">'
-      + K.staticInspectHTML(_deckPick.id, { sigil: (RUN.sigils || {})[_deckPick.id] || null })
+      + K.staticInspectHTML(pickId(_deckPick), { sigil: (RUN.sigils || {})[pickId(_deckPick)] || null })
       + '</div>'
       + '<div class="k-dk-swap">'
       + '<p class="k-dk-ask">SWAP <b>' + name + '</b> FOR</p>'
@@ -3449,9 +3458,9 @@
   // again cleared it — which was the only way a player could reach the empty
   // state this screen no longer has. There is always exactly one card being
   // read, so a tap on the one already being read is a no-op.
-  function tapSlot(hero, id) {
-    if (_deckPick && _deckPick.hero === hero && _deckPick.id === id) return;
-    _deckPick = { hero, id };
+  function tapSlot(hero, ix) {
+    if (_deckPick && _deckPick.hero === hero && _deckPick.ix === ix) return;
+    _deckPick = { hero, ix };
     // A TAP DOES NOT REBUILD THE ROWS. It used to call renderDeck(), which
     // re-wrote all fifteen cards — and a CSS transition needs the SAME NODE to
     // still be there when the class changes, so every transition on the
@@ -3462,13 +3471,13 @@
   }
   function markPick() {
     document.querySelectorAll('.k-dk-slot').forEach(b => b.classList.toggle('k-dk-on',
-      !!_deckPick && b.dataset.hero === _deckPick.hero && b.dataset.id === _deckPick.id));
+      !!_deckPick && b.dataset.hero === _deckPick.hero && +b.dataset.ix === _deckPick.ix));
   }
   function deckSwap(newId) {
     if (!_deckPick) return;
     const list = RUN.roster[_deckPick.hero];
-    const ix = list.indexOf(_deckPick.id);
-    if (ix < 0) return;
+    const ix = _deckPick.ix;
+    if (!list || !list[ix]) return;
     if (benchFor(_deckPick.hero).indexOf(newId) < 0) return;   // not theirs to take
     benchPut(_deckPick.hero, list[ix]);
     list[ix] = newId;
@@ -3517,8 +3526,8 @@
   function confirmSwap() {
     if (!_swapPick || !_pendingCard) return;
     const list = RUN.roster[_swapPick.hero];
-    const ix = list.indexOf(_swapPick.id);
-    if (ix < 0) return;
+    const ix = _swapPick.ix;
+    if (!list || !list[ix]) return;
     // THE ONE PLACE A DUPLICATE CAN ENTER THE DECK, so the rule is enforced
     // here as well as at every door that leads here. Fifteen cards, fifteen
     // names: a second copy of one silently costs the party a card they had.
@@ -3535,7 +3544,7 @@
     list[ix] = _pendingCard;
     benchTake(_pendingCard);
     RUN.flash = { icon: 'camp', tone: 'gold', title: window.K.CARD_DEFS[_pendingCard].name.toUpperCase() + ' — LEARNED',
-      sub: _swapPick.hero.toUpperCase() + ' sets down ' + window.K.CARD_DEFS[_swapPick.id].name + ' to carry it.',
+      sub: _swapPick.hero.toUpperCase() + ' sets down ' + window.K.CARD_DEFS[list[ix]].name + ' to carry it.',
       gain: '5/5/5', gainSub: 'five slots, and a bench' };
     const _wasCard = _pendingCard;
     _pendingCard = null; _swapPick = null; _pendingAfter = '';
@@ -3819,6 +3828,20 @@
       RUN.pendingSigil = a.sigil; cardId = a.card;
     }
     // ONE MARK PER CARD. Stacking would make a single card the whole deck.
+    //
+    // AND "CARD" NOW MEANS WHAT IT SAYS (Build 224). Marks are keyed by card
+    // id, and until the clone ids went away a hero's three basics were three
+    // ids — so a mark on `lcascade` left `lcascade2` and `lcascade3` unmarked,
+    // and the rule was really one mark per COPY. Three of one id now, so a mark
+    // on Lumen Cascade is a mark on all three of them.
+    //
+    // That is the reading the rule always claimed, and it is also a POWER
+    // CHANGE, because the mark picker lands on a basic for Elin: her Surge used
+    // to sharpen one card in fifteen and now sharpens three. It is measured
+    // against the balance sim rather than assumed harmless, and the second
+    // effect is that marks now SPREAD — the picker skips an id it has already
+    // marked, so Elin's next mark moves to Ward or Mend instead of to the
+    // second Cascade.
     if (RUN.sigils[cardId]) return;
     const owned = [].concat(RUN.roster.ash, RUN.roster.elin, RUN.roster.mira);
     if (owned.indexOf(cardId) < 0) return;      // only a card they actually carry
@@ -4077,7 +4100,12 @@
     openDeck, closeDeck, renderDeck, renderDeckPanel, markPick, deckSwap, tapSlot, bench, benchFor,
     sceneArt, openSplash, closeSplash, splashOpen, SCENE_ART,
     deckFocus, deckBlur,
-    deckPick: () => _deckPick, toggleMenu, closeMenu,
+    // …and it hands back the CARD as well as the slot. A pick is { hero, ix }
+    // internally, but every reader outside this module wants to know which card
+    // the panel is reading, and resolving it here keeps that one lookup in the
+    // one place that knows how a pick is shaped.
+    deckPick: () => (_deckPick && { ..._deckPick, id: pickId(_deckPick) }) || null,
+    toggleMenu, closeMenu,
     active: () => !!RUN && !RUN.over,
     state: () => RUN,
     map: () => (RUN ? RUN.map : []),

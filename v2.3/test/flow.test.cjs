@@ -1215,10 +1215,15 @@ const { boot } = require('./harness.cjs');
       const all = [...c.hand, ...c.deck, ...c.discard];
       const owners = {};
       all.forEach(id => { const o = window.K.evaluateCard(id).card.owner; owners[o] = (owners[o] || 0) + 1; });
-      return { n: all.length, uniq: new Set(all).size, owners, hasBond: all.includes('lightsteel') };
+      return { n: all.length, dupWon: (a => a.filter((x, i) => a.indexOf(x) !== i && !(window.K.CARD_DEFS[x] || {}).basic).length)(all), owners, hasBond: all.includes('lightsteel') };
     });
-    check('DECK: 15 unique cards, 5 per hero, Resonance never in the deck',
-      d.n === 15 && d.uniq === 15 && d.owners.ash === 5 && d.owners.elin === 5 && d.owners.mira === 5 && !d.hasBond,
+    // NOT "UNIQUE" ANY MORE, AND IT NEVER MEANT UNIQUE (Build 224). A hero
+    // opens with three of their basic; those were three ids until the clones
+    // went away, which is the only reason a distinct-count worked here. What
+    // the deck must never hold is a second of a card that was WON — that is a
+    // slot quietly eaten — so that is what is counted now.
+    check('DECK: 15 cards, 5 per hero, no won card doubled, Resonance never in the deck',
+      d.n === 15 && d.dupWon === 0 && d.owners.ash === 5 && d.owners.elin === 5 && d.owners.mira === 5 && !d.hasBond,
       JSON.stringify(d.owners));
   }
   {
@@ -1496,7 +1501,7 @@ const { boot } = require('./harness.cjs');
       const st0 = window.K.state();
       const want = {};
       for (const id of [].concat(st0.deck, st0.hand, st0.discard))
-        want[(window.K.CARD_DEFS[id] || {}).sameAs || id] = 1;
+        want[id] = 1;
       for (const id of ids) want[id] = 1;
       const missing = Object.keys(want).filter(id => ALL.indexOf(id) < 0);
       return { perHero, count, kinds: [...kinds].sort(), missing,
@@ -1648,7 +1653,7 @@ const { boot } = require('./harness.cjs');
     const fifteen = await J(() => {
       const K = window.K, D = K.CARD_DEFS, base = K.baseRoster();
       const ids = K.rosterIds(base);
-      const faces = new Set(ids.map(id => D[id].sameAs || id));
+      const faces = new Set(ids);
       const verbs = new Set(ids.flatMap(id => D[id].base.flatMap(fx =>
         Object.keys(fx).filter(k => fx[k] !== false && fx[k] != null))));
       const conds = new Set(ids.map(id => D[id].cond && D[id].cond.type).filter(Boolean));
@@ -1656,7 +1661,7 @@ const { boot } = require('./harness.cjs');
       // …and every hero is built the same way: three of one card, then two
       const shape = ['ash', 'elin', 'mira'].map(h => {
         const counts = {};
-        base[h].forEach(id => { const k = D[id].sameAs || id; counts[k] = (counts[k] || 0) + 1; });
+        base[h].forEach(id => { counts[id] = (counts[id] || 0) + 1; });
         return Object.values(counts).sort((a, b) => b - a).join('/');
       });
       return { n: ids.length, faces: faces.size, verbs: [...verbs], conds: [...conds],
@@ -2945,19 +2950,20 @@ const { boot } = require('./harness.cjs');
         deck: every.length,
         unpainted: every.filter(c => !c.art).map(c => c.id),
         allDistinct: new Set(every.map(c => c.art)).size,
-        faces: new Set(Object.keys(window.K.CARD_DEFS)
-          .map(id => window.K.CARD_DEFS[id].sameAs || id)).size,
-        // a copy must show the SAME painting as the card it is a copy of
-        copiesMatch: Object.keys(window.K.CARD_DEFS)
-          .filter(id => window.K.CARD_DEFS[id].sameAs)
-          .every(id => window.K.cardArt(id)
-                    === window.K.cardArt(window.K.CARD_DEFS[id].sameAs)),
+        // one id per face now, so this is just the card count — see below
+        faces: Object.keys(window.K.CARD_DEFS).length,
         // …and the fallback is still WIRED, because it is what a card added
         // tomorrow lands on before anyone paints it
         unknownFallsBack: window.K.cardArt('__no_such_card__') === null,
       };
     });
-    check('CARD: every card is painted, a copy wears its original’s painting, and none falls back',
+    // THE COPY CLAUSE IS GONE, NOT RELAXED (Build 224). This used to also ask
+    // that `cleave2` wore `cleave`'s painting. There are no copy ids any more —
+    // a hero's three Cleaves are three of one id — so that clause could only
+    // ever be vacuously true, and an `.every()` over an empty list passing is
+    // not a check. The card count and the face count are now the same number
+    // for the same reason, which is why `allDistinct` is compared against it.
+    check('CARD: every card is painted, and none falls back',
       // ── TWO CARDS ARE WAITING ON A PAINTING (Build 215) ─────────────────
       //
       // `ward` and `rend` are new cards with no art of their own, so each
@@ -2966,11 +2972,11 @@ const { boot } = require('./harness.cjs');
       // rather than hidden: the allowance is BY NAME, so a third unpainted card
       // still fails this, and deleting the two names is what closes it.
       art.painted && art.fills && art.unpainted.length === 0
-      && art.allDistinct >= art.faces - 2 && art.copiesMatch
+      && art.allDistinct >= art.faces - 2
       && art.unknownFallsBack,
       JSON.stringify({ distinct: art.distinct, fills: art.fills, fill: art._fill, deck: art.deck,
         faces: art.faces, unpainted: art.unpainted, allDistinct: art.allDistinct,
-        copiesMatch: art.copiesMatch, fallbackWired: art.unknownFallsBack }));
+        fallbackWired: art.unknownFallsBack }));
 
     check('CARD: the portrait is bled through the plate and stays UNDER the words',
       legible.hasArt && legible.scrim && legible.plateImg

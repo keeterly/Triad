@@ -1,197 +1,41 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#0d0a08" />
-  <title>KIZUNA | Resonance</title>
-  <link rel="stylesheet" href="styles.css?v=288" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>KIZUNA</title>
+<!--
+  THE FRONT DOOR POINTS AT THE CURRENT GAME (Build 224).
+
+  This file used to BE v1 — `game.js?v=360` and `styles.css?v=288`, both still
+  sitting beside it — so the plain link to this project opened a game two
+  generations old while v2.3 was only reachable by knowing to type the folder.
+
+  It is a redirect rather than a copy of v2.3's index. That index is 35KB of
+  markup carrying four `?v=` cache-busters, and a second copy of it at the root
+  would mean bumping eight of them every build and keeping two files in step
+  forever — a new chore, invented to save one address-bar hop.
+
+  The query string and hash are carried across, so `?cast=2d`, `?seed=…` and any
+  deep link keep working through the hop.
+
+  v1's game.js and styles.css stay where they are. Nothing points at them now,
+  and they are still playable by their own filenames.
+-->
+<link rel="canonical" href="v2.3/" />
+<meta http-equiv="refresh" content="0; url=v2.3/" />
+<script>
+  // Runs long before the meta refresh would, and `replace` keeps the redirect
+  // out of history so Back does not bounce the player straight back here.
+  location.replace('v2.3/' + location.search + location.hash);
+</script>
+<style>
+  html, body { margin: 0; height: 100%; background: #0e0c0b; color: #b9ae97;
+    font: 14px/1.5 'Cormorant Garamond', Georgia, serif; }
+  main { display: grid; place-items: center; height: 100%; letter-spacing: .18em; }
+</style>
 </head>
-<body class="on-title">
-
-  <!-- shown if device is in portrait — prompts rotate -->
-  <div id="rotate-prompt">
-    <div class="rotate-inner">
-      <div class="rotate-icon">⟳</div>
-      <div class="rotate-text">Rotate device<br/><span>landscape only</span></div>
-    </div>
-  </div>
-
-
-  <!-- Full-bleed title screen.  Drawn outside #stage so it covers the whole
-       viewport without inheriting the game grid.  Shown/hidden via .hidden. -->
-  <div id="title-screen" class="hidden" aria-hidden="true">
-    <div class="ts-bg"></div>
-    <!-- Build number — bump on every deploy so a glance at the home screen
-         confirms the live build (no devtools / cache guessing). -->
-    <div class="ts-build">BUILD 334</div>
-    <div class="ts-particles" aria-hidden="true">
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-    </div>
-    <div class="ts-content">
-      <header class="ts-header">
-        <h1 class="ts-title">KIZUNA</h1>
-        <p class="ts-subtitle">Resonance</p>
-      </header>
-
-      <div class="ts-stage-row">
-        <div class="ts-hero" id="ts-hero"></div>
-        <div class="ts-fire" aria-hidden="true">
-          <div class="ts-sparks">
-            <span></span><span></span><span></span><span></span>
-          </div>
-          <div class="ts-flame"></div>
-          <div class="ts-flame f2"></div>
-          <div class="ts-flame f3"></div>
-          <div class="ts-fire-logs"></div>
-        </div>
-      </div>
-
-      <footer class="ts-footer">
-        <nav class="ts-menu" id="ts-menu"></nav>
-        <p class="ts-meta" id="ts-meta"></p>
-      </footer>
-    </div>
-  </div>
-
-  <!-- Run-state info panel.  Owns its own root so it doesn't conflict with
-       the main #overlay (which holds map / vignette / recruit content).  -->
-  <div id="info-panel" class="hidden" aria-hidden="true">
-    <div class="ip-bg"></div>
-    <div class="ip-card">
-      <header class="ip-header">
-        <h2 class="ip-title">Run state</h2>
-        <button type="button" class="ip-close" id="info-close" aria-label="Close">×</button>
-      </header>
-      <div class="ip-body" id="info-panel-body"></div>
-    </div>
-  </div>
-
-  <!-- Boss intro / death overlay.  Hidden by default; populated and shown
-       briefly when a boss encounter starts or ends.  Outside #stage so it
-       can cover everything. -->
-  <div id="boss-intro" class="hidden" aria-hidden="true">
-    <div class="bi-bg"></div>
-    <div class="bi-content">
-      <div class="bi-title-row">
-        <span class="bi-rule"></span>
-        <span class="bi-eyebrow" id="bi-eyebrow">SIN OF THE DAWN</span>
-        <span class="bi-rule"></span>
-      </div>
-      <div class="bi-name" id="bi-name">THE WAKELING</div>
-      <div class="bi-tag" id="bi-tag">It does not flinch.</div>
-    </div>
-  </div>
-
-  <!-- #stage-scale handles the design-canvas positioning + fit-to-viewport
-       transform, so #stage itself stays free for hit-shake animations
-       (the shake keyframes would otherwise clobber the scale transform
-       and pop the canvas back to its un-scaled top-left position). -->
-  <div id="stage-scale">
-  <main id="stage">
-
-    <!-- Biome-driven ambient layer.  Class is set via JS to biome-burning,
-         biome-bonetide, biome-withered, biome-veiled, biome-fortified, or
-         biome-hunger.  Each variant paints its own gradient + particle field. -->
-    <div id="biome-layer" class="biome-layer" aria-hidden="true"></div>
-
-    <!-- ambient overlays wrapped in a single absolutely-positioned layer so they
-         don't claim grid rows in #stage (browser had been auto-placing them as
-         grid items despite position:absolute, squashing the real rows) -->
-    <div class="bg-effects" aria-hidden="true">
-      <div class="fog"></div>
-      <div class="ember-layer">
-        <span class="ember"></span><span class="ember"></span><span class="ember"></span>
-        <span class="ember"></span><span class="ember"></span><span class="ember"></span>
-        <span class="ember"></span><span class="ember"></span>
-      </div>
-    </div>
-
-    <!-- ROW 1: HUD — run modifier (left), sigil tray (centre/right), menu button (right) -->
-    <header id="hud" aria-label="Run state">
-      <div id="run-modifier" aria-label="Run modifier"></div>
-      <div id="sigil-tray" aria-label="Acquired sigils"></div>
-      <button id="pouch-btn" class="hidden" type="button" title="Satchel — use a consumable" aria-label="Open satchel"></button>
-      <button id="info-btn" type="button" title="Menu" aria-label="Open menu">☰</button>
-    </header>
-
-    <!-- ROW 2: ATB queue (slim, above battlefield) -->
-    <section id="atb-row">
-      <div id="queue-strip"></div>
-      <button id="btn-clear" class="control-btn" aria-label="Clear queue" title="Clear queue">✕</button>
-    </section>
-
-    <!-- ROW 3: BATTLEFIELD — party figures left, enemy figures right -->
-    <section id="battlefield">
-      <div id="objective-banner" class="hidden" aria-live="polite"></div>
-      <div id="party-half" aria-label="Party"></div>
-      <div id="enemy-half" aria-label="Enemies"></div>
-    </section>
-
-    <!-- ROW 4: ACTION TILES + TEAM SPECIAL + COMMIT CLUSTER (Resolve + Fight) -->
-    <section id="action-row">
-      <div id="tile-grid"></div>
-      <div id="ts-area"></div>
-      <div id="commit-zone">
-        <div id="resolve-pips" title="Resolve"></div>
-        <button id="btn-fight" class="fight-btn" disabled title="Fight — commit turn">
-          <svg class="fight-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M 8 5 L 17 12 L 8 19 Z" fill="currentColor"/>
-          </svg>
-          <span class="fight-label">FIGHT</span>
-        </button>
-      </div>
-    </section>
-
-    <div id="popup-layer"></div>
-
-    <div id="overlay" class="hidden">
-      <div id="overlay-content">
-        <h2 id="overlay-title">—</h2>
-        <p id="overlay-body">—</p>
-        <div id="overlay-choices" class="hidden"></div>
-        <button id="overlay-btn">Restart</button>
-      </div>
-    </div>
-
-  </main>
-  </div>
-
-  <!-- Cinematic impact layer — full-viewport overlay (outside the scaled
-       stage so it always covers the screen) that flashes + pulses a heavy
-       vignette on crit-tier hits for Darkest-Dungeon-style weight.  Driven
-       by JS toggling fx-* classes; purely visual, pointer-events: none. -->
-  <div id="fx-cinematic" aria-hidden="true">
-    <div class="fx-flash"></div>
-    <div class="fx-vignette"></div>
-    <div class="fx-ring"></div>
-  </div>
-
-  <script src="game.js?v=360"></script>
-  <!-- auto-update: GitHub Pages caches HTML ~10 min; poll the version
-       manifest (no-store) and offer a tap-to-reload past the cache. -->
-  <script id="update-check">
-  (function () {
-    var cur = 0;
-    try { cur = parseInt((document.querySelector('.ts-build') || {}).textContent.replace(/\D+/g, ''), 10) || 0; } catch (_) {}
-    function check() {
-      fetch('version.json?ts=' + Date.now(), { cache: 'no-store' })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (v) {
-          if (!v || !(v.v1 > cur) || document.getElementById('update-chip-v1')) return;
-          var c = document.createElement('button');
-          c.id = 'update-chip-v1';
-          c.textContent = '\u2726 UPDATE READY \u00b7 BUILD ' + v.v1 + ' \u2014 TAP';
-          c.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:99999;cursor:pointer;font-family:Georgia,serif;font-size:12px;letter-spacing:0.2em;padding:9px 24px;border-radius:999px;color:#1a1206;background:linear-gradient(180deg,#f0d488,#b09154);border:1px solid rgba(240,212,136,0.8);box-shadow:0 4px 18px rgba(0,0,0,0.6)';
-          c.onclick = function () { location.replace(location.pathname + '?u=' + v.v1); };
-          document.body.appendChild(c);
-        }).catch(function () {});
-    }
-    setInterval(check, 60000);
-    document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
-    setTimeout(check, 2500);
-  })();
-  </script>
+<body>
+  <main><a href="v2.3/" style="color:#d6cdba">KIZUNA &rarr;</a></main>
 </body>
 </html>

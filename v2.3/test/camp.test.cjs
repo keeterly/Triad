@@ -57,14 +57,13 @@ const { boot } = require('./harness.cjs');
       const K = window.K, D = K.CARD_DEFS, base = K.baseRoster();
       return window.R.TREE.filter(n => n.learn).map(n => {
         const take = D[n.learn.take], drop = D[n.learn.drop];
-        const fam = (id) => D[id].sameAs || id;
         return { id: n.id, cost: n.cost,
                  takeOwner: take && take.owner, dropOwner: drop && drop.owner,
-                 // the taken card is a COPY of something the hero already has
-                 copyOf: take && take.sameAs,
-                 heldAlready: base[n.hero].map(fam).indexOf(take.sameAs) >= 0,
+                 // the taken card is a SECOND of something the hero already has
+                 copyOf: n.learn.take,
+                 heldAlready: base[n.hero].indexOf(n.learn.take) >= 0,
                  // and there are copies of the basic to set down
-                 copies: base[n.hero].map(fam).filter(f => f === n.learn.drop).length };
+                 copies: base[n.hero].filter(f => f === n.learn.drop).length };
       });
     });
     check('TREE: a learn node trades a copy of the basic for a second of the card that combos',
@@ -115,7 +114,7 @@ const { boot } = require('./harness.cjs');
       window.K.startCombat({ seed: 3 });
       const st = window.K.state(), D = window.K.CARD_DEFS, deck = {};
       for (const id of [].concat(st.deck, st.hand, st.discard))
-        deck[(D[id] || {}).sameAs || id] = D[id].owner;
+        deck[id] = D[id].owner;
       const bad = [];
       for (const n of window.R.TREE) {
         if (n.card && deck[n.card] !== n.hero)
