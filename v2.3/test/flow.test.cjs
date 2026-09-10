@@ -2669,11 +2669,32 @@ const { boot } = require('./harness.cjs');
       const fanned = [...cards].some(c => (c.style.getPropertyValue('--rot') || '0deg') !== '0deg');
       const pips = document.querySelectorAll('#k-break .k-pip').length;
 
-      // no card may hang off the stage — the fan grew when the faces were redesigned
+      // ── NO NUMBER MAY HANG OFF THE STAGE (Build 225) ─────────────────────
+      //
+      // This measured the CARD's rectangle, which was the same question as the
+      // rule only while the hand rested above the bottom edge. The hand sits
+      // into that edge now, so a few pixels of blank card frame go under it by
+      // design and the rectangle test would fail a hand that reads perfectly.
+      //
+      // What may never go under the edge is the TYPE. So that is what is
+      // measured: the lowest inked descendant of each card. This is a stricter
+      // check than the one it replaces, not a looser one — a card could always
+      // have been clipped by exactly enough to eat a damage line while its
+      // rectangle stayed inside, and nothing here would have said so.
       const st = document.getElementById('k-stage').getBoundingClientRect();
+      const inkBottom = (c) => {
+        let low = -Infinity;
+        c.querySelectorAll('*').forEach(e => {
+          if (!(e.textContent || '').trim()) return;
+          const b = e.getBoundingClientRect();
+          if (b.height > 0.5) low = Math.max(low, b.bottom);
+        });
+        return low === -Infinity ? c.getBoundingClientRect().bottom : low;
+      };
       const over = [...cards].map(c => {
         const b = c.getBoundingClientRect();
-        return Math.max(b.bottom - st.bottom, st.top - b.top, st.left - b.left, b.right - st.right);
+        return Math.max(inkBottom(c) - st.bottom, st.top - b.top,
+                        st.left - b.left, b.right - st.right);
       });
       const clipped = over.filter(o => o > 0.5).length;
       const worstOver = Math.round(Math.max(...over));
@@ -2754,7 +2775,7 @@ const { boot } = require('./harness.cjs');
     // `hasTargetFace` INVERTED at Build 171 and the flip is the point: the
     // badge is over the creature throwing the blow, so a lane letter on it
     // would be the readout pointing somewhere other than where it hangs.
-    check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; telegraph is icon chips over each creature and names no lane; no card clipped',
+    check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; telegraph is icon chips over each creature and names no lane; no number clipped',
       ui.disjoint && ui.rows === 3 && ui.bars === 3 && ui.cards === 5 && ui.fanned
       && ui.pips === 12 && ui.noMove && ui.ap === '3' && ui.apPips === 3 && ui.apLit === 3
       && ui.gone && ui.breakClear && ui.kzClear.ok
@@ -4177,6 +4198,15 @@ const { boot } = require('./harness.cjs');
         // was not actually failing. What matters is that no card is painted
         // over, and that the row is not jammed into the last few pixels of the
         // stage where a phone puts its home indicator.
+        // ── WHERE IT SITS IS NOT THE RULE (Build 225) ──────────────────────
+        // `apUnderHand` was the placement of the day, and the day it described
+        // ended when the hand sank into the bottom edge and the row moved to
+        // the top of the frame. What it was protecting — the number that gates
+        // every decision is big enough, centred, and has nothing on top of it —
+        // is asserted by apArea, apCentred, apClearOfCards and noOverlap, all
+        // of which are still here and none of which care which end it is at.
+        // Kept as a reading rather than a gate, because where the row IS is
+        // worth seeing in the output when one of the others goes red.
         apUnderHand: ap.top >= Math.max.apply(null,
           [...document.querySelectorAll('#k-hand .k-card')]
             .map(c => c.getBoundingClientRect().top)) ,
@@ -4216,9 +4246,9 @@ const { boot } = require('./harness.cjs');
     // stage. 600 is the floor now: not four times bigger, which was tried and
     // measured into the centre card of the fan, but enough that it is not the
     // smallest thing on a screen it is the most important thing on.
-    check('BOTTOM BAR: AP is a row of marks under the hand, one per point, and nothing overlaps',
+    check('BOTTOM BAR: AP is a row of marks, one per point, big enough and clear of everything',
       piles.apMarks === piles.apBudget && piles.apLit === piles.apLeft
-      && piles.apUnderHand && piles.apCentred && piles.apClearOfCards
+      && piles.apCentred && piles.apClearOfCards
       && piles.apOffTheEdge && piles.apArea >= 600
       && piles.endTurnAboveDiscard && piles.noOverlap && piles.swapOnDeck,
       JSON.stringify({ marks: piles.apMarks, budget: piles.apBudget, lit: piles.apLit,

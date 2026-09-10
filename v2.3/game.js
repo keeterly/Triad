@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 224;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 225;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -6092,7 +6092,9 @@ function renderPartyHud() {
     // no room left to say which of the four numbers to act on. The threat is
     // still told, twice: the chip row above the board says what the turn does,
     // and the bar itself outlines when somebody is actually being aimed at.
-    row.querySelector('.k-pt-hp').innerHTML = '<b>' + fmtN(h.hp) + '</b> / ' + fmtN(h.max)
+    // the max is wrapped rather than dropped, so the stylesheet decides whether
+    // this roster shows a fraction or a number (see .k-pt-hp i)
+    row.querySelector('.k-pt-hp').innerHTML = '<b>' + fmtN(h.hp) + '</b><i> / ' + fmtN(h.max) + '</i>'
       + (h.guard > 0 ? ' <span class="k-pt-guard">⛨' + fmtN(h.guard) + '</span>' : '');
     // THE OUTLINE IS WHAT IS LEFT OF THE TELEGRAPH, and it is the half that
     // needed no reading: the bar of whoever is about to be hit gets a rim, and
