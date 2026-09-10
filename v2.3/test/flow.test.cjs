@@ -879,7 +879,7 @@ const { boot } = require('./harness.cjs');
                  // …and the bar is under both of them, spanning the column
                  under: Math.round(b.top - nm.bottom),
                  spans: Math.round(b.width - (Math.max(n.right, nm.right) - nm.left)),
-                 // A WELL WITH INK IN IT. `.k-bar-fill` is inset a pixel on
+                 // A RULE WITH INK IN IT. `.k-bar-fill` is inset a pixel on
                  // every side and `box-sizing: border-box` eats the border out
                  // of the height too, so a 5px bar carried ONE pixel of colour
                  // — three full-health heroes reading as three empty grooves.
@@ -903,8 +903,12 @@ const { boot } = require('./harness.cjs');
       rows.geom.length === 3 && rows.geom.every(g => g
         && g.sameLine <= 4 && g.afterName > 0 && g.under >= 0 && g.under <= 10
         && g.spans >= -2
-        // and the fill actually fills the well it sits in
-        && g.wellH >= 6 && g.inkH >= g.wellH - 2),
+        // …and the lit part of the rule is the FULL thickness of the rule.
+        // `>= 6` was here for a beat and it was a literal off the capsule
+        // gauge that has since become a 2px rule; the rule being asked about
+        // is that no thickness is lost to the fill's insets, whatever the
+        // thickness is.
+        && g.wellH >= 2 && g.inkH === g.wellH),
       JSON.stringify(rows.geom));
 
     check('HUD: the aimed outline means AIMED — not merely alive under a dirge that reaches everyone',
