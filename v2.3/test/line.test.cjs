@@ -716,10 +716,30 @@ const { boot } = require('./harness.cjs');
       const live = ['--ui-l', '--ui-t', '--ui-r', '--ui-b'].map(k => parseFloat(cs.getPropertyValue(k)) || 0);
       const st = document.getElementById('k-stage').getBoundingClientRect();
       const safe = { l: 59, t: 0, r: innerWidth - 59, b: innerHeight - 21 };
-      const off = ['k-party-hud', 'k-boss-hud', 'k-hand', 'k-endturn', 'k-deck-btn', 'k-disc-btn']
+      const outside = (b) => b.left < safe.l - 1 || b.top < safe.t - 1
+                          || b.right > safe.r + 1 || b.bottom > safe.b + 1;
+      const off = ['k-party-hud', 'k-boss-hud', 'k-endturn', 'k-deck-btn', 'k-disc-btn']
         .filter(id => { const e = document.getElementById(id); if (!e) return false;
-          const b = e.getBoundingClientRect();
-          return b.left < safe.l - 1 || b.top < safe.t - 1 || b.right > safe.r + 1 || b.bottom > safe.b + 1; });
+          return outside(e.getBoundingClientRect()); });
+      // ── THE HAND IS ASKED A DIFFERENT QUESTION (Build 227) ────────────────
+      //
+      // It used to be in the list above, and its whole box had to sit inside
+      // the safe area. That was the right question while the hand rested above
+      // the bottom edge. The hand deliberately sits INTO that edge now, so on a
+      // phone with a home indicator the lower part of a card is in the strip
+      // the hardware owns — by design, and it is painting down there.
+      //
+      // What may never be in that strip is anything the player has to READ or
+      // has to GRAB. So the name plate is what is measured, and the card's body
+      // has to keep enough height above the line to be taken hold of. If the
+      // sink ever grows far enough to push a name under the home indicator, or
+      // to leave only a sliver to drag, this fails — which is the rule the
+      // whole-box test was standing in for.
+      const nms = [...document.querySelectorAll('#k-hand .k-card .k-cname')];
+      if (nms.some(n => outside(n.getBoundingClientRect()))) off.push('k-hand:name');
+      const grab = [...document.querySelectorAll('#k-hand .k-card')]
+        .map(c => { const b = c.getBoundingClientRect(); return safe.b - b.top; });
+      if (grab.length && Math.min(...grab) < 44) off.push('k-hand:grab');
       ['--sa-t', '--sa-r', '--sa-b', '--sa-l'].forEach((k, i) => root.style.setProperty(k, keep[i] || ''));
       dispatchEvent(new Event('resize'));
       return { out, live, off,

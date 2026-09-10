@@ -887,8 +887,26 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    A true half-card hide, which is what was asked for, needs the NAME moved up
    the face first. That is a change to the card's composition rather than a
    number here, and it is not made on the way past. */
+/* ── BIGGER CARDS ARE READY AND NOT SHIPPED (Build 227) ────────────────────
+   Swept 0.9 / 1.0 / 1.1 / 1.2, each against the deepest sink its own name plate
+   still clears — the two are ONE question, because the name's distance from the
+   card's foot scales with the card. Every scale allows about 34% hidden; 1.1
+   would take 109x148 to 133x181, half again the area, with the fan 528 of 932
+   across so it still clears both corner piles. It looked right.
+   It is not here because it breaks a check that has nothing to do with card
+   size, and the honest reason is written at the bottom of this note rather than
+   worked around: the flow suite's AIM block taps `rect.left + 10, top + 10` —
+   a CORNER of a rotated card's bounding box, which is not on the card — and it
+   has been landing on ink by luck. The block also runs on a board the previous
+   test leaves carrying a victory door and a stage stuck mid-kick (`k-frozen`
+   pauses animations, and a kick is one). Bigger cards move that corner under
+   the scrim and the tap hits nothing.
+   Giving that block a clean page fixes it and breaks the two checks after it,
+   which read state from before the reload. That is a knot in the suite worth
+   untying properly, and not on the way past a size change. */
 #k-hand { position: absolute; left: 50%; bottom: calc(-41px + var(--ui-b));
-  transform: translateX(-50%) scale(0.9); transform-origin: 50% 100%;
+  --fan-s: 0.9;
+  transform: translateX(-50%) scale(var(--fan-s)); transform-origin: 50% 100%;
   display: flex; gap: 5px; align-items: flex-end; z-index: 14;
   perspective: 760px; perspective-origin: 50% 130%; }
 #k-hand .k-card-active { margin-bottom: 0; }
@@ -950,9 +968,11 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    edge at rest, and this is what brings it back. On a phone there is no hover —
    `_sel` is set by the tap that selects a card, so a finger gets the same lift
    a cursor does, and `.k-dragging` carries the card with the finger after that.
-   64 was swept alongside the sink: it puts the lowest ink 26px clear of the
-   edge with the card's top still 258px inside the stage, so a card being read
-   is never a card being cropped at either end. */
+   It is re-derived whenever the fan is resized, because it has to clear the
+   sink and the sink moves with the card: 64 against the 52px sink at scale 0.9,
+   76 against 62 at 1.1. A card being read is never a card cropped at either
+   end, and the flow suite asserts exactly that rather than trusting a number
+   written here. */
 .k-card:hover { transform: rotate(0deg) translateY(-64px) scale(1.04); z-index: 6; }
 .k-card-sel { transform: rotate(0deg) translateY(-64px); z-index: 6;
   box-shadow: 0 8px 20px rgba(0,0,0,0.7), 0 0 0 2px #e0c084, 0 0 18px rgba(201,164,92,0.4); }
@@ -2116,14 +2136,14 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
 /* the hand steps back while the board is the question — the front row lives
    under the fan, and a lane you cannot see is a lane you cannot aim at */
 #k-hand { transition: transform 0.2s var(--ease-out), opacity 0.2s var(--ease-out); }
-#k-stage.k-moving #k-hand { transform: translateX(-50%) translateY(104px); opacity: 0.3; }
+#k-stage.k-moving #k-hand { transform: translateX(-50%) translateY(104px) scale(var(--fan-s)); opacity: 0.3; }
 /* …AND THE SAME WHILE A CARD IS BEING AIMED. Moving a hero and throwing a card
    are the same gesture with a different question, and in both of them the
    board is the answer: a fan of five cards across the bottom third is exactly
    what you do not want to be looking through while picking who to hit. It
    steps back less far than a move does, because the card in the hand is still
    the thing being dragged and it has to stay legible. */
-#k-stage.k-aiming #k-hand { transform: translateX(-50%) translateY(66px); opacity: 0.42; }
+#k-stage.k-aiming #k-hand { transform: translateX(-50%) translateY(66px) scale(var(--fan-s)); opacity: 0.42; }
 #k-stage.k-aiming .k-card.k-aiming { opacity: 1; }
 /* where they already stand: stated, not offered */
 .k-row.k-row-here { border-style: solid; border-color: rgba(160,150,128,0.45);

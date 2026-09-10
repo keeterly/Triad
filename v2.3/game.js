@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 226;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 227;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -7826,12 +7826,40 @@ function attachCardInput(btn) {
       el('k-stage').classList.add('k-aiming');
       // the hero starts the swing as the card leaves the fan
       castReady(btn.dataset.card);
+      // ── THE ANCHOR IS MEASURED, NOT ASSUMED, AND IT IS RE-MEASURED (226) ──
+      //
+      // This used to take ONE reading of the card's rest centre, here, and use
+      // it for the whole gesture. Two things then moved underneath it.
+      //
+      // The hand steps back when the board becomes the question — 66px down,
+      // over 200ms — and the card is a CHILD of the hand, so it went with it.
+      // The reading above was taken on the frame the class went on, before any
+      // of that had happened, and the card spent the rest of the drag about 59
+      // pixels (66 x the hand's 0.9 scale) below where the maths put it.
+      // Measured against a finger: the card was meant to hang 58 left and 104
+      // below and it actually hung 78 left and 161 below, on every sample.
+      //
+      // And `--dragx` is a translate applied INSIDE the hand, which is scaled,
+      // so one unit of it is not one pixel on screen. Rather than hard-code the
+      // hand's scale — a number that would go stale the first time the fan is
+      // resized — the drag asks the DOM what a unit is worth, once, by moving
+      // the card a known amount and measuring how far it went.
       const stg0 = el('k-stage'), sr0 = stg0.getBoundingClientRect();
       const k0 = sr0.width / stg0.offsetWidth || 1;
-      const h0 = btn.getBoundingClientRect();
-      home = { x: (h0.left + h0.width / 2 - sr0.left) / k0,
-               y: (h0.top + h0.height / 2 - sr0.top) / k0,
-               hw: h0.width / k0 / 2, hh: h0.height / k0 / 2 };
+      const cen = () => { const r = btn.getBoundingClientRect();
+        return { x: (r.left + r.width / 2 - sr0.left) / k0,
+                 y: (r.top + r.height / 2 - sr0.top) / k0,
+                 hw: r.width / k0 / 2, hh: r.height / k0 / 2 }; };
+      const a0 = cen();
+      btn.style.setProperty('--dragx', '100px');
+      btn.style.setProperty('--dragy', '100px');
+      const a1 = cen();
+      btn.style.setProperty('--dragx', '0px');
+      btn.style.setProperty('--dragy', '0px');
+      const ux = (a1.x - a0.x) / 100, uy = (a1.y - a0.y) / 100;
+      home = { x: a0.x, y: a0.y, hw: a0.hw, hh: a0.hh,
+               // a scale of zero would divide the gesture into infinity
+               ux: Math.abs(ux) > 0.01 ? ux : 1, uy: Math.abs(uy) > 0.01 ? uy : 1 };
       // light every figure this card could legally land on
       const want = cardDef(btn.dataset.card).target === 'enemy' ? 'enemy' : 'party';
       if (want === 'enemy') el('k-boss-art').classList.add('k-aim-valid');
@@ -7846,10 +7874,24 @@ function attachCardInput(btn) {
       // clamped only to the STAGE edge — a real boundary, not a leash: it can
       // only bite at the very rim, never in the middle of an ordinary drag
       const hw = home.hw, hh = home.hh;      // measured under the aiming transform
-      const cx2 = Math.max(hw + 2, Math.min(932 - hw - 2, px + CARD_OFFSET.x));
-      const cy2 = Math.max(hh + 2, Math.min(430 - hh - 2, py + CARD_OFFSET.y));
-      btn.style.setProperty('--dragx', (cx2 - home.x) + 'px');
-      btn.style.setProperty('--dragy', (cy2 - home.y) + 'px');
+      // …AND THE STAGE IS ASKED HOW BIG IT IS. These were the literals 932 and
+      // 430, which are this stage's size today and nothing more; a fan clamped
+      // to a remembered rectangle is a fan that leaves the screen the moment
+      // the screen changes.
+      const sw = sr2.width / k, sh = sr2.height / k;
+      const cx2 = Math.max(hw + 2, Math.min(sw - hw - 2, px + CARD_OFFSET.x));
+      const cy2 = Math.max(hh + 2, Math.min(sh - hh - 2, py + CARD_OFFSET.y));
+      // RE-ANCHOR EVERY FRAME. Where the card would sit with no drag on it is
+      // read back from where it IS minus the drag already applied, so the hand
+      // sliding out from under it — or anything else moving it — is corrected
+      // on the next frame instead of being carried for the whole gesture.
+      const now = btn.getBoundingClientRect();
+      const dxNow = parseFloat(btn.style.getPropertyValue('--dragx')) || 0;
+      const dyNow = parseFloat(btn.style.getPropertyValue('--dragy')) || 0;
+      home.x = (now.left + now.width / 2 - sr2.left) / k - dxNow * home.ux;
+      home.y = (now.top + now.height / 2 - sr2.top) / k - dyNow * home.uy;
+      btn.style.setProperty('--dragx', ((cx2 - home.x) / home.ux) + 'px');
+      btn.style.setProperty('--dragy', ((cy2 - home.y) / home.uy) + 'px');
       const over = dropTargetAt(e.clientX, e.clientY, btn.dataset.card);
       const want = cardDef(btn.dataset.card).target === 'enemy' ? 'enemy' : 'party';
       btn.classList.toggle('k-drop-ok', !!over && (over.zone === want || over.zone === 'piles'));
