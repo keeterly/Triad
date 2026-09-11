@@ -443,90 +443,27 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
   55%  { background: #fff; box-shadow: 0 0 9px rgba(255,246,226,0.8); }
   100% { background: rgba(255,228,196,0.62); box-shadow: 0 0 6px rgba(255,214,170,0.45); }
 }
-.k-bar-party { background: linear-gradient(90deg, #a8996f, #ddcfa2); }
 .k-bar-boss { background: linear-gradient(90deg, #7e2a20, #b23a2a); }
 .k-hpnum { font-size: 12px; color: #9a9080; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
 .k-hpnum b { font-weight: 600; font-size: 13px; color: #e6ddc8; }
 
-/* ── THE ROSTER IS A READOUT, NOT A GAUGE RACK (Build 230) ─────────────────
-   Build 229 built the bar up: a 7px well, a sunk track, a lit top edge on the
-   fill, a rounded cap. It was a good capsule gauge and it was the only capsule
-   gauge in the game. Everything else here is ENGRAVED — a serif, a hairline,
-   a gold rule under END TURN and under every card's name — so the one piece of
-   moulded plastic on screen was the party's health.
+/* ── WHAT IS LEFT IN THE CORNER (Build 231) ────────────────────────────────
+   The roster is gone from here. Builds 229 and 230 spent their effort making
+   three hero readings sit well in the top-left — a shade, a ringed portrait, a
+   number over a rule — and every one of those decisions was answering the
+   wrong question, because the enemy was already answering the right one over
+   its own head. The party wears `.k-vit` now (see THE PLATE, below).
 
-   The reference is the Final Fantasy XII battle readout, and what it teaches is
-   not a bar style, it is an ORDER OF IMPORTANCE:
-
-   · THE NUMBER IS THE HERO. `2457` is set nearly twice the size of everything
-     around it and the maximum trails it small. Ours was 13.5px next to a 10px
-     name, which made the row read as a label with a figure attached.
-   · THE MAXIMUM COMES BACK. 225 dropped it — a bar already says what share is
-     left — and that was true while the bar was the loud element. Now that the
-     gauge is a hairline, `42` alone is a quantity with no scale, and `/ 42`
-     is what turns it into a proportion. The markup never stopped writing it
-     (see .k-pt-hp i); this is the one line that was promised.
-   · THE GAUGE IS A RULE. In the reference every row is underlined and the
-     colour of the underline is the information. So the bar is 2px, square,
-     unbordered, and spans the whole column: the lit part is health and the
-     dim part is the rest of the rule, still there, so the row keeps its
-     underline at 1 HP and the shortfall is what you read.
-
-   What stays from 229: the block's own soft shade, the ringed portrait, and
-   name-and-number at the two ends of one line. */
-/* 172, NOT 182. The readout's right edge and the back rank's left edge are
-   34px apart on the painted stage — Elin's plate starts at 193 — so the block
-   has a hard ceiling on how wide it may grow before it is standing on
-   somebody. 182 crossed it by five pixels and the suite said so. */
+   The ladder stays, because it is the one reading in the fight that belongs to
+   nobody in particular. It keeps its own small shade: it is the only thing up
+   here now, and a lone line of type over a bright plaza needs a ground. */
 #k-party-hud { position: absolute; left: calc(16px + var(--ui-l)); top: calc(14px + var(--ui-t));
-  width: 172px; display: flex; flex-direction: column; gap: 10px; z-index: 10; }
-/* THE SHADE FEATHERS ON EVERY SIDE. A linear wedge fades on ONE axis, so an
-   earlier cut of this drew a hard rounded-rectangle edge along its top, left
-   and bottom — the exact translucent panel it was there to avoid. A radial one
-   anchored over the portraits has no edge anywhere: it is simply darker where
-   the readings are. The bleed is generous for the same reason — the falloff
-   has to be finished before it reaches the figures on the board. */
-#k-party-hud::before { content: ''; position: absolute; left: -46px; right: -72px;
-  top: -40px; bottom: -34px; z-index: -1; pointer-events: none;
-  background: radial-gradient(58% 62% at 26% 44%, rgba(7,6,11,0.82) 0%,
-    rgba(7,6,11,0.62) 40%, rgba(7,6,11,0.28) 68%, rgba(7,6,11,0) 100%); }
-.k-pt-hero { display: flex; align-items: center; gap: 10px;
-  transition: opacity 0.3s var(--ease-out), filter 0.3s var(--ease-out); }
-/* MEDALLIONS. A rounded rectangle reads as a UI tile; a ringed circle reads
-   as a portrait, which is what it is. The ring is two rings — a gold hairline
-   inside a dark one — because a single line on a bright backdrop disappears
-   into it, and the dark ring is what separates the face from the sky. */
-.k-pt-hero img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover;
-  object-position: 50% 8%; flex: none;
-  border: 1px solid rgba(214,180,110,0.8);
-  box-shadow: 0 0 0 2px rgba(9,8,13,0.9), 0 3px 10px rgba(0,0,0,0.8); }
-.k-pt-info { display: flex; flex-direction: column; gap: 3px; flex-grow: 1; min-width: 0; }
-/* who, and how much — the two things that name a row, at the two ends of it */
-.k-pt-top { display: flex; align-items: baseline; justify-content: space-between;
-  gap: 8px; width: 100%; }
-.k-pt-name { font-size: 10px; font-weight: 600; letter-spacing: 0.2em; color: #cfc0a0;
-  text-transform: uppercase; text-shadow: 0 1px 4px rgba(0,0,0,0.95); }
-.k-pt-hp { white-space: nowrap; margin-left: auto; line-height: 1;
-  font-variant-numeric: tabular-nums; text-shadow: 0 1px 4px rgba(0,0,0,0.95); }
-.k-pt-hp b { font-size: 17px; color: #f6efdd; font-weight: 500; letter-spacing: 0.01em; }
-/* the maximum, trailing the figure it gives a scale to */
-.k-pt-hp i { display: inline; font-style: normal; font-size: 10px; color: #9e937c;
-  letter-spacing: 0.04em; }
-.k-pt-row { display: flex; align-items: center; gap: 7px; width: 100%; }
-/* THE RULE. Square, unbordered, and the WHOLE column wide — the dim part is
-   not an empty track, it is the rest of the underline. `.k-bar-fill` is inset
-   a pixel on every side of its parent and `box-sizing: border-box` takes the
-   border out of the stated height too, so a bar this thin has to hand its
-   children the full box or there is no ink left to light. */
-.k-pt-row .k-bar { flex: 1 1 auto; min-width: 0; height: 2px; border: 0;
-  border-radius: 0; background: rgba(214,190,140,0.22); box-shadow: none; }
-.k-pt-row .k-bar .k-bar-fill, .k-pt-row .k-bar .k-bar-ghost {
-  top: 0; bottom: 0; left: 0; border-radius: 0; }
-.k-pt-row .k-bar .k-bar-fill.k-bar-party {
-  background-image: linear-gradient(90deg, #c8a45c 0%, #efdcae 70%, #fff0cd 100%);
-  box-shadow: 0 0 7px rgba(240,214,150,0.5); }
-.k-pt-hero.k-downed { opacity: 0.4; filter: grayscale(0.8); }
-.k-pt-shared { display: flex; gap: 12px; align-items: baseline; padding-left: 42px; }
+  width: 172px; display: flex; flex-direction: column; gap: 6px; z-index: 10; }
+#k-party-hud::before { content: ''; position: absolute; left: -34px; right: -56px;
+  top: -30px; bottom: -30px; z-index: -1; pointer-events: none;
+  background: radial-gradient(58% 62% at 26% 50%, rgba(7,6,11,0.72) 0%,
+    rgba(7,6,11,0.48) 44%, rgba(7,6,11,0) 100%); }
+.k-pt-shared { display: flex; gap: 12px; align-items: baseline; }
 .k-pt-guard { font-size: 10px; color: #c9a45c; }
 #k-intercede { font-size: 9px; color: #c9a45c; letter-spacing: 0.1em; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
 
@@ -758,18 +695,9 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    was three readings competing in one corner. */
 /* …and Guard is a different SHAPE, not merely a different colour: it is the one
    chip on the row that is good news, sitting next to the one that is not */
-.k-pt-guard { border-radius: 7px; }
-/* AIMED. On a 2px rule there is no room for a rim, so the rule itself goes
-   red under the row somebody is about to be hit on — the unlit half included,
-   because the whole underline is the thing that changes. */
-.k-pt-hero.k-pt-aimed .k-bar { background: rgba(232,119,106,0.3); }
-.k-pt-hero.k-pt-aimed .k-bar .k-bar-fill.k-bar-party {
-  background-image: linear-gradient(90deg, #c76a5c 0%, #f0a294 70%, #ffc8bc 100%);
-  box-shadow: 0 0 8px rgba(232,119,106,0.6); }
 /* A BLOW THAT KILLS IS NOT THE SAME NEWS AS A BLOW THAT HURTS, and a player
    who cannot see the difference cannot know that this is the turn to Guard, to
    step back, or to put Elin in front. */
-.k-pt-hero.k-pt-lethal .k-pt-name { color: #ff9d8c; }
 /* each kind of turn has its own colour, so the shape reads before the number */
 /* the KIND is carried by the mark's colour alone now — the filled plate that
    used to sit behind each reading was doing the same job twice, loudly */
@@ -2257,10 +2185,9 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    both. Grid rather than markup, so the DOM the suites read is untouched. */
 #k-kizuna { position: relative; margin-top: 1px; transform: none; align-self: flex-start;
   z-index: 12; display: grid; grid-template-columns: 1fr auto; align-items: baseline;
-  /* the 42px indent is the portrait plus its gap, so all four rules in the
-     block share one left edge — which is most of what makes a column of
-     readings read as a readout rather than as four separate widgets */
-  gap: 4px 10px; padding: 0 0 0 42px; width: 172px; border-radius: 0; cursor: default;
+  /* it used to indent 42px to clear the portraits it stood under; there are
+     no portraits here any more, so it starts at the corner's own edge */
+  gap: 4px 10px; padding: 0; width: 172px; border-radius: 0; cursor: default;
   font-family: inherit; border: 0;
   /* IT USED TO CARRY ITS OWN SCRIM. It had to: floating over a bright stretch
      of ruined street, a 1px rule with grey text vanished into it. The roster
@@ -2289,10 +2216,7 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
   border: 1px solid rgba(240,212,136,0.65); border-radius: 3px;
   background: linear-gradient(180deg, rgba(224,192,132,0.16), rgba(201,164,92,0.06));
   box-shadow: 0 0 18px rgba(224,192,132,0.45), inset 0 0 12px rgba(255,238,196,0.1);
-  /* the left inset is the row's, not the plate's: `padding: 4px 8px` here
-     un-indented the ladder the moment it filled, so the one row that had just
-     become a button jumped 34px out of the column it lives in */
-  padding: 4px 8px 4px 42px;
+  padding: 4px 8px;
   animation: k-kzready 1.7s ease-in-out infinite; }
 /* A THUMB-SIZED TARGET without moving anything. The bar keeps its exact place
    in the HUD; the press just reaches 14px further in every direction than the
@@ -3649,9 +3573,11 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
 /* MOVED at the campfire rebuild: the fire no longer has a 22px avatar to
    rescue — the hero header IS the hero, at 118px, standing in the firelight,
    where the two of them are told apart by pose and silhouette. The lift stays
-   for the two places that still show a coin-sized portrait: the road's roster
-   and the party stack. */
-.k-pt-hero img, .k-mp img {
+   for the ONE place that still shows a coin-sized portrait: the road's roster.
+   The party stack lost its medallions at 231 when the readout moved onto the
+   people it describes — a portrait is a poor answer to "which of these three"
+   when the person is standing right there under the plate. */
+.k-mp img {
   filter: brightness(1.5) contrast(1.12) saturate(0.9);
   background: radial-gradient(60% 60% at 50% 38%, #3a3440, #1b1820); }
 
@@ -4841,12 +4767,24 @@ body.k-cast3d .k-hero.k-row-front img { filter: none; }
 
    It is pointer-transparent: the creature is the target, and this hangs in the
    sky ABOVE the creature, so anything it swallowed would be a click on air. */
+/* ── …AND THE PARTY WEARS IT TOO (Build 231) ────────────────────────────────
+   One plate, both sides of the fight. `--vit-ink` is the only thing that says
+   whose it is — everything else about the reading (the width, the name over a
+   bar, the number to its right, the third line under both) is shared, so the
+   next change to this component lands on the party and the line at once.
+
+   The two tints are not decoration: gold is what the game has always meant by
+   YOURS (the card frames, the ladder, END TURN) and the rust is what it means
+   by theirs. Attached to a body, that is the second channel — you know whose a
+   plate is because of where it is; the colour only confirms it. */
 .k-vit {
+  --vit-ink: #c1553f; --vit-ink-deep: #8d3226;    /* theirs */
   position: absolute; z-index: 20; pointer-events: none;
   width: 74px; display: flex; flex-direction: column; gap: 2px;
   transform: translate(-50%, -100%);
   opacity: 0.88; transition: opacity 200ms var(--ease-soft, cubic-bezier(0.4,0,0.2,1));
 }
+.k-vit-us { --vit-ink: #e0cb95; --vit-ink-deep: #a8873f; }
 /* the aimed one is not a highlighted ROW any more — there is no list for it to
    be a row of — so it says so the way the boss plate does: it is the one that
    is fully lit, with a hairline around its bar. */
@@ -4862,13 +4800,24 @@ body.k-cast3d .k-hero.k-row-front img { filter: none; }
 .k-vit-bot em { flex: none; font-style: normal; font-weight: 700; font-size: 10px;
   line-height: 1; font-variant-numeric: tabular-nums; color: #e8dfcd;
   text-shadow: 0 1px 4px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.8); }
-.k-vit-bar { display: block; height: 4px; border-radius: 2px; overflow: hidden;
-  background: rgba(0,0,0,0.55); box-shadow: 0 1px 4px rgba(0,0,0,0.75); }
+.k-vit-bar { position: relative; display: block; height: 4px; border-radius: 2px;
+  overflow: hidden; background: rgba(0,0,0,0.55); box-shadow: 0 1px 4px rgba(0,0,0,0.75); }
 .k-vit-on .k-vit-bar { box-shadow: 0 1px 4px rgba(0,0,0,0.75),
   0 0 0 1px rgba(224,192,132,0.55); }
-.k-vit-bar i { display: block; height: 100%;
-  background: linear-gradient(180deg, #c1553f, #8d3226);
-  transition: width 260ms var(--ease-soft, cubic-bezier(0.4,0,0.2,1)); }
+/* THE WOUND GHOST CROSSED OVER WITH THE PLATE. `setBar` is the one function
+   that draws a health bar in this game — snap the fill, hold a pale ghost at
+   the old value, flash it white, then let it drain — and it was only ever
+   reaching the roster the party no longer has. Both sides run through it now,
+   so a creature's health finally bites the way the party's always did.
+   The fill takes the WHOLE bar: `.k-bar-fill` is inset a pixel on every side
+   for the 6px corner gauge it was written for, and four pixels minus two
+   leaves two. */
+.k-vit-bar .k-bar-fill, .k-vit-bar .k-bar-ghost {
+  inset: 0; border-radius: 2px; }
+.k-vit-bar .k-bar-fill {
+  background: linear-gradient(180deg, var(--vit-ink), var(--vit-ink-deep)); }
+.k-vit-bar .k-bar-ghost { background: rgba(255,228,196,0.6);
+  box-shadow: 0 0 5px rgba(255,214,170,0.4); }
 /* the gauge at body scale: the same bordered tiles the plate has, three pixels
    tall instead of four, and they stretch — four of them read as a full gauge
    rather than a stub under a 98px bar. */
@@ -4880,6 +4829,18 @@ body.k-cast3d .k-hero.k-row-front img { filter: none; }
 .k-vit-stag { font: 700 8px/1.2 var(--ui, system-ui), sans-serif;
   letter-spacing: 0.12em; text-transform: uppercase; color: #d99a4e;
   text-shadow: 0 1px 4px rgba(0,0,0,0.95); }
+/* ABOUT TO BE HIT, AND ABOUT TO BE FINISHED. The lit plate already means
+   "this is the one the turn is about" on both sides; on ours the name also
+   goes red when the blow lands harder than what is left plus the guard. No
+   number, because the number is already on the badge over the creature that
+   is throwing it. */
+.k-vit-lethal b { color: #ff9d8c; }
+.k-vit-lethal .k-vit-bar { box-shadow: 0 1px 4px rgba(0,0,0,0.75),
+  0 0 0 1px rgba(232,119,106,0.8), 0 0 9px rgba(232,119,106,0.4); }
+/* A HERO WHO IS DOWN KEEPS THEIR PLATE — the whole question at that moment is
+   how to get them back up, and a reading that vanishes cannot be part of it. */
+.k-vit-down { opacity: 0.42; filter: grayscale(0.75); }
+.k-vit-down .k-vit-bar .k-bar-fill { background: #4b4550; }
 
 /* ── HOW HEAVY, IN THREE SIZES ───────────────────────────────────────────────
    The mark grows and the number grows with it, so weight is legible before

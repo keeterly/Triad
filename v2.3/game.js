@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 230;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 231;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -6078,35 +6078,62 @@ function renderPartyHud() {
   }
   const incoming = {};
   Object.keys(C.heroes).forEach(id => { incoming[id] = (aimed[id] || 0) + (shared[id] || 0); });
+  // ── THE PARTY WEARS THE PLATE THE ENEMY WEARS (Build 231) ────────────────
+  //
+  // A corner roster and a body plate were two readouts saying the same three
+  // things in two visual languages, and a player had to learn both: theirs
+  // stood on the creature, ours sat in the top-left with portraits, a serif
+  // and a rule. Nothing about health is different on the two sides of a fight,
+  // so nothing about the reading should be either.
+  //
+  // This is not a restyle of the roster into something plate-SHAPED. It is the
+  // same component — `.k-vit`, built by the same `bodyLabel`, placed by the
+  // same `placeBodyLabels`, stacked under the same telegraph, spread by the
+  // same `_spreadTells` — with one token, `--vit-ink`, saying whose it is.
+  // A change to the plate now lands on both sides at once, which is the only
+  // version of "unified" that stays unified.
+  //
+  // AND THE PARTY'S PLATE HAS NO THIRD LINE. A creature's is the poise it has
+  // left, which is a foe-only pool with nowhere else to live. The obvious
+  // mirror was the hero's guard — and it is the wrong one: Build 171 took
+  // guard OUT of the roster's HP line for being "a number inside another
+  // number, in the corner furthest from the hero it described", and put it on
+  // the body as a status pip beside chill and bleed. Putting it back on the
+  // plate would re-open that, and it would do it while the pip is still there,
+  // two inches away, saying the same thing.
+  const quiet = C.phase === 'VICTORY' || C.phase === 'DEFEAT';
   for (const id of Object.keys(C.heroes)) {
     const h = C.heroes[id];
-    const row = document.querySelector('.k-pt-hero[data-hero="' + id + '"]');
-    if (!row) continue;
-    row.classList.toggle('k-downed', !!h.downed);
-    setBar(row.querySelector('.k-bar'), h.hp / h.max * 100);
-    // THE NUMBERS AND NOTHING ELSE. The row carried a red chip reading
-    // "\u25be9+3" — the turn's incoming damage, split into its aimed and shared
-    // parts — pinned to the health bar it was about to empty. It was read as
-    // clutter rather than as a warning: a small boxed figure beside another
-    // figure, in a corner already carrying a name, a bar and a fraction, with
-    // no room left to say which of the four numbers to act on. The threat is
-    // still told, twice: the chip row above the board says what the turn does,
-    // and the bar itself outlines when somebody is actually being aimed at.
-    // the max is wrapped rather than dropped, so the stylesheet decides whether
-    // this roster shows a fraction or a number (see .k-pt-hp i)
-    row.querySelector('.k-pt-hp').innerHTML = '<b>' + fmtN(h.hp) + '</b><i> / ' + fmtN(h.max) + '</i>'
-      + (h.guard > 0 ? ' <span class="k-pt-guard">⛨' + fmtN(h.guard) + '</span>' : '');
-    // THE OUTLINE IS WHAT IS LEFT OF THE TELEGRAPH, and it is the half that
-    // needed no reading: the bar of whoever is about to be hit gets a rim, and
-    // the name goes red when the blow would finish them. No number, because
-    // the number is already on the chip row above the board.
-    // AND THE OUTLINE MEANS AIMED, NOT MERELY PRESENT. Every foe in the
-    // bestiary carries a dirge and the dirge reaches everyone, so keying this
-    // on `incoming` lit all three rows on every turn of every fight — a
-    // highlight that is always on is chrome, and it drowned the one turn where
-    // somebody genuinely is the target.
-    row.classList.toggle('k-pt-aimed', !!aimed[id] && !h.downed);
-    row.classList.toggle('k-pt-lethal', !h.downed && incoming[id] >= h.hp + h.guard);
+    // A DOWNED HERO KEEPS THEIR PLATE. A creature's goes when the creature
+    // does, because the body leaves the board; a hero stays on it, and the
+    // whole question at that moment is how to get them back up.
+    const e = bodyLabel('vit', id, !quiet);
+    if (!e) continue;
+    e.dataset.hero = id;
+    e.classList.add('k-vit-us');
+    e.classList.toggle('k-vit-down', !!h.downed);
+    // THE LIT ONE IS THE ONE THE TURN IS ABOUT. On the enemy side that is the
+    // foe you are aiming at; on ours it is the hero being aimed AT. Same word,
+    // same treatment, opposite direction — which is exactly right, because a
+    // player reads both as "this is the one that matters this turn".
+    //
+    // AND IT MEANS AIMED, NOT MERELY PRESENT. Every foe in the bestiary carries
+    // a dirge and the dirge reaches everyone, so keying this on `incoming` lit
+    // all three on every turn of every fight — a highlight that is always on is
+    // chrome, and it drowned the one turn where somebody genuinely is the target.
+    e.classList.toggle('k-vit-on', !!aimed[id] && !h.downed);
+    e.classList.toggle('k-vit-lethal', !h.downed && incoming[id] >= h.hp + h.guard);
+    // ONLY THE SHAPE REBUILDS. The number and the bar are written in place,
+    // because an innerHTML that carried them would throw away the wound ghost
+    // on every point of damage — which is the one moment it exists for.
+    if (e.dataset.shape !== 'us') {
+      e.dataset.shape = 'us';
+      e.innerHTML = '<b>' + HEROES23[id].name + '</b>'
+        + '<span class="k-vit-bot"><span class="k-vit-bar">'
+        + '<i class="k-bar-fill"></i></span><em class="k-vit-num"></em></span>';
+    }
+    e.querySelector('.k-vit-num').textContent = fmtN(h.hp);
+    setBar(e.querySelector('.k-vit-bar'), Math.max(0, h.hp / h.max * 100));
   }
   const inter = el('k-intercede');
   if (inter) inter.textContent = C.intercession
@@ -6283,8 +6310,13 @@ function renderFoeVitals() {
   // standing they would be hidden rather than gone, which is a thing that can
   // come back.
   const stage = el('k-stage');
+  // …AND ONLY THE CREATURES' PLATES. This swept `.k-vit[data-body]` with no
+  // qualifier, which was harmless while foes were the only bodies wearing one.
+  // Build 231 gave the party the same plate, so an unqualified sweep on the
+  // first turn of every boss fight — a line of one — took the party's three
+  // readouts off the board with it.
   if (!many && stage)
-    stage.querySelectorAll('.k-vit[data-body]').forEach(e => e.remove());
+    stage.querySelectorAll('.k-vit[data-body^="foe"]').forEach(e => e.remove());
   if (!C || !C.foes) return;
   const quiet = C.phase === 'VICTORY' || C.phase === 'DEFEAT';
   C.foes.forEach(F => {
@@ -6298,15 +6330,24 @@ function renderFoeVitals() {
     const pips = [];
     for (let i = 0; i < F.breakMax; i++)
       pips.push('<i' + (i < F.brk ? ' class="on"' : '') + '></i>');
-    // the article is three characters of nothing on every creature in the
-    // bestiary, and at this width it is three characters the name needs
-    const html = '<b>' + F.name.replace(/^The\s+/, '') + '</b>'
-      + '<span class="k-vit-bot"><span class="k-vit-bar"><i style="width:'
-      + Math.max(0, F.hp / F.max * 100) + '%"></i></span>'
-      + '<em>' + fmtN(F.hp) + '</em></span>'
-      + (stag ? '<span class="k-vit-stag">Staggered</span>'
-              : '<span class="k-vit-poise">' + pips.join('') + '</span>');
-    if (e.innerHTML !== html) e.innerHTML = html;
+    e.classList.add('k-vit-foe');
+    // ONLY THE SHAPE REBUILDS — see the party side of this, which now draws
+    // through the same component. The bar and the number are written in place
+    // so the wound ghost survives a point of damage; before Build 231 the
+    // width lived in the html, so every hit threw away the trail it left.
+    const shape = F.name + '|' + (stag ? 1 : 0) + '|' + F.brk + '/' + F.breakMax;
+    if (e.dataset.shape !== shape) {
+      e.dataset.shape = shape;
+      // the article is three characters of nothing on every creature in the
+      // bestiary, and at this width it is three characters the name needs
+      e.innerHTML = '<b>' + F.name.replace(/^The\s+/, '') + '</b>'
+        + '<span class="k-vit-bot"><span class="k-vit-bar">'
+        + '<i class="k-bar-fill"></i></span><em class="k-vit-num"></em></span>'
+        + (stag ? '<span class="k-vit-stag">Staggered</span>'
+                : '<span class="k-vit-poise">' + pips.join('') + '</span>');
+    }
+    e.querySelector('.k-vit-num').textContent = fmtN(F.hp);
+    setBar(e.querySelector('.k-vit-bar'), Math.max(0, F.hp / F.max * 100));
   });
 }
 // THE TELEGRAPH — icons and amounts, in the sky above the Regent's head.

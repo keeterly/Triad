@@ -695,7 +695,7 @@ const { boot } = require('./harness.cjs');
       window.K.startCombat({ seed: 7 });
       const c = window.K.state(); c.heroes.ash.hp = 20; window.K.render();
       await new Promise(r => setTimeout(r, 20));
-      const row = document.querySelector('.k-pt-hero[data-hero="ash"] .k-bar');
+      const row = document.querySelector('.k-vit[data-hero="ash"] .k-vit-bar');
       const w = (sel) => parseFloat(row.querySelector(sel).style.width);
       const before = w('.k-bar-fill');
       window.K.forceHand(['mend', 'cleave', 'serrate', 'qthrow', 'sgrace']);
@@ -863,58 +863,108 @@ const { boot } = require('./harness.cjs');
       await new Promise(r => setTimeout(r, 60));
       const by = {};
       window.K.intentByTarget().forEach(r2 => { by[r2.who] = r2.total; });
-      const geom = ['ash', 'elin', 'mira'].map(id => {
-        const row = document.querySelector('.k-pt-hero[data-hero="' + id + '"]');
-        if (!row) return null;
-        const bar = row.querySelector('.k-bar'), num = row.querySelector('.k-pt-hp');
-        const name = row.querySelector('.k-pt-name');
-        const fill = row.querySelector('.k-bar-fill');
-        if (!bar || !num || !name || !fill) return null;
-        const b = bar.getBoundingClientRect(), n = num.getBoundingClientRect();
-        const nm = name.getBoundingClientRect(), f = fill.getBoundingClientRect();
-        return { id,
-                 // the number shares the NAME's line, at the far end of it
-                 sameLine: Math.round(Math.abs((n.top + n.bottom) / 2 - (nm.top + nm.bottom) / 2)),
-                 afterName: Math.round(n.left - nm.right),
-                 // …and the bar is under both of them, spanning the column
-                 under: Math.round(b.top - nm.bottom),
-                 spans: Math.round(b.width - (Math.max(n.right, nm.right) - nm.left)),
-                 // A RULE WITH INK IN IT. `.k-bar-fill` is inset a pixel on
-                 // every side and `box-sizing: border-box` eats the border out
-                 // of the height too, so a 5px bar carried ONE pixel of colour
-                 // — three full-health heroes reading as three empty grooves.
-                 inkH: Math.round(f.height), wellH: Math.round(b.height) };
+      // ── ONE PLATE, BOTH SIDES OF THE FIGHT (Build 231) ─────────────────
+      // What was here measured the corner roster's internal geometry — where
+      // the number sat against the name, how far the rule ran under both.
+      // There is no corner roster: the party wears `.k-vit`, the creature's
+      // own plate, built by the same `bodyLabel` and placed by the same loop.
+      //
+      // So the thing to assert is the UNIFICATION, which is a stronger rule
+      // than any measurement of one side could be. Two treatments that merely
+      // resemble each other pass a geometry check on each and drift apart on
+      // the next build; one component cannot. Every plate on the board is the
+      // same width with the same three parts, and the one thing that differs
+      // is the ink — which is the only difference the design admits.
+      const plate = (e) => {
+        const bar = e.querySelector('.k-vit-bar');
+        const fill = e.querySelector('.k-bar-fill');
+        const num = e.querySelector('.k-vit-num');
+        const nm = e.querySelector('b');
+        if (!bar || !fill || !num || !nm) return { body: e.dataset.body, parts: false };
+        const b = bar.getBoundingClientRect(), f = fill.getBoundingClientRect();
+        const n = nm.getBoundingClientRect(), q = num.getBoundingClientRect();
+        return { body: e.dataset.body, parts: true,
+                 us: e.classList.contains('k-vit-us'),
+                 w: Math.round(e.getBoundingClientRect().width),
+                 // the name over the bar, the number beside it — the reading
+                 // order the creature's plate has always had
+                 nameOver: Math.round(b.top - n.bottom) >= 0,
+                 numBeside: Math.round(q.left - b.right) >= 0
+                   && Math.abs((q.top + q.bottom) / 2 - (b.top + b.bottom) / 2) < 5,
+                 // and the lit part is the full thickness of the bar: the
+                 // fill is inset a pixel on every side for the corner gauge it
+                 // was written for, and this bar is four pixels tall
+                 inkH: Math.round(f.height), wellH: Math.round(b.height),
+                 ink: getComputedStyle(fill).backgroundImage };
+      };
+      const plates = [...document.querySelectorAll('.k-vit[data-body]')].map(plate);
+      // …and ours stand over the people they describe, which is the whole
+      // arrangement: a reading you find by looking at the person
+      const over = ['ash', 'elin', 'mira'].map(id => {
+        const e = document.querySelector('.k-vit[data-hero="' + id + '"]');
+        const body = document.querySelector('#k-cast .k-hero[data-hero="' + id + '"]');
+        if (!e || !body) return null;
+        const p = e.getBoundingClientRect(), b = body.getBoundingClientRect();
+        return { id, above: Math.round(b.top - p.bottom),
+                 centred: Math.round(Math.abs((p.left + p.right) / 2 - (b.left + b.right) / 2)) };
       });
-      return { by, geom,
+      return { by, plates, over,
                chips: document.querySelectorAll('#k-party-hud .k-pt-inc').length,
-               aimed: [...document.querySelectorAll('.k-pt-hero.k-pt-aimed')].map(e => e.dataset.hero) };
+               // no corner roster survives anywhere
+               roster: document.querySelectorAll('.k-pt-hero').length,
+               aimed: [...document.querySelectorAll('.k-vit-us.k-vit-on')].map(e => e.dataset.hero) };
     });
     check('HUD: the telegraph chips are off the party health bars',
       rows.chips === 0, 'chips on party rows: ' + rows.chips);
-    // WHO AND HOW MUCH ON ONE LINE, HOW MUCH IS LEFT UNDER BOTH (Build 229).
-    // This used to assert bar-then-number on one line, matching the foe plate.
-    // That shape put the one figure a player reads under pressure at the far
-    // right of a row, past a bar that had already answered the same question
-    // as a proportion — and it left the bar only as wide as the leftovers.
-    // Name and number are the two ends of the top line now; the bar runs the
-    // full width of the column beneath them, which is what makes three of them
-    // comparable at a glance.
-    check('HUD: each hero reads name-and-number on one line, with the bar spanning the column under both',
-      rows.geom.length === 3 && rows.geom.every(g => g
-        && g.sameLine <= 4 && g.afterName > 0 && g.under >= 0 && g.under <= 10
-        && g.spans >= -2
-        // …and the lit part of the rule is the FULL thickness of the rule.
-        // `>= 6` was here for a beat and it was a literal off the capsule
-        // gauge that has since become a 2px rule; the rule being asked about
-        // is that no thickness is lost to the fill's insets, whatever the
-        // thickness is.
-        && g.wellH >= 2 && g.inkH === g.wellH),
-      JSON.stringify(rows.geom));
-
+    check('HUD: the corner roster is gone — nothing draws party health but the plate',
+      rows.roster === 0, 'roster rows still in the DOM: ' + rows.roster);
     check('HUD: the aimed outline means AIMED — not merely alive under a dirge that reaches everyone',
       rows.aimed.length === Object.keys(rows.by).length
       && rows.aimed.every(id => rows.by[id] > 0),
       JSON.stringify({ outlined: rows.aimed, targeted: Object.keys(rows.by) }));
+
+    // ── AND THE UNIFICATION, ON A BOARD WITH BOTH SIDES ON IT ──────────────
+    // The fight above is a line of ONE, and a lone creature still keeps the
+    // corner readout it has had since Build 179 (see `renderFoeVitals`) — so
+    // asking about "every plate on the board" there asks about ours only, and
+    // an assertion that both sides match would have been vacuously true with
+    // nothing on the other side. It takes a pack.
+    {
+      const both = await J(async () => {
+        window.K.startCombat({ seed: 7, foes: ['husk', 'cultist'] });
+        await new Promise(r => setTimeout(r, 90));
+        const plate = (e) => {
+          const bar = e.querySelector('.k-vit-bar');
+          const fill = e.querySelector('.k-bar-fill');
+          const num = e.querySelector('.k-vit-num');
+          const nm = e.querySelector('b');
+          if (!bar || !fill || !num || !nm) return { body: e.dataset.body, parts: false };
+          const b = bar.getBoundingClientRect(), f = fill.getBoundingClientRect();
+          const n = nm.getBoundingClientRect(), q = num.getBoundingClientRect();
+          return { body: e.dataset.body, parts: true,
+                   us: e.classList.contains('k-vit-us'),
+                   w: Math.round(e.getBoundingClientRect().width),
+                   nameOver: Math.round(b.top - n.bottom) >= 0,
+                   numBeside: Math.round(q.left - b.right) >= 0
+                     && Math.abs((q.top + q.bottom) / 2 - (b.top + b.bottom) / 2) < 5,
+                   inkH: Math.round(f.height), wellH: Math.round(b.height),
+                   ink: getComputedStyle(fill).backgroundImage };
+        };
+        return [...document.querySelectorAll('.k-vit[data-body]')].map(plate);
+      });
+      const ours = both.filter(p => p.us), theirs = both.filter(p => !p.us);
+      check('PLATE: both sides of the fight wear one component — same width, same parts, different ink',
+        both.length >= 5 && ours.length === 3 && theirs.length === 2
+        && both.every(p => p.parts && p.nameOver && p.numBeside)
+        && new Set(both.map(p => p.w)).size === 1
+        && both.every(p => p.wellH >= 3 && p.inkH === p.wellH)
+        && new Set(ours.map(p => p.ink)).size === 1
+        && new Set(theirs.map(p => p.ink)).size === 1
+        && ours[0].ink !== theirs[0].ink,
+        JSON.stringify({ n: both.length, w: both.map(p => p.w),
+                         ink: [ours[0] && ours[0].ink, theirs[0] && theirs[0].ink],
+                         ours: ours.map(p => p.body), theirs: theirs.map(p => p.body) }));
+    }
 
     // ── THE LANE WORD IS GONE, AND SO IS THE CHECK THAT IT WAS LEGIBLE ────
     //
@@ -1058,7 +1108,7 @@ const { boot } = require('./harness.cjs');
       c.heroes.mira.hp = 0; c.heroes.mira.downed = true;
       window.K.render();
       const fig = document.querySelector('.k-hero[data-hero="mira"]');
-      const row = document.querySelector('.k-pt-hero[data-hero="mira"]');
+      const row = document.querySelector('.k-vit[data-hero="mira"]');
       // opacity and filter are transitioned, so a read taken in the same frame
       // as the class returns the value it is animating FROM, not TO
       await new Promise(r => setTimeout(r, 420));
@@ -2692,8 +2742,8 @@ const { boot } = require('./harness.cjs');
         && !/ash|elin|mira/i.test(tells.map(e => e.textContent).join(' '));
       const noBanner = !document.getElementById('k-int-notes') && !document.getElementById('k-int-hint')
         && !document.getElementById('k-int-name');
-      const rows = document.querySelectorAll('.k-pt-hero').length;
-      const bars = document.querySelectorAll('.k-pt-hero .k-bar-fill').length;
+      const rows = document.querySelectorAll('.k-vit-us').length;
+      const bars = document.querySelectorAll('.k-vit-us .k-bar-fill').length;
       const cards = document.querySelectorAll('#k-hand .k-card');
       const fanned = [...cards].some(c => (c.style.getPropertyValue('--rot') || '0deg') !== '0deg');
       const pips = document.querySelectorAll('#k-break .k-pip').length;
@@ -2798,9 +2848,12 @@ const { boot } = require('./harness.cjs');
             .concat([...document.querySelectorAll('.k-hero')]
               .map(n => ['hero:' + n.dataset.hero, n]));
           const hits = named.filter(([, n]) => hit(n.getBoundingClientRect())).map(([nm]) => nm);
-          const rows = [...document.querySelectorAll('.k-pt-hero')];
-          const low = Math.max(...rows.map(n => n.getBoundingClientRect().bottom));
-          const belowRows = low <= k.top + 0.5;
+          // THE LADDER IS THE CORNER NOW (Build 231). This used to ask that
+          // it sat below the three roster rows above it; the rows moved onto
+          // the people, so what is left to ask is that it is the ONLY reading
+          // up here — a corner with one thing in it cannot be below anything.
+          const rows = [...document.querySelectorAll('#k-party-hud .k-vit')];
+          const belowRows = rows.length === 0;
           const inParty = document.getElementById('k-party-hud').contains(kz);
           const boxes = {};
           named.filter(([nm]) => hits.indexOf(nm) >= 0).forEach(([nm, n]) => {
@@ -2812,7 +2865,7 @@ const { boot } = require('./harness.cjs');
                    kz: [Math.round(k.left), Math.round(k.top), Math.round(k.right), Math.round(k.bottom)],
                    camx: cast ? cast.style.getPropertyValue('--cam-x') : '',
                    castCls: cast ? cast.className : '',
-                   belowRows, rowsBottom: Math.round(low) };
+                   belowRows, strayRows: rows.length };
         })(),
         clipped, worstOver, liftedInkUnder, liftedTopOff,
         overHead, oneLine, noBanner, iconed, noWords, chipN: chips.length,
@@ -3186,10 +3239,10 @@ const { boot } = require('./harness.cjs');
   await fresh(9);
   {
     const scale = await J(() => ({
-      ash: document.querySelector('.k-pt-hero[data-hero="ash"] .k-pt-hp b').textContent.trim(),
+      ash: document.querySelector('.k-vit[data-hero="ash"] .k-vit-num').textContent.trim(),
       boss: document.getElementById('k-bhp').textContent.trim(),
       intent: (document.querySelector('.k-tell .k-ichip-atk b') || {}).textContent,
-      commas: [...document.querySelectorAll('#k-hand .k-cprose, .k-pt-hp, #k-bhp, .k-tell b')]
+      commas: [...document.querySelectorAll('#k-hand .k-cprose, .k-vit-num, #k-bhp, .k-tell b')]
         .filter(e => /\d,\d/.test(e.textContent)).length,
     }));
     check('SCALE: HP and damage read at Slay-the-Spire size — no four-digit numbers',
@@ -3327,8 +3380,8 @@ const { boot } = require('./harness.cjs');
   {
     const live = await J(async () => {
       window.K.forceIntent('hymn');
-      const bar = () => document.querySelector('.k-pt-hero[data-hero="ash"] .k-bar-fill').style.width;
-      const num = () => document.querySelector('.k-pt-hero[data-hero="ash"] .k-pt-hp b').textContent;
+      const bar = () => document.querySelector('.k-vit[data-hero="ash"] .k-bar-fill').style.width;
+      const num = () => document.querySelector('.k-vit[data-hero="ash"] .k-vit-num').textContent;
       const before = { bar: bar(), num: num() };
       const done = window.K.endTurn({ grades: Array(8).fill('miss') });
       const out = { before, drainedDuring: false, phaseWhen: null };

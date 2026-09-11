@@ -42,7 +42,7 @@ const PROBES = `
     // most-read corner of the screen, and a sim that reads a number through
     // the widget displaying it breaks when the widget is redesigned.
     turn:      () => { try { return String(window.K.state().turn); } catch (e) { return null; } },
-    heroHp:    () => [...document.querySelectorAll('#k-party-hud .k-pt-hp')].map(e => e.textContent.replace(/\\s+/g, '')).join('|'),
+    heroHp:    () => [...document.querySelectorAll('.k-vit-us .k-vit-num')].map(e => e.textContent.replace(/\\s+/g, '')).join('|'),
     // the big painted number is the ONLY thing that tells a player how hard a
     // blow was; if it never appears the hit did not communicate
     pops:      () => document.querySelectorAll('.k-pop').length,

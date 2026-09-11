@@ -29,7 +29,7 @@ const PROBES = `
   const P = {
     hand:     () => document.querySelectorAll('#k-hand .k-card').length,
     ap:       () => txt('k-ap-num'),
-    heroHp:   () => [...document.querySelectorAll('#k-party-hud .k-pt-hp')].map(e => e.textContent.replace(/\\s+/g, '')).join('|'),
+    heroHp:   () => [...document.querySelectorAll('.k-vit-us .k-vit-num')].map(e => e.textContent.replace(/\\s+/g, '')).join('|'),
     pops:     () => document.querySelectorAll('.k-pop').length,
     lifted:   () => document.querySelectorAll('#k-hand .k-card.k-dragging, #k-hand .k-card.k-aiming').length,
     foeDown:  () => document.getElementById('k-boss-art').classList.contains('k-foe-down') ? 1 : 0,

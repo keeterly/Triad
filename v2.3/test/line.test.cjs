@@ -183,7 +183,11 @@ const { boot } = require('./harness.cjs');
       const V = window.K._composeVolley();
       return { foes: c.foes.length, aim: c.aim,
                bossIsFoe: c.boss === c.foes[0], hp: c.boss.hp, max: c.boss.max,
-               plates: document.querySelectorAll('.k-vit[data-body]').length,
+      // …AND ONLY THE CREATURES'. Build 231 gave the party the same plate, so
+      // an unqualified `.k-vit` count is a count of both sides — which turned
+      // "one opponent wears no floating vitals" into a report that three
+      // heroes do.
+               plates: document.querySelectorAll('.k-vit-foe[data-body]').length,
                corner: !document.getElementById('k-boss-hud').classList
                  .contains('k-hud-away'),
                marks: document.querySelectorAll('.k-foe-aimed').length,
@@ -210,7 +214,7 @@ const { boot } = require('./harness.cjs');
                ix: bodies.map(b => b.dataset.ix),
                art: bodies.map(b => (b.querySelector('img') || {}).getAttribute
                  ? b.querySelector('img').getAttribute('src') : null),
-               rows: document.querySelectorAll('.k-vit[data-body]').length,
+               rows: document.querySelectorAll('.k-vit-foe[data-body]').length,
                corner: document.getElementById('k-boss-hud').classList
                  .contains('k-hud-away'),
                aimed: document.querySelectorAll('.k-foe-aimed').length };
@@ -244,7 +248,7 @@ const { boot } = require('./harness.cjs');
       const drawn = (b) => b.querySelector('img') || b;
       const bodies = [...document.querySelectorAll('#k-boss-art, #k-cast .k-foe-art')]
         .filter(b => b.offsetParent);
-      document.querySelectorAll('.k-vit[data-body]').forEach(v => {
+      document.querySelectorAll('.k-vit-foe[data-body]').forEach(v => {
         const ix = v.dataset.body.slice(3);
         const b = +ix ? document.querySelector('#k-cast .k-foe-art[data-ix="' + ix + '"]')
                       : document.getElementById('k-boss-art');
@@ -287,7 +291,7 @@ const { boot } = require('./harness.cjs');
       return { before, after: c.aim, boss: c.boss.id, name: c.boss.name,
                plate: document.querySelector('#k-boss-hud .k-bname').textContent.trim(),
                hp: +document.getElementById('k-bhp').textContent,
-               onRow: document.querySelectorAll('.k-vit-on').length,
+               onRow: document.querySelectorAll('.k-vit-foe.k-vit-on').length,
                mark: (document.querySelector('.k-foe-aimed') || {}).dataset };
     });
     check('LINE: aiming moves the plate, the reticle and the readout together',

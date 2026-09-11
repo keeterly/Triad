@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=230" />
+  <link rel="stylesheet" href="styles.css?v=231" />
 </head>
 <body>
   <div id="k-scale">
@@ -54,61 +54,16 @@
       </div></div>
       <div id="k-movehint" class="k-hidden"></div>
 
-      <!-- party HUD — upper-left, stacked like a JRPG roster -->
+      <!-- the ladder, upper-left — what is left of the party HUD -->
       <div id="k-party-hud">
-        <!-- WHO, THEN HOW MUCH, THEN HOW MUCH IS LEFT (Build 229).
-             The number used to sit to the RIGHT of the bar, which put the one
-             figure a player reads mid-fight at the far end of a row, hanging
-             off the end of a rule that had already answered the same question
-             as a proportion. Name and number share the top line now — the two
-             things that identify a row — and the bar runs the full width of
-             the column beneath them, where a length is easiest to compare
-             against the two lengths above and below it. -->
-        <div class="k-pt-hero" data-hero="ash">
-          <!-- A FACE, NOT A FIGURE. A full-body plate squeezed into a 36px
-               circle is a silhouette: three dark shapes that cannot be told
-               apart at a glance, which is the one job this roster has. -->
-          <img src="../art/kai-face.webp" alt="">
-          <div class="k-pt-info">
-            <div class="k-pt-top">
-              <span class="k-pt-name">Ash</span>
-              <span class="k-pt-hp"><b>42</b><i> / 42</i></span>
-            </div>
-            <div class="k-pt-row">
-              <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
-            </div>
-          </div>
-        </div>
-        <div class="k-pt-hero" data-hero="elin">
-          <!-- A FACE, NOT A FIGURE. A full-body plate squeezed into a 36px
-               circle is a silhouette: three dark shapes that cannot be told
-               apart at a glance, which is the one job this roster has. -->
-          <img src="../art/elin-face.webp" alt="">
-          <div class="k-pt-info">
-            <div class="k-pt-top">
-              <span class="k-pt-name">Elin</span>
-              <span class="k-pt-hp"><b>36</b><i> / 36</i></span>
-            </div>
-            <div class="k-pt-row">
-              <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
-            </div>
-          </div>
-        </div>
-        <div class="k-pt-hero" data-hero="mira">
-          <!-- A FACE, NOT A FIGURE. A full-body plate squeezed into a 36px
-               circle is a silhouette: three dark shapes that cannot be told
-               apart at a glance, which is the one job this roster has. -->
-          <img src="../art/mira-face.webp" alt="">
-          <div class="k-pt-info">
-            <div class="k-pt-top">
-              <span class="k-pt-name">Mira</span>
-              <span class="k-pt-hp"><b>34</b><i> / 34</i></span>
-            </div>
-            <div class="k-pt-row">
-              <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
-            </div>
-          </div>
-        </div>
+        <!-- THE ROSTER MOVED ONTO THE PEOPLE (Build 231). Three portraits, a
+             name, a number and a rule sat here for two hundred builds saying
+             the same three things the enemy says over its own head, in a
+             different visual language, so a player had to learn both. The
+             party wears `.k-vit` now — the creature's plate, the same
+             component, built and placed by the same code — and what is left in
+             this corner is the one reading that belongs to nobody in
+             particular: the ladder the three of them fill together. -->
         <div class="k-pt-shared">
           <span id="k-intercede"></span>
         </div>
@@ -555,13 +510,13 @@
     setTimeout(check, 2500);
   })();
   </script>
-  <script src="run.js?v=230"></script>
-  <script src="game.js?v=230"></script>
+  <script src="run.js?v=231"></script>
+  <script src="game.js?v=231"></script>
   <!-- THE CAST IN THREE DIMENSIONS — a module, and inert unless ?cast=3d.
        It draws one canvas under the DOM heroes and paints a rigged figure
        into each hero's box; everything above it (rows, drag, aim, popups,
        the party HUD) is untouched. -->
-  <script type="module" src="cast3d.js?v=230"></script>
+  <script type="module" src="cast3d.js?v=231"></script>
   <script>
     // ── FIT THE 932x430 DESIGN SPACE TO THE PART OF THE SCREEN THAT IS ONE ──
     //
