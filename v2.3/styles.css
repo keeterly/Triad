@@ -2205,6 +2205,90 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
 #k-movehint.k-movehint-no { border-color: #7a5a52; color: #e8a49a; }
 
 
+/* ═══ THE BOSS INTRO (Build 237) ════════════════════════════════════════════
+   Every JRPG this game is built after answers "how do you open a boss fight"
+   the same way: you look at the thing first, from the front, close enough that
+   it fills the frame, and you are not allowed to do anything while you do.
+   Everything the fight is PLAYED with stands down for it — the same list the
+   reckoning stands down, for the same reason: none of it is part of what is
+   happening. The boss's own bar is held back a beat longer than the rest,
+   because it arriving and filling is the last beat of the introduction. */
+#k-stage.k-bintro #k-hand,
+#k-stage.k-bintro #k-ap,
+#k-stage.k-bintro #k-endturn,
+#k-stage.k-bintro #k-deck-btn,
+#k-stage.k-bintro #k-disc-btn,
+#k-stage.k-bintro .k-tell,
+#k-stage.k-bintro .k-pips,
+#k-stage.k-bintro .k-vit,
+#k-stage.k-bintro .k-row,
+#k-stage.k-bintro #k-rows,
+#k-stage.k-bintro .k-row-lbl,
+#k-stage.k-bintro #k-party-hud {
+  opacity: 0; pointer-events: none; transition: opacity 320ms var(--ease-out); }
+/* THE BAR IS THE LAST BEAT, so it is held past the sweep and then let go. */
+#k-stage.k-bintro #k-boss-hud { opacity: 0; transition: opacity 420ms var(--ease-out); }
+#k-stage.k-bintro.k-bi-bar #k-boss-hud { opacity: 1; }
+/* …and it arrives EMPTY. `setBar` has already written the real width, so this
+   holds the paint at nothing without touching the state, and lets go of it on
+   a curve slow enough to read as filling rather than as a repaint. */
+#k-stage.k-bintro #k-boss-hud .k-bar-fill,
+#k-stage.k-bintro #k-boss-hud .k-bar-ghost,
+#k-stage.k-bintro #k-boss-hud .k-pip { transition: none; }
+#k-stage.k-bintro:not(.k-bi-fill) #k-boss-hud .k-bar-fill,
+#k-stage.k-bintro:not(.k-bi-fill) #k-boss-hud .k-bar-ghost { width: 0 !important; }
+#k-stage.k-bintro:not(.k-bi-fill) #k-boss-hud .k-pip { opacity: 0; }
+#k-stage.k-bintro.k-bi-fill #k-boss-hud .k-bar-fill,
+#k-stage.k-bintro.k-bi-fill #k-boss-hud .k-bar-ghost {
+  transition: width 860ms cubic-bezier(.25,.85,.35,1) !important; }
+#k-stage.k-bintro.k-bi-fill #k-boss-hud .k-pip {
+  transition: opacity 300ms ease-out; transition-delay: calc(var(--pip-in, 0) * 42ms); }
+
+/* THE LAYER ITSELF takes the taps — the whole of it — so nothing underneath can
+   be played while the game is talking, and so a tap anywhere skips. */
+#k-bintro { position: absolute; inset: 0; z-index: 44; display: flex;
+  align-items: flex-end; justify-content: center; padding-bottom: 92px;
+  cursor: pointer; }
+#k-bintro.k-hidden { display: none; }
+/* a breath of dark at the edges, so a name in light type holds over a lit ruin
+   without a panel behind it */
+#k-bintro::before { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 44%, rgba(6,5,9,0) 34%, rgba(6,5,9,0.62) 100%);
+  animation: k-bi-veil 520ms ease-out both; }
+@keyframes k-bi-veil { from { opacity: 0; } }
+.k-bi-card { position: relative; display: flex; flex-direction: column;
+  align-items: center; gap: 5px; text-align: center; pointer-events: none; }
+/* …AND IT IS SET TO SURVIVE HER. Photographed at #a08d63 the line landed on
+   the Regent's own pale robes and vanished: the veil behind it is a radial that
+   is deliberately CLEAR in the middle, which is where the card sits, so small
+   type here has no ground at all and has to carry itself. */
+#k-bi-tier { font-style: normal; font-size: 9.5px; letter-spacing: 0.42em;
+  text-transform: uppercase; color: #e3d2a8;
+  text-shadow: 0 0 12px rgba(6,5,9,0.95), 0 0 4px rgba(6,5,9,0.9),
+               0 2px 8px rgba(6,5,9,0.95);
+  animation: k-bi-tier 620ms var(--ease-out) both 120ms; }
+@keyframes k-bi-tier { from { opacity: 0; letter-spacing: 0.22em; } }
+/* THE NAME SETTLES RATHER THAN APPEARING. Letter-spacing closing on a line of
+   capitals is the one move that reads as a title card and not as a label being
+   switched on, and it costs nothing but a keyframe. */
+#k-bi-name { display: block; font-weight: 400; font-size: 30px; letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #f3e9d4; white-space: nowrap;
+  text-shadow: 0 0 30px rgba(224,192,132,0.5), 0 3px 14px rgba(0,0,0,0.95);
+  animation: k-bi-name 900ms cubic-bezier(.16,.84,.3,1) both; }
+@keyframes k-bi-name {
+  from { opacity: 0; letter-spacing: 0.66em; filter: blur(5px); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; letter-spacing: 0.3em; filter: blur(0); } }
+.k-bi-rule { display: block; width: 0; height: 1px; margin-top: 4px;
+  background: linear-gradient(90deg, rgba(224,192,132,0), #e0c084, rgba(224,192,132,0));
+  animation: k-bi-rule 760ms var(--ease-out) both 260ms; }
+@keyframes k-bi-rule { from { width: 0; opacity: 0; } to { width: 260px; opacity: 1; } }
+/* …and the whole card leaves together, upward, before the lens moves */
+#k-bintro.k-bi-out .k-bi-card { animation: k-bi-out 420ms var(--ease-out) both; }
+#k-bintro.k-bi-out::before { animation: k-bi-veil 420ms ease-out reverse both; }
+@keyframes k-bi-out { to { opacity: 0; transform: translateY(-14px); } }
+
 /* ═══ THE COMBO CALL — a combo you built should announce itself ═══ */
 .k-combo-call { position: absolute; transform: translate(-50%, -50%); z-index: 37;
   pointer-events: none; white-space: nowrap;
@@ -2583,7 +2667,12 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    coordinates with the node positions read off the same grid. It stays the
    board so the lines keep meeting the coins they connect; the chart is
    allowed to be cropped, the sentences are not. */
-#k-map-edges { position: absolute; inset: 0; width: 932px; height: 430px; z-index: 2;
+/* …AND THE ROAD IS DRAWN IN THE BOX, NOT ON THE BOARD (Build 237). A fixed
+   932x430 SVG inside a container the safe box had already narrowed put the
+   right-hand end of every road off the screen. `renderMap` maps the authored
+   coordinates through whatever box is on screen, so the canvas is simply that
+   box — and with no viewBox the SVG's user units stay CSS pixels of it. */
+#k-map-edges { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2;
   pointer-events: none; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.95)); }
 .k-edge { fill: none; stroke-linecap: round; }
 /* THINNER. At 2.2/3/2.6 the roads were as heavy as the coins they joined, and

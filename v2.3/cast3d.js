@@ -4652,6 +4652,32 @@ const Cast3D = (() => {
                  at: 'party',
                  to: { az: -14, dist: 4.55, height: 1.36, aimY: 1.56, roll: 1.5, fov: 63 },
                  over: 3200 },
+    // ── THE REGENT, BEFORE SHE IS FOUGHT (Build 237) ─────────────────────
+    //
+    // A boss walked onto the same wide the last three wraiths did. Every JRPG
+    // this game is built after answers that the same way: you look at the thing
+    // first, from the front, close enough that it fills the frame, and you are
+    // not allowed to do anything while you do.
+    //
+    // `az: 0` with `at: 'foe'` is the party's own eyeline, which is where she
+    // is already facing — so front-on costs no turn from her and no invented
+    // staging. The narrow `fov` is the portrait: 40 against the board's 53
+    // compresses her out of the plaza and flattens the ruins behind her into a
+    // backdrop, which is the difference between a close shot and a near one.
+    // `to` drifts it in a hair over the hold, because a locked-off frame on a
+    // still figure reads as a freeze rather than a held breath.
+    // …AND SHE IS ALONE IN IT. Photographed at `az: 0` — the party's own
+    // eyeline, which is genuinely front-on for a creature already facing them —
+    // Ash stood in the left quarter of the frame, because the lens is looking
+    // down the line he is standing in. 15 degrees comes round far enough to put
+    // the party outside the frame and is still square enough to her that
+    // nothing reads as a profile; the move settles toward 8, which is the
+    // closest to head-on the shot can get with her to itself.
+    bintro:    { az: -16, dist: 7.00, height: 1.85, aimY: 2.05, roll: 0, fov: 40,
+                 at: 'foe',
+                 to: { az: -10, dist: 6.60, height: 1.80, aimY: 2.02, roll: -1, fov: 39,
+                       at: 'foe' },
+                 over: 2600 },
     // AFTER THE KILL, stand back up and take the room in — as a slow crane
     // rather than a cut to a wide. The whole point of the reckoning is that the
     // fight has stopped; a camera that eases upward for four seconds says that

@@ -1431,6 +1431,26 @@
     }
     _lastScreen = which;
   }
+  // ── AND A CHART IS RE-LAID WHEN THE BOX CHANGES (Build 237) ──────────────
+  //
+  // The stops are written into the DOM as pixel positions, mapped through the
+  // safe box at the moment `renderMap` runs — so the fit is only ever as fresh
+  // as the last render. Rotate the phone, or open the game in a window and
+  // resize it, and every coin stays where the OLD box put it: the whole chart
+  // off by however much the insets moved, with the far end of the road clipped.
+  // `fit()` has already updated `--ui-*` by the time this runs, which is the
+  // only ordering this needs.
+  // …on the NEXT FRAME, because `fit()` listens for the same event and the
+  // chart has to be laid out against the box it leaves behind, not the one it
+  // found.
+  addEventListener('resize', () => {
+    requestAnimationFrame(() => {
+      const m = $('k-map');
+      if (m && !m.classList.contains('k-hidden') && RUN) {
+        try { renderMap(); renderYou(); } catch (_) {}
+      }
+    });
+  });
 
   // Icons carry the kind. Drawn rather than lettered, because the decision has
   // to survive a glance from arm's length on a phone.
@@ -1470,10 +1490,48 @@
   const svgIcon = (kind) => '<svg viewBox="0 0 24 24" aria-hidden="true">'
     + (kind === 'ember' ? EMBER_SVG : GLYPH[kind]) + '</svg>';
 
+  // ── THE CHART IS DRAWN IN THE SAFE BOX, NOT ON THE BOARD (Build 237) ─────
+  //
+  // Every stop carries an `x`/`y` in the board's own 932x430 coordinates, and
+  // `#k-map` has been inset by `--ui-*` since Build 181 — which is right for a
+  // screen made of text and wrong for one made of COORDINATES. The chart was
+  // being laid out in a 932-wide space whose origin had been moved inward, so
+  // the whole road shifted right by `--ui-l` and `--ui-l + --ui-r` worth of it
+  // ran off the right-hand edge into `overflow: hidden`. Photographed on a
+  // notched phone: the eleventh column half drawn at the frame edge and the
+  // road leaving the screen.
+  //
+  // Nothing about the road's shape wants to change — it is a diagram, and every
+  // stop on it has to be reachable and readable. So the authored coordinates
+  // are mapped through whatever box is actually on screen. The coins keep their
+  // own size; only their POSITIONS compress, which is what a chart can afford
+  // and a world cannot.
+  const BOARD_W = 932, BOARD_H = 430;
+  // ── AND THE BOX IS ASKED FOR, NOT RECONSTRUCTED ─────────────────────────
+  //
+  // A first cut read `--ui-*` and subtracted. That is the same numbers by a
+  // longer route, and it bought an ordering bug: `fit()` writes those variables
+  // from its own resize listener, and two listeners on one event run in
+  // registration order — so a re-render fired from here could be laying the
+  // chart out against the insets from BEFORE the rotation. Measured: the whole
+  // road 64.7px past the right edge, which is precisely `--ui-l` a beat stale.
+  //
+  // `#k-map` is a child of the scaled board, so its `offsetWidth` is already
+  // the answer in board units, and CSS resolves it live from whatever the
+  // variables currently say. One source of truth, and no order to get wrong.
+  function mapBox() {
+    const m = $('k-map');
+    const w = m ? m.offsetWidth : 0, h = m ? m.offsetHeight : 0;
+    return { sx: w > 0 ? w / BOARD_W : 1, sy: h > 0 ? h / BOARD_H : 1 };
+  }
+  const mapX = (x, b) => +(x * b.sx).toFixed(1);
+  const mapY = (y, b) => +(y * b.sy).toFixed(1);
+
   function renderMap() {
     const wrap = $('k-map-nodes'), edges = $('k-map-edges');
     if (!wrap || !edges) return;
     const open = reachable();
+    const B = mapBox();
     paintChart();
 
     // EDGES FIRST, and in three weights. The road you walked is solid gold; the
@@ -1486,9 +1544,11 @@
         && RUN.path.indexOf(tid) === RUN.path.indexOf(n.id) + 1;
       const live = RUN.at === n.id && open.indexOf(tid) >= 0;
       const cls = walked ? 'k-e-walk' : (live ? 'k-e-live' : 'k-e-dim');
-      const mx = (n.x + t.x) / 2;
-      d += '<path class="k-edge ' + cls + '" d="M' + n.x + ' ' + n.y
-        + ' C' + mx + ' ' + n.y + ' ' + mx + ' ' + t.y + ' ' + t.x + ' ' + t.y + '"/>';
+      const nx = mapX(n.x, B), ny = mapY(n.y, B);
+      const tx = mapX(t.x, B), ty = mapY(t.y, B);
+      const mx = (nx + tx) / 2;
+      d += '<path class="k-edge ' + cls + '" d="M' + nx + ' ' + ny
+        + ' C' + mx + ' ' + ny + ' ' + mx + ' ' + ty + ' ' + tx + ' ' + ty + '"/>';
     }));
     edges.innerHTML = d;
 
@@ -1504,7 +1564,7 @@
       if (!isOpen && !been && !isHere) cls.push('k-n-far');
       if (_pick === n.id) cls.push('k-n-pick');
       return '<button type="button" class="' + cls.join(' ') + '" data-node="' + n.id + '"'
-        + ' style="left:' + n.x + 'px; top:' + n.y + 'px"'
+        + ' style="left:' + mapX(n.x, B) + 'px; top:' + mapY(n.y, B) + 'px"'
         + (isOpen ? '' : ' tabindex="-1"')
         + ' aria-label="' + (n.name || k.word) + ' — ' + k.word + '">'
         + '<span class="k-n-disc">' + svgIcon(n.kind)
@@ -1612,8 +1672,9 @@
     const warp = you.classList.contains('k-hidden') || !you.dataset.on;
     if (warp) { you.style.transition = 'none'; }
     you.classList.remove('k-hidden');
-    you.style.left = n.x + 'px';
-    you.style.top = (n.y - 46) + 'px';
+    const B = mapBox();
+    you.style.left = mapX(n.x, B) + 'px';
+    you.style.top = (mapY(n.y, B) - 46) + 'px';
     you.dataset.on = n.id;
     if (warp) { void you.offsetWidth; you.style.transition = ''; }
     Object.keys(MAXHP).forEach(id => {
@@ -1888,6 +1949,16 @@
                            // wraith on the way to her. Borrowing against the
                            // whole road would just be a difficulty setting.
                            foeBonus: foe.tier === 'boss' ? (RUN.foeBonus || 0) : 0 });
+    // ── AND THE THING AT THE END OF THE ROAD IS INTRODUCED (Build 237) ────
+    //
+    // Fired from here rather than from inside `startCombat`, because THIS is
+    // the code that knows the party has arrived somewhere. A fight opened by a
+    // suite or on a bare board is not an arrival and gets no cinematic — which
+    // also keeps a three-second layer off the hundred checks that start a fight
+    // and read the hand on the next line. Not awaited: the fight is already
+    // set up and playable underneath, and the introduction is what is over the
+    // top of it.
+    if (foe.tier === 'boss' && window.K.bossIntro) window.K.bossIntro();
   }
 
   function onFightEnd(sum) {

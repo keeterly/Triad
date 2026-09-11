@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 236;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 237;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -6508,6 +6508,80 @@ async function fxAllOut(living) {
   await sleep(ALLOUT_STEP * living.length + 300);
   stage.classList.remove('k-allout');
 }
+// ── THE REGENT IS INTRODUCED BEFORE SHE IS FOUGHT (Build 237) ─────────────
+//
+// A boss walked onto the same wide the last three wraiths did, with her bar
+// already full in the corner, and the fight simply began. Every JRPG this game
+// is built after answers that the same way: you look at the thing first, from
+// the front, close enough that it fills the frame, and you are not allowed to
+// do anything while you do. Then the lens gives the room back, her bar arrives
+// and fills, and only then is it a fight.
+//
+// IT IS PRESENTATION, NOT A PHASE. `startCombat` is synchronous and a hundred
+// checks depend on that — the fight is fully set up and PLAYER_READY before a
+// frame of this runs. The layer over the top is what makes it unplayable for
+// three seconds, which is also why a tap through it has to end it: the moment
+// the game takes the controls away it owes the player a way to take them back.
+//
+// AND IT IS FIRED BY THE ROAD, not by `startCombat`. The road is what knows
+// this is the stop at the end of it; a fight started anywhere else — a suite, a
+// bare board — is not an arrival and gets no introduction.
+const BI_HOLD = 1500;     // the name, alone on the frame
+const BI_OUT = 340;       // …and the card clearing before the lens moves
+const BI_SWEEP = 1150;    // the move back out to the board
+const BI_BAR = 900;       // her bar filling, which is the last beat
+let _biTok = 0;
+async function fxBossIntro() {
+  const stage = el('k-stage'), layer = el('k-bintro');
+  if (!stage || !layer || !C) return false;
+  const F = (C.foes || []).find(f => !f.dead && f.def && f.def.tier === 'boss');
+  if (!F) return false;
+  const tok = ++_biTok;
+  let over = false;
+  const done = () => {
+    if (over) return; over = true;
+    layer.removeEventListener('pointerdown', skip, true);
+    layer.classList.add('k-hidden');
+    layer.classList.remove('k-bi-out');
+    stage.classList.remove('k-bintro', 'k-bi-bar', 'k-bi-fill');
+    castShot('home', { speed: 1.8 });
+  };
+  // A SKIP IS NOT A CANCEL. Everything the introduction was going to do to the
+  // board it has already done or does not need to; ending it just hands the
+  // fight back, which is the state the fight was already in underneath.
+  const skip = (e) => { if (e) e.preventDefault(); _biTok++; done(); };
+  const alive = () => tok === _biTok && !over;
+
+  const name = el('k-bi-name'), tier = el('k-bi-tier');
+  if (name) name.textContent = F.name;
+  if (tier) tier.textContent = 'THE ROAD ENDS HERE';
+  stage.classList.add('k-bintro');
+  stage.classList.remove('k-bi-bar', 'k-bi-fill');
+  layer.classList.remove('k-hidden', 'k-bi-out');
+  void layer.offsetWidth;                 // restart the card's keyframes
+  layer.addEventListener('pointerdown', skip, true);
+  castShot('bintro', { speed: 2.4 });
+  sfx('brk', 1.3);
+
+  await sleep(BI_HOLD);
+  if (!alive()) return true;
+  layer.classList.add('k-bi-out');
+  await sleep(BI_OUT);
+  if (!alive()) return true;
+  layer.classList.add('k-hidden');
+  layer.removeEventListener('pointerdown', skip, true);
+  castShot('home', { speed: 0.85 });      // …and the room comes back
+  await sleep(BI_SWEEP);
+  if (!alive()) return true;
+  stage.classList.add('k-bi-bar');        // her bar arrives
+  await sleep(300);
+  if (!alive()) return true;
+  stage.classList.add('k-bi-fill');       // …and fills
+  sfx('allout', 1.1);
+  await sleep(BI_BAR);
+  done();
+  return true;
+}
 function renderBossHud() {
   el('k-bhp').textContent = fmtN(C.boss.hp);
   el('k-bmax').textContent = fmtN(C.boss.max);
@@ -8899,6 +8973,8 @@ window.K = {
   evaluateCard, playCard, moveHero, moveReason, rowTargetAt, cycleCard, pickDiscard,
   allOut: () => allOut(),
   endTurn: (opts) => endTurn(opts),
+  // the road fires this after starting a boss fight — see `fxBossIntro`
+  bossIntro: () => fxBossIntro(),
   startCombat, setSeed,
   render: () => renderAll(),
   // test-only surgical hooks — deterministic setup, never used by the UI

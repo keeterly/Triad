@@ -235,6 +235,62 @@ const { boot } = require('./harness.cjs');
 
   await reset(11);
 
+  // ── THE CHART FITS THE SCREEN IT IS DRAWN ON (Build 237) ────────────────
+  //
+  // Every stop carries an `x`/`y` in the board's own 932x430 coordinates, and
+  // `#k-map` has been inset by `--ui-*` since Build 181 — right for a screen
+  // made of text, wrong for one made of COORDINATES. The road was laid out in a
+  // 932-wide space whose origin had moved inward, so the whole chart shifted
+  // right and ran off the edge into `overflow: hidden`. Photographed on a
+  // notched phone: the eleventh column half drawn at the frame edge.
+  //
+  // Setting `--sa-*` and firing a resize is exactly what an iPhone in landscape
+  // does to this page — `fit()` folds the device's insets into `--ui-*` and
+  // every screen lays itself out inside them. Measured against the map's own
+  // box on all four sides, because a chart that leaves it is a stop the player
+  // cannot reach.
+  {
+    const fit = await J(async () => {
+      const r = document.documentElement.style;
+      const was = ['--sa-t', '--sa-r', '--sa-b', '--sa-l'].map(k => [k, r.getPropertyValue(k)]);
+      r.setProperty('--sa-l', '59px'); r.setProperty('--sa-r', '59px');
+      r.setProperty('--sa-b', '21px'); r.setProperty('--sa-t', '0px');
+      // …and the resize is what re-lays the chart. That is the second half of
+      // the same bug: the stops are written in as pixels, so a fit is only as
+      // fresh as the last render — rotate the phone and every coin stays where
+      // the old box put it. `run.js` re-renders the map on resize now, and
+      // firing the event here is how that is exercised rather than asserted.
+      dispatchEvent(new Event('resize'));
+      // …and the chart is re-laid on the NEXT frame, after `fit()` has moved
+      // the insets. Two frames, so the render and the layout it produces have
+      // both happened before anything is measured.
+      await new Promise(z => requestAnimationFrame(() => requestAnimationFrame(z)));
+      const map = document.getElementById('k-map').getBoundingClientRect();
+      const ns = [...document.querySelectorAll('#k-map-nodes .k-node')];
+      const box = ns.map(n => n.getBoundingClientRect());
+      const out = {
+        ui: +parseFloat(getComputedStyle(document.documentElement)
+              .getPropertyValue('--ui-l')).toFixed(1),
+        nodes: ns.length,
+        offLeft: +(map.left - Math.min(...box.map(b => b.left))).toFixed(1),
+        offRight: +(Math.max(...box.map(b => b.right)) - map.right).toFixed(1),
+        offTop: +(map.top - Math.min(...box.map(b => b.top))).toFixed(1),
+        offBottom: +(Math.max(...box.map(b => b.bottom)) - map.bottom).toFixed(1) };
+      was.forEach(([k, v]) => { if (v) r.setProperty(k, v); else r.removeProperty(k); });
+      dispatchEvent(new Event('resize'));
+      await new Promise(z => requestAnimationFrame(() => requestAnimationFrame(z)));
+      return out;
+    });
+    check('CHART: with the screen\u2019s own insets on, no stop is drawn off the edge of it',
+      fit.ui > 20 && fit.nodes > 10
+      && fit.offLeft <= 0 && fit.offRight <= 0
+      && fit.offTop <= 0 && fit.offBottom <= 0,
+      JSON.stringify(fit) + ' — `--sa-*` set to an iPhone landscape inset and a '
+        + 'resize fired, which is what the device does to this page. `off*` is '
+        + 'how far the furthest stop reaches past the map\u2019s own box on each '
+        + 'side, and every one of them has to be at or inside it');
+  }
+
   // ═══ B · IT READS AT A GLANCE ═══
   console.log('\n── reads at a glance ──');
   {

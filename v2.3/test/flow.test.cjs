@@ -1257,6 +1257,80 @@ const { boot } = require('./harness.cjs');
         + 'health lost has to match hero for hero, and `taken` with it');
   }
 
+  // ── THE REGENT IS INTRODUCED BEFORE SHE IS FOUGHT (Build 237) ───────────
+  //
+  // A boss walked onto the same wide the last three wraiths did, with her bar
+  // already full in the corner, and the fight simply began. What the intro owes
+  // is three things, and each is asserted on a property that lands in the same
+  // frame the class does rather than on a timer: nothing can be PLAYED while it
+  // runs, her bar is held EMPTY until the end of it, and a tap ENDS it.
+  //
+  // The last of those is the one worth having a check for. The moment a game
+  // takes the controls away it owes the player a way to take them back, and a
+  // skip that silently fails is indistinguishable from a game that has hung.
+  {
+    const intro = await J(async () => {
+      // …and the transition is killed for the reading. The bar is deliberately
+      // 860ms of fill and every sleep in this suite is capped at 24, so a read
+      // taken when the sequence ends lands one frame into the animation and
+      // reports nothing — which is the bar working, measured wrong. Snapping it
+      // asks what the width RESOLVES to without removing the rule that decides
+      // it: this is still the computed style of the live element.
+      const fillW = () => {
+        const f = document.querySelector('#k-boss-hud .k-bhp-row .k-bar-fill');
+        if (!f) return null;
+        f.style.transition = 'none';
+        const w = Math.round(parseFloat(getComputedStyle(f).width));
+        f.style.transition = '';
+        return w;
+      };
+      const taps = (id) => getComputedStyle(document.getElementById(id)).pointerEvents;
+      const stage = document.getElementById('k-stage');
+      const layer = document.getElementById('k-bintro');
+      const open = () => { window.K.startCombat({ seed: 7, foes: ['mourner'] }); window.K.render(); };
+
+      open();
+      const full = fillW();
+      const p = window.K.bossIntro();       // the layer lands before the first await
+      const during = { on: stage.classList.contains('k-bintro'),
+                       card: !layer.classList.contains('k-hidden'),
+                       name: (document.getElementById('k-bi-name') || {}).textContent,
+                       hand: taps('k-hand'), fill: fillW() };
+      const ran = await p;
+      const after = { on: stage.classList.contains('k-bintro'),
+                      card: !layer.classList.contains('k-hidden'),
+                      hand: taps('k-hand'), fill: fillW() };
+
+      open();
+      window.K.bossIntro();
+      const armed = stage.classList.contains('k-bintro');
+      layer.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      const skipped = { armed, on: stage.classList.contains('k-bintro'),
+                        card: !layer.classList.contains('k-hidden'), hand: taps('k-hand') };
+
+      // …and a fight with nothing of that tier in it is not an arrival
+      window.K.startCombat({ seed: 7, foes: ['husk', 'cultist'] }); window.K.render();
+      const mob = { ran: await window.K.bossIntro(),
+                    on: stage.classList.contains('k-bintro') };
+      return { ran, full, during, after, skipped, mob };
+    });
+    check('INTRO: the boss is named before she is fought, her bar fills last, and a tap ends it',
+      intro.ran === true && intro.full > 0
+      && intro.during.on && intro.during.card && /REGENT/i.test(intro.during.name || '')
+      && intro.during.hand === 'none' && intro.during.fill === 0
+      && !intro.after.on && !intro.after.card
+      && intro.after.hand !== 'none' && intro.after.fill === intro.full
+      && intro.skipped.armed && !intro.skipped.on && !intro.skipped.card
+      && intro.skipped.hand !== 'none'
+      && intro.mob.ran === false && !intro.mob.on,
+      JSON.stringify(intro) + ' — `fill` is the painted width of her health bar: '
+        + 'held at nothing for the whole introduction and back to its real value '
+        + 'at the end of it. `hand` is whether the cards can be touched. '
+        + '`skipped` is a tap on the layer, which must hand the fight back in the '
+        + 'same frame. `mob` is a fight with no boss in it, which gets no '
+        + 'cinematic at all');
+  }
+
   // ═══ A04 · A DEAD HERO LOOKS DEAD ═══
   {
     const dead = await J(async () => {
