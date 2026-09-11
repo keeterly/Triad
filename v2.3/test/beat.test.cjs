@@ -375,6 +375,70 @@ const PROBES = `
       + 'the first body committing. They used to be the same instant, which is '
       + 'the difference between announcing a thing and printing it on top of it');
 
+  // ── 7. A READ THAT LANDED HOLDS THE FRAME (Build 236) ───────────────────
+  //
+  // Time dilated the instant a note became tappable and snapped back the
+  // instant it was answered — so the dilation covered the WAITING and never the
+  // payoff, and the one frame a player earned by reading a blow correctly was
+  // the first frame played at full speed. And the deflect that proves the read
+  // fired at the END of the volley, out of the string's verdict, over a hero
+  // who had gone back to standing there seconds earlier.
+  //
+  // Both are one claim and it is a claim about a FRAME: there must be a frame
+  // carrying the deflect and the dilation at once. On the pre-236 build that
+  // frame cannot exist — `parrySlowmo(false)` ran before the grade was drawn,
+  // and no deflect was thrown per note at all — so this fails twice over there.
+  //
+  // The bar is answered by hand: every ring publishes the timestamp it lands
+  // on (`data-impact`, which the bots already aim at), so a press scheduled for
+  // that instant is a real read rather than a grade written into the state.
+  const held = await J(async () => {
+    const st = document.getElementById('k-stage');
+    const seen = { frames: 0, both: 0, deflect: 0, slow: 0 };
+    let stop = false;
+    (function tick() {
+      if (stop) return;
+      seen.frames++;
+      const d = st.querySelectorAll('.k-deflect').length > 0;
+      const s = st.classList.contains('k-slowmo');
+      if (d) seen.deflect++;
+      if (s) seen.slow++;
+      if (d && s) seen.both++;
+      requestAnimationFrame(tick);
+    })();
+    window.K.startCombat({ seed: 21 });
+    window.K.forceIntent('hymn');
+    const turn = window.K.endTurn();
+    const armed = {};
+    const poll = setInterval(() => {
+      st.querySelectorAll('.k-pring[data-impact]').forEach(r => {
+        const id = (r.dataset.hero || '') + ':' + (r.dataset.n || '') + ':' + r.dataset.impact;
+        if (armed[id]) return;
+        const wait = (+r.dataset.impact) - performance.now();
+        if (wait > 500 || wait < -200) return;
+        armed[id] = 1;
+        setTimeout(() => {
+          const b = r.getBoundingClientRect();
+          st.dispatchEvent(new PointerEvent('pointerdown',
+            { clientX: b.left, clientY: b.top, bubbles: true }));
+          st.dispatchEvent(new PointerEvent('pointerup',
+            { clientX: b.left, clientY: b.top, bubbles: true }));
+        }, Math.max(0, wait));
+      });
+    }, 20);
+    const res = await turn;
+    clearInterval(poll); stop = true;
+    return { ...seen, grades: (res.grades || []).join(',') };
+  });
+  const read = held.grades.split(',').filter(g => g === 'perfect' || g === 'great').length;
+  check('BEAT: a note read GREAT or better throws its deflect inside the frame it slowed',
+    read > 0 && held.deflect > 0 && held.both > 0,
+    JSON.stringify(held) + ' — `both` is frames carrying the deflect AND the '
+      + 'dilation at once. The bar was answered by pressing on each ring\u2019s own '
+      + 'published impact time, so the grades are a real read. Before Build 236 '
+      + 'the dilation was released before the grade was drawn and the deflect '
+      + 'belonged to the end of the volley, so `both` was zero by construction');
+
   const r = report();
   await H.browser.close();
   process.exit(r.passed === r.total && !r.errs ? 0 : 1);

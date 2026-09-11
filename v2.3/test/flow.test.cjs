@@ -1186,6 +1186,77 @@ const { boot } = require('./harness.cjs');
         + '`after` is the next turn\u2019s promise, back on the board');
   }
 
+  // ── THE BAR PAYS FOR ITSELF, AND FOR NOTHING TWICE (Build 236) ──────────
+  //
+  // A note that gets through is now charged the instant it is missed, and the
+  // string's own arithmetic charges only the remainder at the end. That is a
+  // split of one number into several, across two code paths, with Guard and a
+  // rounding step in the middle — exactly the shape of change that quietly
+  // halves or doubles a blow and is invisible until a playtest.
+  //
+  // So it is measured as a DIFFERENTIAL rather than asserted. The same intent,
+  // the same seed and the same grades, resolved two ways: once through a real
+  // bar with no hand on the screen — every note times out and misses, which is
+  // deterministic — and once through `opts.grades`, which skips the bar
+  // entirely and is the path every other check in this suite uses. The health
+  // lost must be identical, hero by hero, or the split is wrong.
+  {
+    const split = await J(async () => {
+      const hpOf = () => { const h = window.K.state().heroes; const o = {};
+        Object.keys(h).forEach(k => { o[k] = h[k].hp; }); return o; };
+      const sum = (o) => Object.keys(o).reduce((a, k) => a + o[k], 0);
+      const run = async (live) => {
+        window.K.startCombat({ seed: 21 });
+        window.K.forceIntent('hymn');
+        const it = window.K.currentIntent();
+        const n = (it.hits || []).reduce((a, h) => a + h.notes.length, 0);
+        const before = hpOf();
+        let done = false, onBeat = 0, sawBar = 0;
+        const turn = (live ? window.K.endTurn() : window.K.endTurn({ grades: new Array(n).fill('miss') }))
+          .then(r => { done = true; return r; });
+        // ── AND THE LIVE PATH MUST ACTUALLY HAVE FIRED ────────────────────
+        //
+        // A differential between live and flat passes trivially if the live
+        // path never runs: the bar would simply resolve at the end like the
+        // flat one and the two would match. So the run is WATCHED — health is
+        // sampled while rings are still on the stage, and `onBeat` is how much
+        // of it came off before the phrase was over. On the pre-236 build that
+        // is zero by construction, which is the whole complaint.
+        while (!done) {
+          const rings = document.querySelectorAll('.k-pring').length;
+          if (rings > 0) { sawBar++; onBeat = Math.max(onBeat, sum(before) - sum(hpOf())); }
+          await new Promise(r => setTimeout(r, 25));
+        }
+        const res = await turn;
+        const after = hpOf();
+        const lost = {};
+        Object.keys(before).forEach(k => { lost[k] = before[k] - after[k]; });
+        return { notes: n, taken: res.taken, grades: (res.grades || []).join(','),
+                 lost, onBeat, sawBar };
+      };
+      return { flat: await run(false), bar: await run(true) };
+    });
+    const sum = (o) => Object.keys(o).reduce((a, k) => a + o[k], 0);
+    check('PARRY: a missed note costs health while the bar is still playing',
+      split.bar.sawBar > 0 && split.bar.onBeat > 0,
+      JSON.stringify({ sawBar: split.bar.sawBar, onBeat: split.bar.onBeat,
+                       total: sum(split.bar.lost) })
+        + ' — `onBeat` is health lost in a frame that still had rings on the '
+        + 'stage. Before Build 236 every point of it arrived after the last note '
+        + 'was scored, which is what "all damage shows after the parry sequence" '
+        + 'names; zero here means the live path never fired and the differential '
+        + 'below is comparing the flat path with itself');
+    check('PARRY: …and a bar played note by note costs exactly what the same bar resolved in one piece costs',
+      split.bar.notes > 1 && split.flat.notes === split.bar.notes
+      && split.bar.grades === split.flat.grades
+      && JSON.stringify(split.bar.lost) === JSON.stringify(split.flat.lost)
+      && sum(split.bar.lost) > 0 && split.bar.taken === split.flat.taken,
+      JSON.stringify(split) + ' — the live bar charges each note as it is missed '
+        + 'and the string charges the remainder; the flat path charges the whole '
+        + 'blow once at the end. Same seed, same intent, same grades — so the '
+        + 'health lost has to match hero for hero, and `taken` with it');
+  }
+
   // ═══ A04 · A DEAD HERO LOOKS DEAD ═══
   {
     const dead = await J(async () => {

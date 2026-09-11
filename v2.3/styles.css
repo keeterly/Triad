@@ -1710,7 +1710,15 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    where they still work. */
 body.k-cast3d #k-stage.k-parry-focus > #k-field,
 body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
-#k-stage.k-slowmo > *:not(.k-pring):not(.k-grade) { animation-play-state: paused !important; }
+/* ── AND THE ANSWER IS NOT PART OF WHAT STOPS (Build 236) ──────────────────
+   The dilation now outlasts the read rather than ending on it, so for the first
+   time the deflect and the damage number play INSIDE it — and both are direct
+   children of the stage, which is what these two rules pause and drain. A
+   crescent frozen grey on the frame it is thrown, and a number that arrives
+   desaturated and then holds still, are the two things the hold was added to
+   show. They are read, like the rings and the grade, so they stay live. */
+#k-stage.k-slowmo > *:not(.k-pring):not(.k-grade):not(.k-deflect):not(.k-pop) {
+  animation-play-state: paused !important; }
 /* TIME DILATION. Pausing animations is not the effect — v2.2 drained the colour
    out of the world and rushed a vignette in, and that is what sold the beat as
    a held breath rather than a stall. */
@@ -1722,7 +1730,7 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    just looks like an explosion and flash".
    The rings, the grades and the thread stay bright, because they are the thing
    being read. Everything else, including the flash, goes down together. */
-#k-stage.k-slowmo > *:not(.k-pring):not(.k-grade):not(.k-pthread) {
+#k-stage.k-slowmo > *:not(.k-pring):not(.k-grade):not(.k-pthread):not(.k-deflect):not(.k-pop) {
   filter: saturate(0.05) brightness(0.34) contrast(1.06); transition: filter 130ms ease-out; }
 #k-stage.k-slowmo .k-hero.k-parrying { filter: brightness(1.06) !important; }
 #k-stage.k-slowmo::before {

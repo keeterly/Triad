@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 235;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 236;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1087,6 +1087,25 @@ const RIPOSTE_PER_NOTE = 2;
 // better. It pays differently and it is reported differently, but it is never
 // reported as nothing.
 const READ_OK = { perfect: 1, great: 1, good: 1, late: 0, miss: 0 };
+// ── WHAT ONE NOTE OF A STRING LETS THROUGH (Build 236) ─────────────────────
+//
+// `readString` is linear in the notes everywhere except its two all-or-nothing
+// prizes: mitigation is `Σ weight / notes`, so a blow worth D loses
+// `D·(1 − wᵢ)/n` to each note. That identity is the whole reason a note can be
+// paid for the instant it is graded and still add up to exactly what the
+// string's own arithmetic charges at the end.
+//
+// The prizes are what must WAIT. TURNED needs every note GREAT or better and
+// wipes the blow outright; FLAWLESS needs every note PERFECT. So a note read
+// GREAT or better cannot be charged yet — the string may still turn, and then
+// it owes nothing. A note read below that has already made TURNED impossible,
+// which makes the linear rule final for it from that instant.
+function parryNoteShare(dmg, grade, notes) {
+  return dmg * (1 - (PARRY_WEIGHT[grade] || 0)) / Math.max(1, notes);
+}
+function parryNotePays(grade) {
+  return (PARRY_WEIGHT[grade] || 0) < PARRY_WEIGHT.great;
+}
 function readString(grades, notes) {
   let weight = 0, perfects = 0, greats = 0, caught = 0;
   for (const g of grades) {
@@ -1589,6 +1608,42 @@ function currentIntent(F) {
 const ROWS = ['front', 'mid', 'back'];
 const ROW_SHELTER = { front: 1, mid: 0.62, back: 0.3 };
 function livingHeroes() { return Object.keys(C.heroes).filter(id => !C.heroes[id].downed); }
+
+// ── A NOTE THAT GETS THROUGH LANDS WHERE IT WAS MISSED (Build 236) ─────────
+//
+// Playtested as "all damage shows after the parry sequence": a player who
+// missed the first of three notes watched the other two go by with nothing
+// happening, and then took one lump of damage once the phrase was over. The
+// blow and the mistake that let it in were seconds apart, which is the one gap
+// a rhythm defence cannot afford — it is what the hand is supposed to learn
+// from.
+//
+// So the note is paid for on the beat it is missed. Guard first, then flesh,
+// exactly as the resolution does — and the running total goes into `live` so
+// the resolution charges only the remainder. The hero is NOT stood down here
+// however low this takes them: `livingHeroes` reads `downed`, and falling
+// mid-phrase would change who is answering notes that are already in the air.
+// The fall stays a fact about the finished blow.
+function landParryNote(it, prices, answerers, live, hi, grade) {
+  if (!C || !it || !it.hits || !it.hits[hi]) return;
+  if (!parryNotePays(grade)) return;          // a defence — it may still turn the string
+  const hit = it.hits[hi];
+  const tgtId = hitTargetId(hit);
+  const h = tgtId && C.heroes[tgtId];
+  if (!h || h.downed) return;
+  const share = Math.round(parryNoteShare(prices[hi] || 0, grade, hit.notes.length));
+  if (share <= 0) return;
+  let d = share;
+  if (h.guard > 0) { const g = Math.min(h.guard, d); h.guard -= g; d -= g; }
+  if (d > 0) {
+    if (C.deeds) { C.deeds.untouched = false; C.deeds.tookHit += d; }
+    h.hp = Math.max(0, h.hp - d);
+    markBrink(tgtId);
+  }
+  live.total[hi] = (live.total[hi] || 0) + share;
+  live.flesh[hi] = (live.flesh[hi] || 0) + d;
+  fxNoteStruck(tgtId, d, hit.src);
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE VOLLEY — one bar, however many voices
@@ -2899,20 +2954,48 @@ async function endTurn(opts) {
       const t = hitTargetId(h);
       return (C.intercession && C.intercession === t && !C.heroes.elin.downed) ? 'elin' : t;
     });
+    // ── WHAT EACH BLOW IS WORTH, BEFORE THE BAR (Build 236) ────────────────
+    //
+    // The price used to be worked out inside the resolution loop below, which
+    // runs after the whole phrase has been played — so nothing during the bar
+    // could know what a note it had just missed was going to cost. Hoisted, in
+    // the same order the bar plays the hits, so it is the same arithmetic on
+    // the same state.
+    //
+    // CHILL BELONGS TO THE THING THAT WAS CHILLED. Read off `C.boss` this was
+    // the AIMED foe's — so a Chill landed on the one you were pointed at would
+    // have softened a blow thrown by something else entirely, and the blow you
+    // actually chilled would have arrived at full weight. It is spent here for
+    // the same reason it was spent below: by that foe's first hit, in order.
+    const prices = it.hits.map(hit => {
+      const SRC = srcFoe(hit);
+      const d = hitDamage(hit, SRC ? SRC.chill : 0);
+      if (SRC && SRC.chill > 0) SRC.chill = 0;
+      return d;
+    });
+    // What the BAR has already put through, KEYED BY HIT — not by hero. One
+    // volley can strike the same hero twice (the Hymn does), so a per-hero
+    // tally would charge the second blow for the first one's live share and
+    // quietly halve it.
+    const live = { flesh: {}, total: {} };
+    // …and only when a bar is actually played. `opts.grades` is the tests' and
+    // the no-input path's way in: there are no notes on screen, nothing to
+    // answer and nothing to react to, so that path resolves exactly as it
+    // always has, in one piece, at the end.
+    const onGraded = opts.grades ? null : (hi, ni, g) => landParryNote(it, prices, answerers, live, hi, g);
     // Tests and the no-input path may pass a flat grade list; otherwise the
     // player plays the whole bar now and the volley resolves against it.
-    let flat = opts.grades ? opts.grades.slice() : await runVolleyRhythm(it.hits, answerers, it.sub);
-    for (const hit of it.hits) {
+    let flat = opts.grades ? opts.grades.slice()
+      : await runVolleyRhythm(it.hits, answerers, it.sub, onGraded);
+    for (let hi = 0; hi < it.hits.length; hi++) {
+      const hit = it.hits[hi];
       if (!livingHeroes().length) break;
       const tgtId = hitTargetId(hit);
       if (!tgtId) break;
-      // CHILL BELONGS TO THE THING THAT WAS CHILLED. Read off `C.boss` this
-      // was the AIMED foe's — so a Chill landed on the one you were pointed at
-      // would have softened a blow thrown by something else entirely, and the
-      // blow you actually chilled would have arrived at full weight.
+      // …the thrower is still needed here, for the break a turned string
+      // deals and for the recoil — only its chill was spent above.
       const SRC = srcFoe(hit);
-      let dmg = hitDamage(hit, SRC ? SRC.chill : 0);
-      if (SRC && SRC.chill > 0) SRC.chill = 0;     // spent by that foe's first hit
+      let dmg = prices[hi];
 
       // INTERCESSION: Elin steps into the window aimed at her chosen ally.
       const parrierId = (C.intercession && C.intercession === tgtId && !C.heroes.elin.downed)
@@ -2977,24 +3060,59 @@ async function endTurn(opts) {
       // the card is played. An intercession that was never tested is a card
       // played, not a thing done for somebody.
       if (C.deeds && parrierId !== tgtId) C.deeds.shields.push({ by: parrierId, for: tgtId });
+      // ── WHAT THE BAR ALREADY PUT THROUGH (Build 236) ───────────────────
+      //
+      // `landParryNote` paid for every note that definitely let something
+      // through, at the moment it was graded. The string's own arithmetic is
+      // still the authority for the SUM — this only applies the remainder, so
+      // a blow can never be charged twice.
+      //
+      // Guard absorption is order-independent for a total: taking 3 then 5 out
+      // of 4 Guard leaves 4 absorbed and 4 to flesh, and so does taking 8 in
+      // one go. So paying part of a blow early and the rest here reaches the
+      // same state as paying all of it here, which is what makes this safe to
+      // split at all.
+      //
+      // `max(0, …)` is a rounding floor, not a policy: each note's share is
+      // rounded on its own, so on a three-note string the parts can add up to
+      // a pixel more than the whole. It can never be more than that, because
+      // every note that pays early is one the string's own maths also charges.
+      const already = live.total[hi] || 0;
+      const owed = Math.max(0, dmg - already);
+      let rest = owed;
       // Guard absorbs first, on the hero actually struck; then flesh.
       const struck = C.heroes[tgtId];
-      if (dmg > 0) {
+      if (rest > 0) {
         if (C.deeds) C.deeds.untouched = false;
-        if (struck.guard > 0) { const g = Math.min(struck.guard, dmg); struck.guard -= g; dmg -= g; }
-        if (dmg > 0) {
-          if (C.deeds) C.deeds.tookHit += dmg;
-          struck.hp = Math.max(0, struck.hp - dmg);
+        if (struck.guard > 0) { const g = Math.min(struck.guard, rest); struck.guard -= g; rest -= g; }
+        if (rest > 0) {
+          if (C.deeds) C.deeds.tookHit += rest;
+          struck.hp = Math.max(0, struck.hp - rest);
           markBrink(tgtId);
-          if (struck.hp === 0) { struck.downed = true; struck.guard = 0; logLine(HEROES23[tgtId].name + ' falls.'); }
         }
       }
+      // A HERO GOES DOWN HERE AND NOWHERE ELSE. The bar can take a hero to
+      // zero mid-phrase, and it deliberately does not stand them down for it:
+      // `livingHeroes` reads `downed`, so falling mid-bar would change who is
+      // answering the notes that are already in the air. The fall is a fact
+      // about the finished blow.
+      if (struck.hp === 0 && !struck.downed) {
+        struck.downed = true; struck.guard = 0;
+        logLine(HEROES23[tgtId].name + ' falls.');
+      }
+      // …and the RECEIPT is the whole blow, not the part that was left. `dmg`
+      // is what the string let through after mitigation; `taken` has always
+      // been the flesh of it, so the live share's flesh counts too.
+      const fleshLive = live.flesh[hi] || 0;
+      dmg = rest + fleshLive;
       result.hits.push({ targetId: tgtId, parrierId, turned, negated, flawless: read.flawless,
                          mit: read.mit, kept: read.kept, notes: read.notes, taken: dmg });
       C.telemetry.parry.push({ t: C.turn, turned, flawless: read.flawless,
                                kept: read.kept, notes: read.notes });
       result.taken += dmg;
-      await fxHitResolved(tgtId, dmg, turned, read.flawless, rawBlow);
+      // …and it is not announced twice. Everything the bar already paid for
+      // has had its number, its flinch and its kick, seconds ago.
+      await fxHitResolved(tgtId, dmg, turned, read.flawless, rawBlow, fleshLive > 0);
       if (!livingHeroes().length) { setPhase('DEFEAT'); renderAll(); return report('defeat', result); }
     }
   }
@@ -3726,7 +3844,21 @@ function parryFocus(on) {
   } catch (e) {}
 }
 // Clair-Obscur slow-mo: the instant a note becomes tappable, time dilates.
+// ── AND IT OUTLASTS THE READ (Build 236) ──────────────────────────────────
+//
+// Every caller of this is a moment, not a span, and the notes of a bar run in
+// parallel — so a hold that is released by a bare timer can be cancelled by a
+// stale one belonging to a note that finished two beats ago. The token is
+// bumped by every set, and a held release only fires if nothing has spoken
+// since: whoever spoke last owns the clock.
+let _slowTok = 0;
+function parrySlowmoHold(ms) {
+  parrySlowmo(true);
+  const tok = _slowTok;
+  setTimeout(() => { if (tok === _slowTok) parrySlowmo(false); }, fastFx() ? 1 : ms);
+}
 function parrySlowmo(on) {
+  _slowTok++;
   const st = el('k-stage'); if (!st) return;
   st.classList.toggle('k-slowmo', !!on);
   // ── …AND IN THE WORLD, WHERE THE FIGHT IS (Build 136) ───────────────────
@@ -4158,7 +4290,16 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy, actSpec) {
       done = true;
       liveClose(me);
       clearTimeout(liveT); clearTimeout(missT);
-      parrySlowmo(false);
+      // ── A READ THAT LANDED HOLDS THE FRAME (Build 236) ──────────────────
+      //
+      // Time dilated the instant the note became tappable and snapped back the
+      // instant it was answered — so the dilation covered the WAITING and
+      // never the payoff, and the one frame a player earned by reading the
+      // blow correctly was the first frame played at full speed. It now
+      // outlasts the read: the guard turns the blow aside inside the slow
+      // frame, and time opens up again as the deflect clears.
+      if (q === 'perfect' || q === 'great') parryDeflect(whoId, dir, q === 'perfect');
+      else parrySlowmo(false);
       stage.removeEventListener('pointerdown', onDown, true);
       stage.removeEventListener('pointermove', onMove, true);
       stage.removeEventListener('pointerup', onUp, true);
@@ -4333,7 +4474,15 @@ function stringTrack(heroId, n) {
   };
 }
 
-async function runVolleyRhythm(hits, answerers, sub) {
+// ── AND A NOTE IS ANSWERED WHERE IT IS PLAYED (Build 236) ─────────────────
+//
+// `onGraded(hitIndex, noteIndex, grade)` is called the instant a note is
+// scored, while the bar is still running. Until now the bar's only output was
+// a flat list of grades handed back at the end, so every consequence of every
+// note — the blow landing, the number, the hero flinching — waited for the
+// whole phrase to finish and then arrived in a lump. A player who missed the
+// first note of three watched two more notes go by before anything told them.
+async function runVolleyRhythm(hits, answerers, sub, onGraded) {
   const step = BEAT_MS * (sub || 1);
   // WHICH BODY IS AIMING AT THIS HERO. Built once from the composed volley so
   // the reanchor loop can look it up per frame without walking the hits.
@@ -4494,6 +4643,10 @@ async function runVolleyRhythm(hits, answerers, sub) {
         fxFoeSwing(act, hits[hi].src);
         const g = await runParryNote(type, pos.x + ox, pos.y + oy, idx + 1, kinds.length, dur,
                                      who, ox, oy, act);
+        // …and whatever this note costs is paid NOW, not after the phrase.
+        // Wrapped because a bar must survive its consequences: a throw in here
+        // would reject the job, and a rejected job abandons the whole bar.
+        if (onGraded) { try { onGraded(hi, ni, g); } catch (e) {} }
         if (track) {
           track.mark(ni, g);
           // …and it leaves when ITS hit is finished, not when the bar is. Held
@@ -4527,6 +4680,11 @@ async function runVolleyRhythm(hits, answerers, sub) {
     if (thread) thread.remove();
     beatClose();
     parryFocus(false);
+    // …AND TIME OPENS BACK UP, WHATEVER HAPPENED TO THE BAR (Build 236). The
+    // dilation is held past a landed read now, on a timer — and a bar that is
+    // abandoned mid-hold would have handed the rest of the fight back at a
+    // third speed with no note left to release it.
+    parrySlowmo(false);
     document.querySelectorAll('.k-hero').forEach(h => h.classList.remove('k-parrying'));
     // ── AND ANY RING THE BAR DID NOT GRADE GOES WITH IT ──────────────────
     //
@@ -5565,6 +5723,51 @@ function fxParryReceipt(heroId, read) {
   stage.appendChild(tag);
   setTimeout(() => tag.remove(), 1150);
 }
+// ── THE DEFLECT, ON THE BEAT IT WAS EARNED (Build 236) ────────────────────
+//
+// `fxDeflect` existed and fired at the END of the volley, out of the string's
+// verdict — seconds after the hand that earned it, over a hero who had long
+// since gone back to standing there. The crescent, the shards and the guard
+// note are what a read SOUNDS like, so they belong to the note.
+//
+// And the body answers. `castPlay(who,'parry',dir)` already runs when the note
+// opens, which is the guard coming UP — a posture, held while the blow closes.
+// Playing it again here is the deflect itself: the same motion, thrown on the
+// frame of contact, inside the dilation the read bought.
+const DEFLECT_HOLD = 260;      // a perfect: long enough to see the blow turned
+const DEFLECT_HOLD_OK = 130;   // a great: a beat, not a moment
+function parryDeflect(whoId, dir, full) {
+  const at = whoId && document.querySelector('.k-hero[data-hero="' + whoId + '"]');
+  fxDeflect(at, !!full);
+  sfx('guard', full ? 1.2 : 0.9);
+  if (whoId) castPlay(whoId, 'parry', dir);
+  parrySlowmoHold(full ? DEFLECT_HOLD : DEFLECT_HOLD_OK);
+}
+// ── AND A NOTE THAT GOT THROUGH IS FELT (Build 236) ───────────────────────
+//
+// The share this note let past, over the hero it was aimed at, on the beat it
+// was missed: the number, the body's recoil, the frame's kick. `fxImpact` is
+// the game's one on-hit bundle — ring, flash, push, shake, hitstop, and the
+// 3D figure taking it from whoever swung — so this is not a second way for a
+// hero to be struck, it is the same one, called earlier.
+//
+// A note the GUARD eats still shakes the frame. Something arrived; the reason
+// nothing came off the hero is a thing the player bought, and it should read
+// as a block rather than as nothing having happened.
+function fxNoteStruck(tgtId, flesh, srcIx) {
+  const at = tgtId && document.querySelector('.k-hero[data-hero="' + tgtId + '"]');
+  renderPartyHud();                     // …and the bar drains on that beat too
+  if (flesh > 0) {
+    popupOver(at || el('k-party-hud'), fmtN(flesh),
+      'k-pop-dmg k-pop-hurt ' + POP_TIER(flesh + 4));
+    fxImpact(at, Math.min(2.4, Math.max(0.5, flesh / 5)), 'hurt', 'l');
+    sfx('hurt', 0.6 + Math.min(1, flesh / 12));
+  } else {
+    popupOver(at || el('k-party-hud'), 'GUARD', 'k-pop-none');
+    screenKick(0.5);
+    sfx('guard', 0.7);
+  }
+}
 function fxNoteGrade(ring, ax, ay, grade, kind) {
   const stage = document.getElementById('k-stage');
   if (ring) {
@@ -5910,7 +6113,13 @@ async function fxInterrupt(ix) {
   b.classList.remove('k-broken');
 }
 async function fxBossHeal() { popupOver(document.getElementById('k-boss-art'), '+heal', 'k-pop-heal'); await sleep(500); }
-async function fxHitResolved(tgtId, taken, negated, flawless, raw) {
+// `live` — this blow already had its number, its flinch and its kick, note by
+// note, while the bar was still running (see `landParryNote`). What is left for
+// the end of the string is the VERDICT: the bar redrawn, the deflect for a
+// blow turned aside outright, and the beat that spaces one hit from the next.
+// Announcing it again here would print a second number over a hero who has
+// already been struck twice for the same hit.
+async function fxHitResolved(tgtId, taken, negated, flawless, raw, live) {
   // THE BAR DRAINS WITH THE NUMBER. The HP was applied the moment the blow
   // landed but nothing redrew until the whole turn was over, so the popup said
   // "-9" and the party stayed at full health until the next player phase —
@@ -5931,6 +6140,12 @@ async function fxHitResolved(tgtId, taken, negated, flawless, raw) {
   // the game and the only one with no readout at all, which is also what a
   // dropped frame looks like.
   const stopped = raw != null && raw > taken ? raw : null;
+  if (taken > 0 && live) {
+    // …the bar said it all. All that is owed here is time to read the bar
+    // drain, which `renderPartyHud` above has just done.
+    await sleep(240);
+    return;
+  }
   if (taken > 0) {
     popupOver(at || document.getElementById('k-party-hud'), fmtN(taken),
       'k-pop-dmg k-pop-hurt ' + POP_TIER(taken + 4),     // a hero has less HP; the same
