@@ -493,7 +493,7 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    else, which is why it reads as an occasion rather than as a layout. */
 #k-boss-hud { position: absolute; right: calc(16px + var(--ui-r)); left: auto;
   top: calc(12px + var(--ui-t)); width: 410px;
-  display: flex; flex-direction: column; align-items: stretch; gap: 5px; z-index: 10; }
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px; z-index: 10; }
 /* ── THE READOUT HOLDS ITSELF, WITH NO GROUND UNDER IT (Build 220) ────────
    Build 219 put a soft scrim behind this readout and behind the telegraph, and
    the measurement that called for it was right: the foe's body box runs y30 to
@@ -519,7 +519,6 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    is decided at the EDGE of a letter, not across the whole box — and one wide
    soft pass underneath takes the glare off a lit body without painting a shape
    anybody can see. */
-#k-boss-hud, #k-boss-hud *,
 .k-tell.k-lbl-over, .k-tell.k-lbl-over * {
   text-shadow:
     0 0 2px rgba(8,6,5,0.98),
@@ -527,11 +526,26 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
     1px 0 2px rgba(8,6,5,0.92),
     -1px 0 2px rgba(8,6,5,0.92),
     0 0 9px rgba(8,6,5,0.8); }
+/* ── AND THE BOSS BAR TAKES A LIGHTER ONE (Build 233) ─────────────────────
+   The five-pass halo above was measured at Build 220 for text sitting ON a
+   lit body, and it was right for that: the readout overlapped the Regent by
+   design, and POISE came out at 2.06:1 against a 4.5:1 floor. The bar does
+   not sit there any anymore — it is a band along the top edge, over sky, with
+   the creature's crown below it. Five passes of near-black under every glyph
+   on a clean ground is what "too heavy" looks like. Two passes, and the wide
+   soft one comes off entirely. The telegraph keeps all five, because the
+   telegraph IS still on a body and nothing about its case has changed. */
+#k-boss-hud, #k-boss-hud * {
+  text-shadow:
+    0 0 2px rgba(8,6,5,0.9),
+    0 1px 3px rgba(8,6,5,0.75); }
 /* …AND THE BAR AND THE PIPS ARE NOT TEXT, so a text-shadow does nothing for
    them. A drop-shadow on the block rims whatever is actually drawn — the HP
    line, the poise squares, the intent glyph — with no rectangle of its own. */
-#k-boss-hud, .k-tell.k-lbl-over {
+.k-tell.k-lbl-over {
   filter: drop-shadow(0 1px 2px rgba(8,6,5,0.9)) drop-shadow(0 0 3px rgba(8,6,5,0.7)); }
+/* one pass, not two — the bar's own rules already carry a hairline */
+#k-boss-hud { filter: drop-shadow(0 1px 2px rgba(8,6,5,0.6)); }
 /* …AND THE QUALIFIERS STOP BEING 8px OF DIM GREY. Measured at the glyph edge
    against a control — the party HUD, text nobody has trouble reading, scores a
    5.36:1 median on the same instrument — the telegraph came back at 1.47:1 with
@@ -582,25 +596,32 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 /* THE NAME IS THE ANNOUNCEMENT. Large, spaced, lit from behind, on its own
    line with a hairline under it — the thing you read once when the fight
    starts and never need to read again. */
-.k-bname { font-size: 19px; font-weight: 600; letter-spacing: 0.24em; color: #f6ecd4;
-  text-align: right; text-transform: uppercase; padding-bottom: 5px;
-  border-bottom: 1px solid rgba(201,164,92,0.34);
-  text-shadow: 0 1px 6px rgba(0,0,0,0.95), 0 0 22px rgba(224,150,110,0.35); }
+/* ── THE BAR LOSES WEIGHT (Build 233) ─────────────────────────────────────
+   It was announcing itself twice: a 19px name over a 9px bar over 7px tiles,
+   the whole block sixty-six pixels tall, with a two-pass drop shadow under it
+   and a five-pass halo on every glyph. On a screen whose subject is a painted
+   creature that is a lot of furniture for three facts. Everything here comes
+   down a step and nothing changes rank — the name is still the largest thing
+   in it, the health still the longest. */
+.k-bname { font-size: 15px; font-weight: 600; letter-spacing: 0.2em; color: #f6ecd4;
+  text-align: right; text-transform: uppercase; padding-bottom: 4px;
+  border-bottom: 1px solid rgba(201,164,92,0.28);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9), 0 0 14px rgba(224,150,110,0.22); }
 .k-bflag { font-size: 11px; color: #d0764a; letter-spacing: 0.18em; }
 /* THE BAR IS THE LENGTH OF THE FIGHT. 410px of it, so a hundred points coming
    off is a distance you can see — the whole reason a boss bar is drawn wide. */
 .k-bhp-row { display: flex; align-items: center; gap: 9px; width: 100%;
   flex-direction: row-reverse; }
-.k-bhp-row .k-bar { height: 9px; border-radius: 0;
-  border-color: rgba(201,164,92,0.4);
-  background: rgba(6,4,8,0.82);
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.9), 0 0 14px rgba(0,0,0,0.5); }
-.k-bhp-row .k-bar-fill { inset: 1px; border-radius: 0;
+.k-bhp-row .k-bar { height: 5px; border-radius: 0;
+  border-color: rgba(201,164,92,0.34);
+  background: rgba(6,4,8,0.8);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.75); }
+.k-bhp-row .k-bar-fill { inset: 0; border-radius: 0;
   background: linear-gradient(180deg, #d8624a 0%, #a8362a 55%, #7d2118 100%);
-  box-shadow: 0 0 10px rgba(200,70,50,0.45); }
-.k-bhp-row .k-bar-ghost { inset: 1px; border-radius: 0; }
-.k-bhp-row .k-hpnum { font-size: 11px; min-width: 74px; text-align: right; }
-.k-bhp-row .k-hpnum b { font-size: 15px; }
+  box-shadow: 0 0 7px rgba(200,70,50,0.3); }
+.k-bhp-row .k-bar-ghost { inset: 0; border-radius: 0; }
+.k-bhp-row .k-hpnum { font-size: 10px; min-width: 64px; text-align: right; }
+.k-bhp-row .k-hpnum b { font-size: 13px; }
 .k-bar-w { flex-grow: 1; }
 .k-b-meta { display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
 .k-break-wrap { font-size: 10px; color: #b0a894; display: flex; align-items: center; gap: 6px;
@@ -617,10 +638,9 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 .k-break-wrap.k-is-stag .k-brk-stag { display: inline-block; }
 @keyframes k-stag { 50% { box-shadow: 0 0 22px rgba(255,180,100,0.85); } }
 #k-break { display: flex; gap: 2px; }
-.k-pip { width: 11px; height: 7px; border-radius: 1px; border: 1px solid rgba(124,111,82,0.7);
-  display: inline-block; background: none; }
-.k-pip.on { background: linear-gradient(180deg, #dcb46e, #a8873f); border-color: #c9a45c;
-  box-shadow: none; }
+.k-pip { width: 13px; height: 3px; border-radius: 0; border: 0;
+  display: inline-block; background: rgba(124,111,82,0.5); }
+.k-pip.on { background: linear-gradient(180deg, #dcb46e, #a8873f); box-shadow: none; }
 /* a pip knocked out says so — staggered from the top down, so a 3-break card
    reads as three separate lights going out rather than one wider dimming */
 .k-pip-out { animation: k-pip-out 420ms cubic-bezier(.2,.9,.3,1) backwards;
@@ -781,7 +801,11 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 #k-ap { position: absolute; left: 50%; top: calc(12px + var(--ui-t)); bottom: auto;
   transform: translateX(-50%);
   z-index: 15; display: flex; align-items: center; justify-content: center;
-  border-radius: 999px;
+  /* SHARP, NOT ROUND (Build 233). 999px is a capsule and this game does not
+     make capsules anywhere else — its shapes are square frames and hairlines.
+     Three of them were left: the AP scrim, the critical badge's ring and the
+     status chip at a body's feet. All three come down to 2px. */
+  border-radius: 2px;
   box-shadow: 0 0 16px 9px rgba(10,8,6,0.6);
   background: rgba(10,8,6,0.6);
   transition: box-shadow 220ms var(--ease-out), background 220ms var(--ease-out); }
@@ -4829,9 +4853,16 @@ body.k-cast3d .k-hero.k-row-front img { filter: none; }
 .k-vit-bot em { flex: none; font-style: normal; font-weight: 700; font-size: 10px;
   line-height: 1; font-variant-numeric: tabular-nums; color: #e8dfcd;
   text-shadow: 0 1px 4px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.8); }
-.k-vit-bar { position: relative; display: block; height: 4px; border-radius: 2px;
-  overflow: hidden; background: rgba(0,0,0,0.55); box-shadow: 0 1px 4px rgba(0,0,0,0.75); }
-.k-vit-on .k-vit-bar { box-shadow: 0 1px 4px rgba(0,0,0,0.75),
+/* ── SHARP, AND THINNER (Build 233) ───────────────────────────────────────
+   Every radius in this readout is zero now. A rounded capsule is the one
+   shape this game does not otherwise make — the card frames, the rules under
+   the names, the END TURN underline and the ladder are all square — so a
+   pill-ended gauge read as borrowed furniture. And the gauge is THINNER: the
+   plate is 74px wide and stands over a creature's head, where its job is to
+   be glanced at, not studied. */
+.k-vit-bar { position: relative; display: block; height: 3px; border-radius: 0;
+  overflow: hidden; background: rgba(0,0,0,0.6); box-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+.k-vit-on .k-vit-bar { box-shadow: 0 1px 3px rgba(0,0,0,0.6),
   0 0 0 1px rgba(224,192,132,0.55); }
 /* THE WOUND GHOST CROSSED OVER WITH THE PLATE. `setBar` is the one function
    that draws a health bar in this game — snap the fill, hold a pale ghost at
@@ -4842,17 +4873,18 @@ body.k-cast3d .k-hero.k-row-front img { filter: none; }
    for the 6px corner gauge it was written for, and four pixels minus two
    leaves two. */
 .k-vit-bar .k-bar-fill, .k-vit-bar .k-bar-ghost {
-  inset: 0; border-radius: 2px; }
+  inset: 0; border-radius: 0; }
 .k-vit-bar .k-bar-fill {
   background: linear-gradient(180deg, var(--vit-ink), var(--vit-ink-deep)); }
 .k-vit-bar .k-bar-ghost { background: rgba(255,228,196,0.6);
-  box-shadow: 0 0 5px rgba(255,214,170,0.4); }
-/* the gauge at body scale: the same bordered tiles the plate has, three pixels
-   tall instead of four, and they stretch — four of them read as a full gauge
-   rather than a stub under a 98px bar. */
+  box-shadow: 0 0 4px rgba(255,214,170,0.35); }
+/* THE STAGGER GAUGE IS A SECOND LINE, NOT A SECOND BAR. It sits under the
+   health on a plate seventy-four pixels wide; at three pixels of border on
+   three pixels of tile it was as loud as the health above it and read as two
+   equal readings. Two pixels, square, no border — notches rather than tiles. */
 .k-vit-poise { display: flex; gap: 2px; align-items: center; width: 100%; }
-.k-vit-poise i { flex: 1 1 0; min-width: 0; max-width: 12px; height: 3px;
-  border-radius: 1px; border: 1px solid rgba(124,111,82,0.65); background: none; }
+.k-vit-poise i { flex: 1 1 0; min-width: 0; max-width: 12px; height: 2px;
+  border-radius: 0; border: 0; background: rgba(124,111,82,0.5); }
 .k-vit-poise i.on { background: linear-gradient(180deg, #dcb46e, #a8873f);
   border-color: #c9a45c; }
 .k-vit-stag { font: 700 8px/1.2 var(--ui, system-ui), sans-serif;
@@ -4887,7 +4919,7 @@ body.k-cast3d .k-hero.k-row-front img { filter: none; }
 /* CRITICAL. The ring is what makes it a state rather than a bigger number —
    at a glance the board carries one circled mark and the player knows where
    the turn's real question is before reading a single digit. */
-.k-ichip.k-w3 { padding: 2px 7px 2px 5px; border-radius: 999px;
+.k-ichip.k-w3 { padding: 2px 7px 2px 5px; border-radius: 2px;
   background: rgba(48,10,12,0.55); box-shadow: 0 0 0 1px rgba(226,106,92,0.55),
               0 0 14px rgba(214,74,60,0.3); }
 .k-ichip.k-w3 .k-ico { width: 19px; height: 19px; opacity: 1; color: #ff9d8c; }
@@ -4917,7 +4949,7 @@ body.k-cast3d .k-hero.k-row-front img { filter: none; }
    and needs to be reminded of, not decisions being asked for — the badge above
    the head is the only thing on a body allowed to shout. */
 .k-pip-b { display: inline-flex; align-items: center; gap: 2px;
-  padding: 1px 5px 1px 4px; border-radius: 999px;
+  padding: 1px 5px 1px 4px; border-radius: 2px;
   background: rgba(10,9,14,0.78); box-shadow: 0 0 0 1px rgba(255,255,255,0.07);
   font: 700 10px/1.2 var(--ui, system-ui), sans-serif; }
 .k-pip-b .k-ico { width: 9px; height: 9px; }
