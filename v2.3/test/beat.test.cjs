@@ -520,6 +520,51 @@ const PROBES = `
       + 'one\u2019s wind-up. No pair card in the opening hand is a pass: the '
       + 'claim is about the ones that exist, not about drawing one');
 
+  // ═══ THE FREEZE DOES NOT FREEZE THE READOUT (Build 239) ═══
+  console.log('\n── what the impact says ──');
+  // ── WHY THIS COULD NOT HAVE BEEN CAUGHT ────────────────────────────────
+  //
+  // `.k-frozen` — the hitstop — pauses `animation-play-state` on the stage and
+  // EVERY DESCENDANT. `fxImpact` and `fxDeflect` each call `hitstop()`
+  // themselves, so both were freezing the readout that says what the blow did:
+  // a damage number whose first keyframe is `opacity: 0` spent the whole freeze
+  // invisible, and the deflect's 460ms crescent sweep was held for 175ms inside
+  // an element removed at 720ms.
+  //
+  // No existing check could see it. Every suite drives volleys with
+  // `opts.grades`, which sets `onGraded` to null ON PURPOSE — so the per-note
+  // path Build 236 added has never once been exercised by a gate. This is the
+  // blind spot, closed.
+  //
+  // The instrument is `animation.currentTime`, not computed opacity: it advances
+  // in animation time whether or not this machine painted a frame, so "did the
+  // number's life advance while the world was frozen" is machine-independent.
+  const thaw = await J(() => new Promise(res => {
+    const st = document.getElementById('k-stage');
+    window.K._fxNoteStruck('ash', 7);            // a note that got through
+    const pop = st.querySelector('.k-pop');
+    const a = pop && pop.getAnimations()[0];
+    if (!a) return res({ err: 'no animation on the damage number' });
+    const frozenAtBirth = st.classList.contains('k-frozen');
+    const t0 = a.currentTime || 0;
+    // wait out a few real frames and ask the animation, not the pixels
+    let n = 0;
+    const tick = () => {
+      if (++n < 8) return requestAnimationFrame(tick);
+      res({ frozenAtBirth,
+            stillFrozen: st.classList.contains('k-frozen'),
+            state: a.playState,
+            advancedMs: Math.round((a.currentTime || 0) - t0) });
+    };
+    requestAnimationFrame(tick);
+  }));
+  check('IMPACT: the number a blow prints is not frozen by that blow\'s own hitstop',
+    !thaw.err && thaw.frozenAtBirth && thaw.state === 'running' && thaw.advancedMs > 0,
+    JSON.stringify(thaw) + ' — `frozenAtBirth` must be true or the check is '
+      + 'vacuous: it has to be asked DURING a freeze to mean anything. With the '
+      + 'freeze pausing it the clock advanced exactly 0ms, and the number\u2019s '
+      + 'whole fade-in (12% of 1.1s) sat behind it');
+
   const r = report();
   await H.browser.close();
   process.exit(r.passed === r.total && !r.errs ? 0 : 1);

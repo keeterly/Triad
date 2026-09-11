@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 238;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 239;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -6510,7 +6510,22 @@ async function fxAllOut(living) {
   // is off the screen.
   await sleep(ALLOUT_CALL);
   tag.remove();
-  await sleep(ALLOUT_BREATH);      // …and the board holds, empty, for a beat
+  // ── AND THE BOARD COMES BACK UP BEFORE ANYBODY SWINGS (Build 239) ───────
+  //
+  // The drain was added at the top of this function and lifted at the BOTTOM,
+  // which is after every hero has acted — so the payoff of a whole fight's
+  // charging played out at `brightness(0.4)`. It reads worse on the stage
+  // players actually get than on the painted one: the rule exempts `.k-hero`,
+  // but on the 3D stage a hero is a body inside `#k-field`, and `#k-field` is
+  // the direct child the selector catches. The entire world went down, bodies
+  // included, and stayed down for the acts.
+  //
+  // The drain belongs to the ANNOUNCE — it is what makes one word on an empty
+  // board read as a held breath. Lifting it here spends the breath bringing the
+  // board back instead of holding it dark: the 160ms transition is well inside
+  // ALLOUT_BREATH, so the first body moves on a board that is already clear.
+  stage.classList.remove('k-allout');
+  await sleep(ALLOUT_BREATH);      // …and the board comes back, empty, for a beat
   // THE CUT LIST. Wide and swinging while they commit, then down onto the line
   // of them for the blows. The old shot handed the camera back with
   // `castShot('home')` at the END of this function — which runs BEFORE allOut()
@@ -6534,8 +6549,8 @@ async function fxAllOut(living) {
     }, i * ALLOUT_STEP);
   });
   await sleep(ALLOUT_STEP * living.length + 300);
-  stage.classList.remove('k-allout');
-}
+  stage.classList.remove('k-allout');   // belt and braces: a cut sequence that
+}                                       // bailed early must not leave it drained
 // ── THE REGENT IS INTRODUCED BEFORE SHE IS FOUGHT (Build 237) ─────────────
 //
 // A boss walked onto the same wide the last three wraiths did, with her bar
@@ -6554,10 +6569,30 @@ async function fxAllOut(living) {
 // AND IT IS FIRED BY THE ROAD, not by `startCombat`. The road is what knows
 // this is the stop at the end of it; a fight started anywhere else — a suite, a
 // bare board — is not an arrival and gets no introduction.
-const BI_HOLD = 1500;     // the name, alone on the frame
-const BI_OUT = 340;       // …and the card clearing before the lens moves
-const BI_SWEEP = 1150;    // the move back out to the board
-const BI_BAR = 900;       // her bar filling, which is the last beat
+// ── AND IT IS PACED IN BEATS, NOT DISSOLVED INTO ONE (Build 239) ──────────
+//
+// The first cut had the right parts in the wrong shape. Everything arrived at
+// once — the veil over 520ms, the tier line at 120, the name at 0, the rule at
+// 260 — so the whole card was on screen by about a second and then sat there
+// for the remaining 500ms of a 1500ms hold: a flash of type followed by dead
+// air. Worse, the lens was given a 2600ms push and then interrupted at 1500, so
+// the slow move in on her never arrived anywhere. And nothing happened to HER:
+// she stood in her idle through her own introduction.
+//
+// Four beats, in the order a title card actually works in.
+//   SEE    you look at the thing, and you are given nothing to read
+//   NAME   the label, then the name, then the rule — staged, not stacked
+//   BEAT   the name alone, with nothing moving, which is the imposing part
+//   OUT    the card leaves before the lens does
+// SEE + NAME + BEAT is 2580ms, which is what the `bintro` shot's 2600ms push
+// was always for — it now completes instead of being cut off a thousand
+// milliseconds early.
+const BI_SEE = 840;       // her, alone on the frame, before a word is said
+const BI_NAME = 1180;     // the name settling onto her
+const BI_BEAT = 560;      // …and held, with nothing else moving
+const BI_OUT = 420;       // …and the card clearing before the lens moves
+const BI_SWEEP = 1250;    // the move back out to the board
+const BI_BAR = 980;       // her bar filling, which is the last beat
 let _biTok = 0;
 async function fxBossIntro() {
   const stage = el('k-stage'), layer = el('k-bintro');
@@ -6570,8 +6605,10 @@ async function fxBossIntro() {
     if (over) return; over = true;
     layer.removeEventListener('pointerdown', skip, true);
     layer.classList.add('k-hidden');
-    layer.classList.remove('k-bi-out');
+    layer.classList.remove('k-bi-out', 'k-bi-say');
     stage.classList.remove('k-bintro', 'k-bi-bar', 'k-bi-fill');
+    // the world gets its light back whatever ended this, including a tap
+    try { if (window.Cast3D && window.Cast3D.focus) window.Cast3D.focus(null); } catch (e) {}
     castShot('home', { speed: 1.8 });
   };
   // A SKIP IS NOT A CANCEL. Everything the introduction was going to do to the
@@ -6585,19 +6622,39 @@ async function fxBossIntro() {
   if (tier) tier.textContent = 'THE ROAD ENDS HERE';
   stage.classList.add('k-bintro');
   stage.classList.remove('k-bi-bar', 'k-bi-fill');
-  layer.classList.remove('k-hidden', 'k-bi-out');
+  layer.classList.remove('k-hidden', 'k-bi-out', 'k-bi-say');
   void layer.offsetWidth;                 // restart the card's keyframes
   layer.addEventListener('pointerdown', skip, true);
   castShot('bintro', { speed: 2.4 });
-  sfx('brk', 1.3);
+  // ── SHE KEEPS HER LIGHT AND THE RUIN LOSES ITS (Build 239) ──────────────
+  //
+  // `focus` already exists for the parry — it takes the world down from the
+  // inside and holds named bodies lit — and it is the single most imposing tool
+  // in the layer. Nothing was using it for the one moment in the game that is
+  // explicitly about looking at a creature.
+  try { if (window.Cast3D && window.Cast3D.focus) window.Cast3D.focus(['foe' + F.ix]); } catch (e) {}
+  sfx('heavy', 1.5);                      // low and large, not the break crack
 
-  await sleep(BI_HOLD);
+  // BEAT ONE · you look at her, and there is nothing to read
+  await sleep(BI_SEE);
+  if (!alive()) return true;
+  // BEAT TWO · the name, and she rises into it
+  layer.classList.add('k-bi-say');
+  foeCast(F.ix, 'cast');                  // a gathering, not a swing
+  sfx('brk', 1.4);
+  await sleep(BI_NAME);
+  if (!alive()) return true;
+  // BEAT THREE · held, with nothing moving
+  await sleep(BI_BEAT);
   if (!alive()) return true;
   layer.classList.add('k-bi-out');
   await sleep(BI_OUT);
   if (!alive()) return true;
   layer.classList.add('k-hidden');
   layer.removeEventListener('pointerdown', skip, true);
+  // the ruin comes back up as the lens pulls out, so the room arriving and the
+  // light arriving are one move rather than two
+  try { if (window.Cast3D && window.Cast3D.focus) window.Cast3D.focus(null); } catch (e) {}
   castShot('home', { speed: 0.85 });      // …and the room comes back
   await sleep(BI_SWEEP);
   if (!alive()) return true;
@@ -9151,6 +9208,15 @@ window.K = {
   // functions the fight calls, so a check hears what a player would
   _fxNoteGrade: (grade, kind) => fxNoteGrade(null, 400, 200, grade, kind),
   _fxHitResolved: (id, taken, negated, flawless) => fxHitResolved(id, taken, negated, flawless),
+  // test-only: the two halves of Build 236's per-note answer. A scripted volley
+  // (`opts.grades`) deliberately skips `onGraded`, so neither of these is
+  // reachable through the path the suites drive a fight down — which is exactly
+  // why nothing noticed when they stopped being seen.
+  // test-only: the game's one on-hit bundle, so a check can ask whether the
+  // GAME's path reaches the world's sparks rather than whether the fx API does
+  _fxImpact: (node, power, tone, dir, verb) => fxImpact(node, power, tone, dir, verb),
+  _parryDeflect: (id, dir, full) => parryDeflect(id, dir, !!full),
+  _fxNoteStruck: (id, flesh) => fxNoteStruck(id, flesh, 0),
   // WHAT BUILD THIS IS, so the page can notice when the server is ahead of it.
   // A cached index.html loads a cached game.js and there is no other way for
   // either to know — see the update check at the foot of index.html.

@@ -406,6 +406,28 @@ html, body { margin: 0; height: 100%; background: #0b0a0d; overflow: hidden;
    so the frame never fully stopped — v2.2 paused ::before and ::after too. */
 .k-frozen, .k-frozen *, .k-frozen *::before, .k-frozen *::after {
   animation-play-state: paused !important; }
+/* ── …EXCEPT THE THING THE FREEZE IS ABOUT (Build 239) ─────────────────────
+   The freeze stops the WORLD so a blow can be felt. It was also stopping the
+   readout that says what the blow did, because `fxImpact` and `fxDeflect` each
+   call `hitstop()` themselves — so a damage number and a deflect crescent were
+   frozen by the very impact they exist to report.
+
+   Measured: a missed note's number is created, `fxImpact` freezes, and the
+   animation clock advances ZERO while `.k-frozen` is on. Its first keyframe is
+   `opacity: 0` and it does not reach full until 12% of 1.1s — so the whole of
+   the number's appearance sat behind the freeze, and it arrived 75-165ms late,
+   by which time the next note of the volley was already closing. The deflect's
+   crescent is worse: a 460ms sweep held for 175ms, inside an element that is
+   removed at 720ms.
+
+   Build 236 exempted both of these from the SLOWMO pause, and for exactly this
+   reason. It did not carry the exemption here. `animation-play-state` is not
+   inherited, so naming the subtrees at higher specificity is enough. */
+.k-frozen .k-pop, .k-frozen .k-pop *,
+.k-frozen .k-deflect, .k-frozen .k-deflect *,
+.k-frozen .k-grade, .k-frozen .k-pring, .k-frozen .k-pring *,
+.k-frozen .k-pflash {
+  animation-play-state: running !important; }
 .k-shake { animation: k-shake 0.3s var(--ease-out); }
 @keyframes k-shake { 25% { translate: 3px 1px; } 60% { translate: -3px -1px; } }
 
@@ -2253,8 +2275,10 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
 /* a breath of dark at the edges, so a name in light type holds over a lit ruin
    without a panel behind it */
 #k-bintro::before { content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(ellipse at 50% 44%, rgba(6,5,9,0) 34%, rgba(6,5,9,0.62) 100%);
-  animation: k-bi-veil 520ms ease-out both; }
+  background: radial-gradient(ellipse at 50% 44%, rgba(6,5,9,0) 30%, rgba(6,5,9,0.74) 100%);
+  animation: k-bi-veil 840ms ease-out both; }
+/* the dark comes in over the SEE beat, so her arrival is the frame closing on
+   her rather than a panel being switched on behind a name */
 @keyframes k-bi-veil { from { opacity: 0; } }
 .k-bi-card { position: relative; display: flex; flex-direction: column;
   align-items: center; gap: 5px; text-align: center; pointer-events: none; }
@@ -2262,28 +2286,45 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
    the Regent's own pale robes and vanished: the veil behind it is a radial that
    is deliberately CLEAR in the middle, which is where the card sits, so small
    type here has no ground at all and has to carry itself. */
+/* ── THE CARD WAITS FOR ITS BEAT (Build 239) ────────────────────────────────
+   These three animations used to start the moment the layer was un-hidden, all
+   within 260ms of each other, which made the introduction a single flash of type
+   over a camera that was still moving. They are gated on `.k-bi-say` now, which
+   `fxBossIntro` adds only after the SEE beat — so the first 840ms is her, and
+   nothing to read. Without the gate the card is simply not there: `both` on a
+   delayed animation would hold the from-state anyway, but saying it outright is
+   what makes a missing class fail loudly instead of showing finished type. */
+.k-bi-card > * { opacity: 0; }
+#k-bintro.k-bi-say .k-bi-card > * { opacity: 1; }
 #k-bi-tier { font-style: normal; font-size: 9.5px; letter-spacing: 0.42em;
   text-transform: uppercase; color: #e3d2a8;
   text-shadow: 0 0 12px rgba(6,5,9,0.95), 0 0 4px rgba(6,5,9,0.9),
-               0 2px 8px rgba(6,5,9,0.95);
-  animation: k-bi-tier 620ms var(--ease-out) both 120ms; }
+               0 2px 8px rgba(6,5,9,0.95); }
+/* the label sets the name up, so it lands first and on its own */
+#k-bintro.k-bi-say #k-bi-tier { animation: k-bi-tier 560ms var(--ease-out) both; }
 @keyframes k-bi-tier { from { opacity: 0; letter-spacing: 0.22em; } }
 /* THE NAME SETTLES RATHER THAN APPEARING. Letter-spacing closing on a line of
    capitals is the one move that reads as a title card and not as a label being
    switched on, and it costs nothing but a keyframe. */
-#k-bi-name { display: block; font-weight: 400; font-size: 30px; letter-spacing: 0.3em;
+#k-bi-name { display: block; font-weight: 400; font-size: 34px; letter-spacing: 0.3em;
   text-transform: uppercase;
   color: #f3e9d4; white-space: nowrap;
-  text-shadow: 0 0 30px rgba(224,192,132,0.5), 0 3px 14px rgba(0,0,0,0.95);
-  animation: k-bi-name 900ms cubic-bezier(.16,.84,.3,1) both; }
+  text-shadow: 0 0 30px rgba(224,192,132,0.5), 0 3px 14px rgba(0,0,0,0.95); }
+/* …and it arrives AFTER the label, from further out and slower — 1020ms against
+   the label's 560, starting 220 behind it, so the two are a sequence and not a
+   chord. The wider start and the longer settle are the whole difference between
+   a name being presented and a name being displayed. */
+#k-bintro.k-bi-say #k-bi-name {
+  animation: k-bi-name 1020ms cubic-bezier(.16,.84,.3,1) both 220ms; }
 @keyframes k-bi-name {
-  from { opacity: 0; letter-spacing: 0.66em; filter: blur(5px); }
+  from { opacity: 0; letter-spacing: 0.82em; filter: blur(7px); }
   60%  { opacity: 1; }
   to   { opacity: 1; letter-spacing: 0.3em; filter: blur(0); } }
 .k-bi-rule { display: block; width: 0; height: 1px; margin-top: 4px;
-  background: linear-gradient(90deg, rgba(224,192,132,0), #e0c084, rgba(224,192,132,0));
-  animation: k-bi-rule 760ms var(--ease-out) both 260ms; }
-@keyframes k-bi-rule { from { width: 0; opacity: 0; } to { width: 260px; opacity: 1; } }
+  background: linear-gradient(90deg, rgba(224,192,132,0), #e0c084, rgba(224,192,132,0)); }
+/* the rule closes the card, so it draws last — under the name rather than with it */
+#k-bintro.k-bi-say .k-bi-rule { animation: k-bi-rule 700ms var(--ease-out) both 640ms; }
+@keyframes k-bi-rule { from { width: 0; opacity: 0; } to { width: 300px; opacity: 1; } }
 /* …and the whole card leaves together, upward, before the lens moves */
 #k-bintro.k-bi-out .k-bi-card { animation: k-bi-out 420ms var(--ease-out) both; }
 #k-bintro.k-bi-out::before { animation: k-bi-veil 420ms ease-out reverse both; }

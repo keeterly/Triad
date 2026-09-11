@@ -3159,13 +3159,16 @@ class Cuts {
 // `cut` is a blade arriving along a line; `ring` is energy leaving a point in
 // every direction. A verb gets one or the other, never both, because both at
 // once is exactly the undifferentiated bang this replaces.
+// `fall` is neither, and that is why a cut verb may have it: a handful of heavy
+// pieces knocked loose and coming down. A ring says the energy went everywhere;
+// fallout says the body did.
 const FX_VERB = {
   // A SWORD. Tight cone along the blow — 0.42 rather than 0.85, so the spray
   // follows the blade instead of puffing — fewer sparks, faster, shorter-lived,
   // and a cut mark rather than a shockwave.
   slash: { trail: true, reach: 0.92,
            hit: { n: 128, speed: 8.4, spread: 0.42, life: 0.36, size: 0.05, cut: 1.25,
-                  shard: 34, ember: 22, arc: 1.15, flash: 1.15, flashMs: 0.13 } },
+                  shard: 34, ember: 22, fall: 26, arc: 1.15, flash: 1.15, flashMs: 0.13 } },
   // A SPELL, which really is radial: this is the one that has earned its ring.
   cast:  { trail: true, reach: 0.34, charge: true,
            hit: { n: 64, speed: 4.4, spread: 1.9, life: 0.9, size: 0.07, ring: 2.2, grav: -0.7,
@@ -3181,7 +3184,7 @@ const FX_VERB = {
   // lands, and a parry is the blow that did not.
   parry: { trail: false,
            hit: { n: 46, speed: 6.6, spread: 0.34, life: 0.26, size: 0.042, cut: 0.85,
-                  shard: 16, ember: 8, arc: 0.62, flash: 0.7, flashMs: 0.12 } },
+                  shard: 16, ember: 8, fall: 18, arc: 0.62, flash: 0.7, flashMs: 0.12 } },
 };
 
 const _fxV = new THREE.Vector3(), _fxD = new THREE.Vector3();
@@ -3564,6 +3567,44 @@ class Effects {
           speed: 0.5 + Math.random() * 0.9, spread: 0.8,
           life: h.life * (4.0 + Math.random() * 3.0),
           size: h.size * 0.55, grav: -0.35, drag: 1.9,
+        });
+      }
+    }
+
+    // ── FOUR · AND WHAT FALLS OUT OF IT (Build 239) ───────────────────────
+    //
+    // Every stage above is laid along the blade's arc, and that was the whole
+    // point of Build 127: a symmetric puff cannot say which way the steel went.
+    // But the answer it reached was to take ALL radial energy off a sword — the
+    // DOM shock ring was suppressed the moment the world existed
+    // (`if (c && !inWorld) shockRing(...)`) and the world's `ring` was only ever
+    // given to `cast`, `heal` and `ward`. So for a hundred-odd builds the most
+    // common blow in the game has thrown nothing outward from the point of
+    // contact at all, and what is left reads as a streak across a body rather
+    // than as something arriving on one.
+    //
+    // This is not the ring coming back. A ring is a shockwave — energy leaving
+    // a point in a plane, which is a spell. This is FALLOUT: a handful of heavy
+    // pieces knocked loose in a dome off the contact point, slow, given real
+    // weight so they arc and come down, and long-lived enough to reach the wet
+    // stone and stop on it. It is a minority of the particles, so the cut still
+    // says which way the steel went; it is what makes the cut land on a thing.
+    if (h.fall) {
+      for (let i = 0; i < Math.round(h.fall * k); i++) {
+        // a dome, not a sphere: nothing is knocked downward out of a body
+        const a = Math.random() * Math.PI * 2;
+        const up = 0.25 + Math.random() * 0.85;
+        const rad = Math.sqrt(Math.max(0, 1 - up * up));
+        _hitD.set(Math.cos(a) * rad, up, Math.sin(a) * rad)
+          .addScaledVector(out, 0.5).normalize();
+        // …and off the line the blade drew, so it leaves the wound
+        if (arcPts) onPath(Math.random() * 1.6 - 0.8, _hitP);
+        else _hitP.copy(at).addScaledVector(along, (Math.random() - 0.5) * span * 0.5);
+        this.sparks.emit(_hitP, _hitD, 1, {
+          speed: 2.1 + Math.random() * 2.3, spread: 0.5,
+          life: h.life * (3.4 + Math.random() * 3.0),
+          size: h.size * (1.2 + Math.random() * 0.9),
+          grav: 7.8, drag: 0.22,
         });
       }
     }
@@ -4309,6 +4350,31 @@ function swingRate(t, dur, hit) {
 // `step`, so every figure came up with no `worldH`, and the world's own check
 // caught it on the third assertion of the suite.
 function ease(dt, rate) { return 1 - Math.exp(-rate * (dt > 0 ? dt : 0)); }
+// ── …BUT A LAG CAN ONLY EASE OUT (Build 239) ───────────────────────────────
+//
+// `ease` above is a first-order lag, and its defining property is that its
+// MAXIMUM velocity is at t=0. Measured on the real rig, a cut to a new shot left
+// the mark at 23.6 m/s on the very first frame and decayed from there: peak
+// speed at 0% of the move. That is a snap followed by a drift, and it is what
+// "the camera is jittery" actually is — not noise, but a move with no approach.
+//
+// A critically damped spring is the second-order answer: it starts AT REST,
+// accelerates, and decelerates into the mark, with no overshoot at any dt. The
+// closed form is exact rather than integrated, so like `ease` it is independent
+// of the frame rate — a 50 ms frame and three 16 ms frames land in the same
+// place, which is the property that kept the clamped form from ever being safe.
+//
+//   d(t) = (d0 + (v0 + w·d0)·t)·e^(-w·t)
+//   v(t) = (v0 - w·(v0 + w·d0)·t)·e^(-w·t)
+//
+// `d` is the distance still to go and `v` the speed it is going at; both are
+// carried between frames, which is what makes the approach possible at all. A
+// lag needs no memory, and that is exactly why it cannot build.
+function springStep(d, v, w, dt) {
+  if (!(dt > 0)) return { d: d, v: v };
+  const e = Math.exp(-w * dt), a = v + w * d;
+  return { d: (d + a * dt) * e, v: (v - w * a * dt) * e };
+}
 const CLIP_RATE = 0.86;
 
 const FOOT_ON = 0.075, FOOT_OFF = 0.135;
@@ -6343,11 +6409,46 @@ const Cast3D = (() => {
     while (d < -180) d += 360;
     return d;
   }
-  function easeAngle(now, want, k) {
-    let d = want - now;
-    while (d > 180) d -= 360;
-    while (d < -180) d += 360;
-    return now + d * k;
+  // ── HOW FAST EACH CHANNEL OF THE TRIPOD IS MOVING (Build 239) ────────────
+  //
+  // A lag is memoryless; a spring is not. This is the memory — one speed per
+  // channel, carried between frames, which is the whole of what lets a move
+  // build instead of starting at full tilt. It also means a shot that CUTS
+  // mid-move inherits the speed the last one had, so the camera changes its
+  // mind the way an operator would rather than stopping dead and restarting.
+  const TVEL = { az: 0, dist: 0, height: 0, aimY: 0, roll: 0, fov: 0, atP: [0, 0, 0] };
+  // ── AND HOW MUCH SLOWER, DERIVED RATHER THAN DIALLED ─────────────────────
+  //
+  // A shot's `speed` times this is the spring's angular frequency. The first
+  // guess was 4.2, reasoned from "settle is about 4.75/w" against a remembered
+  // first-order settle — and the probe reported the new move settling in 533 ms,
+  // which is EXACTLY what the old one did. Softer, but not slower, and the ask
+  // was for both.
+  //
+  // So the two settle times, properly:
+  //     first-order   |d| = d0·e^(-rt)            → 5% at  t = 3/r
+  //     critical      |d| = d0·(1+wt)·e^(-wt)     → 5% at  t = 4.74/w
+  // with r = speed·2.6, equal settle needs w = speed·(4.74/1.1538) = speed·4.11.
+  // 4.2 was therefore a hair FASTER than what it replaced, and the coincidence
+  // is why the measurement looked like nothing had changed.
+  //
+  // A quarter longer is "a little bit" slower: 4.11/1.25 = 3.29.
+  const SPRING_W = 3.3;
+  // one channel of one spring, with ARRIVAL as a state rather than a limit
+  function springAxis(obj, vel, key, want, w, dt, dead, angular) {
+    if (want == null) return 0;
+    let d = obj[key] - want;
+    if (angular) d = shortWay(d);
+    const v = vel[key] || 0;
+    // both halves matter: on the mark AND not still travelling. `dead * 60` is
+    // "would not move a deadband in a 60 Hz frame", which is the same threshold
+    // expressed in the other unit.
+    if (Math.abs(d) < dead && Math.abs(v) < dead * 60) {
+      obj[key] = want; vel[key] = 0; return 0;
+    }
+    const r = springStep(d, v, w, dt);
+    obj[key] = want + r.d; vel[key] = r.v;
+    return r.v;
   }
 
   function rig(host, dt) {
@@ -6412,7 +6513,12 @@ const Cast3D = (() => {
     }
 
     // ── the tripod walks to its mark ──
-    const ks = ease(dt, shotSpeed * 2.6);
+    //
+    // SPRING_W turns a shot's `speed` into the spring's angular frequency; the
+    // note on it carries the arithmetic for why it is 3.3. A snap still snaps —
+    // `shot('snap', {speed: 4.2})` settles in about 340 ms — because the factor
+    // is applied to the speed the shot asked for rather than replacing it.
+    const w = shotSpeed * SPRING_W;
     let target = aimPoint(SHOT.at);
     if (SHOT.toAt && SHOT.over) {
       const t1 = aimPoint(SHOT.toAt);
@@ -6420,21 +6526,21 @@ const Cast3D = (() => {
                 target[1] + (t1[1] - target[1]) * prog,
                 target[2] + (t1[2] - target[2]) * prog];
     }
-    // the tripod carries the same deadband as the handheld rig above, and for
-    // the same reason: a shot that has arrived has to be able to say so
-    TRIPOD.az = Math.abs(shortWay(mark.az - TRIPOD.az)) < 1e-3
-      ? mark.az : easeAngle(TRIPOD.az, mark.az, ks);
-    for (const key of ['dist', 'height', 'aimY', 'roll', 'fov']) {
-      const d = mark[key] - TRIPOD[key];
-      TRIPOD[key] = Math.abs(d) < 1e-3 ? mark[key] : TRIPOD[key] + d * ks;
-    }
+    // The deadband the first-order form needed is still needed, and now has to
+    // answer for two things rather than one: a spring has ARRIVED only when it
+    // is both on its mark and no longer moving. Distance alone would let a
+    // channel be pinned at the top of a swing with speed still on it, which is
+    // how a spring turns into a snap.
+    springAxis(TRIPOD, TVEL, 'az', mark.az, w, dt, 1e-3, true);
+    for (const key of ['dist', 'height', 'aimY', 'roll', 'fov'])
+      springAxis(TRIPOD, TVEL, key, mark[key], w, dt, 1e-3, false);
     // the lens is part of the composition, and the DOM followers read the live
     // projection matrix, so nothing else has to be told it changed
     if (Math.abs(cam.fov - TRIPOD.fov) > 0.01) {
       cam.fov = TRIPOD.fov;
       cam.updateProjectionMatrix();
     }
-    for (let i = 0; i < 3; i++) TRIPOD.atP[i] += (target[i] - TRIPOD.atP[i]) * ks;
+    for (let i = 0; i < 3; i++) springAxis(TRIPOD.atP, TVEL.atP, i, target[i], w, dt, 0.003, false);
 
     const a = TRIPOD.az * D;
     // kept on the module, not local, because the reflection pass mirrors them
@@ -8618,6 +8724,20 @@ const Cast3D = (() => {
     // phone — what CAN be checked is the RULE: does a run of slow frames step
     // the resolution down, does a run of fast ones earn it back, and does it
     // refuse to move twice in a row. Called with no argument it just reports.
+    // ── THE RIG, STEPPED BY HAND (Build 239) ─────────────────────────────
+    //
+    // The shape of a camera move is a property of the maths, not of the frame
+    // rate — but this harness rasterises in software at about two frames a
+    // second, so watching the real loop measures Chromium. Driven at a fixed
+    // dt, the velocity profile of a move is the same curve a phone would draw.
+    _rigStep: (dt) => {
+      const host = document.getElementById(SCENE ? SCENE.host : 'k-cast');
+      if (!host) return false;
+      rig(host, dt == null ? 1 / 60 : dt);
+      return true;
+    },
+    _tripod: () => ({ ...TRIPOD, atP: TRIPOD.atP.slice(),
+                      vel: { ...TVEL, atP: TVEL.atP.slice() } }),
     _quality: (ms, frames) => {
       if (ms != null) for (let i = 0; i < (frames || Q_WINDOW); i++) qFeed(ms);
       return { step: qStep, level: +qLevel().toFixed(3), good: qGood, held: qHeld,

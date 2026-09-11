@@ -4948,17 +4948,43 @@ const { boot } = require('./harness.cjs');
     };
     const charge = await run(() => C3.lunge('foe0', 'party', 0.9, 600));
     const recoil = await run(() => C3.react('foe0', { from: 'ash', power: 1 }));
-    await settle();
+    // ── SETTLE ON THE STATE, NOT ON THE CLOCK (Build 239) ─────────────────
+    //
+    // This was a flat 2600ms wait, and it passed for four builds by luck. The
+    // frame loop CLAMPS dt at 0.25s to stop a restored tab teleporting the
+    // party — so on a browser drawing at about 2fps a 0.667s real frame only
+    // advances the slot ease by 0.25s of animation, and a wall-clock settle
+    // buys roughly a third of the time it asks for. Measured here: six frames
+    // across 2600ms left the body 0.16m off its mark, and the check failed on
+    // a walk home that was working exactly as designed and simply unfinished.
+    //
+    // "Has it arrived" is a question about the body, so ask the body. Waiting
+    // for `away` to stop changing is machine-independent: a fast browser
+    // answers in a few frames and a slow one takes more, and both report the
+    // same thing. The frame budget is the backstop, so a body that genuinely
+    // never comes home still fails rather than hanging.
+    const home2 = await new Promise(z => {
+      let last = -1, still = 0, n = 0;
+      const tick = () => {
+        const a = C3.away('foe0') || 0;
+        if (Math.abs(a - last) < 0.0005) still++; else still = 0;
+        last = a;
+        if (still >= 3 || ++n > 600) return z({ frames: n, settled: still >= 3 });
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
     stop = true;
     const home = { away: +(C3.away('foe0') || 0).toFixed(2),
                    faded: e() ? e().classList.contains('k-lbl-away') : null,
-                   op: e() ? +getComputedStyle(e()).opacity : null };
+                   op: e() ? +getComputedStyle(e()).opacity : null,
+                   settledIn: home2.frames, settled: home2.settled };
     return { charge, recoil, home };
   });
   check('READOUT: a body that crosses the floor takes its plate off, and puts it back',
     !standDown.noPlate && standDown.charge.max > 0.7 && standDown.charge.faded > 0
-    && standDown.home.away < 0.05 && standDown.home.faded === false
-    && standDown.home.op === 1,
+    && standDown.home.settled && standDown.home.away < 0.05
+    && standDown.home.faded === false && standDown.home.op === 1,
     JSON.stringify(standDown) + ' — `max` is how far the body got from its mark '
       + 'in metres and `faded` is frames the plate spent stood down. The plate '
       + 'must come back on its own: `home` is read after the slot ease has '
@@ -5044,6 +5070,62 @@ const { boot } = require('./harness.cjs');
       + 'duration. `bottom` is where a sustained 40ms frame leaves it and `end` '
       + 'is after a long run at 8ms. `step` never climbing back to 0 would be a '
       + 'device stuck at a lower resolution long after whatever slowed it down');
+
+  // ═══ THE CAMERA EASES IN, NOT ONLY OUT (Build 239) ═══
+  console.log('\n── the follow ──');
+  // ── WHY THE VELOCITY PROFILE AND NOT THE RATE ──────────────────────────
+  //
+  // "Is the follow smooth" cannot be asked of a constant. What separates the
+  // first-order lag this replaced from the critically damped spring that
+  // replaced it is WHERE IN THE MOVE THE CAMERA IS FASTEST: a lag's maximum
+  // velocity is at t=0 by definition — it can only ease out — and a spring
+  // starts at rest and builds. Measured on the old code this read
+  // firstStepSpeed === peakSpeed exactly, peak at 0% of the move: so this check
+  // fails on what it was written to catch, which is the only reason to trust it.
+  //
+  // The rig is stepped by hand at a fixed dt because this harness rasterises in
+  // software at about two frames a second; the shape of the curve is a property
+  // of the maths and must not be a property of the machine.
+  const lensPath = await J(() => {
+    const C3 = window.Cast3D, DT = 1 / 60;
+    C3.shot('home');
+    for (let i = 0; i < 400; i++) C3._rigStep(DT);
+    const from = C3._tripod().dist;
+    C3.shot('snap', { for: 4000, speed: 2.1 });
+    const path = [];
+    for (let i = 0; i < 240; i++) { C3._rigStep(DT); path.push(C3._tripod().dist); }
+    const to = path[path.length - 1], span = Math.abs(to - from) || 1;
+    const v = [];
+    for (let i = 1; i < path.length; i++) v.push(Math.abs(path[i] - path[i - 1]) / DT);
+    let peak = 0, peakAt = 0;
+    v.forEach((sp, i) => { if (sp > peak) { peak = sp; peakAt = i; } });
+    let settle = -1;
+    for (let i = 0; i < path.length; i++)
+      if (Math.abs(path[i] - to) <= span * 0.05) { settle = i; break; }
+    // a critically damped spring does not overshoot at any dt — if it ever
+    // crosses its mark the damping is wrong, and that is a wobble not a follow
+    const dir = Math.sign(to - from);
+    const over = path.filter(x => (x - to) * dir > span * 0.005).length;
+    return { startFrac: +(v[0] / peak).toFixed(3),
+             peakPct: +(peakAt / Math.max(1, settle) * 100).toFixed(1),
+             peakSpeed: +peak.toFixed(2),
+             settleMs: settle < 0 ? null : Math.round(settle * DT * 1000),
+             overshootFrames: over };
+  });
+  check('FOLLOW: a camera move builds to its peak instead of starting at it',
+    lensPath.startFrac < 0.6 && lensPath.peakPct > 8 && lensPath.overshootFrames === 0,
+    JSON.stringify(lensPath) + ' — `startFrac` is the first frame\'s speed as a '
+      + 'fraction of the move\'s fastest. 1.0 is a first-order lag, which is '
+      + 'fastest on frame one and can only ease out; a spring builds, so its '
+      + 'peak falls inside the move. `overshootFrames` must be 0: critical '
+      + 'damping never crosses its mark, and a camera that does is wobbling');
+  check('FOLLOW: …and it is a little slower than the lag it replaced',
+    lensPath.settleMs > 600 && lensPath.settleMs < 820,
+    JSON.stringify({ settleMs: lensPath.settleMs, lagWas: 533 })
+      + ' — t95 is 4.74/w for a spring against 3/r for a lag, so equal settle '
+      + 'would be w = speed*4.11. SPRING_W is 3.3, which is a quarter longer. '
+      + 'The first attempt used 4.2 and measured 533ms — exactly what the lag '
+      + 'did — so this band is what stops "softer" being mistaken for "slower"');
 
   await shot('cast3d');
   const out = report();
