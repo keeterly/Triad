@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=233" />
+  <link rel="stylesheet" href="styles.css?v=234" />
 </head>
 <body>
   <div id="k-scale">
@@ -74,10 +74,38 @@
              is why it read as awkward. In the flow it also cannot drift: the
              party stack grows as status chips appear, and anything pinned to a
              fixed `top` below it would eventually collide. -->
-        <button id="k-kizuna" type="button">
+        <!-- ── AND IT IS A DIAL, NOT A STRIP (Build 234) ──────────────────
+             A 2px rule at the top of the screen is the least legible shape a
+             meter can have on a lit plaza, which is why it needed a panel of
+             shade behind it to be readable at all — and the shade was the thing
+             that made the corner feel like furniture. A ring needs no ground:
+             it is its own closed figure, it reads at a glance from the amount
+             of arc drawn rather than from a length compared against nothing,
+             and when it closes it has somewhere to put the thing it becomes.
+             `pathLength="100"` so the arc is set in percent directly: the
+             charge in the markup is the charge in the state, with no
+             circumference constant anywhere to drift. -->
+        <button id="k-kizuna" type="button" aria-label="KIZUNA">
+          <span class="k-kz-dial">
+            <svg class="k-kz-ring" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+              <circle class="k-kz-track" cx="24" cy="24" r="20" pathLength="100"></circle>
+              <circle id="k-kz-fill" class="k-kz-arc" cx="24" cy="24" r="20" pathLength="100"></circle>
+            </svg>
+            <b id="k-kz-n">0%</b>
+            <!-- FULL, IT IS NOT A NUMBER ANY MORE. A meter at 100% is no longer
+                 telling you about a quantity; it is telling you to do something.
+                 The percentage leaves and the swords arrive in the same hole. -->
+            <svg class="k-kz-swords" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <g fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4.4 19.6 19.2 4.8"></path>
+                <path d="M19.6 19.6 4.8 4.8"></path>
+                <path d="M5.6 15.6 8.4 18.4"></path>
+                <path d="M18.4 15.6 15.6 18.4"></path>
+              </g>
+            </svg>
+          </span>
           <span class="k-kz-lbl">KIZUNA</span>
-          <span class="k-kz-bar"><span id="k-kz-fill"></span></span>
-          <b id="k-kz-n">0%</b>
         </button>
       </div>
 
@@ -520,13 +548,13 @@
     setTimeout(check, 2500);
   })();
   </script>
-  <script src="run.js?v=233"></script>
-  <script src="game.js?v=233"></script>
+  <script src="run.js?v=234"></script>
+  <script src="game.js?v=234"></script>
   <!-- THE CAST IN THREE DIMENSIONS — a module, and inert unless ?cast=3d.
        It draws one canvas under the DOM heroes and paints a rigged figure
        into each hero's box; everything above it (rows, drag, aim, popups,
        the party HUD) is untouched. -->
-  <script type="module" src="cast3d.js?v=233"></script>
+  <script type="module" src="cast3d.js?v=234"></script>
   <script>
     // ── FIT THE 932x430 DESIGN SPACE TO THE PART OF THE SCREEN THAT IS ONE ──
     //

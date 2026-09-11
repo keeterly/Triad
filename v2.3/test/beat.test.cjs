@@ -35,6 +35,8 @@ const PROBES = `
     foeDown:  () => document.getElementById('k-boss-art').classList.contains('k-foe-down') ? 1 : 0,
     reckOn:   () => document.getElementById('k-stage').classList.contains('k-reckoning') ? 1 : 0,
     parryBar: () => document.getElementById('k-stage').classList.contains('k-parry-focus') ? 1 : 0,
+    call:     () => document.querySelector('.k-allout-call') ? 1 : 0,
+    striking: () => document.querySelectorAll('.k-hero.k-charging').length,
   };
   window.__beatMark = (tag) => window.__beat.log.push({ t: performance.now() - window.__beat.t0, k: 'MARK', v: tag });
   (function tick() {
@@ -337,6 +339,41 @@ const PROBES = `
     JSON.stringify({ turned: proof.great.was, taken: proof.great.taken })
       + ' — the best outcome in the game was the only one with no readout, '
       + 'which is also what a dropped frame looks like');
+
+  // ── 6. THE ALL-OUT ANNOUNCES ITSELF, THEN THEY MOVE (Build 234) ─────────
+  //
+  // The call and the three strikes started in the SAME FRAME, and the call's
+  // keyframe ran 1100ms against a stagger that was over in 870 — so the one
+  // moment in the game built to be watched played out entirely underneath 26px
+  // of glowing capitals with a 60px bloom on it, on a camera that had just
+  // pushed in to fill the frame with the people it was covering.
+  //
+  // THIS BELONGS IN THIS SUITE AND NOWHERE ELSE. A first cut of it lived in
+  // flow, which caps every sleep at 24ms — so the announce it was written to
+  // measure collapsed to one frame, the sampler got five readings across the
+  // whole all-out, and the check reported an overlap that was the harness's
+  // fast-forward rather than the game's. The claim is about a shape in time;
+  // only the realtime suite can see one.
+  await J(() => { window.K.startCombat({ seed: 7, foes: ['husk', 'cultist'] });
+                  window.K.state().kizuna = 100; window.K.render(); return true; });
+  await sleep(700);
+  await take();                                  // start the log clean
+  await J(() => { window.K.allOut(); return true; });   // deliberately not awaited
+  await sleep(6000);
+  const A = await take();
+  const callOn = at(A, 'call').find(e => e.v === '1');
+  const callOff = at(A, 'call').find(e => e.v === '0' && callOn && e.t > callOn.t);
+  const hitOn = at(A, 'striking').find(e => +JSON.parse(e.v) > 0);
+  check('BEAT: the all-out announces itself first, and nothing is drawn over the strike',
+    !!(callOn && callOff && hitOn)
+    && callOff.t - callOn.t > 400            // the word gets the board to itself
+    && hitOn.t + 40 >= callOff.t,            // …and nobody swings until it is gone
+    JSON.stringify({ wordMs: callOn && callOff ? Math.round(callOff.t - callOn.t) : null,
+                     wordGoneAt: callOff ? Math.round(callOff.t) : null,
+                     firstSwingAt: hitOn ? Math.round(hitOn.t) : null })
+      + ' — `wordGoneAt` is the announce leaving the stage and `firstSwingAt` is '
+      + 'the first body committing. They used to be the same instant, which is '
+      + 'the difference between announcing a thing and printing it on top of it');
 
   const r = report();
   await H.browser.close();

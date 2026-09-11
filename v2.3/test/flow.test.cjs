@@ -737,8 +737,29 @@ const { boot } = require('./harness.cjs');
     const kz = await J(() => {
       window.K.startCombat({ seed: 7, kizuna: 40 });
       const seeded = window.K.state().kizuna;
+      // ── WHAT "DRAWN" MEANS ON A DIAL (Build 234) ─────────────────────────
+      //
+      // This read `style.width` off a 172px strip. The ladder is a ring now, so
+      // the drawn fact is how much ARC is painted: the circle carries
+      // `pathLength="100"`, which rescales its dash numbers into percent, so a
+      // 40% charge is 40 of dash drawn and 60 of offset left.
+      //
+      // The transition is killed for the measurement ON PURPOSE. Headless draws
+      // at about 1.5fps, so a 360ms ease takes an unknowable number of frames
+      // and a computed read lands wherever the clock happened to be — measured
+      // once at 58 when the state said 0. Snapping it removes the harness from
+      // the answer without removing the paint path: this is still the computed
+      // stroke on the element, not the number the code put in.
       const bar = document.getElementById('k-kz-fill');
-      const shown = bar ? bar.style.width : null;
+      let shown = null;
+      if (bar) {
+        bar.style.transition = 'none';
+        window.K.render();
+        const cs = getComputedStyle(bar);
+        const dash = parseFloat(cs.strokeDasharray), off = parseFloat(cs.strokeDashoffset);
+        shown = { pct: bar.dataset.pct, arc: Math.round(dash - off), dash: Math.round(dash) };
+        bar.style.transition = '';
+      }
       window.K.startCombat({ seed: 7 });
       const bare = window.K.state().kizuna;
       window.K.startCombat({ seed: 7, kizuna: 900 });
@@ -750,8 +771,11 @@ const { boot } = require('./harness.cjs');
     // Regent and nowhere else — which makes Crescendo, the most expensive node
     // in the tree, an upgrade to a button pressed twice a run.
     check('BOND: a fight can open with the bond the run already built, and it is drawn',
-      kz.seeded === 40 && kz.shown === '40%' && kz.bare === 0 && kz.capped === 100,
-      JSON.stringify(kz));
+      kz.seeded === 40 && !!kz.shown && kz.shown.pct === '40'
+      && kz.shown.dash === 100 && kz.shown.arc === 40
+      && kz.bare === 0 && kz.capped === 100,
+      JSON.stringify(kz) + ' — `arc` is dash minus offset off the live circle: '
+        + 'how much of the ring is actually painted gold, in percent');
   }
 
   // ═══ A02 · THE TELEGRAPH SAYS WHO, AND HOW MUCH EACH ═══
@@ -1111,6 +1135,55 @@ const { boot } = require('./harness.cjs');
     check('TELEGRAPH: the per-target numbers still add up to the volley',
       tel.rows.reduce((n, r) => n + r.total, 0) === tel.total,
       JSON.stringify({ sum: tel.rows.reduce((n, r) => n + r.total, 0), total: tel.total }));
+
+    // ── AND THE PROMISE ENDS WHERE THE BLOW BEGINS (Build 234) ────────────
+    //
+    // The badge hung over the head through the wind-up, the lunge, the parry
+    // window and the resolution — so at the exact moment the creature was
+    // DOING the thing, the board carried both a picture of a blow coming at you
+    // and the number it was going to be worth, and the louder of the two was a
+    // chip of UI sitting on top of the animation the whole beat exists for.
+    //
+    // Sampled through a live enemy turn rather than asserted at one instant:
+    // the claim is about a stretch of time, and a single reading taken between
+    // two awaits cannot tell "the badge went" from "the badge had not appeared
+    // yet". A foe that is HOLDING keeps its chip on purpose — it is winding up,
+    // which is still a statement about a blow that has not happened — so the
+    // rule is checked against the creatures the volley says actually THREW.
+    const spent = await J(async () => {
+      window.K.startCombat({ seed: 7, foes: ['husk', 'cultist'] });
+      window.K.render();
+      const tells = () => [...document.querySelectorAll('.k-tell[data-body]')]
+        .map(e => e.dataset.body);
+      const before = tells();
+      const seen = [];
+      const turn = window.K.endTurn({ grades: [] });      // not awaited yet
+      for (let i2 = 0; i2 < 90; i2++) {
+        seen.push({ p: window.K.state().phase, t: tells(),
+                    g: document.querySelectorAll('.k-tell.k-tell-gone').length });
+        await new Promise(r => setTimeout(r, 40));
+        if (window.K.state().phase === 'PLAYER_READY' && i2 > 6) break;
+      }
+      const res = await turn;
+      window.K.render();
+      return { before, seen, after: tells(),
+               threw: (res.acting || []).filter(a => !a.canceled).map(a => 'foe' + a.src) };
+    });
+    // The window in which the rule bites: the creature is committed and swinging.
+    const SWINGING = ['ENEMY_ATTACK_LAUNCH', 'RHYTHM_DEFENSE', 'ENEMY_RESOLUTION'];
+    const mid = spent.seen.filter(s2 => SWINGING.indexOf(s2.p) >= 0);
+    const stuck = mid.filter(s2 => s2.t.some(b => spent.threw.indexOf(b) >= 0));
+    const ghosts = Math.max(0, ...spent.seen.map(s2 => s2.g));
+    check('TELEGRAPH: a creature that is throwing its blow wears no badge, and the badge dissolves',
+      spent.threw.length > 0 && spent.before.length > 0 && mid.length > 0
+      && stuck.length === 0 && ghosts > 0 && spent.after.length > 0,
+      JSON.stringify({ before: spent.before, threw: spent.threw, samples: spent.seen.length,
+                       swinging: mid.length, stuck: stuck.slice(0, 3), ghosts,
+                       after: spent.after })
+        + ' — `stuck` is every sampled frame where a creature that had already '
+        + 'launched still wore its chip; `ghosts` is the dissolving badge caught '
+        + 'mid-fade, which is the difference between clearing and blinking out; '
+        + '`after` is the next turn\u2019s promise, back on the board');
   }
 
   // ═══ A04 · A DEAD HERO LOOKS DEAD ═══
@@ -1474,6 +1547,50 @@ const { boot } = require('./harness.cjs');
     check('READY: the all-out bar swells on its own beat, not only glows',
       kzPulse.ready && kzPulse.anim === 'k-kzready' && kzPulse.swell > 0.005,
       JSON.stringify(kzPulse));
+
+    // ── THE LADDER IS A RING (Build 234) ────────────────────────────────
+    //
+    // What makes this a dial rather than a bar bent into a circle is that the
+    // arc GROWS WITH THE CHARGE and starts where a charge is expected to start.
+    // An SVG circle draws from three o'clock anticlockwise unless something
+    // turns it, so "charging up circularly" is a claim about a rotation as much
+    // as about a stroke, and both are asked for.
+    //
+    // The scrim goes with it, and that is the same fact rather than a second
+    // one: the corner needed a panel of shade because a 2px rule with grey type
+    // beside it had no shape of its own to carry contrast. A ring with a dark
+    // track does. If the shade ever comes back, the ring did not do its job.
+    const dial = await J(() => {
+      const arc = document.getElementById('k-kz-fill');
+      const ring = document.querySelector('.k-kz-ring');
+      const hud = document.getElementById('k-party-hud');
+      arc.style.transition = 'none';        // see A06 — 1.5fps and a 360ms ease
+      const drawn = () => {
+        const cs = getComputedStyle(arc);
+        return Math.round(parseFloat(cs.strokeDasharray) - parseFloat(cs.strokeDashoffset));
+      };
+      const at = [];
+      for (const n of [0, 25, 60, 100]) {
+        window.K.state().kizuna = n; window.K.render();
+        at.push(drawn());
+      }
+      const rm = getComputedStyle(ring).transform.match(/matrix\(([-\d.]+), *([-\d.]+)/);
+      const b = document.getElementById('k-kizuna').getBoundingClientRect();
+      const scrim = getComputedStyle(hud, '::before');
+      return { at,
+               // -90 degrees is cos 0 / sin -1: twelve o'clock, running clockwise
+               turn: rm ? { cos: +(+rm[1]).toFixed(2), sin: +(+rm[2]).toFixed(2) } : null,
+               w: Math.round(b.width), h: Math.round(b.height),
+               scrim: scrim.content, scrimBg: scrim.backgroundImage };
+    });
+    check('DIAL: the ladder is a ring that fills round, and the corner needs no shade behind it',
+      JSON.stringify(dial.at) === '[0,25,60,100]'
+      && dial.turn && Math.abs(dial.turn.cos) < 0.01 && Math.abs(dial.turn.sin + 1) < 0.01
+      && dial.w <= 60 && dial.scrim === 'none'
+      && (dial.scrimBg === 'none' || !dial.scrimBg),
+      JSON.stringify(dial) + ' — `at` is percent of the ring painted gold at four '
+        + 'charges, read off the live stroke; `turn` is the ring rotated to start '
+        + 'at twelve; `scrim` is the radial shade the old strip needed to be legible');
     await fresh(7);
     check('NO DUAL BONUS: Follow-Up Cross Sever costs 1, output stays 9',
       cs.cost === 1 && cs.dmg === 9, JSON.stringify(cs));
@@ -1994,6 +2111,7 @@ const { boot } = require('./harness.cjs');
       && fired.dealt >= 24 && fired.broke === 4 && fired.spent === 0 && fired.ap === 4
       && fired.phase === 'PLAYER_READY' && fired.again === false,
       JSON.stringify(fired));
+
 
     // ── THE AP LADDER: three timescales, three different things earned ──────
     //
@@ -4857,18 +4975,33 @@ const { boot } = require('./harness.cjs');
       // READ THE LIVE STATE BEFORE PRESSING IT. Taken afterwards these report
       // the bar correctly disabled again — the meter is spent — which looks
       // exactly like the bar never having been pressable at all.
+      // ── WHERE THE VERB LIVES NOW (Build 234) ───────────────────────────
+      //
+      // The number used to become the verb: `#k-kz-n` read "ALL-OUT ▸" at full.
+      // On a dial the number sits INSIDE the ring, which is where the thing you
+      // press has to go, so the two swapped jobs — the hole holds crossed
+      // blades and the word underneath carries the verb. Both halves are asked
+      // for here, because "it reads as a press" is the whole point of the
+      // check: the percentage must be GONE, and the blades must be DRAWN.
+      const swords = document.querySelector('.k-kz-swords');
+      const num = document.getElementById('k-kz-n');
       const live = { disabled: bar.disabled, ready: bar.classList.contains('k-kz-ready'),
                      grew: parseFloat(cs.width) > r.width,   // the press reaches past the paint
-                     label: document.getElementById('k-kz-n').textContent };
+                     label: (bar.querySelector('.k-kz-lbl') || {}).textContent,
+                     blades: swords ? getComputedStyle(swords).display : null,
+                     pctShown: num ? getComputedStyle(num).display : null,
+                     bladeW: swords ? Math.round(swords.getBoundingClientRect().width) : 0 };
       bar.click();
       await new Promise(res => setTimeout(res, 1600));
       return { ...live, hp0, hp: window.K.state().boss.hp, kz: window.K.state().kizuna,
                offAfter: bar.disabled };
     });
     check('ALL-OUT: at full it is live, reads as a press, and actually strikes',
-      kz.ready && !kz.disabled && /\u25B8/.test(kz.label) && kz.grew
+      kz.ready && !kz.disabled && /\u25B8/.test(kz.label || '') && kz.grew
+      && kz.blades === 'block' && kz.bladeW > 10 && kz.pctShown === 'none'
       && kz.hp < kz.hp0 && kz.kz === 0,
-      JSON.stringify(kz));
+      JSON.stringify(kz) + ' — at full the ring stops answering "how much" and '
+        + 'starts answering "do what": the percentage goes, the blades arrive');
     // …and hand the suite back the board it expects. Three later checks read a
     // fresh fight, and this block leaves one that has been played out.
     await fresh(7);
@@ -5361,9 +5494,21 @@ const { boot } = require('./harness.cjs');
     // THE LADDER BELONGS TO THE PARTY. It floated in the sky between the two
     // HUDs — clear of everything, which was the requirement, and belonging to
     // nothing, which is why it read as awkward. It sits under the party now.
+    //
+    // ── AND THE WIDTH FLOOR GOES WITH THE STRIP (Build 234) ────────────────
+    //
+    // This also asked the ladder to span at least 70% of the block it sits in,
+    // and that was a sound way to say "docked" while the ladder WAS a full-width
+    // rule: a strip narrower than its column would have been a strip floating in
+    // one. The ladder is a 46px ring now, deliberately a fraction of the column,
+    // so the clause had stopped describing docking and started forbidding the
+    // shape. What still bites is the part that was always the point: it is
+    // INSIDE the party block, it starts at that block's own left edge, and it
+    // does not spill out of it. How round it is belongs to the DIAL check.
     check('UI: the kizuna ladder is docked with the party, not adrift mid-screen',
       lay.inParty === true && Math.abs(lay.kz.x - lay.party.x) < 1
-      && lay.kz.w <= lay.party.w && lay.kz.w > lay.party.w * 0.7,
+      && lay.kz.w <= lay.party.w
+      && lay.kz.x + lay.kz.w <= lay.party.x + lay.party.w + 1,
       JSON.stringify({ inParty: lay.inParty, kzX: Math.round(lay.kz.x),
                        partyX: Math.round(lay.party.x), kzW: Math.round(lay.kz.w),
                        partyW: Math.round(lay.party.w) }));

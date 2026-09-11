@@ -5509,6 +5509,22 @@ const Cast3D = (() => {
   }
   function aim(f, want) {
     f.root.updateWorldMatrix(true, true);
+    // ── THE HEADING IS AN INTENT, NOT A READING (Build 234) ─────────────────
+    //
+    // This recorded `userData.heading` only on the line AFTER the measurement,
+    // so a measurement that failed recorded nothing — and `holdHeading` opens
+    // with `if (want == null) return`. A body whose FIRST aim could not measure
+    // therefore had no heading to walk back onto, ever: the continuous
+    // corrector Build 210 added to make a bad facing self-heal was switched off
+    // for precisely the body that needed it. That is the permanent,
+    // unreproducible "Mira is standing backwards" — mount aims one 16ms step
+    // after the model lands, and a skeleton the phone has not posed yet reads
+    // null.
+    //
+    // Where the body is SUPPOSED to point is known before anything is measured.
+    // It is written down first, unconditionally, and the frame loop keeps
+    // trying until there are bones to measure against.
+    f.root.userData.heading = want;
     const now = headingOf(f);
     // ── AND A FAILURE HERE USED TO BE SILENT ────────────────────────────────
     //
@@ -5522,7 +5538,6 @@ const Cast3D = (() => {
     while (d > 180) d -= 360;
     while (d < -180) d += 360;
     f.root.rotation.y += d * D;
-    f.root.userData.heading = want;
     f.root.updateWorldMatrix(true, true);
   }
   // ══ …AND IT STAYS POINTED THERE (Build 210) ══════════════════════════════

@@ -362,6 +362,71 @@ const { boot } = require('./harness.cjs');
     JSON.stringify(aimHold.healed) + ' — every figure rotated 130 degrees off its '
       + 'heading, then read a few frames later. Before Build 210 nothing in the '
       + 'game ever re-checked a facing, so this stayed at 130 for the whole run');
+  // ── AND A HEADING SURVIVES A FAILED MEASUREMENT (Build 234) ──────────────
+  //
+  // `aim` recorded `userData.heading` on the line AFTER the reading, so a
+  // reading that came back null recorded nothing — and `holdHeading` opens with
+  // `if (want == null) return`. Worse than a body with no heading: a body that
+  // already HAD one kept walking home to the old one, so an aim that could not
+  // measure silently did nothing at all. Mount aims one 16ms step after the
+  // model lands, and a skeleton the phone has not posed yet reads null — which
+  // is the permanent, unreproducible "sometimes Mira is standing backwards".
+  //
+  // ── AND THE FIRST CUT OF THIS CHECK WAS CIRCULAR ─────────────────────────
+  //
+  // It asked whether the body ended up at `userData.heading`, which on the old
+  // code was the STALE heading the body was already standing at — so of course
+  // it did, and the check passed on the very build it was written to catch.
+  // Run against the reverted file it read {heading:46, deg:46, landed:0} and
+  // went green while the body sat 25 degrees from where it had been sent.
+  //
+  // It is a DIFFERENTIAL now. The same heading is asked for twice: once with
+  // bones, to find out what it looks like, and once with the bones taken away.
+  // The claim is that the blind aim lands in the same place the sighted one
+  // does — which no amount of remembering the old number can satisfy.
+  const blind = await J(async () => {
+    const C3 = window.Cast3D;
+    const wait = (n) => new Promise(z => { let i = 0;
+      const t = () => (++i >= n ? z() : requestAnimationFrame(t)); requestAnimationFrame(t); });
+    const f = C3._figure('mira');
+    if (!f) return { no: true };
+    const deg = () => { const o = C3._facing().mira; return o ? o.deg : null; };
+    const was = C3.turn().mira, want = was + 25;
+
+    const home = deg();                             // where it stands now
+    C3.turn({ mira: want }); await wait(6);
+    const sighted = deg();                          // …and what `want` looks like
+    C3.turn({ mira: was }); await wait(6);
+
+    const keep = {};
+    for (const n of ['LeftShoulder', 'RightShoulder', 'LeftUpLeg', 'RightUpLeg']) {
+      keep[n] = f.bones[n]; delete f.bones[n];
+    }
+    C3.turn({ mira: want });                        // aim runs; it cannot measure
+    const noted = { heading: f.root.userData.heading, failed: !!f.root.userData.aimFailed };
+    for (const n of Object.keys(keep)) f.bones[n] = keep[n];
+    await wait(10);                                 // the invariant gets its bones back
+    const bl = deg();
+    C3.turn({ mira: was }); await wait(4);          // hand the board back
+
+    const gap = (a2, b2) => a2 == null || b2 == null ? null
+      : +Math.abs(((a2 - b2) % 360 + 540) % 360 - 180).toFixed(2);
+    return { was, want, home, sighted, blind: bl, noted,
+             moved: gap(sighted, home),             // the ask is a real 25 degrees
+             landed: gap(bl, sighted),              // blind lands where sighted did
+             stale: gap(bl, home),                  // …and NOT where it started
+             restored: !f.root.userData.aimFailed, handedBack: C3.turn().mira === was };
+  });
+  check('FACE: …and a heading asked for while the bones cannot be read is still walked to',
+    !blind.no && blind.noted.failed === true && blind.restored && blind.handedBack
+    && blind.moved > 20 && blind.landed != null && blind.landed < 2 && blind.stale > 20,
+    JSON.stringify(blind) + ' — the same heading is asked for twice: once with '
+      + 'bones, to learn what it looks like, and once with them taken away. '
+      + '`landed` is how far the blind aim ended from the sighted one and must be '
+      + 'nothing; `stale` is how far it ended from where it started and must be '
+      + 'the whole 25 degrees. On the pre-234 file the reading failed, `aim` '
+      + 'returned before writing anything down, and the frame loop walked the '
+      + 'body back to the heading it already had — landed 25, stale 0');
   check('FACE: …and a swing is left alone, because a blow is supposed to turn the body',
     aimHold.held.acting && aimHold.held.kept && aimHold.handedBack,
     JSON.stringify(aimHold.held) + ' — the same knock during an action. The '

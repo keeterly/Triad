@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 233;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 234;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -1390,6 +1390,10 @@ function startCombat(opts) {
     bond: { stitches: 0, generated: false },   // the authored Ash+Elin pair
     counterstance: false,       // Ash: next successful parry this round deals +2 Break
     intercession: null,         // Elin will take this ally's parry window next enemy action
+    // WHO HAS ALREADY THROWN. A telegraph is a promise about a blow that has
+    // not happened yet; once the creature is swinging, the creature IS the
+    // statement. Keyed by foe index, emptied when next turn's intents are drawn.
+    thrown: {},
     pendingDiscard: false,      // Quick Throw: draw 1, THEN discard 1
     // …and the two beats it is made of. `discardArmed` is the question being
     // ASKED, which is a moment later than the draw resolving; `freshCard` is
@@ -2874,7 +2878,18 @@ async function endTurn(opts) {
     }
     // THE BARRAGE — every hit is launched and answered on its own string.
     setPhase('ENEMY_ATTACK_LAUNCH');
-    V.acting.filter(a => !a.canceled && a.intent).forEach(a => fxFoeAct(a.intent.id, a.src));
+    V.acting.filter(a => !a.canceled && a.intent).forEach(a => {
+      fxFoeAct(a.intent.id, a.src);
+      // ── AND THE PROMISE GIVES WAY TO THE ACT (Build 234) ────────────────
+      //
+      // The chip stayed up through the wind-up, the lunge, the parry window and
+      // the resolution — so at the moment the creature was finally DOING the
+      // thing, the board was carrying both a picture of a sword coming at you
+      // and the number it was going to be worth. Two readings of one event, and
+      // the louder of them is a badge of UI sitting over the animation the
+      // whole beat was built for.
+      fxTellSpend(a.src);
+    });
     it.hits = V.hits;
     result.targetId = V.hits.length ? hitTargetId(V.hits[0]) : null;
     const negatedThisAction = {};      // one full negate per hero per ACTION
@@ -3031,6 +3046,7 @@ async function endTurn(opts) {
   // WHAT IS STILL STANDING DECIDES WHAT IT DOES NEXT. A corpse does not draw
   // an intent, which is what makes the telegraph shorten as the line does.
   livingFoes().forEach(F => { F.intentIx = pickIntent(F); });
+  C.thrown = {};                // a new promise, so the badges come back
   C.turn++;
   C.ap = C.apMax;
   C.turnState = freshTurnState();
@@ -3104,6 +3120,29 @@ function fxFoeWind(ix) { foeSet(FOE_POSES, 'k-foe-wind', null, ix); foeCast(ix, 
 // and could disagree with what the bar then actually threw — Grief in Threes
 // opened in the SWEEP pose and its first blow was a tap. The bar opens in the
 // shape of the thing it is about to do.
+// ── THE TELEGRAPH DISSOLVES, IT DOES NOT BLINK OUT ────────────────────────
+//
+// Taking the badge away with `bodyLabel(..., false)` would be one frame: the
+// chip is there, then it is not, which on a board mid-swing reads as a glitch
+// rather than as a promise being kept. So the element is handed OUT of the
+// label system — `data-body` is what makes `bodyLabel`, `placeBodyLabels` and
+// the tail sweep own an element, and without it this is just an absolutely
+// positioned ghost sitting exactly where it was last placed — and then it
+// blooms, blurs and goes. Nothing re-renders it, because `C.thrown` is what
+// `renderIntent` reads, and nothing re-places it, because it is no longer a
+// body label. It takes itself off the board on its own clock.
+const TELL_GONE_MS = 320;
+function fxTellSpend(ix) {
+  if (!C) return;
+  (C.thrown || (C.thrown = {}))[ix] = 1;
+  const stage = el('k-stage'); if (!stage) return;
+  const e = stage.querySelector('.k-tell[data-body="foe' + ix + '"]');
+  if (!e) return;
+  delete e.dataset.body;
+  e.dataset.gone = '1';
+  e.classList.add('k-tell-gone');
+  setTimeout(() => e.remove(), TELL_GONE_MS + 40);
+}
 function fxFoeAct(intentId, ix) {
   const it = REGENT_INTENTS.find(x => x.id === intentId);
   const first = it && it.hits && it.hits[0] && (it.hits[0].acts || [])[0];
@@ -6144,16 +6183,43 @@ function renderKizuna() {
   const bar = el('k-kizuna'); if (!bar || !C) return;
   const pct = Math.round(C.kizuna / KIZUNA_MAX * 100);
   const ready = C.kizuna >= KIZUNA_MAX;
-  el('k-kz-fill').style.width = pct + '%';
+  // ── THE ARC IS THE READING (Build 234) ──────────────────────────────────
+  //
+  // The circle carries `pathLength="100"`, which rescales every dash number on
+  // it into percent — so the charge goes in as the charge, and there is no
+  // circumference constant here that could fall out of step with the radius in
+  // the markup. `dataset.pct` is the same fact in a form a check can read
+  // without doing trigonometry to find out what was drawn.
+  const arc = el('k-kz-fill');
+  if (arc) { arc.style.strokeDashoffset = String(100 - pct); arc.dataset.pct = String(pct); }
+  // THE NUMBER STAYS THE NUMBER, and at full the CSS hides it and shows the
+  // blades instead: a closed ring has already said "how much", so what it owes
+  // the player from then on is what to do about it.
+  el('k-kz-n').textContent = pct + '%';
   // A VERB, NOT A NOUN. "ALL-OUT" named the thing without saying what to do
   // with it, on a control most players never saw light up in the first place.
-  el('k-kz-n').textContent = ready ? 'ALL-OUT \u25B8' : pct + '%';
+  // It is the label's job now rather than the number's, and the button says the
+  // same thing out loud for anyone who is not looking at the dial.
+  const lbl = bar.querySelector('.k-kz-lbl');
+  if (lbl) lbl.textContent = ready ? 'ALL-OUT \u25B8' : 'KIZUNA';
+  bar.setAttribute('aria-label', ready
+    ? 'ALL-OUT — all three strike as one' : 'KIZUNA ' + pct + '%');
   bar.classList.toggle('k-kz-ready', ready);
   bar.disabled = !ready || C.phase !== 'PLAYER_READY';
 }
+// ── AND THE BIRTH MUST HAND THE PULSE BACK (Build 234) ────────────────────
+//
+// `k-kz-born` was added and never taken off. Both it and the ready state set
+// `animation` on the same element, and the born rule is the later one — so from
+// the moment the meter actually filled IN PLAY, the control wore a finished
+// one-shot animation forever and the ready pulse never ran again. The suite
+// never saw it because a check that writes `kizuna = 100` and re-renders never
+// crosses the threshold, which is the only thing that fires this.
+const KZ_BORN_MS = 760;            // the 0.7s keyframe, plus a frame to land on
 function fxKizunaReady() {
   const bar = el('k-kizuna'); if (!bar) return;
   bar.classList.remove('k-kz-born'); void bar.offsetWidth; bar.classList.add('k-kz-born');
+  setTimeout(() => bar.classList.remove('k-kz-born'), KZ_BORN_MS);
   screenPulse('gold');
 }
 // The three of them cross the floor at once. The camera drains, they strike,
@@ -6175,6 +6241,20 @@ function fxKizunaReady() {
 // is a chord; three landing a fifth of a second apart is a phrase, and the last
 // one is the one that reads as the finish.
 const ALLOUT_STEP = 190;
+// ── THE ANNOUNCE IS ITS OWN BEAT (Build 234) ──────────────────────────────
+//
+// The call and the three strikes started in the SAME FRAME, and the call's own
+// keyframe runs 1100ms against a stagger that is over in 870 — so the payoff of
+// a whole fight's charging played out entirely underneath 26px of glowing
+// capitals with a 60px bloom on it, on a camera that had just pushed in to fill
+// the frame with the people it was covering. The one moment in the game built
+// to be watched was the one moment something was parked in front of.
+//
+// Two beats instead of one. The word lands on a drained board and clears; then
+// the bodies go, with nothing over them. Same elements, same total length give
+// or take the announce — the difference is that neither is competing with the
+// other for the same 800ms.
+const ALLOUT_CALL = 720;           // the word's whole life, and it is gone first
 async function fxAllOut(living) {
   const stage = el('k-stage'); if (!stage) return;
   stage.classList.add('k-allout');
@@ -6184,6 +6264,10 @@ async function fxAllOut(living) {
   tag.textContent = 'All-Out';
   tag.style.left = '466px'; tag.style.top = '150px';
   stage.appendChild(tag);
+  // …AND THE BOARD WAITS FOR IT. Nothing below this line starts until the word
+  // is off the screen.
+  await sleep(ALLOUT_CALL);
+  tag.remove();
   // THE CUT LIST. Wide and swinging while they commit, then down onto the line
   // of them for the blows. The old shot handed the camera back with
   // `castShot('home')` at the END of this function — which runs BEFORE allOut()
@@ -6207,7 +6291,6 @@ async function fxAllOut(living) {
     }, i * ALLOUT_STEP);
   });
   await sleep(ALLOUT_STEP * living.length + 300);
-  tag.remove();
   stage.classList.remove('k-allout');
 }
 function renderBossHud() {
@@ -6689,7 +6772,10 @@ function renderIntent() {
   const quiet = C.phase === 'VICTORY' || C.phase === 'DEFEAT';
   C.foes.forEach(F => {
     const box = foeBox(F.ix); if (!box) return;
-    const r = quiet || F.dead ? null : rows.find(o => o.ix === F.ix);
+    // A creature that has already swung this volley wears nothing: `fxTellSpend`
+    // has taken its badge off the label system and is fading the ghost out.
+    const spent = !!(C.thrown && C.thrown[F.ix]);
+    const r = quiet || F.dead || spent ? null : rows.find(o => o.ix === F.ix);
     const chips = [];
     if (r) {
       // STAGGERED IS A STATE, NOT A BLOW, and it replaces the bar rather than
