@@ -17,6 +17,31 @@
   --ease-out: cubic-bezier(.2,.8,.3,1);       /* arriving: quick away, soft in */
   --ease-in-out: cubic-bezier(.4,0,.2,1);     /* moving between two states */
   --ease-soft: cubic-bezier(.25,.6,.3,1);     /* long, quiet fades */
+
+  /* ── THE TWO FACES, WHICH FOR 239 BUILDS WERE THREE (Build 240) ──────────
+     `var(--serif, Georgia, serif)` is written 28 times in this sheet and
+     `var(--ui, system-ui), sans-serif` 37 more — and NEITHER TOKEN WAS EVER
+     DEFINED. Every one of those 65 sites silently took its fallback, so the
+     game was laid out in two different serifs depending on whether a rule
+     happened to spell the token out or to inherit from `body`.
+
+     Read off live elements rather than reasoned about: `#k-mark-title` came
+     back as Georgia while `#k-bi-name` and `body` came back as Cormorant
+     Garamond, on screens a player walks between. That is the whole of "the
+     rest of the game doesn't match combat's formatting" — not a size ramp, a
+     missing variable.
+
+     `--ui` is deliberately the SANS it was already getting. Those 37 sites are
+     small-caps labels and pointing them at the serif would be a redesign
+     rather than a repair; defining it changes nothing today and means the next
+     rule to reference it cannot quietly diverge.
+
+     Cormorant is narrower than Georgia, so 28 blocks of type change metrics at
+     once. Measured as a differential in one page — set the property, re-read
+     every visible text leaf on six screens — the net count of newly clipped
+     elements is 0. */
+  --serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 * { box-sizing: border-box; }

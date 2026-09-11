@@ -567,6 +567,43 @@ const MAX_TURNS = 30;
 
   }
 
+  // ── ONE GAME, ONE SERIF (Build 240) ────────────────────────────────────
+  //
+  // This sheet references `var(--serif, Georgia, serif)` 28 times and
+  // `var(--ui, system-ui)` 37 more, and for 239 builds neither token existed —
+  // so two thirds of the interface quietly took a fallback while `body` was set
+  // in Cormorant Garamond, and the game was laid out in two serifs depending on
+  // whether a rule spelled the token out.
+  //
+  // What this asserts is the PROPERTY, not the value: every element that asks
+  // for the serif gets the SAME serif the body is set in. Restating the font
+  // stack here would just be the stylesheet copied into a test, and it would go
+  // red on a deliberate change of face while staying green on the actual
+  // failure — which is two faces at once.
+  const serifs = await J(() => {
+    const faceOf = (n) => n ? getComputedStyle(n).fontFamily.split(',')[0]
+      .replace(/["']/g, '').trim() : null;
+    const body = faceOf(document.body);
+    // two rules that reach for the token explicitly, on two different screens
+    const sites = ['#k-mark-title', '#k-mark-line', '#k-bi-name', '#k-reck-line'];
+    const got = {};
+    for (const sel of sites) { const f = faceOf(document.querySelector(sel));
+                               if (f) got[sel] = f; }
+    const tok = getComputedStyle(document.documentElement);
+    return { body, got,
+             serifDefined: !!tok.getPropertyValue('--serif').trim(),
+             uiDefined: !!tok.getPropertyValue('--ui').trim(),
+             odd: Object.keys(got).filter(k => got[k] !== body) };
+  });
+  check('TYPE: everything that asks for the serif is set in the same serif as the body',
+    serifs.serifDefined && serifs.uiDefined
+    && Object.keys(serifs.got).length > 0 && serifs.odd.length === 0,
+    JSON.stringify(serifs) + ' — `odd` names the sites whose face disagrees with '
+      + 'the body. Before the tokens were defined this read '
+      + '["#k-mark-title","#k-mark-line"] as Georgia against a Cormorant body, '
+      + 'which is two serifs on screens the player walks between. `got` must be '
+      + 'non-empty or the check is vacuous — a renamed id would otherwise pass it');
+
   const r = report();
   await H.browser.close();
   process.exit(r.passed === r.total && r.errs === 0 ? 0 : 1);
