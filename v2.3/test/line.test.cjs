@@ -183,10 +183,12 @@ const { boot } = require('./harness.cjs');
       const V = window.K._composeVolley();
       return { foes: c.foes.length, aim: c.aim,
                bossIsFoe: c.boss === c.foes[0], hp: c.boss.hp, max: c.boss.max,
-      // …AND ONLY THE CREATURES'. Build 231 gave the party the same plate, so
-      // an unqualified `.k-vit` count is a count of both sides — which turned
-      // "one opponent wears no floating vitals" into a report that three
-      // heroes do.
+      // ONE READOUT, EVERY LINE LENGTH, EVERY TIER (Build 232). A line of one
+      // used to keep a corner plate and a line of several handed the corner
+      // back to the creatures, because the pack strip stood on top of them.
+      // Build 231 gave the PARTY the creature's plate, and a boss fight then
+      // read as three plates against one corner banner — two languages for one
+      // fight. Every body wears the plate now and the corner draws nothing.
                plates: document.querySelectorAll('.k-vit-foe[data-body]').length,
                corner: !document.getElementById('k-boss-hud').classList
                  .contains('k-hud-away'),
@@ -194,9 +196,10 @@ const { boot } = require('./harness.cjs');
                extras: document.querySelectorAll('#k-cast .k-foe-art[data-ix]').length,
                voices: V.hits.length, held: V.held.length };
     });
-    check('LINE: one opponent keeps the corner plate — no floating vitals, no reticle, no extra bodies',
+    check('LINE: the boss takes the corner bar — no plate, no reticle, no extra bodies',
       solo.foes === 1 && solo.aim === 0 && solo.hp === solo.max && solo.max === 168
-      && solo.plates === 0 && solo.corner && solo.marks === 0 && solo.extras === 0,
+      && solo.plates === 0 && solo.corner === true
+      && solo.marks === 0 && solo.extras === 0,
       JSON.stringify(solo));
     check('LINE: …and the Regent still throws her whole bar at the party',
       solo.voices >= 2 && solo.held === 0, JSON.stringify({ voices: solo.voices, held: solo.held }));
@@ -223,9 +226,9 @@ const { boot } = require('./harness.cjs');
       seen.bodies === 3 && seen.line === '3' && seen.ix.join() === '0,1,2'
       && new Set(seen.art).size === 2 && seen.art.every(a => a && a.indexOf('foe-') >= 0),
       JSON.stringify(seen));
-    check('LINE: a pack wears a plate per body and the corner stands down',
+    check('LINE: a pack wears a plate per body, the same one a lone creature gets',
       seen.rows === 3 && seen.aimed === 1 && seen.corner === true,
-      JSON.stringify({ rows: seen.rows, aimed: seen.aimed, corner: seen.corner }));
+      JSON.stringify({ rows: seen.rows, aimed: seen.aimed, cornerAway: seen.corner }));
 
     // ── AND IT STANDS ON THE RIGHT CREATURE, NOT NEAR ONE ─────────────────
     //
@@ -722,8 +725,17 @@ const { boot } = require('./harness.cjs');
       const safe = { l: 59, t: 0, r: innerWidth - 59, b: innerHeight - 21 };
       const outside = (b) => b.left < safe.l - 1 || b.top < safe.t - 1
                           || b.right > safe.r + 1 || b.bottom > safe.b + 1;
-      const off = ['k-party-hud', 'k-boss-hud', 'k-endturn', 'k-deck-btn', 'k-disc-btn']
+      // `k-boss-hud` came off this list at Build 232: it draws nothing now (it
+      // carries the aimed foe's ids off screen — see index.html), so a box test
+      // on it asks whether a `display: none` element is inside the safe area,
+      // which is a question with no honest answer. What replaced it as the
+      // enemy readout is `.k-vit`, and a plate is placed off a body by the
+      // world's own projection rather than off the safe box, so it is measured
+      // where it is actually at risk: against the creatures, in the flow and
+      // cast suites.
+      const off = ['k-party-hud', 'k-endturn', 'k-deck-btn', 'k-disc-btn']
         .filter(id => { const e = document.getElementById(id); if (!e) return false;
+          if (!e.offsetParent && getComputedStyle(e).position !== 'fixed') return false;
           return outside(e.getBoundingClientRect()); });
       // ── THE HAND IS ASKED A DIFFERENT QUESTION (Build 227) ────────────────
       //
@@ -812,6 +824,102 @@ const { boot } = require('./harness.cjs');
     check('FIT: a screen made of sentences lays out inside the crop, not off the side of it',
       Object.keys(clipped).length >= 7 && inside.length === Object.keys(clipped).length,
       JSON.stringify(clipped));
+  }
+
+  // ═══ H · EVERY NAME IN THE BESTIARY FITS ITS PLATE ═══
+  //
+  // "The Mourning Regent" came out "MOURNING R…" the first time a boss wore a
+  // plate — a readout that cannot say who it is describing. The plate's width
+  // is a rule about neighbours (74px, because the tightest a line ever stands
+  // is 78 screen pixels between bodies) and a line of ONE has no neighbour, so
+  // a lone creature gets the room its name needs. Walking the whole table
+  // means the next creature with a long name fails here and not on a phone.
+  {
+    const names = await J(async () => {
+      const out = [];
+      // HOW MUCH ROOM IS LEFT, not just whether it fit. `scrollWidth` is at
+      // least `clientWidth`, so it reads zero headroom on every name that fits
+      // and says nothing about how close the next one can come. A clone at
+      // `max-content` gives the text's real width.
+      const fits = (n) => {
+        const c = n.cloneNode(true);
+        c.style.cssText = 'position:absolute;visibility:hidden;display:inline-block;'
+          + 'width:auto;max-width:none;overflow:visible;white-space:nowrap';
+        n.parentNode.appendChild(c);
+        const want = c.getBoundingClientRect().width;
+        c.remove();
+        const have = n.getBoundingClientRect().width;
+        return { cut: want > have + 0.5, spare: Math.round(have - want) };
+      };
+      for (const id of Object.keys(window.K.FOES)) {
+        window.K.startCombat({ seed: 5, foe: window.K.FOES[id] });
+        await new Promise(r => requestAnimationFrame(r));
+        // …and a boss has no plate: its name is announced on the corner bar,
+        // which is where the fit has to be measured instead. One readout each
+        // (see READOUT below), so one place to ask.
+        const n = document.querySelector('.k-vit-foe b')
+               || document.querySelector('#k-boss-hud .k-bname');
+        if (!n) { out.push({ id, cut: true, text: '(no readout)', spare: -999 }); continue; }
+        out.push({ id, text: n.textContent.trim(), ...fits(n) });
+      }
+      // …AND EVERY CREATURE THE ROAD CAN PUT IN A PACK, at the narrow width.
+      // A packed plate is 74px because that is the tightest a line ever stands,
+      // and the two names that happen to appear in the fights above fit it with
+      // ZERO and ONE pixel to spare. So the rule is not "the sample fits" — it
+      // is that any `fight`-tier creature, which is the set the road composes
+      // packs from, has a name that survives a neighbour. The day somebody
+      // promotes the Kneeling Revenant to a pack member, this says so.
+      for (const id of Object.keys(window.K.FOES)) {
+        if (window.K.FOES[id].tier !== 'fight') continue;
+        window.K.startCombat({ seed: 5, foes: [id, id, id] });
+        await new Promise(r => requestAnimationFrame(r));
+        document.querySelectorAll('.k-vit-foe b').forEach(n =>
+          out.push({ id: 'pack:' + id, text: n.textContent, ...fits(n) }));
+      }
+      // …and ours, short by design but drawn by the same rule
+      window.K.startCombat({ seed: 5 });
+      await new Promise(r => requestAnimationFrame(r));
+      document.querySelectorAll('.k-vit-us b').forEach(n =>
+        out.push({ id: 'hero:' + n.textContent, text: n.textContent, ...fits(n) }));
+      return out;
+    });
+    check('PLATE: no name in the bestiary is cut off by its own plate',
+      names.length >= 11 && names.every(n => !n.cut),
+      JSON.stringify(names.filter(n => n.cut)) + ' of ' + names.length + ' — '
+        + names.map(n => n.text + ':' + n.spare).join(' '));
+  }
+
+  // ═══ I · ONE READOUT PER CREATURE, AND THE TIER DECIDES WHICH ═══
+  //
+  // Every creature in the bestiary wears the same plate the party wears — over
+  // its own head, 74px, name over bar over poise. A `tier: 'boss'` creature
+  // takes the ceremonial corner bar instead, because a boss fight is a
+  // different KIND of fight rather than a bigger one, and the games that do
+  // this well all answer it that way.
+  //
+  // The rule is EXACTLY ONE, both directions. A creature with both readouts is
+  // two answers to one question, and a creature with neither has vanished from
+  // its own fight. Walked across the table so the next bestiary entry inherits
+  // whichever it is by being written down, rather than by being remembered.
+  {
+    const each = await J(async () => {
+      const out = [];
+      for (const id of Object.keys(window.K.FOES)) {
+        const def = window.K.FOES[id];
+        window.K.startCombat({ seed: 5, foe: def });
+        await new Promise(r => requestAnimationFrame(r));
+        const hud = document.getElementById('k-boss-hud');
+        out.push({ id, tier: def.tier,
+                   plate: document.querySelectorAll('.k-vit-foe').length,
+                   bar: !hud.classList.contains('k-hud-away') });
+      }
+      return out;
+    });
+    check('READOUT: every creature has exactly one — a boss the corner bar, everything else a plate',
+      each.length >= 5 && each.every(f => f.tier === 'boss'
+        ? (f.bar && f.plate === 0)
+        : (!f.bar && f.plate === 1)),
+      JSON.stringify(each));
   }
 
   const r = report();

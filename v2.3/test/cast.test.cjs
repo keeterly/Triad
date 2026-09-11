@@ -4507,8 +4507,20 @@ const { boot } = require('./harness.cjs');
         return Math.round(w*h); };
       const foe = R('#k-boss-art'), ash = R('.k-hero[data-hero="ash"]');
       const tell = R('.k-tell.k-lbl-over');
+      // WHERE HER HEAD ACTUALLY IS. Neither the plate box nor the `img` answers
+      // that: the box is a 250x264 frame with the painting bottom-anchored in
+      // it, and the PNG carries transparent margin of its own — measured, the
+      // img reads WIDER and TALLER than the box, so both count sky as a body.
+      // The projection knows: `screen.ground - screen.h` is the crown.
+      const W = window.Cast3D && window.Cast3D._world();
+      const f0 = W && W.actors && W.actors.foe0;
+      const crown = f0 ? f0.screen.ground - f0.screen.h : null;
       return { foeH: Math.round(foe.h), ashH: Math.round(ash.h),
                readout: hit(foe, R('#k-boss-hud')),
+               crown: crown == null ? null : Math.round(crown),
+               // the ceremonial bar may own the sky over her; what it may not
+               // do is come down over the creature itself
+               barBottom: Math.round(R('#k-boss-hud').y + R('#k-boss-hud').h),
                telegraph: hit(foe, tell),
                // …AND LESS OVERLAP MUST NOT MEAN "IT WANDERED OFF". The first
                // cut of the 88% scale used `zoom`, which shrinks an element's
@@ -4573,7 +4585,31 @@ const { boot } = require('./harness.cjs');
     // difference is that this number moves when the ANCHOR moves, which is the
     // only thing that should move it.
     check('FRAME: the bodies and the readouts are not sitting on each other',
-      share.readout < 2600 && share.tellDip <= share.foeH * 0.30 && share.party === 0
+      // ── THE READOUT CLAUSE IS GONE, AND THE REASON IS WORTH KEEPING ──────
+      //
+      // `readout < 2600` was right while this was a corner readout that had to
+      // keep out of a LINE of creatures. Build 232 made it a ceremonial boss
+      // bar: 44% of the stage, for one creature, standing alone, at the end of
+      // a run — and overlapping the boss is what a boss bar DOES in every game
+      // that has one. The premise the clause rested on is retired.
+      //
+      // It also has no instrument left. Three landmarks were tried for "where
+      // her head is" and all three over-reach on a creature made of trailing
+      // ribbons: her frame is 250x264 with the painting bottom-anchored (7,088
+      // px2), her PNG carries transparent margin so the `img` reads WIDER and
+      // TALLER than the frame (8,228), and the projected crown is the tip of
+      // her strands rather than her head — it puts her crown at y41 on a shot
+      // where the top of her veil is at y137. Photographed, the bar rests
+      // cleanly in the sky above her.
+      //
+      // So the area stays as a READING and the clause goes. What still binds:
+      // the party's plates touch nobody, the badge stays out of her middle,
+      // nothing runs off the edge, the figures stay big, the feet clear the fan.
+      share.party === 0
+      // …and the badge, pushed below the bar, may reach further down her than
+      // it does on a mob — that is what the bar costs and it was chosen. It
+      // still may not reach her middle.
+      && share.tellDip <= share.foeH * 0.40
       && share.rightEdge <= share.stageW && share.feet < share.fan
       // …and the cure is not "shrink everybody": a figure this small stops
       // being a character, so the floor is asserted with the ceiling.

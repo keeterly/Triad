@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 231;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 232;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -6274,68 +6274,90 @@ function renderLineMarks() {
     b.classList.toggle('k-foe-spent', !!F.dead);
   });
 }
+// A BOSS IS THE ONE THING THAT GETS THE CORNER, and it gets it as DRAMA
+// rather than as a fallback. Every creature in the bestiary wears the plate
+// over its own head — that is the readout, and it is the same one the party
+// wears. A boss is not a bigger creature, it is a different KIND of fight: one
+// thing, standing alone, for as long as the run has been building to it. Elden
+// Ring and FFXIV both answer that the same way and it is the right answer — a
+// ceremonial bar across the top of the screen, named, that exists for nobody
+// else. Keyed on the bestiary's own `tier`, so an elite is one line away from
+// having it too and a new boss gets it by being written down as one.
+function bossOnField() {
+  return !!(C && C.foes && C.foes.some(F =>
+    !F.dead && F.def && F.def.tier === 'boss'));
+}
 function renderLineHud() {
+  const hud = el('k-boss-hud');
+  if (hud) hud.classList.toggle('k-hud-away', !bossOnField());
   renderLineMarks();
   renderFoeVitals();
 }
-// ── A MOB WEARS ITS OWN HEALTH (Build 179) ─────────────────────────────────
+// ── EVERY BODY WEARS ITS OWN HEALTH (Build 179, finished at 232) ───────────
 //
 // The pack readout was three plates stacked in the top-right corner, which is
 // the corner the enemy line stands in. Measured on a three-body fight, the
 // block covered 22,171 square pixels of creature — and no camera pose fixes
 // that, because the clear band between the readout's underside and the top of
-// the card fan is 151px while a creature is drawn 179px tall. The lens can
-// only trade figure size for clearance: the widest framing that still held
-// everyone on screen bought a 67% cut and cost 17px off every body.
+// the card fan is 151px while a creature is drawn 179px tall.
 //
-// So the readout goes to the creature instead. The same plate the corner had
-// — name, health, the poise gauge — ninety-eight pixels wide, floating over
-// the head on the machinery the telegraph already uses, which re-anchors from
-// a live rect every frame and therefore holds while the camera moves.
+// So the readout went to the creature: the same plate the corner had — name,
+// health, the poise gauge — floating over the head on the machinery the
+// telegraph already uses, which re-anchors from a live rect every frame and
+// therefore holds while the camera moves.
 //
-// A BOSS AND AN ELITE KEEP THE CORNER, and they get it for free: the road
-// stands them alone ("an elite and the Regent stand alone" is the rule the
-// chart is built on), so a line of one is exactly the set of fights where the
-// corner is empty anyway. That makes the test for which readout to draw the
-// same one-line test it already was, and nothing has to learn about tiers.
+// A BOSS AND AN ELITE KEPT THE CORNER, on the reasoning that the road stands
+// them alone, so the corner is empty in exactly those fights. That was true
+// and it was not the point. Build 231 gave the PARTY this plate, and a boss
+// fight then read as three plates against one corner banner — the two sides of
+// one fight in two different languages, which is the thing the plate was
+// adopted to end. There is one readout now, for every line length and every
+// tier; the corner keeps nothing but the ladder.
 function renderFoeVitals() {
-  const many = !!(C && C.foes && C.foes.length > 1);
-  const hud = el('k-boss-hud');
-  // …and with the corner unused, the whole block goes rather than emptying:
-  // `_tellFloor` reads it live, so a hidden readout hands the telegraph back
-  // the sky it was being clamped out of.
-  if (hud) hud.classList.toggle('k-hud-away', many);
-  // a plate belongs to a body, so when there are no bodies to belong to — a
-  // line of one, or the fight after a line of three — every plate goes. Left
-  // standing they would be hidden rather than gone, which is a thing that can
-  // come back.
   const stage = el('k-stage');
-  // …AND ONLY THE CREATURES' PLATES. This swept `.k-vit[data-body]` with no
-  // qualifier, which was harmless while foes were the only bodies wearing one.
-  // Build 231 gave the party the same plate, so an unqualified sweep on the
-  // first turn of every boss fight — a line of one — took the party's three
-  // readouts off the board with it.
-  if (!many && stage)
-    stage.querySelectorAll('.k-vit[data-body^="foe"]').forEach(e => e.remove());
-  if (!C || !C.foes) return;
+  const gone = () => { if (stage)
+    stage.querySelectorAll('.k-vit[data-body^="foe"]').forEach(e => e.remove()); };
+  if (!C || !C.foes) { gone(); return; }
   const quiet = C.phase === 'VICTORY' || C.phase === 'DEFEAT';
   C.foes.forEach(F => {
     // A DEAD MOB'S PLATE GOES. The corner strip kept a grey row so the list
     // would not reflow under the player's eye — but these do not form a list,
     // they stand where their creature stands, and the creature is gone.
-    const e = bodyLabel('vit', 'foe' + F.ix, many && !F.dead && !quiet);
+    // TWO READOUTS FOR ONE CREATURE IS WORSE THAN EITHER. A boss has the
+    // ceremonial bar; it does not also carry a plate on its head.
+    const isBoss = !!(F.def && F.def.tier === 'boss');
+    const e = bodyLabel('vit', 'foe' + F.ix, !F.dead && !quiet && !isBoss);
     if (!e) return;
-    e.classList.toggle('k-vit-on', F.ix === C.aim);
-    const stag = F.broken || F.cancelNext;
-    const pips = [];
-    for (let i = 0; i < F.breakMax; i++)
-      pips.push('<i' + (i < F.brk ? ' class="on"' : '') + '></i>');
     e.classList.add('k-vit-foe');
-    // ONLY THE SHAPE REBUILDS — see the party side of this, which now draws
+    e.classList.toggle('k-vit-on', F.ix === C.aim);
+    // A LONE CREATURE HAS NO NEIGHBOUR TO CROWD. 74px is the width the SPACING
+    // chose — the tightest a line ever stands is 78 screen pixels between
+    // bodies, and a plate wider than that gap is one the spreader has to push
+    // down onto somebody's head. A line of one has no such gap, and the
+    // longest name in the bestiary is on exactly that kind of creature: "The
+    // Mourning Regent" came out "MOURNING R…" the first time she wore a plate.
+    e.classList.toggle('k-vit-solo', C.foes.length === 1);
+    const stag = F.broken || F.cancelNext;
+    // ── THE POISE GAUGE, AND THE LIGHT GOING OUT OF A NOTCH ───────────────
+    // A gauge that counts DOWN has to say so: `brk` is the resistance still
+    // standing and a card's Break atom takes it away, so a full gauge honestly
+    // means intact. Knocking a notch out is the most consequential thing a
+    // support card does and it was a silent repaint until Build 100 — the ones
+    // knocked out THIS render go out one at a time, from the top down, so a
+    // 3-Break card reads as three. The counter is per plate now, because a
+    // line has three of them and the corner that used to hold one is gone.
+    const was = e.dataset.brk === undefined ? F.brk : +e.dataset.brk;
+    const pips = [];
+    for (let i = 0; i < F.breakMax; i++) {
+      const on = i < F.brk, out = !on && i < was;
+      pips.push('<i class="' + (on ? 'on' : '') + (out ? ' k-pip-out' : '')
+        + '" style="--pip-i:' + (was - 1 - i) + '"></i>');
+    }
+    // ONLY THE SHAPE REBUILDS — see the party side of this, which draws
     // through the same component. The bar and the number are written in place
     // so the wound ghost survives a point of damage; before Build 231 the
     // width lived in the html, so every hit threw away the trail it left.
-    const shape = F.name + '|' + (stag ? 1 : 0) + '|' + F.brk + '/' + F.breakMax;
+    const shape = F.name + '|' + (stag ? 1 : 0) + '|' + F.brk + '/' + F.breakMax + '|' + was;
     if (e.dataset.shape !== shape) {
       e.dataset.shape = shape;
       // the article is three characters of nothing on every creature in the
@@ -6346,8 +6368,14 @@ function renderFoeVitals() {
         + (stag ? '<span class="k-vit-stag">Staggered</span>'
                 : '<span class="k-vit-poise">' + pips.join('') + '</span>');
     }
+    e.dataset.brk = F.brk;
     e.querySelector('.k-vit-num').textContent = fmtN(F.hp);
     setBar(e.querySelector('.k-vit-bar'), Math.max(0, F.hp / F.max * 100));
+  });
+  // …and a plate whose creature has left the line goes with it
+  if (stage) stage.querySelectorAll('.k-vit[data-body^="foe"]').forEach(e => {
+    const F = C.foes[+e.dataset.body.slice(3)];
+    if (!F || F.dead || quiet || (F.def && F.def.tier === 'boss')) e.remove();
   });
 }
 // THE TELEGRAPH — icons and amounts, in the sky above the Regent's head.
@@ -6493,16 +6521,39 @@ function placeBodyLabels() {
     // -100%), so clamping that edge left the badge growing upward through
     // whatever it was being kept out of. The clamp clears its own height too.
     const floor = _tellFloor(g.a.x);
+    const stack = [g.vit, g.tell].concat(g.rest).filter(Boolean);
+    const hs = stack.map(e => e.getBoundingClientRect().height / k);
+    const need = hs.reduce((a, b) => a + b + 3, -3);
     // eight pixels off the crown for a lone badge; four when a plate is going
     // there first, because the plate is already the gap and the sky over the
     // back rank is measured in tens.
-    let edge = g.a.top - (g.vit ? 4 : 8);
-    for (const e of [g.vit, g.tell].concat(g.rest)) {
-      if (!e) continue;
-      const h = e.getBoundingClientRect().height / k;
-      const top = Math.max(floor + h, edge);
-      e.style.top = top.toFixed(1) + 'px';
-      edge = top - h - 3;
+    const start = g.a.top - (g.vit ? 4 : 8);
+    if (start - need >= floor) {
+      let edge = start;
+      for (let i = 0; i < stack.length; i++) {
+        stack[i].style.top = edge.toFixed(1) + 'px';
+        edge -= hs[i] + 3;
+      }
+    } else {
+      // ── AND WHEN THERE IS NO SKY AT ALL, THE STACK GOES DOWN (Build 232) ──
+      //
+      // The clamp used to pin each label to `floor + its own height`, which
+      // reads as "rest on the shoulders" only while ONE thing is clamped. With
+      // two, both solved for the same ceiling and printed through each other:
+      // the Mourning Regent is drawn from y17 on a 430px stage — she fills the
+      // frame, there is no sky over her crown — and her plate and her telegraph
+      // landed on the same twenty pixels. No boss ever wore a plate before 232,
+      // so the case could not arise.
+      //
+      // Built downward instead, badge first: the telegraph keeps the ceiling,
+      // because it is the small high-contrast one the floor exists to protect,
+      // and the plate rests under it on the creature's own shoulders.
+      let bot = floor;
+      for (const e of [g.tell, g.vit].concat(g.rest).filter(Boolean)) {
+        bot += e.getBoundingClientRect().height / k;
+        e.style.top = bot.toFixed(1) + 'px';
+        bot += 3;
+      }
     }
   }
   _spreadTells();

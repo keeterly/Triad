@@ -479,8 +479,21 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
    and "THE REST GETS THROUGH" print dead centre. The badges do not need the
    roster to move: `_tellFloor` already stops any badge climbing into it, and
    the camera pulling back gives the back rank real sky of its own. */
-#k-boss-hud { position: absolute; right: calc(16px + var(--ui-r)); left: auto; top: calc(10px + var(--ui-t)); width: 268px;
-  display: flex; flex-direction: column; align-items: flex-end; gap: 3px; z-index: 10; }
+/* ── AND A BOSS GETS A BOSS BAR (Build 232) ───────────────────────────────
+   Not the old 268px plate, which was a corner readout doing a readout's job.
+   A boss fight is a different KIND of fight — one thing, standing alone, at
+   the end of everything the run has been building toward — and the games that
+   do this well all answer it the same way: a ceremonial bar, named, that
+   exists for nobody else on the board. Elden Ring and FFXIV are the reference.
+
+   So it is WIDE (44% of the stage against the plate's 8%), the name is set
+   large and spaced and lit, and the health is one long rule under it with the
+   poise gauge beneath that. Every other creature in the game wears the same
+   74px plate the party wears; this appears for `tier: 'boss'` and nothing
+   else, which is why it reads as an occasion rather than as a layout. */
+#k-boss-hud { position: absolute; right: calc(16px + var(--ui-r)); left: auto;
+  top: calc(12px + var(--ui-t)); width: 410px;
+  display: flex; flex-direction: column; align-items: stretch; gap: 5px; z-index: 10; }
 /* ── THE READOUT HOLDS ITSELF, WITH NO GROUND UNDER IT (Build 220) ────────
    Build 219 put a soft scrim behind this readout and behind the telegraph, and
    the measurement that called for it was right: the foe's body box runs y30 to
@@ -564,19 +577,32 @@ html, body { -webkit-touch-callout: none; -webkit-user-select: none; user-select
 
    Nothing is declared here now: the badge's own rule already centres it, and
    restating that would only be a second place to keep in step. */
-.k-foe-plate { display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+.k-foe-plate { display: flex; flex-direction: column; align-items: stretch; gap: 5px;
   width: 100%; }
-.k-foe-plate + .k-foe-plate { margin-top: 7px; }
-.k-bname { font-size: 13.5px; font-weight: 600; letter-spacing: 0.15em; color: #ece2ca;
-  text-shadow: 0 1px 5px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.7);
-  text-transform: uppercase; }
+/* THE NAME IS THE ANNOUNCEMENT. Large, spaced, lit from behind, on its own
+   line with a hairline under it — the thing you read once when the fight
+   starts and never need to read again. */
+.k-bname { font-size: 19px; font-weight: 600; letter-spacing: 0.24em; color: #f6ecd4;
+  text-align: right; text-transform: uppercase; padding-bottom: 5px;
+  border-bottom: 1px solid rgba(201,164,92,0.34);
+  text-shadow: 0 1px 6px rgba(0,0,0,0.95), 0 0 22px rgba(224,150,110,0.35); }
 .k-bflag { font-size: 11px; color: #d0764a; letter-spacing: 0.18em; }
-.k-bhp-row { display: flex; align-items: center; gap: 7px; width: 100%; }
-.k-bhp-row .k-bar { height: 5px; }
-.k-bhp-row .k-hpnum { font-size: 10px; }
-.k-bhp-row .k-hpnum b { font-size: 11px; }
+/* THE BAR IS THE LENGTH OF THE FIGHT. 410px of it, so a hundred points coming
+   off is a distance you can see — the whole reason a boss bar is drawn wide. */
+.k-bhp-row { display: flex; align-items: center; gap: 9px; width: 100%;
+  flex-direction: row-reverse; }
+.k-bhp-row .k-bar { height: 9px; border-radius: 0;
+  border-color: rgba(201,164,92,0.4);
+  background: rgba(6,4,8,0.82);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.9), 0 0 14px rgba(0,0,0,0.5); }
+.k-bhp-row .k-bar-fill { inset: 1px; border-radius: 0;
+  background: linear-gradient(180deg, #d8624a 0%, #a8362a 55%, #7d2118 100%);
+  box-shadow: 0 0 10px rgba(200,70,50,0.45); }
+.k-bhp-row .k-bar-ghost { inset: 1px; border-radius: 0; }
+.k-bhp-row .k-hpnum { font-size: 11px; min-width: 74px; text-align: right; }
+.k-bhp-row .k-hpnum b { font-size: 15px; }
 .k-bar-w { flex-grow: 1; }
-.k-b-meta { display: flex; gap: 10px; align-items: center; }
+.k-b-meta { display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
 .k-break-wrap { font-size: 10px; color: #b0a894; display: flex; align-items: center; gap: 6px;
   text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
 /* STAGGERED REPLACES THE GAUGE, it does not sit beside it. A word tacked on
@@ -4785,6 +4811,9 @@ body.k-cast3d .k-hero.k-row-front img { filter: none; }
   opacity: 0.88; transition: opacity 200ms var(--ease-soft, cubic-bezier(0.4,0,0.2,1));
 }
 .k-vit-us { --vit-ink: #e0cb95; --vit-ink-deep: #a8873f; }
+/* …and a creature standing alone may have the room its name needs: see
+   `renderFoeVitals`. 74 is a rule about NEIGHBOURS, and a line of one has none. */
+.k-vit-solo { width: 136px; }
 /* the aimed one is not a highlighted ROW any more — there is no list for it to
    be a row of — so it says so the way the boss plate does: it is the one that
    is fully lit, with a hairline around its bar. */

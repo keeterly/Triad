@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=231" />
+  <link rel="stylesheet" href="styles.css?v=232" />
 </head>
 <body>
   <div id="k-scale">
@@ -81,8 +81,18 @@
         </button>
       </div>
 
-      <!-- boss HUD — upper-right -->
-      <div id="k-boss-hud">
+      <!-- ── THE CORNER READOUT IS RETIRED (Build 232) ───────────────────
+           Kept in the DOM, never drawn. Every creature wears its own plate now
+           — a boss and an elite included — so there is no line length and no
+           tier for which this block is the readout. What it still does is
+           carry the ids the writers and the suites have always read (`#k-bhp`,
+           `#k-break`, the statuses): the aimed foe's numbers live here, off
+           screen, so nothing had to learn a new selector to keep working.
+
+           `k-hud-away` is `display: none`, which is also what hands the
+           telegraph back the sky: `_tellFloor` reads this block live and a
+           block with no box clamps nothing. -->
+      <div id="k-boss-hud" class="k-hud-away" aria-hidden="true">
         <!-- THE TURN EMBLEM IS GONE. A gold diamond and a bare number sat
              above the foe's own name and health, which is the most-read
              corner of the screen, and neither of them was a thing anybody
@@ -510,13 +520,13 @@
     setTimeout(check, 2500);
   })();
   </script>
-  <script src="run.js?v=231"></script>
-  <script src="game.js?v=231"></script>
+  <script src="run.js?v=232"></script>
+  <script src="game.js?v=232"></script>
   <!-- THE CAST IN THREE DIMENSIONS — a module, and inert unless ?cast=3d.
        It draws one canvas under the DOM heroes and paints a rigged figure
        into each hero's box; everything above it (rows, drag, aim, popups,
        the party HUD) is untouched. -->
-  <script type="module" src="cast3d.js?v=231"></script>
+  <script type="module" src="cast3d.js?v=232"></script>
   <script>
     // ── FIT THE 932x430 DESIGN SPACE TO THE PART OF THE SCREEN THAT IS ONE ──
     //

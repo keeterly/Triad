@@ -910,14 +910,27 @@ const { boot } = require('./harness.cjs');
       });
       return { by, plates, over,
                chips: document.querySelectorAll('#k-party-hud .k-pt-inc').length,
-               // no corner roster survives anywhere
+               // no corner roster survives anywhere, on either side
                roster: document.querySelectorAll('.k-pt-hero').length,
+               cornerAway: document.getElementById('k-boss-hud')
+                 .classList.contains('k-hud-away'),
                aimed: [...document.querySelectorAll('.k-vit-us.k-vit-on')].map(e => e.dataset.hero) };
     });
     check('HUD: the telegraph chips are off the party health bars',
       rows.chips === 0, 'chips on party rows: ' + rows.chips);
     check('HUD: the corner roster is gone — nothing draws party health but the plate',
       rows.roster === 0, 'roster rows still in the DOM: ' + rows.roster);
+    // ── A BOSS IS THE ONE EXCEPTION, AND IT IS DELIBERATE (Build 232) ─────
+    // This block's fight is the Regent. Every other creature in the game wears
+    // the same plate the party wears — that is the unification, and the check
+    // below proves it on a pack. A boss gets the ceremonial corner bar instead,
+    // because a boss fight is a different KIND of fight rather than a bigger
+    // one. What must never happen is BOTH: two readouts for one creature is
+    // worse than either, so the party's three plates are the only ones here.
+    check('PLATE: a boss takes the corner bar and wears no plate — one readout each',
+      rows.plates.length === 3 && rows.plates.every(p => p.us) && !rows.cornerAway,
+      JSON.stringify({ n: rows.plates.length, cornerAway: rows.cornerAway,
+                       who: rows.plates.map(p => p.body) }));
     check('HUD: the aimed outline means AIMED — not merely alive under a dirge that reaches everyone',
       rows.aimed.length === Object.keys(rows.by).length
       && rows.aimed.every(id => rows.by[id] > 0),
@@ -5321,11 +5334,26 @@ const { boot } = require('./harness.cjs');
                  .contains(document.getElementById('k-kizuna')),
                plates: document.querySelectorAll('#k-boss-hud .k-foe-plate').length };
     });
-    // THE FOE READOUT WAS 43% OF THE STAGE for a single opponent, in a game that
-    // will have to show three. Held under a third of the width so the others fit.
-    check('UI: the foe readout is under a third of the stage, not half of it',
-      lay.boss.w / lay.stageW < 0.33, JSON.stringify({ w: Math.round(lay.boss.w),
-        pct: Math.round(lay.boss.w / lay.stageW * 100) }));
+    // ── AND THE WIDTH RULE IS RE-DERIVED, NOT RELAXED (Build 232) ─────────
+    //
+    // This held the foe readout under a third of the stage, and the reason was
+    // sound: it was the readout for up to THREE opponents, and at 43% a second
+    // one had nowhere to go. That is no longer what it is. Every creature in
+    // the bestiary wears a plate over its own head; this block appears for
+    // `tier: 'boss'` alone, which is one creature, standing by itself, at the
+    // end of a run. Being wide is the point of it.
+    //
+    // So the ceiling that replaces it is the one that still bites: it may not
+    // run off the stage, and it may not reach the party's own readouts on the
+    // other side. 410 of 932 leaves 106px of gap.
+    check('UI: the boss bar is wide by design, on the stage, and clear of the party',
+      lay.boss.w / lay.stageW > 0.35 && lay.boss.w / lay.stageW < 0.5
+      && lay.boss.x + lay.boss.w <= lay.stageW + 1
+      && lay.boss.x > lay.party.x + lay.party.w,
+      JSON.stringify({ w: Math.round(lay.boss.w),
+        pct: Math.round(lay.boss.w / lay.stageW * 100),
+        gap: Math.round(lay.boss.x - (lay.party.x + lay.party.w)),
+        right: Math.round(lay.stageW - (lay.boss.x + lay.boss.w)) }));
     // …and it is ONE PLATE, so a second foe is another plate rather than another
     // layout. Everything about an opponent lives inside it.
     check('UI: a foe is a self-contained plate that a second one could stack under',
