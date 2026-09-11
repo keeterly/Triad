@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 234;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 235;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -6552,6 +6552,51 @@ function boxForBody(key) {
   return key.slice(0, 3) === 'foe' ? foeBox(+key.slice(3))
        : document.querySelector('#k-cast .k-hero[data-hero="' + key + '"]');
 }
+// ── A BODY THAT HAS LEFT ITS SPOT WEARS NOTHING (Build 235) ────────────────
+//
+// The health plate, the telegraph and the status pips hang over a figure that
+// is standing on its mark. The moment it crosses the floor to hit something,
+// the labels have two bad options and take both: `placeBodyLabels` follows the
+// body, so a chip of UI rides through the middle of the swing — and the swing
+// is the one second of the turn where the ANIMATION is the information. Over a
+// foe being struck it is worse, because the plate follows it through the recoil
+// while a damage number is already flying out of the same square inch.
+//
+// So they stand down while the body is away and come back as it settles.
+//
+// THE MEASUREMENT IS A DISTANCE, NOT A FLAG. `Cast3D.away` reports how far the
+// figure being drawn is from its mark, in metres, which decays to nothing as
+// the slot ease walks it home — so "until they move back to their spot" is
+// asked rather than timed.
+//
+// AND THE THRESHOLD IS MEASURED, because a RECOIL must not trip it. Being hit
+// also moves a body, and the plate is the last thing that should vanish while
+// it is draining — `setBar`'s pale ghost and white flash exist precisely so a
+// player can see what was taken. Every move in the game, sampled off `awayM`:
+//
+//   hero charge  0.90     recoil, typical power  0.315
+//   all-out      1.05     recoil, full power     0.640
+//   foe charge   0.90     stagger reel           0.780
+//
+// 0.70 is the gap in the middle of that list. Everything that CROSSES THE FLOOR
+// is above it, everything that is a flinch in place is below, and a reel — a
+// body going most of a metre sideways — is a crossing.
+const AWAY_M = 0.70;
+// …and the painted stage has no metres, so there it is the class that MOVES the
+// body — every act pose except the wind-up, which is a figure standing still.
+const AWAY_CLS = ['k-charging', 'k-acts'];
+function bodyAway(key) {
+  const C3 = window.Cast3D;
+  if (C3 && C3.away) {
+    const m = C3.away(key);
+    if (m != null) return m > AWAY_M;
+  }
+  const box = boxForBody(key);
+  if (!box) return false;
+  for (const c of AWAY_CLS) if (box.classList.contains(c)) return true;
+  return key.slice(0, 3) === 'foe'
+    && FOE_POSES.some(c => c !== 'k-foe-wind' && box.classList.contains(c));
+}
 // THE ONE LOOP THAT PLACES THEM. It runs whether or not the camera is moving,
 // because in the 3D world it always is — the plaza breathes even on a turn
 // nobody has taken.
@@ -6571,6 +6616,10 @@ function placeBodyLabels() {
   // high-contrast one and `_tellFloor` exists to protect exactly it.
   const heads = Object.create(null);
   for (const e of labels) {
+    // it still gets PLACED while it is away — it is fading, not gone, and a
+    // label that stopped tracking would slide back into frame from the wrong
+    // side when it returns
+    e.classList.toggle('k-lbl-away', bodyAway(e.dataset.body));
     const box = boxForBody(e.dataset.body);
     const a = box && bodyAnchor(box);
     if (!a) { e.style.visibility = 'hidden'; continue; }

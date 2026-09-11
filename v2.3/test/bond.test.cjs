@@ -1316,6 +1316,67 @@ const RESUME_URL = 'http://127.0.0.1:8099/v2.3/index.html?test=1&road=1&resume=1
       && shot.hand === 0 && shot.hud === 0 && shot.ap === 0,
       JSON.stringify(shot));
 
+    // ── AND THE BAND IS A SUBTITLE, NOT A PANEL, ON A NOTCHED PHONE TOO ────
+    //
+    // Build 185 wrote the rule: the DARKNESS is full-bleed and the WORDS are
+    // what is constrained, because a scrim only stops reading as a box when it
+    // has nowhere to end. Build 181 then moved `#k-reck` inside the safe box —
+    // right for the text, and it took the bleed away from the darkness. Nobody
+    // saw it for fifty builds because `--ui-*` is ZERO at 932x430 and that is
+    // the only size any suite has ever run at.
+    //
+    // So this one puts a notch on. Setting `--sa-*` and firing a resize is
+    // exactly what an iPhone in landscape does to this page: `fit()` folds the
+    // device's own insets into `--ui-*`, every screen lays itself out inside
+    // them, and the reckoning's band became a rectangle with a hard vertical
+    // seam 59px in from each edge and a lit strip of plaza underneath.
+    // Photographed on an iPhone 15 Pro at 852x393: no darkening at all in the
+    // first 180 device columns, full scrim from 200 in.
+    //
+    // What is measured is the DRAWN darkness — the pseudo-element's own box —
+    // against the window, and the words against the safe box. Both halves, or
+    // the fix is just the old bug with the text moved.
+    const notch = await J(() => {
+      const r = document.documentElement.style;
+      const was = ['--sa-t', '--sa-r', '--sa-b', '--sa-l']
+        .map(k => [k, r.getPropertyValue(k)]);
+      r.setProperty('--sa-l', '59px'); r.setProperty('--sa-r', '59px');
+      r.setProperty('--sa-b', '21px'); r.setProperty('--sa-t', '0px');
+      dispatchEvent(new Event('resize'));
+      const p = document.getElementById('k-reck-plate');
+      const row = document.querySelector('.k-rk-row');
+      const box = p.getBoundingClientRect(), q = row.getBoundingClientRect();
+      const cs = getComputedStyle(p, '::before');
+      // the darkness is drawn by the pseudo-element, so its offsets off the
+      // plate are where the paint actually reaches
+      const dark = { l: box.left + parseFloat(cs.left),
+                     r: box.right - parseFloat(cs.right),
+                     b: box.bottom - parseFloat(cs.bottom) };
+      const out = {
+        ui: +parseFloat(getComputedStyle(document.documentElement)
+              .getPropertyValue('--ui-l')).toFixed(1),
+        plateGapL: +box.left.toFixed(1),
+        darkGapL: +dark.l.toFixed(1),
+        darkGapR: +(innerWidth - dark.r).toFixed(1),
+        darkGapB: +(innerHeight - dark.b).toFixed(1),
+        wordsGapL: +q.left.toFixed(1),
+        wordsGapR: +(innerWidth - q.right).toFixed(1) };
+      was.forEach(([k, v]) => { if (v) r.setProperty(k, v); else r.removeProperty(k); });
+      dispatchEvent(new Event('resize'));
+      return out;
+    });
+    check('RECK: the subtitle band reaches every edge, and the words stay off the notch',
+      notch.ui > 20                                  // the notch is really on
+      && notch.plateGapL > 20                        // …and it really insets the box
+      && notch.darkGapL <= 0 && notch.darkGapR <= 0 && notch.darkGapB <= 0
+      && notch.wordsGapL > notch.plateGapL && notch.wordsGapR > notch.plateGapL,
+      JSON.stringify(notch) + ' — `--sa-*` is set to an iPhone landscape inset '
+        + 'and a resize fired, which is what the device does to this page. '
+        + '`plateGapL` is how far the safe box moves the plate in; `darkGap*` is '
+        + 'where the paint reaches and must be at or past the window edge on all '
+        + 'three sides; `wordsGap*` must be further in than the plate, which is '
+        + 'the half of Build 181 that was always right');
+
     // …and the thing it is standing over is on the ground — DRIVEN, not
     // assumed. Reading the foe without running the fall first reported
     // opacity 1 and passed for the wrong reason.

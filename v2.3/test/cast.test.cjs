@@ -4868,6 +4868,77 @@ const { boot } = require('./harness.cjs');
       JSON.stringify(back));
   }
 
+  // ── THE READOUT STANDS DOWN WHILE THE BODY IS AWAY (Build 235) ───────────
+  //
+  // The health plate, the telegraph and the status pips hang over a figure on
+  // its mark. The moment it crosses the floor they follow it, so a chip of UI
+  // rides through the middle of the swing — and the swing is the one second of
+  // the turn where the ANIMATION is the information.
+  //
+  // TWO CLAIMS, AND THE SECOND IS WHY THE THRESHOLD IS A MEASURED NUMBER. A
+  // charge must take the label down; a RECOIL must not, because a body being
+  // hit is exactly when its bar is draining and `setBar`'s ghost is the only
+  // record of what was taken. Both are driven here, off the same instrument.
+  //
+  // Sampled every animation frame from inside the page: headless draws at about
+  // 1.5fps, so a 600ms lunge is set, spent and walked home between two awaits
+  // — the same trap Build 139 hit. The class is what is asserted rather than
+  // the opacity, because a CSS transition needs wall-clock frames this browser
+  // does not give it; the transition itself is one line of stylesheet, and what
+  // could actually be wrong is which bodies get the class and when.
+  // …and it is the BATTLEFIELD this is asked on. The section above parks the
+  // canvas in the campfire and hands it back, so a fight started here without
+  // saying which screen it is on renders into a board nobody is looking at and
+  // the plate is never built — which reads as the feature being absent.
+  await J(() => { window.R.screen('combat');
+                  window.K.startCombat({ seed: 7, foes: ['husk', 'cultist'] });
+                  window.K.render(); return true; });
+  await sleep(2200);
+  const standDown = await J(async () => {
+    const C3 = window.Cast3D;
+    const e = () => document.querySelector('.k-vit[data-body="foe0"]');
+    if (!e()) return { noPlate: 'no plate' };
+    if (C3.away('foe0') == null) return { noPlate: 'no figure in foe0' };
+    const probe = { max: 0, faded: 0, frames: 0 };
+    let stop = false;
+    (function tick() {
+      if (stop) return;
+      probe.frames++;
+      probe.max = Math.max(probe.max, C3.away('foe0') || 0);
+      if (e() && e().classList.contains('k-lbl-away')) probe.faded++;
+      requestAnimationFrame(tick);
+    })();
+    const settle = () => new Promise(z => setTimeout(z, 2600));
+    const run = async (fn) => {
+      probe.max = 0; probe.faded = 0; probe.frames = 0;
+      fn(); await settle();
+      return { max: +probe.max.toFixed(2), faded: probe.faded, frames: probe.frames };
+    };
+    const charge = await run(() => C3.lunge('foe0', 'party', 0.9, 600));
+    const recoil = await run(() => C3.react('foe0', { from: 'ash', power: 1 }));
+    await settle();
+    stop = true;
+    const home = { away: +(C3.away('foe0') || 0).toFixed(2),
+                   faded: e() ? e().classList.contains('k-lbl-away') : null,
+                   op: e() ? +getComputedStyle(e()).opacity : null };
+    return { charge, recoil, home };
+  });
+  check('READOUT: a body that crosses the floor takes its plate off, and puts it back',
+    !standDown.noPlate && standDown.charge.max > 0.7 && standDown.charge.faded > 0
+    && standDown.home.away < 0.05 && standDown.home.faded === false
+    && standDown.home.op === 1,
+    JSON.stringify(standDown) + ' — `max` is how far the body got from its mark '
+      + 'in metres and `faded` is frames the plate spent stood down. The plate '
+      + 'must come back on its own: `home` is read after the slot ease has '
+      + 'walked the body home, with nothing asking it to');
+  check('READOUT: …but a flinch keeps it, because that is when the bar is draining',
+    !standDown.noPlate && standDown.recoil.max > 0.25 && standDown.recoil.max < 0.7
+    && standDown.recoil.faded === 0,
+    JSON.stringify(standDown.recoil) + ' — a full-power recoil moves a body 0.64m '
+      + 'and a charge moves it 0.90, so the threshold sits at 0.70 between them. '
+      + 'Hiding the plate here would hide the drain, the ghost and the flash that '
+      + 'are the only record of what the blow took');
+
   await shot('cast3d');
   const out = report();
   await browser.close();

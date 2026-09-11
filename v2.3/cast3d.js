@@ -7415,6 +7415,9 @@ const Cast3D = (() => {
         // settled constant, not a per-frame correction.
         let tx = slot[0] - (f.standDX === undefined ? f.ctrOff : f.standDX);
         let tz = slot[1] - (f.standDZ || 0);
+        // THE MARK ITSELF, kept before a lunge is allowed to move it — see
+        // `awayM` below, which is the whole reason it is worth a variable.
+        const mx = tx, mz = tz;
         let k = Math.min(1, dt * (f.acting ? 1.1 : 5.5));
         // ── …AND A FINISHER ACTUALLY CROSSES IT (Build 139) ─────────────────
         //
@@ -7449,6 +7452,16 @@ const Cast3D = (() => {
         }
         f.root.position.x += (tx - f.root.position.x) * k;
         f.root.position.z += (tz - f.root.position.z) * k;
+        // ── HOW FAR THIS BODY IS FROM ITS SPOT (Build 235) ─────────────────
+        //
+        // Published in metres, off the position that is about to be DRAWN, so
+        // anything that wants to know whether a figure has left its mark asks a
+        // measurement rather than a flag. `f.lunge` is the wrong question twice
+        // over: it is null for the whole of the walk home — the slot ease is
+        // still carrying the body back for a few hundred milliseconds after the
+        // window closes — and it is set the instant a charge is ordered, before
+        // the body has moved at all.
+        f.awayM = Math.hypot(f.root.position.x - mx, f.root.position.z - mz);
       }
       // ── AND NOW THE FEET, once the root is where it is really going ──────
       //
@@ -8462,6 +8475,20 @@ const Cast3D = (() => {
       .then(() => Promise.all(Object.keys(fetching).map(k => fetching[k])))
       .then(() => Object.keys(figs)),
     _figure: (id) => figs[id] || null,
+    // ── WHO IS OFF THEIR MARK, IN METRES (Build 235) ─────────────────────
+    //
+    // The overhead readouts — the health plate, the telegraph, the status pips
+    // — hang over a body that is standing on its spot. When it crosses the
+    // floor to hit something, they either ride along, which drags a chip of UI
+    // through the middle of the swing, or they stay put and label empty floor.
+    // Neither is a reading anybody wants during the one second of the turn
+    // where the animation IS the information, so the labels stand down.
+    //
+    // A distance rather than a flag: it rises as the body leaves and decays to
+    // nothing as the slot ease walks it home, so "until they move back to their
+    // spot" is a thing that can be asked rather than guessed at from a timer.
+    // `null` for a slot with nobody in it; the caller reads that as home.
+    away: (id) => (figs[id] && figs[id].awayM != null ? figs[id].awayM : null),
     // test-only: the air itself, so a probe can drive it at a fixed timestep
     // rather than at whatever the software rasteriser manages
     _fx: () => fx,

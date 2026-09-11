@@ -4323,10 +4323,33 @@ body.k-cast3d #k-stage.k-slowmo > #k-field { filter: none; }
   position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
   --rk-pad: 6%;
   width: 100%; min-height: 104px; padding: 26px var(--rk-pad) 30px; border-radius: 0;
-  background: linear-gradient(180deg, rgba(8,7,11,0) 0%, rgba(8,7,11,0.62) 34%,
-                              rgba(6,5,9,0.9) 100%);
+  background: none;
   border: 0; box-shadow: none;
   animation: k-rk-in 520ms cubic-bezier(0.2,0.8,0.3,1) both; }
+/* ── …AND "FULL-BLEED" HAD STOPPED BEING TRUE (Build 235) ──────────────────
+   Build 185 wrote the rule above — the darkness is full-bleed, the words are
+   what is constrained — and painted the gradient on the plate itself. Build 181
+   then moved `#k-reck` inside the safe box, for a reason that was right for the
+   TEXT and took the bleed away from the DARKNESS without anyone noticing,
+   because `--ui-*` is zero at 932x430 and that is the only size any suite runs.
+
+   On a notched phone in landscape it is not zero: `--ui-l` and `--ui-r` carry
+   the 59px the screen reserves down each side, and `--ui-b` the home indicator.
+   Photographed on an iPhone 15 Pro — 852x393 at DPR 3 — the subtitle band was a
+   rectangle with a hard vertical seam 177 device pixels in from each edge and a
+   lit strip of plaza underneath it. Measured off that screenshot: no darkening
+   at all in the first 180 columns, full scrim from 200 in.
+
+   So the darkness gets its own element and BLEEDS BACK OUT of the safe box, by
+   exactly what the safe box took: `-1 * var(--ui-l)` reaches the board's own
+   edge, and the board covers the window. The words stay where Build 181 put
+   them, which is the half of that build that was always right. */
+#k-reck-plate::before { content: ''; position: absolute; z-index: -1;
+  pointer-events: none;
+  left: calc(-1 * var(--ui-l)); right: calc(-1 * var(--ui-r));
+  top: 0; bottom: calc(-1 * var(--ui-b));
+  background: linear-gradient(180deg, rgba(8,7,11,0) 0%, rgba(8,7,11,0.62) 34%,
+                              rgba(6,5,9,0.9) 100%); }
 /* THE SPEAKER'S FACE BESIDE THE LINE. The reckoning already happens on the
    battlefield with the 3D cast standing in it — but a subtitle band with a
    name in small caps over it makes the player match a word to a body across
@@ -4828,6 +4851,15 @@ body.k-cast3d .k-hero.k-row-front img { filter: none; }
   white-space: nowrap;
 }
 .k-tell { transform: translate(-50%, -100%); gap: 10px; }
+/* ── THE READOUT STANDS DOWN WHILE THE BODY IS AWAY (Build 235) ────────────
+   Out fast, back slow. Leaving has to beat the swing it is getting out of the
+   way of, and coming back has to be slower than the body settling or the plate
+   arrives before the person it belongs to. Opacity only — the label keeps
+   tracking underneath (see `placeBodyLabels`), so it fades back in over the
+   head it belongs to rather than sliding in from wherever the body last was. */
+.k-tell, .k-vit, .k-pips { transition: opacity 260ms var(--ease-out); }
+.k-tell.k-lbl-away, .k-vit.k-lbl-away, .k-pips.k-lbl-away {
+  opacity: 0; transition: opacity 110ms linear; }
 .k-pips { transform: translate(-50%, 0); gap: 5px; }
 /* a label that hangs ABOVE its body grows upward from the crown */
 .k-pips.k-lbl-over { transform: translate(-50%, -100%); }
