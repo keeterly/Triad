@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 237;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 238;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -5358,7 +5358,17 @@ function castVerbFor(id) {
 // How long after the first of a pair commits the second one answers. Not zero:
 // two bodies playing one clip on one frame reads as a duplicated sprite, and
 // the whole point of a duo is that there is an order to it.
-const DUO_RELAY = 200;
+// ── A PAIR ACTS ONE AFTER THE OTHER (Build 238) ───────────────────────────
+//
+// 200ms against an act that runs about 600 meant the second hero started while
+// the first was still winding up — two people throwing the same blow at the
+// same time, which is a chord and not a relay. The whole point of a pair card
+// is that it is TWO of them, and the camera already cuts from one to the other
+// on the assumption that there is something to cut between.
+//
+// It is the same number as the all-out's stagger and for the same reason: a
+// hair under the length of the act, so the second commits as the first lands.
+const DUO_RELAY = 560;
 // ── AIMING A CARD IS THE FIRST HALF OF THROWING IT (Build 129) ─────────────
 //
 // The verb a card will speak is known the moment it leaves the fan — the same
@@ -6455,7 +6465,18 @@ function fxKizunaReady() {
 // STAGGERED, AND THE STAGGER IS THE POINT. Three identical swings on one frame
 // is a chord; three landing a fifth of a second apart is a phrase, and the last
 // one is the one that reads as the finish.
-const ALLOUT_STEP = 190;
+// ── THEY GO ONE AT A TIME (Build 238) ─────────────────────────────────────
+//
+// 190ms was chosen in Build 138 to make three simultaneous swings into "a
+// phrase", and against a swing that lasts about 600 it does not: the second
+// body starts while the first is still winding up, so three of them read as one
+// chord with a smear on the front of it. Reported as "they should act one after
+// another not at the same time", which is the same observation.
+//
+// 620 is a hair under the length of the act itself, so each hero is landing as
+// the next commits — a relay rather than a queue, and the three of them still
+// take under two seconds.
+const ALLOUT_STEP = 620;
 // ── THE ANNOUNCE IS ITS OWN BEAT (Build 234) ──────────────────────────────
 //
 // The call and the three strikes started in the SAME FRAME, and the call's own
@@ -6470,6 +6491,12 @@ const ALLOUT_STEP = 190;
 // or take the announce — the difference is that neither is competing with the
 // other for the same 800ms.
 const ALLOUT_CALL = 720;           // the word's whole life, and it is gone first
+// ── …AND A BEAT OF THE DRAINED BOARD AFTER IT (Build 238) ─────────────────
+//
+// The word left and the first body moved in the same frame, so the announce
+// handed straight over and the pause the whole two-beat structure was for
+// never happened. A held breath is the beat where nothing is on screen.
+const ALLOUT_BREATH = 380;
 async function fxAllOut(living) {
   const stage = el('k-stage'); if (!stage) return;
   stage.classList.add('k-allout');
@@ -6483,6 +6510,7 @@ async function fxAllOut(living) {
   // is off the screen.
   await sleep(ALLOUT_CALL);
   tag.remove();
+  await sleep(ALLOUT_BREATH);      // …and the board holds, empty, for a beat
   // THE CUT LIST. Wide and swinging while they commit, then down onto the line
   // of them for the blows. The old shot handed the camera back with
   // `castShot('home')` at the END of this function — which runs BEFORE allOut()
@@ -6903,17 +6931,23 @@ function placeBodyLabels() {
   // built in one pass from the crown upward — the plate on the head, the
   // telegraph riding above it. The chip goes on top because it is the small,
   // high-contrast one and `_tellFloor` exists to protect exactly it.
+  // ── READ EVERYTHING, THEN WRITE EVERYTHING (Build 238) ──────────────────
+  //
+  // This used to toggle a class, then read a rect, then write two styles, then
+  // toggle the next label's class — and a style write invalidates layout, so
+  // every rect read after one forces the browser to lay the page out again.
+  // Nine labels was nine forced layouts, sixty times a second, for the whole
+  // fight. The work was always small; doing it in that ORDER is what made it
+  // expensive, and it got worse in 235 when the stand-down class was added at
+  // the top of the loop.
+  //
+  // Same reads, same writes, same result — separated, so the layout the first
+  // read forces is the only one any frame pays for.
   const heads = Object.create(null);
+  const plan = [];
   for (const e of labels) {
-    // it still gets PLACED while it is away — it is fading, not gone, and a
-    // label that stopped tracking would slide back into frame from the wrong
-    // side when it returns
-    e.classList.toggle('k-lbl-away', bodyAway(e.dataset.body));
     const box = boxForBody(e.dataset.body);
     const a = box && bodyAnchor(box);
-    if (!a) { e.style.visibility = 'hidden'; continue; }
-    e.style.visibility = '';
-    e.style.left = a.x.toFixed(1) + 'px';
     // ABOVE OR BELOW, BY WHAT IS UNDER THE BODY. A creature has plaza under it
     // and its statuses hang at its feet. A hero has the HAND under them — the
     // party stands with their boots on the top edge of the card fan — so a pip
@@ -6921,13 +6955,30 @@ function placeBodyLabels() {
     // instead, on the same floor rule the badges use.
     const over = e.classList.contains('k-tell') || e.classList.contains('k-vit')
               || e.dataset.over === '1';
-    e.classList.toggle('k-lbl-over', over);
-    if (!over) { e.style.top = (a.bottom + 4).toFixed(1) + 'px'; continue; }
+    // it still gets PLACED while it is away — it is fading, not gone, and a
+    // label that stopped tracking would slide back into frame from the wrong
+    // side when it returns
+    plan.push({ e: e, a: a, over: over, away: bodyAway(e.dataset.body),
+                h: a && over ? e.getBoundingClientRect().height / k : 0 });
+    if (!a || !over) continue;
     const g = heads[e.dataset.body]
            || (heads[e.dataset.body] = { a: a, vit: null, tell: null, rest: [] });
     if (e.classList.contains('k-vit')) g.vit = e;
     else if (e.classList.contains('k-tell')) g.tell = e;
     else g.rest.push(e);
+  }
+  // …and the floors, which are the last reads this frame needs
+  for (const key of Object.keys(heads)) heads[key].floor = _tellFloor(heads[key].a.x);
+  const hOf = new Map(plan.map(p => [p.e, p.h]));
+
+  for (const p of plan) {
+    const e = p.e;
+    e.classList.toggle('k-lbl-away', p.away);
+    if (!p.a) { e.style.visibility = 'hidden'; continue; }
+    e.style.visibility = '';
+    e.style.left = p.a.x.toFixed(1) + 'px';
+    e.classList.toggle('k-lbl-over', p.over);
+    if (!p.over) e.style.top = (p.a.bottom + 4).toFixed(1) + 'px';
   }
   for (const key of Object.keys(heads)) {
     const g = heads[key];
@@ -6941,9 +6992,9 @@ function placeBodyLabels() {
     // that hangs above its body is placed by its BOTTOM edge (translateY of
     // -100%), so clamping that edge left the badge growing upward through
     // whatever it was being kept out of. The clamp clears its own height too.
-    const floor = _tellFloor(g.a.x);
+    const floor = g.floor;
     const stack = [g.vit, g.tell].concat(g.rest).filter(Boolean);
-    const hs = stack.map(e => e.getBoundingClientRect().height / k);
+    const hs = stack.map(e => hOf.get(e) || 0);
     const need = hs.reduce((a, b) => a + b + 3, -3);
     // eight pixels off the crown for a lone badge; four when a plate is going
     // there first, because the plate is already the gap and the sky over the
@@ -6971,7 +7022,7 @@ function placeBodyLabels() {
       // and the plate rests under it on the creature's own shoulders.
       let bot = floor;
       for (const e of [g.tell, g.vit].concat(g.rest).filter(Boolean)) {
-        bot += e.getBoundingClientRect().height / k;
+        bot += hOf.get(e) || 0;
         e.style.top = bot.toFixed(1) + 'px';
         bot += 3;
       }
@@ -7211,7 +7262,7 @@ function renderHand() {
   // loses the card believing they played it.
   const dp = el('k-discard-prompt');
   if (dp) dp.classList.toggle('k-hidden', !C.discardArmed);
-  hand.innerHTML = C.hand.map((id, i) => {
+  const want = C.hand.map((id, i) => {
     const ev = evaluateCard(id);
     const c = ev.card;
     const afford = C.ap >= ev.currentCost;
@@ -7233,34 +7284,45 @@ function renderHand() {
     // labelled — dim while it sleeps, gold when it is live.
     const gem = ev.condActive && ev.currentCost !== c.cost
       ? ev.currentCost + '<s>' + c.cost + '</s>' : String(ev.currentCost);
-    return '<button data-own="' + (c.owner || primaryHero(c))
-      + '" class="k-card' + (ev.sigil ? ' k-card-sig k-sig-' + ev.sigil : '')
-      + (ev.condActive && !dead ? ' k-card-active' : '') + (afford ? '' : ' k-card-poor')
-      + (dead ? ' k-card-dead' : '') + (isPairCard(c) ? ' k-card-res' : '')
-      + (fresh ? ' k-card-fresh' : '')
-      + (c.cond && c.cond.type === 'FINALE' ? ' k-card-tri' : '')
-      // TEAM PLAYS ARE BLUE. Gold was doing two jobs on this face — it
-      // marked a bond card AND it marked a live combo — so the one
-      // colour on the screen could not say which of the two it meant.
-      // Gold now means only 'this is live right now'; blue means 'this
-      // is a play that needs more than one of them'. A duo card is blue
-      // because two heroes own it; a Finale is blue because it wants all
-      // three to have acted. Both can still arm, and arming is the gold.
-      + (_sel === id ? ' k-card-sel' : '') + '" data-card="' + id + '"'
-      + ' style="--rot:' + rot + 'deg;--dy:' + dy + 'px;--tilt:' + tilt
-      + 'deg;--lean:' + lean + 'deg">'
+    // ── A SPEC, NOT A STRING (Build 238) ──────────────────────────────────
+    //
+    // What a card IS and where it SITS are two different facts with two
+    // different lifetimes, and writing them into one blob of HTML made them one
+    // fact. The position is the half that is meant to animate — `.k-card`
+    // transitions its transform over 300ms and has since Build 22 — and it
+    // never once got to, because the element carrying it was thrown away and
+    // rebuilt on every render. See `fanHand` below.
+    return {
+      id: id,
+      own: String(c.owner || primaryHero(c)),
+      cls: 'k-card' + (ev.sigil ? ' k-card-sig k-sig-' + ev.sigil : '')
+        + (ev.condActive && !dead ? ' k-card-active' : '') + (afford ? '' : ' k-card-poor')
+        + (dead ? ' k-card-dead' : '') + (isPairCard(c) ? ' k-card-res' : '')
+        + (fresh ? ' k-card-fresh' : '')
+        + (c.cond && c.cond.type === 'FINALE' ? ' k-card-tri' : '')
+        // TEAM PLAYS ARE BLUE. Gold was doing two jobs on this face — it
+        // marked a bond card AND it marked a live combo — so the one
+        // colour on the screen could not say which of the two it meant.
+        // Gold now means only 'this is live right now'; blue means 'this
+        // is a play that needs more than one of them'. A duo card is blue
+        // because two heroes own it; a Finale is blue because it wants all
+        // three to have acted. Both can still arm, and arming is the gold.
+        + (_sel === id ? ' k-card-sel' : ''),
+      vars: { '--rot': rot + 'deg', '--dy': dy + 'px',
+              '--tilt': tilt + 'deg', '--lean': lean + 'deg' },
       // THE WISP IS ITS OWN ELEMENT, not a pseudo. `.k-card::before` is already
       // the face's inner texture and `.k-card-poor::after` is the unaffordable
       // scrim — a card can be armed AND unaffordable, so both pseudo slots are
       // spoken for and taking either would have silently deleted something.
       // The follow-up gets its own class: "after an ally" is the combo the
       // player is asked to look for, so it is the one that runs brightest.
-      + (ev.condActive && !dead
+      inner: (ev.condActive && !dead
           ? '<i class="k-wisp' + (c.cond && c.cond.type === 'FOLLOW_UP' ? ' k-wisp-ally' : '') + '"></i>'
           : '')
-      + cardFaceHTML(c, ev, gem, ownerArt)
-      + '</button>';
-  }).join('');
+        + cardFaceHTML(c, ev, gem, ownerArt),
+    };
+  });
+  if (fanHand(hand, want)) aimClear();
   // ── A FALLEN HERO'S CARD IS STILL A CARD YOU CAN THROW AWAY (Build 214) ──
   //
   // Reported: Mira's draw-1-discard-1 could not discard a greyed-out card. This
@@ -7276,11 +7338,62 @@ function renderHand() {
   //
   // Every card in hand gets a handler now. The only path that can act on a
   // fallen hero's card is still refused, by the one guard that knows why.
-  hand.querySelectorAll('.k-card').forEach(b => attachCardInput(b));
-  // Rebuilding the hand orphans whatever was being dragged, so no beam can
-  // still belong to anything. Leaving one alive is how it got stranded in the
-  // corner of the screen with nothing holding the other end.
-  aimClear();
+}
+// ── THE HAND IS RECONCILED, NOT REBUILT (Build 238) ───────────────────────
+//
+// `hand.innerHTML = …` on every render, since Build 20. It is the simplest
+// thing that produces a correct picture and it is why moving cards in and out
+// of the hand is glitchy: every render DESTROYS all five cards and builds five
+// new ones. A new element has no previous transform to travel from, so the fan
+// cannot glide when a card leaves — it teleports into its new shape. The
+// stylesheet has been ready for this the whole time (`.k-card` transitions its
+// transform over 300ms); nothing has ever survived long enough to use it.
+//
+// So cards are matched to elements by id, first-come — a hand can hold two of
+// the same card and both need a home — and a survivor keeps its DOM node. Its
+// class and its fan variables are written; the FACE is only rewritten when it
+// actually changed, because that is the expensive part and the part that
+// restarts every image and animation inside it.
+//
+// Returns whether the hand CHANGED SHAPE. A render that added, removed or
+// reordered nothing has no business cancelling a drag that is in progress —
+// which is what the unconditional `aimClear` at the end of every rebuild was,
+// and it was only safe before because the card being dragged was destroyed too.
+function fanHand(hand, want) {
+  const have = [];
+  for (const n of hand.children) if (n.classList && n.classList.contains('k-card')) have.push(n);
+  const pool = new Map();
+  for (const n of have) {
+    const k = n.dataset.card;
+    if (!pool.has(k)) pool.set(k, []);
+    pool.get(k).push(n);
+  }
+  let moved = false;
+  const out = [];
+  for (const w of want) {
+    const q = pool.get(w.id);
+    let n = q && q.length ? q.shift() : null;
+    if (!n) { n = document.createElement('button'); n.type = 'button'; moved = true; }
+    out.push([n, w]);
+  }
+  for (const q of pool.values()) for (const n of q) { n.remove(); moved = true; }
+  for (let i = 0; i < out.length; i++) {
+    const n = out[i][0], w = out[i][1];
+    if (n.dataset.card !== w.id) n.dataset.card = w.id;
+    if (n.dataset.own !== w.own) n.dataset.own = w.own;
+    if (n.className !== w.cls) n.className = w.cls;
+    for (const k of Object.keys(w.vars)) {
+      if (n.style.getPropertyValue(k) !== w.vars[k]) n.style.setProperty(k, w.vars[k]);
+    }
+    // …kept as a PROPERTY, not an attribute. A card face is hundreds of bytes
+    // of markup and putting it in `dataset` would write all of it into the DOM
+    // a second time, on every card, where every `outerHTML` read would carry
+    // it. The element is the only thing that has to remember, and it does.
+    if (n._face !== w.inner) { n.innerHTML = w.inner; n._face = w.inner; }
+    if (!n._wired) { attachCardInput(n); n._wired = 1; }
+    if (hand.children[i] !== n) { hand.insertBefore(n, hand.children[i] || null); moved = true; }
+  }
+  return moved;
 }
 // A KEYWORD MUST STATE ITS OWN RULE. "Finale" is a name for a thing that
 // happens, not a description of how to make it happen — a player who has not
@@ -9017,6 +9130,9 @@ window.K = {
   // about, so its two writers are drivable directly rather than only through a
   // whole fight that happens to produce the situation
   _markBrink: (id) => markBrink(id), _dealToBoss: (n, why, who) => dealToBoss(n, why, who),
+  // test-only: the one loop that runs every frame for the whole fight, so its
+  // cost can be measured rather than reasoned about
+  _placeBodyLabels: () => placeBodyLabels(),
   // test-only: the parry's payout ladder is the steepest curve in the game.
   // TURNED is all-or-nothing PER NOTE, so it compounds — a player who reads
   // 45% of notes turns 0.45^2 = 20% of a two-note string while one who reads

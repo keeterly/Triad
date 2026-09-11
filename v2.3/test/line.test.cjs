@@ -380,8 +380,31 @@ const { boot } = require('./harness.cjs');
 
     // AND IT IS ON THE FLOOR, not only in a table. A body is placed by the slot
     // it stands in, so the field and the rule agree by construction.
-    const drawn = await J(() => {
+    const drawn = await J(async () => {
       window.K.startCombat({ seed: 5, foes: ['husk', 'cultist', 'wraith'] });
+      // ── AND THE BOARD IS READ ONCE IT HAS SETTLED (Build 238) ───────────
+      //
+      // These boxes follow the 3D projection, so where a body is drawn depends
+      // on where the camera and the figures have eased TO. This read them in
+      // the same frame the fight was started, and got away with it for one
+      // reason that was never on purpose: the ease was `min(1, dt*rate)` and
+      // this harness draws at about 2fps, so one frame clamped everything onto
+      // its mark. With a real exponential nothing arrives in a single frame,
+      // and the back rank measured three pixels off the edge of the stage — a
+      // board caught mid-walk, reported as a board laid out wrong.
+      //
+      // Sampled until two reads agree, which is what "settled" means and holds
+      // under any easing law.
+      const boxes = () => [...document.querySelectorAll('#k-boss-art, #k-cast .k-foe-art')]
+        .map(e => { const r = e.getBoundingClientRect(); return Math.round(r.left) + ',' + Math.round(r.top); })
+        .join('|');
+      let prev = null;
+      for (let i = 0; i < 40; i++) {
+        const now = boxes();
+        if (prev === now && now) break;
+        prev = now;
+        await new Promise(z => setTimeout(z, 120));
+      }
       const S = document.getElementById('k-stage').getBoundingClientRect();
       const at = (el) => { const r = el.getBoundingClientRect();
         return { cx: Math.round(r.left + r.width / 2 - S.left),

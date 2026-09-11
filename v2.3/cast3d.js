@@ -3829,7 +3829,7 @@ class Figure {
     const st = this.tone && this.tone.stance;
     if (!st || !this.bones) return;
     const want = this.acting && this.idleWant < 0.5 ? 0 : 1;
-    this.stanceW = (this.stanceW || 0) + (want - (this.stanceW || 0)) * Math.min(1, dt * 3.2);
+    this.stanceW = (this.stanceW || 0) + (want - (this.stanceW || 0)) * ease(dt, 3.2);
     const w = this.stanceW;
     if (w < 0.008) return;
     this.stanceT = (this.stanceT || 0) + dt;
@@ -4286,6 +4286,29 @@ function swingRate(t, dur, hit) {
   return SWING_NOUT * Math.max(SWING_FLOOR, SWING_OUT * Math.pow(1 - y, 1 - 1 / SWING_OUT));
 }
 
+// ── AN EASE THAT DOES NOT CARE HOW THE TIME WAS CUT UP (Build 238) ─────────
+//
+// Every ease in this file was `Math.min(1, dt * rate)`, which is a linear
+// approximation of an exponential and is NOT frame-rate independent. At 60fps
+// dt is 0.016 and k comes out 0.12; on a frame that took 150ms k is clamped to
+// 1 and the camera SNAPS to its target. So a run of smooth frames with one slow
+// frame in it does not read as one slow frame — it reads as a jump, and a
+// picture that jumps whenever the phone is busy is exactly what "the camera is
+// a bit jittery" describes.
+//
+// `1 - e^(-rate·dt)` is the same curve evaluated exactly: the fraction of the
+// remaining distance covered depends only on how much TIME passed, not on how
+// many pieces it arrived in. Two 8ms frames and one 16ms frame now move the
+// camera the same distance, which is the property the old form was reaching for
+// and missed.
+//
+// AND IT LIVES OUT HERE, with the other shared helpers. A first cut put it
+// inside the `Cast3D` module — where four of its six callers are — and the
+// `Figure` class is declared BEFORE that module and outside it, so `step` threw
+// a ReferenceError on the first frame of every mount. `stand` runs after
+// `step`, so every figure came up with no `worldH`, and the world's own check
+// caught it on the third assertion of the suite.
+function ease(dt, rate) { return 1 - Math.exp(-rate * (dt > 0 ? dt : 0)); }
 const CLIP_RATE = 0.86;
 
 const FOOT_ON = 0.075, FOOT_OFF = 0.135;
@@ -5608,7 +5631,7 @@ const Cast3D = (() => {
     while (d < -180) d += 360;
     f.root.userData.headOff = d;         // what the invariant is currently seeing
     if (Math.abs(d) < HEAD_DEAD) return;
-    f.root.rotation.y += d * D * Math.min(1, dt * HEAD_EASE);
+    f.root.rotation.y += d * D * ease(dt, HEAD_EASE);
   }
 
   // ── EVERYTHING THAT IS NOT A BODY ────────────────────────────────────────
@@ -6339,8 +6362,24 @@ const Cast3D = (() => {
     const n = (k) => { const v = parseFloat(cs.getPropertyValue(k)); return isNaN(v) ? 0 : v; };
     WANT.x = n('--cam-x'); WANT.y = n('--cam-y'); WANT.dz = n('--cam-dz');
     WANT.r = n('--cam-r'); WANT.yaw = n('--cam-yaw'); WANT.pitch = n('--cam-pitch');
-    const k = Math.min(1, dt * 7.5);
-    for (const key of Object.keys(RIG)) RIG[key] += (WANT[key] - RIG[key]) * k;
+    const k = ease(dt, 7.5);
+    // ── AND AN EXPONENTIAL NEVER ARRIVES, SO IT IS TOLD WHEN IT HAS ────────
+    //
+    // The clamped form this replaced had one accidental virtue: on a slow frame
+    // it snapped, so the camera was EXACTLY on its mark afterwards. A true
+    // exponential is asymptotic — it halves the distance forever — and the
+    // suite caught it immediately: a lens standing on its mark still reported
+    // 0.16 m/s of travel, and "a stance goes quiet so the board can be read"
+    // stopped being true. A camera that is always very slightly moving is a
+    // camera that never settles, which is its own kind of jitter.
+    //
+    // The deadband is what makes arriving a state rather than a limit. It is
+    // well under a tenth of a pixel or a hundredth of a degree in every unit
+    // this rig carries, so nothing can see the snap.
+    for (const key of Object.keys(RIG)) {
+      const d = WANT[key] - RIG[key];
+      RIG[key] = Math.abs(d) < 1e-3 ? WANT[key] : RIG[key] + d * k;
+    }
 
     // ── WHERE THE SHOT IS RIGHT NOW ──
     //
@@ -6373,7 +6412,7 @@ const Cast3D = (() => {
     }
 
     // ── the tripod walks to its mark ──
-    const ks = Math.min(1, dt * shotSpeed * 2.6);
+    const ks = ease(dt, shotSpeed * 2.6);
     let target = aimPoint(SHOT.at);
     if (SHOT.toAt && SHOT.over) {
       const t1 = aimPoint(SHOT.toAt);
@@ -6381,9 +6420,14 @@ const Cast3D = (() => {
                 target[1] + (t1[1] - target[1]) * prog,
                 target[2] + (t1[2] - target[2]) * prog];
     }
-    TRIPOD.az = easeAngle(TRIPOD.az, mark.az, ks);
-    for (const key of ['dist', 'height', 'aimY', 'roll', 'fov'])
-      TRIPOD[key] += (mark[key] - TRIPOD[key]) * ks;
+    // the tripod carries the same deadband as the handheld rig above, and for
+    // the same reason: a shot that has arrived has to be able to say so
+    TRIPOD.az = Math.abs(shortWay(mark.az - TRIPOD.az)) < 1e-3
+      ? mark.az : easeAngle(TRIPOD.az, mark.az, ks);
+    for (const key of ['dist', 'height', 'aimY', 'roll', 'fov']) {
+      const d = mark[key] - TRIPOD[key];
+      TRIPOD[key] = Math.abs(d) < 1e-3 ? mark[key] : TRIPOD[key] + d * ks;
+    }
     // the lens is part of the composition, and the DOM followers read the live
     // projection matrix, so nothing else has to be told it changed
     if (Math.abs(cam.fov - TRIPOD.fov) > 0.01) {
@@ -7162,6 +7206,49 @@ const Cast3D = (() => {
     renderer.render(postScene, postCam);
   }
 
+  // ══ THE QUALITY GOVERNOR (Build 238) ═══════════════════════════════════════
+  //
+  // One number — a multiplier on the pixel ratio — driven by how long frames
+  // actually take. Everything expensive in this renderer scales with the buffer
+  // area: the post target and its four samples, the ink pass that reads it back,
+  // the figures' own shading. Halving the ratio quarters all of it at once,
+  // which is why this is the lever rather than a list of features to switch off.
+  //
+  // IT MEASURES THE MEDIAN, NOT THE MEAN. One 200ms frame — a texture upload, a
+  // garbage collection, the tab coming back — is not a device that cannot keep
+  // up, and a mean is dragged around by exactly those. Half the frames in a
+  // window have to be over budget before anything moves.
+  //
+  // AND IT IS DELIBERATELY SLOW AND ASYMMETRIC. Dropping is allowed after one
+  // bad window; climbing back needs three good ones in a row and a wider
+  // margin, because a resolution that oscillates is more distracting than a
+  // resolution that is simply lower. `setSize` reallocates the drawing buffer,
+  // so a change is not free either.
+  const Q_STEPS = [1, 0.82, 0.68, 0.55, 0.45];
+  const Q_WINDOW = 45;               // frames per verdict, about three quarters of a second
+  const Q_SLOW = 20.5;               // ms — over a 60fps budget with room for jitter
+  const Q_FAST = 13.0;               // …and comfortably under it, to earn a step back
+  const Q_GOOD = 3;                  // consecutive good windows before climbing
+  let qStep = 0, qGood = 0, qSamples = [], qHeld = 0;
+  function qLevel() { return Q_STEPS[qStep]; }
+  function qSample(ms) {
+    if (TEST) return;                // the suites rasterise in software; nothing to govern
+    qFeed(ms);
+  }
+  function qFeed(ms) {
+    qSamples.push(ms);
+    if (qSamples.length < Q_WINDOW) return;
+    const sorted = qSamples.slice().sort((a, b) => a - b);
+    const med = sorted[sorted.length >> 1];
+    qSamples.length = 0;
+    // a change costs a buffer reallocation, so never two in quick succession
+    if (qHeld > 0) { qHeld--; return; }
+    if (med > Q_SLOW && qStep < Q_STEPS.length - 1) {
+      qStep++; qGood = 0; qHeld = 2; sized.dpr = -1;   // force the resize to take
+    } else if (med < Q_FAST && qStep > 0) {
+      if (++qGood >= Q_GOOD) { qStep--; qGood = 0; qHeld = 2; sized.dpr = -1; }
+    } else qGood = 0;
+  }
   function frame(now) {
     raf = requestAnimationFrame(frame);
     if (!ready || !on) return;
@@ -7180,6 +7267,7 @@ const Cast3D = (() => {
     // match. A quarter of a second still stops a backgrounded tab from
     // teleporting the whole party when it comes back.
     const real = last ? Math.min(0.25, (now - last) / 1000) : 0.016;
+    if (last) qSample(now - last);
     last = now;
     // the dial itself moves in REAL time — otherwise slowing down would slow
     // down the act of slowing down, and the ease would never arrive
@@ -7241,7 +7329,21 @@ const Cast3D = (() => {
     // cent under, resampled up, on every figure in the game. Three is the
     // ratio those screens actually have, so it is the number that stops
     // costing resolution and the point past which more buffer buys nothing.
-    const dpr = Math.min(TEST ? 1 : 3, (window.devicePixelRatio || 1) * zoom);
+    // ── AND THE CAP IS A CEILING, NOT A CONTRACT (Build 238) ───────────
+    //
+    // Three is the ratio the phone's panel has, and Build 223 raised it to
+    // three because anything less resamples every figure. What that number
+    // never asked is whether the phone can DRAW it: the buffer is 2556x1179
+    // there, it goes through a half-float target at four samples, and a
+    // reflection pass and soft shadows go through before it. Reported as "a lot
+    // of lag", which is what a frame budget missed by a factor looks like.
+    //
+    // So the ceiling stays and the floor moves. `quality` is a governor: it
+    // watches how long frames actually take and steps the ratio down when they
+    // are over budget, back up when they are not. A device that can hold three
+    // never leaves it and loses nothing; one that cannot stops trying and gets
+    // its frame rate back, which is worth more than the sharpness it buys.
+    const dpr = Math.min(TEST ? 1 : 3, (window.devicePixelRatio || 1) * zoom) * qLevel();
     if (css.w !== sized.w || css.h !== sized.h || dpr !== sized.dpr) {
       sized.w = css.w; sized.h = css.h; sized.dpr = dpr;
       renderer.setPixelRatio(dpr);
@@ -7444,7 +7546,7 @@ const Cast3D = (() => {
         // THE MARK ITSELF, kept before a lunge is allowed to move it — see
         // `awayM` below, which is the whole reason it is worth a variable.
         const mx = tx, mz = tz;
-        let k = Math.min(1, dt * (f.acting ? 1.1 : 5.5));
+        let k = ease(dt, f.acting ? 1.1 : 5.5);
         // ── …AND A FINISHER ACTUALLY CROSSES IT (Build 139) ─────────────────
         //
         // Build 138 gave the all-out three bodies and they swung on the spot.
@@ -7472,12 +7574,17 @@ const Cast3D = (() => {
         if (f.lunge) {
           if (now < f.lunge.until || !f.lunge.seen) {
             tx += f.lunge.x; tz += f.lunge.z;
-            k = Math.min(1, dt * 6.5);
+            k = ease(dt, 6.5);
             f.lunge.seen = true;
           } else f.lunge = null;
         }
-        f.root.position.x += (tx - f.root.position.x) * k;
-        f.root.position.z += (tz - f.root.position.z) * k;
+        // …and the same deadband, in metres. Five millimetres is under a
+        // pixel at this camera; without it a body walking home from a lunge
+        // approaches its mark forever and is never standing on it, which is
+        // what `awayM` — and everything reading it — has to be able to say.
+        const dx = tx - f.root.position.x, dz = tz - f.root.position.z;
+        f.root.position.x = Math.abs(dx) < 0.005 ? tx : f.root.position.x + dx * k;
+        f.root.position.z = Math.abs(dz) < 0.005 ? tz : f.root.position.z + dz * k;
         // ── HOW FAR THIS BODY IS FROM ITS SPOT (Build 235) ─────────────────
         //
         // Published in metres, off the position that is about to be DRAWN, so
@@ -8141,6 +8248,8 @@ const Cast3D = (() => {
       const b = host ? hostBox(host) : { w: VIEW.w, h: VIEW.h };
       const out = { scenes: 1, ground: !!(ground && ground.parent),
                     shadows: !!(renderer && renderer.shadowMap.enabled),
+                    // …and how much picture the governor is currently asking for
+                    dpr: sized.dpr, quality: +qLevel().toFixed(3), qStep: qStep,
                     cam: { kind: cam ? cam.type : null,
                            fov: cam ? +cam.fov.toFixed(2) : null,
                            x: cam ? +cam.position.x.toFixed(3) : null,
@@ -8501,6 +8610,19 @@ const Cast3D = (() => {
       .then(() => Promise.all(Object.keys(fetching).map(k => fetching[k])))
       .then(() => Object.keys(figs)),
     _figure: (id) => figs[id] || null,
+    // test-only: the ease itself, so "frame-rate independent" can be measured
+    // rather than asserted — one big step against many small ones
+    _ease: (dt, rate) => ease(dt, rate),
+    // test-only: the quality governor, driven by hand. The suites rasterise in
+    // software at about 2fps, so real frame times here say nothing about a
+    // phone — what CAN be checked is the RULE: does a run of slow frames step
+    // the resolution down, does a run of fast ones earn it back, and does it
+    // refuse to move twice in a row. Called with no argument it just reports.
+    _quality: (ms, frames) => {
+      if (ms != null) for (let i = 0; i < (frames || Q_WINDOW); i++) qFeed(ms);
+      return { step: qStep, level: +qLevel().toFixed(3), good: qGood, held: qHeld,
+               window: Q_WINDOW, slow: Q_SLOW, fast: Q_FAST };
+    },
     // ── WHO IS OFF THEIR MARK, IN METRES (Build 235) ─────────────────────
     //
     // The overhead readouts — the health plate, the telegraph, the status pips

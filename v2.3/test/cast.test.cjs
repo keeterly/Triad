@@ -1619,10 +1619,39 @@ const { boot } = require('./harness.cjs');
   // says nothing about whether a stance moves once it is standing. The control
   // has to be the same state, not the same stopwatch. So each shot is given
   // 1500 ms to walk to its mark, and only then is it timed.
+  // ── AND "GET THERE" IS A STATE, NOT A STOPWATCH (Build 238) ─────────────
+  //
+  // This gave each shot a flat 1500ms to walk to its mark, and that worked for
+  // one reason that was never true on purpose: the ease was `min(1, dt*rate)`,
+  // and this harness draws at about 2fps, so a single frame CLAMPED the camera
+  // straight onto its mark. 1500ms was measuring one snap.
+  //
+  // The ease is a real exponential now, which is the same curve at 60fps —
+  // 97.9% of the way in a second before, 98.0% after — and no longer arrives in
+  // one enormous frame. So the camera was still 1.2 degrees and 0.2 metres out
+  // when the timing window opened, and a stance that had not finished arriving
+  // measured as a stance that would not stop moving.
+  //
+  // A stance is waited for instead: sampled until two reads agree, which is
+  // what "it has arrived" actually means and holds under any easing law. The
+  // PARRY is not waited for — it is a 3200ms move and the whole claim about it
+  // is that it is still travelling — so it keeps the fixed window it always had.
+  const settle = async (cap) => {
+    let prev = null;
+    for (let i = 0; i < cap; i++) {
+      const c = await J(() => { const w = window.Cast3D._world().cam;
+        return [+w.x.toFixed(4), +w.y.toFixed(4), +w.z.toFixed(4)].join(','); });
+      if (prev === c) return i;
+      prev = c;
+      await sleep(160);
+    }
+    return -1;
+  };
   const paths = {};
   for (const name of ['parry', 'home']) {
     await J((n) => window.Cast3D.shot(n, { speed: 1.5 }), name);
-    await sleep(1500);                       // let the tripod get there
+    if (name === 'home') paths.settled = await settle(30);
+    else await sleep(1500);                  // a move is meant to still be moving
     const t0 = Date.now(), pts = [];
     for (let i = 0; i < 10; i++) {
       await sleep(110);
@@ -1645,8 +1674,11 @@ const { boot } = require('./harness.cjs');
     paths.parry.moving > 0.08 && paths.parry.moving > paths.home.moving * 4,
     JSON.stringify(paths) + ' — m/s once standing on the mark');
   check('MOVE: …and a stance goes quiet, so the board can be read',
-    paths.home.moving < 0.02 && paths.home.lens === 51.2 && paths.home.roll === 0,
-    JSON.stringify(paths.home));
+    paths.home.moving < 0.02 && paths.home.lens === 51.2 && paths.home.roll === 0
+    && paths.settled >= 0,
+    JSON.stringify({ ...paths.home, settledAfterSamples: paths.settled })
+      + ' — sampled until two reads agree, then timed. `settledAfterSamples` '
+      + 'is how many it took to arrive; -1 would be a stance that never does');
   await J(() => window.Cast3D.shot('home'));
 
   // ═══ M3 · THE AIR ═══
@@ -4938,6 +4970,80 @@ const { boot } = require('./harness.cjs');
       + 'and a charge moves it 0.90, so the threshold sits at 0.70 between them. '
       + 'Hiding the plate here would hide the drain, the ghost and the flash that '
       + 'are the only record of what the blow took');
+
+  // ── AN EASE THAT DOES NOT CARE HOW THE TIME WAS CUT UP (Build 238) ──────
+  //
+  // Every ease in the cast layer was `Math.min(1, dt * rate)`, which is a
+  // linear approximation of an exponential and is not frame-rate independent:
+  // at 60fps it covers 12% of the remaining distance, and on a frame that took
+  // 150ms it is clamped to 1 and the camera SNAPS. Smooth, smooth, jump — which
+  // is what "the camera is a bit jittery" is made of, and it happens exactly
+  // when the phone is busy, so it arrives in bursts.
+  //
+  // The property is testable as pure arithmetic: ten small steps and one big
+  // one covering the same TIME must leave the same distance remaining. It is
+  // driven at both a normal and a terrible frame time, because the old form is
+  // nearly right at 16ms and completely wrong at 150 — a check run only at
+  // 60fps would have passed on the build that had the bug.
+  const eased = await J(() => {
+    const E = window.Cast3D._ease;
+    if (!E) return { no: true };
+    const walk = (total, steps, rate) => {
+      let left = 1;
+      for (let i = 0; i < steps; i++) left *= (1 - E(total / steps, rate));
+      return left;
+    };
+    const at = (ms) => {
+      const t = ms / 1000;
+      return { one: +walk(t, 1, 7.5).toFixed(5), many: +walk(t, 10, 7.5).toFixed(5) };
+    };
+    return { fast: at(16), slow: at(150), huge: at(400) };
+  });
+  const same = (o) => o && Math.abs(o.one - o.many) < 0.002;
+  check('EASE: the same span of time moves the camera the same distance, however many frames it took',
+    !eased.no && same(eased.fast) && same(eased.slow) && same(eased.huge)
+    && eased.slow.one > 0.05 && eased.huge.one > 0,
+    JSON.stringify(eased) + ' — `one` is the fraction of the distance still '
+      + 'left after covering that span in a single frame, `many` after ten. The '
+      + 'old `min(1, dt*rate)` gives 0 and 0.32 at 150ms: it arrives instantly '
+      + 'on one slow frame and gradually on ten, which is a camera that jumps '
+      + 'whenever the device stutters');
+
+  // ── THE QUALITY GOVERNOR (Build 238) ────────────────────────────────────
+  //
+  // The renderer draws at the phone's own pixel ratio into a four-sample
+  // half-float target, with a reflection pass and soft shadows ahead of it —
+  // about three megapixels of fragment work a frame on the device this is
+  // played on, and reported as a lot of lag. Build 223 chose that ratio
+  // deliberately, for sharpness, and it is right wherever it can be afforded.
+  //
+  // So the ceiling stays and a governor moves the floor. What is checked is the
+  // RULE, not a frame rate: the suites rasterise in software at about 2fps, so
+  // real frame times here say nothing about a phone. Slow frames must step it
+  // down, fast ones must earn it back, and it must refuse to move twice in a
+  // row — a resolution that oscillates is worse than one that is simply lower.
+  const gov = await J(() => {
+    const Q = window.Cast3D._quality;
+    if (!Q) return { no: true };
+    const start = Q();
+    const slow = [];
+    for (let i = 0; i < 4; i++) slow.push(Q(40).step);       // four bad windows
+    const bottom = Q();
+    const fast = [];
+    for (let i = 0; i < 12; i++) fast.push(Q(8).step);       // …and a long good run
+    return { start, slow, bottom, fast, end: Q() };
+  });
+  check('QUALITY: slow frames lower the resolution, fast frames earn it back, and it never moves twice in a row',
+    !gov.no && gov.start.step === 0 && gov.start.level === 1
+    && gov.bottom.step > 0 && gov.bottom.level < 1
+    // every drop is followed by a held window, so four bad windows cannot take
+    // four steps
+    && gov.bottom.step < 4
+    && gov.end.step === 0 && gov.end.level === 1,
+    JSON.stringify(gov) + ' — each call feeds one window of frames at that '
+      + 'duration. `bottom` is where a sustained 40ms frame leaves it and `end` '
+      + 'is after a long run at 8ms. `step` never climbing back to 0 would be a '
+      + 'device stuck at a lower resolution long after whatever slowed it down');
 
   await shot('cast3d');
   const out = report();

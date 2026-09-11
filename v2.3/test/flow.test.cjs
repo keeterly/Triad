@@ -1331,6 +1331,75 @@ const { boot } = require('./harness.cjs');
         + 'cinematic at all');
   }
 
+  // ── THE PER-FRAME LOOP COSTS ONE LAYOUT, NOT ONE PER LABEL (Build 238) ──
+  //
+  // `placeBodyLabels` runs every frame for the whole fight. It used to write a
+  // class, read a rect, write two styles, then do the same for the next label —
+  // and a style write invalidates layout, so every read after one forces the
+  // browser to lay the page out again.
+  //
+  // AT REST THAT COSTS NOTHING, which is why it was never noticed: nothing is
+  // moving, so `classList.toggle` and `style.left = <same value>` are both
+  // no-ops and nothing is ever invalidated. Measured at rest, before and after,
+  // both read 0.01 layouts per call. The state that matters is the one the
+  // whole feature exists for — every body moving, every frame — and there the
+  // same measurement reads 4.01 before and 1.01 after.
+  //
+  // Counted by the browser rather than timed. `Performance.getMetrics` reports
+  // `LayoutCount`, which is a tally of actual layouts and is the same number on
+  // any machine; a stopwatch here would be measuring the software rasteriser
+  // the suites run on, which is what a first attempt at this did — it reported
+  // the fix as SLOWER, at 12ms per "one layout", and the signal was entirely
+  // inside the noise.
+  {
+    const cdp = await H.page.context().newCDPSession(H.page);
+    await cdp.send('Performance.enable');
+    const layouts = async () => {
+      const { metrics } = await cdp.send('Performance.getMetrics');
+      const m = {};
+      metrics.forEach(x => { m[x.name] = x.value; });
+      return m.LayoutCount;
+    };
+    const churn = (n) => J((runs) => {
+      const f = window.K._placeBodyLabels;
+      const st = document.getElementById('k-stage');
+      // MOVE THE BODIES. Labels only write when their anchors move, and their
+      // anchors only move when the camera or the cast does — which is the
+      // whole fight, and the only state an interleave can force anything in.
+      const bodies = [...document.querySelectorAll('#k-cast .k-hero, #k-cast .k-foe-art, #k-boss-art')];
+      for (let i = 0; i < runs; i++) {
+        bodies.forEach((b, j) => { b.style.transform = 'translateX(' + ((i + j) % 7) + 'px)'; });
+        st.style.setProperty('--thrash', i + 'px');
+        f();
+      }
+      // …and PUT THEM BACK. A first cut left the inline transforms on, and the
+      // diorama check eleven sections later read the party standing on top of
+      // each other — a measurement that broke the thing it was measured next
+      // to, which is the worst kind of check to own.
+      bodies.forEach(b => { b.style.transform = ''; });
+      st.style.removeProperty('--thrash');
+      f();
+      return true;
+    }, n);
+    await J(() => { window.K.startCombat({ seed: 7, foes: ['husk', 'cultist'] });
+                    window.K.render(); return true; });
+    await churn(30);                               // warm
+    const a = await layouts();
+    await churn(200);
+    const b = await layouts();
+    await cdp.detach();
+    const perCall = +((b - a) / 200).toFixed(2);
+    const labels = await J(() => document.querySelectorAll('.k-vit,.k-tell,.k-pips').length);
+    check('FRAME: placing every label costs ONE layout, however many labels there are',
+      labels >= 4 && perCall > 0 && perCall <= 1.6,
+      JSON.stringify({ labels, callsMeasured: 200, layoutsPerCall: perCall })
+        + ' — the browser\u2019s own LayoutCount across 200 calls with every body '
+        + 'moving. One is the floor: the loop has to read the world once. Before '
+        + 'Build 238 this read 4.01 with seven labels — it scales with the '
+        + 'number of things on screen, which is exactly the wrong way round');
+    await J(() => { window.K.startCombat({ seed: 7 }); window.K.render(); return true; });
+  }
+
   // ═══ A04 · A DEAD HERO LOOKS DEAD ═══
   {
     const dead = await J(async () => {
@@ -3783,14 +3852,41 @@ const { boot } = require('./harness.cjs');
       at(r.left + r.width / 2 + 120, r.top - 60, 'pointermove');
       at(r.left + r.width / 2 + 240, r.top - 90, 'pointermove');
       const drawn = !!document.querySelector('#k-aim .k-aim-dash');
-      window.K.render();                       // anything that rebuilds the hand
+      const beam = () => !!document.querySelector('#k-aim .k-aim-dash');
+      const id = card.dataset.card;
+      // ── AND THE RULE IS ABOUT THE CARD, NOT THE RENDER (Build 238) ──────
+      //
+      // This asked that ANY re-render kill the beam, and that was the right
+      // rule while a render meant `hand.innerHTML = …`: the card being dragged
+      // was destroyed by it, so a beam that survived was a beam attached to
+      // nothing. The hand is reconciled now — a card that is still in hand
+      // keeps its element — so a render no longer orphans anything, and
+      // cancelling a drag the player is in the middle of because something
+      // else on the board repainted is a bug rather than a guarantee.
+      //
+      // What must still hold is the thing the check was always for: a beam may
+      // not outlive the CARD. So both halves are driven — a render that leaves
+      // the hand alone must leave the beam, and the card actually leaving must
+      // take it with it.
+      window.K.render();
+      await new Promise(res => setTimeout(res, 140));
+      const kept = beam();
+      const stillThere = !!document.querySelector('#k-hand .k-card[data-card="' + id + '"]');
+      // …and now take the card out of the hand for real
+      const st2 = window.K.state();
+      st2.hand = st2.hand.filter(x => x !== id);
+      window.K.render();
       await new Promise(res => setTimeout(res, 140));
       const svg = document.getElementById('k-aim');
       const d = svg && svg.querySelector('.k-aim-dash');
-      return { drawn, left: !!d, path: d ? d.getAttribute('d') : null };
+      return { drawn, kept, stillThere, left: !!d, path: d ? d.getAttribute('d') : null };
     });
-    check('AIM: the beam dies with the card — a re-render cannot strand it in the corner',
-      stale.drawn && !stale.left, JSON.stringify(stale));
+    check('AIM: the beam cannot outlive the card that is throwing it',
+      stale.drawn && stale.stillThere && stale.kept && !stale.left,
+      JSON.stringify(stale) + ' — `kept` is a repaint that did not touch the '
+        + 'hand: the card is still there, so the beam is still its. `left` is '
+        + 'after the card actually leaves, where a surviving beam would be the '
+        + 'one nailed to the corner of the screen pointing at nothing');
   }
   await settle();
   // ── the parry: v2.2's closing ring over a dimmed board ──

@@ -439,6 +439,87 @@ const PROBES = `
       + 'the dilation was released before the grade was drawn and the deflect '
       + 'belonged to the end of the volley, so `both` was zero by construction');
 
+  // ── 8. THEY GO ONE AT A TIME (Build 238) ────────────────────────────────
+  //
+  // Reported: "they should act one after another not at the same time". Both
+  // the all-out and a pair card staggered their second and third actors by
+  // 190ms and 200ms — numbers chosen against a swing that was a windowed
+  // procedural clip, and the Unreal acts run about 600. So the second body
+  // started while the first was still winding up, and three of them read as one
+  // chord with a smear on the front rather than as a phrase.
+  //
+  // Measured off `.k-acts` and `.k-charging` — the classes each hero wears for
+  // its own act — because "one after another" is a claim about WHEN each body
+  // commits, and that is the moment those land. The all-out gets its announce
+  // beat checked with it: the word has to clear, and then the board has to be
+  // empty for a moment, before anybody moves.
+  const relay = await J(async () => {
+    const st = document.getElementById('k-stage');
+    const t0 = () => performance.now();
+    const watch = (sel, cls) => {
+      const seen = {};
+      const tick = setInterval(() => {
+        st.querySelectorAll(sel).forEach(h => {
+          if (h.classList.contains(cls) && seen[h.dataset.hero] == null) {
+            seen[h.dataset.hero] = Math.round(performance.now() - start);
+          }
+        });
+      }, 8);
+      return { seen, stop: () => clearInterval(tick) };
+    };
+    let start = t0();
+    // ── the all-out ──
+    window.K.startCombat({ seed: 21 });
+    const s = window.K.state(); s.kizuna = 100; s.boss.hp = 900; window.K.render();
+    start = t0();
+    const w1 = watch('.k-hero', 'k-charging');
+    let wordAt = null, wordGone = null;
+    const wt = setInterval(() => {
+      const on = !!st.querySelector('.k-allout-call');
+      if (on && wordAt == null) wordAt = Math.round(performance.now() - start);
+      if (!on && wordAt != null && wordGone == null) wordGone = Math.round(performance.now() - start);
+    }, 8);
+    await window.K.allOut();
+    w1.stop(); clearInterval(wt);
+    const out = Object.keys(w1.seen).map(k => w1.seen[k]).sort((a, b) => a - b);
+
+    // ── a pair card ──
+    window.K.startCombat({ seed: 21 });
+    // WHICH CARD IS A PAIR is a fact the game already draws: `isPairCard`
+    // puts `k-card-res` on the face. Reading it off the rendered hand asks the
+    // game rather than re-deriving its rule in the test.
+    const res = document.querySelector('#k-hand .k-card.k-card-res');
+    const pair = res ? res.dataset.card : null;
+    let duo = null;
+    if (pair) {
+      start = t0();
+      const w2 = watch('.k-hero', 'k-acts');
+      await window.K.playCard(pair);
+      await new Promise(z => setTimeout(z, 1600));
+      w2.stop();
+      duo = Object.keys(w2.seen).map(k => w2.seen[k]).sort((a, b) => a - b);
+    }
+    return { out, wordAt, wordGone, duo, pair: pair || null };
+  });
+  const gaps = (a) => (a || []).slice(1).map((t, i) => t - a[i]);
+  const outGaps = gaps(relay.out);
+  check('BEAT: the all-out announces, the board breathes, and then they go one at a time',
+    relay.out.length >= 2 && relay.wordGone != null
+    && relay.out[0] >= relay.wordGone            // nobody moves while the word is up
+    && relay.out[0] - relay.wordGone > 200       // …and the board holds, empty, first
+    && outGaps.every(g => g > 380),              // an act is about 600; this is a relay
+    JSON.stringify({ word: [relay.wordAt, relay.wordGone], commits: relay.out, gaps: outGaps })
+      + ' — `commits` is when each hero took `k-charging`, from the press. They '
+      + 'used to be 190ms apart, which against a 600ms act is three people '
+      + 'swinging at once');
+  const duoGaps = gaps(relay.duo);
+  check('BEAT: …and a pair card is two people, one after the other',
+    !relay.pair || (relay.duo && relay.duo.length === 2 && duoGaps[0] > 380),
+    JSON.stringify({ card: relay.pair, commits: relay.duo, gap: duoGaps[0] })
+      + ' — 200ms was the old relay, which put the second hero into the first '
+      + 'one\u2019s wind-up. No pair card in the opening hand is a pass: the '
+      + 'claim is about the ones that exist, not about drawing one');
+
   const r = report();
   await H.browser.close();
   process.exit(r.passed === r.total && !r.errs ? 0 : 1);
