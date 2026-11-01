@@ -154,7 +154,28 @@ const SKILLS = process.env.PACE_SKILL
         await payMark();
         const open = await J(() => window.R.reachable());
         if (!open.length) break;
-        const target = open[Math.floor(Math.random() * open.length)];
+        // ── PACE_ROUTE=runsim: route exactly as run.sim.cjs routes (Build 241)
+        // The two sims disagreed by forty points at nearly the same parry skill
+        // (32.5% here at 0.45, 72.5% there at 0.50), and the obvious difference
+        // is that this one picks a stop uniformly at random — 0.85 fires a run
+        // on a road that offers three. Routing the same way is what isolates
+        // the remaining difference to FIDELITY: this sim plays the real road,
+        // that one models it.
+        let target = open[Math.floor(Math.random() * open.length)];
+        if (process.env.PACE_ROUTE === 'runsim') {
+          target = await J((ids) => {
+            const R = window.R, st = R.state();
+            const nodes = ids.map(id => R.map().find(n => n.id === id));
+            const h = st.hp || {}, m = R.MAXHP || {};
+            const cur = Object.keys(h).reduce((n2, k) => n2 + h[k], 0);
+            const max = Object.keys(m).reduce((n2, k) => n2 + m[k], 0) || 112;
+            const hurt = cur / max;
+            const want = nodes.find(n => n.kind === 'camp' && hurt < 0.72)
+              || nodes.find(n => n.kind === 'story' && hurt >= 0.72)
+              || nodes.find(n => n.kind !== 'camp') || nodes[0];
+            return want.id;
+          }, open);
+        }
         const kind = await J((id) => (window.R.map().find(n => n.id === id) || {}).kind, target);
         tally.stops[kind] = (tally.stops[kind] || 0) + 1;
         if (kind === 'fight' || kind === 'elite' || kind === 'boss') {
