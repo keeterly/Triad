@@ -68,7 +68,17 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
       const offer = window.R.wakeOffer().filter(w => w.kind !== 'card');
       window.R.takeWake(offer[s % offer.length].id);
       const r = window.R.state();
-      return { map: window.R.map().map(n => ({ id: n.id, col: n.col, kind: n.kind, foe: n.foe, to: n.to })),
+      // ── WHAT IS ACTUALLY STANDING AT EACH STOP (Build 241) ───────────────
+      // This read \`foe\` and nothing else. An EVENT node has no foe — only
+      // \`event\` — and \`startCombat\` defaults a missing foe to the Mourning
+      // Regent, so every crossroads on every simulated road since Build 59 was
+      // a fight against the FINAL BOSS, at whatever column it stood in. And a
+      // PACK node carries its whole line in \`foes\`, with \`foe\` set to the
+      // first of it, so every pack was simulated as one creature.
+      return { map: window.R.map().map(n => ({ id: n.id, col: n.col, kind: n.kind, foe: n.foe,
+                                               foes: n.foes || null,
+                                               event: n.event ? window.R.eventDef(n.event) : null,
+                                               to: n.to })),
                woke: r.woke, embers: r.embers, kizuna: r.kizuna, vigor: r.vigor || 0,
                foeBonus: r.foeBonus || 0, hp: r.hp, bonds: r.bonds };
     }, seed);
@@ -183,10 +193,38 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
         continue;
       }
       if (want.kind === 'story') { embers += 1; tier = Math.min(5, tier + 1); trace.push({ col, kind: 'story', left: total(hp), turns: 0 }); continue; }
+      // ── A CROSSROADS IS A CHOICE, NOT A FIGHT (Build 241) ─────────────────
+      // Answered the way an ordinary player answers one: hurt, take the pick
+      // that heals most; otherwise the one that costs no blood and gives the
+      // most; and never a pick that cannot be paid for. Its effects are
+      // applied exactly as \`takeEvent\` applies them — every hero healed or
+      // hurt by the same flat amount, floored at 1 — so this cannot drift from
+      // the road it stands in for.
+      if (want.kind === 'event') {
+        const ev = want.event;
+        const picks = (ev && ev.picks || []).filter(pk => !(pk.fx.embers < 0 && embers + pk.fx.embers < 0));
+        const healOf = (pk) => pk.fx.heal || 0, hurtOf = (pk) => pk.fx.hurt || 0;
+        const gain = (pk) => (pk.fx.embers || 0) + (pk.fx.kizuna || 0) / 5 + (pk.fx.bond || 0) / 2;
+        let pick = null;
+        if (hurt < 0.72) pick = picks.filter(healOf).sort((a, b) => healOf(b) - healOf(a))[0] || null;
+        if (!pick) pick = picks.filter(pk => !hurtOf(pk)).sort((a, b) => gain(b) - gain(a))[0] || null;
+        if (!pick) pick = picks.slice().sort((a, b) => hurtOf(a) - hurtOf(b))[0] || null;
+        if (pick) {
+          const fx = pick.fx;
+          if (fx.embers) embers = Math.max(0, embers + fx.embers);
+          if (fx.heal || fx.hurt) for (const k of Object.keys(maxhp))
+            hp[k] = fx.heal ? Math.min(maxhp[k], hp[k] + fx.heal) : Math.max(1, hp[k] - fx.hurt);
+          if (fx.kizuna) kizuna = Math.max(0, Math.min(100, kizuna + fx.kizuna));
+          if (fx.bond) { const weak = BOND.pairs.slice().sort((a, b) => bonds[a] - bonds[b])[0];
+                         if (weak) bonds[weak] = (bonds[weak] || 0) + fx.bond; }
+        }
+        trace.push({ col, kind: 'event', left: total(hp), turns: 0 });
+        continue;
+      }
       fights++;
       const r = await page.evaluate(
         ([src, sd, pp, mt, o]) => eval(src)(sd, pp, mt, o),
-        [BOT, seed * 31 + col * 7 + 1, p, MAX_TURNS, { foe: want.foe, partyHp: hp, kizuna, roster,
+        [BOT, seed * 31 + col * 7 + 1, p, MAX_TURNS, { foe: want.foe, foes: want.foes, partyHp: hp, kizuna, roster,
           vigor: start.vigor, sigils,
           foeBonus: want.kind === 'boss' ? start.foeBonus : 0,
           upgrades: nodes.map(id => (TREE.find(n => n.id === id) || {}).card).filter(Boolean),

@@ -47,7 +47,7 @@ const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 
   // ── walk ─────────────────────────────────────────────────────────────────
   const turns = [];
-  let stops = 0, fights = 0;
+  let stops = 0, fights = 0, stale = 0;
 
   for (let step = 0; step < 14; step++) {
     const at = await J(() => {
@@ -63,17 +63,31 @@ const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
     stops++;
 
     if (at.kind === 'fight' || at.kind === 'elite' || at.kind === 'boss') {
-      fights++;
       await H.sleep(900);                       // the fight opens
+      // …AND IT HAS TO BE A FIGHT THAT OPENED. This walker answers no event,
+      // reckoning or bond screen, so a \`travel\` can be refused and leave the
+      // LAST fight's finished state on \`K.state()\` — which the loop below would
+      // then "play". A fight counts only if it is live on turn one.
+      const fresh = await J(() => { const C = window.K.state();
+        return !!C && C.turn === 1 && C.phase !== 'VICTORY' && C.phase !== 'DEFEAT'; });
+      if (!fresh) { stale++; continue; }
+      fights++;
       // ── play the fight, turn by turn, timing every phase ────────────────
       for (let t = 0; t < 12; t++) {
         const turn = await J(async () => {
           const K = window.K, C = K.state();
-          if (!C || C.over) return { done: true };
+          // ── A FIGHT IS OVER WHEN ITS PHASE SAYS SO (Build 241) ──────────
+          // This read \`C.over\`, which the engine has never set — a finished
+          // fight is \`phase === 'VICTORY' | 'DEFEAT'\`. So the loop kept
+          // playing turns against fights that had already ended, and on seed 7
+          // seven of thirty-two "turns" were a victorious party ending its turn
+          // at an empty board: zero notes, zero watch time, counted as play.
+          const over = (c) => !c || c.phase === 'VICTORY' || c.phase === 'DEFEAT';
+          if (over(C)) return { done: true };
           for (let i = 0; i < 200 && K.state().phase !== 'PLAYER_READY'; i++) {
             await new Promise(r => setTimeout(r, 25));
           }
-          const S = K.state(); if (!S || S.over) return { done: true };
+          const S = K.state(); if (over(S)) return { done: true };
 
           const t0 = performance.now();
           // WHAT THE SCREEN IS ASKING. Counted before anything is played:
@@ -90,13 +104,23 @@ const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
           const live = legal.filter(id => K.evaluateCard(id).condActive);
 
           const played = [];
+          // ── A COMBO IS LIVE WHEN IT IS PLAYED, NOT WHEN IT IS DEALT (Build 241)
+          // \`live\` above counts conditions met in the OPENING hand — before any
+          // card has been played. FOLLOW_UP, the commonest condition, needs a
+          // card played first by definition, so it can never be live there,
+          // and this report printed "NO live combo: 100% of turns" while the
+          // combo probe measured 94% of conditional cards landing armed. Both
+          // were true; only one was the question.
+          let landed = 0;
           const decideStart = performance.now();
           // a player spends their AP: greedy, preferring a live combo
           for (let g = 0; g < 4; g++) {
-            const st = K.state(); if (!st || st.over) break;
+            const st = K.state(); if (over(st)) break;
             const can = st.hand.filter(id => K.evaluateCard(id).currentCost <= st.ap);
             if (!can.length) break;
             const best = can.find(id => K.evaluateCard(id).condActive) || can[0];
+            // read BEFORE the play: the condition is about the turn so far
+            if (K.evaluateCard(best).condActive) landed++;
             await K.playCard(best);
             played.push(best);
             await new Promise(r => setTimeout(r, 40));
@@ -119,7 +143,7 @@ const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 
           return {
             reads, hand: hand.length, ap: ap0,
-            legal: legal.length, live: live.length,
+            legal: legal.length, live: live.length, landed,
             played: played.length, playedIds: played,
             decideMs: Math.round(decideMs), watchMs: Math.round(watchMs),
             totalMs: Math.round(performance.now() - t0),
@@ -239,13 +263,15 @@ const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
   const allNotes = turns.flatMap(t => t.notes || []);
   const noteKinds = allNotes.reduce((a, k) => { a[k] = (a[k] || 0) + 1; return a; }, {});
 
-  console.log(`\n  ── ${stops} stops walked · ${fights} fights · ${n} turns played ──\n`);
+  console.log(`\n  ── ${stops} stops walked · ${fights} fights · ${n} turns played ──`);
+  console.log(`     (${stale} fight stop(s) skipped: travel did not open a live fight)\n`);
   console.log('  DECISION DENSITY');
   console.log(`    cards playable per turn   ${avg('legal').toFixed(2).padStart(5)}   ${bar(avg('legal'), 5)}`);
   console.log(`    cards actually played     ${avg('played').toFixed(2).padStart(5)}   ${bar(avg('played'), 5)}`);
-  console.log(`    of those, combo live      ${avg('live').toFixed(2).padStart(5)}   ${bar(avg('live'), 5)}`);
+  console.log(`    combo live in the dealt hand ${avg('live').toFixed(2).padStart(5)}   (FOLLOW_UP can never be: nothing is played yet)`);
+  console.log(`    combos LANDED per turn    ${avg('landed').toFixed(2).padStart(5)}   ${bar(avg('landed'), 5)}`);
   console.log(`    turns with ONE legal play ${String(dead).padStart(5)}   ${pct(dead, n)}% of turns`);
-  console.log(`    turns with NO live combo  ${String(noLive).padStart(5)}   ${pct(noLive, n)}% of turns`);
+  console.log(`    turns with NO combo landed ${String(turns.filter(t => !t.landed).length).padStart(4)}   ${pct(turns.filter(t => !t.landed).length, n)}% of turns`);
 
   console.log('\n  THE SPLIT — where a turn’s time goes');
   console.log(`    deciding   ${String(Math.round(decide / n)).padStart(5)}ms/turn  ${bar(decide, total)}  ${pct(decide, total)}%`);

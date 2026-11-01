@@ -11,7 +11,10 @@ module.exports.BOT = `
 (async (seed, pSuccess, maxTurns, opts) => {
   const K = window.K;
   const O = opts || {};
-  K.startCombat({ seed, foe: O.foe ? K.FOES[O.foe] : undefined, partyHp: O.partyHp || undefined,
+  // \`foes\` is a pack, exactly as the road hands one over — without it a line
+  // of three husks was simulated as one
+  K.startCombat({ seed, foe: O.foe ? K.FOES[O.foe] : undefined, foes: O.foes || null,
+                  partyHp: O.partyHp || undefined,
                   upgrades: O.upgrades || undefined, allout: O.allout || undefined,
                   kizuna: O.kizuna || 0, roster: O.roster || undefined,
                   // what the awakening changed — a bot that dropped these
@@ -20,6 +23,18 @@ module.exports.BOT = `
                   sigils: O.sigils || {} });
   let rnd = seed * 2654435761 % 2147483647;
   const rand = () => { rnd = (rnd * 48271) % 2147483647; return rnd / 2147483647; };
+  // ── HOW MUCH DO THE CARDS MATTER? (Build 241) ─────────────────────────
+  //
+  // \`policy: 'random'\` plays a uniformly random affordable card wherever the
+  // greedy policy would have chosen one — and does no positioning and no
+  // cycling, because those are card-layer judgement too. Everything else is
+  // identical, and above all the PARRY is: this RNG is separate from \`rand\`,
+  // so the two policies face the same sequence of grades on the same seed and
+  // the only thing that differs between them is how the hand was played.
+  const RANDOM = O.policy === 'random';
+  let prnd = (seed * 40503 + 17) % 2147483647 || 1;
+  const prand = () => { prnd = (prnd * 48271) % 2147483647; return prnd / 2147483647; };
+  const pickRandom = (ids) => ids.length ? ids[Math.floor(prand() * ids.length)] : null;
   const S = () => K.state();
   const living = () => Object.keys(S().heroes).filter(h => !S().heroes[h].downed);
   // Every exit reports the wounds it leaves behind: on a road they are the
@@ -118,7 +133,7 @@ module.exports.BOT = `
     // step out of the way BEFORE being hurt, which is the only time the choice
     // is worth anything. It now moves whoever a sweep is aimed at, when moving
     // measurably blunts what is coming and the AP is spare.
-    if ((it.hits || []).some(h2 => h2.sweep) && S().ap >= 2 && !S().turnState.moved) {
+    if (!RANDOM && (it.hits || []).some(h2 => h2.sweep) && S().ap >= 2 && !S().turnState.moved) {
       const before = forecast();
       const shelt = K.ROW_SHELTER || {};
       const order = ['front', 'mid', 'back'];
@@ -147,8 +162,22 @@ module.exports.BOT = `
     // TRIAGE FIRST — buy exactly enough survival, then swing with the rest.
     // This is the deck's core tradeoff: defense costs AP, so a player who
     // cannot parry spends their whole turn staying alive and never kills.
+    // the random policy spends every AP on whatever it happens to pick
+    if (RANDOM) {
+      let rl = 0;
+      while (S().ap > 0 && rl++ < 8) {
+        const cur = S();
+        const can = cur.hand.filter(id => { const ev = K.evaluateCard(id);
+          return ev && cur.ap >= ev.currentCost
+            && !K.ownerHeroes(ev.card).some(h => cur.heroes[h].downed); });
+        const pick = pickRandom(can);
+        if (!pick || !K.playCard(pick)) break;
+        if (S().pendingDiscard) K.pickDiscard(pickRandom(S().hand) || S().hand[0]);
+        if (S().phase === 'VICTORY') return { win: true, turns: S().turn, hp: HP(), kizuna: KZ(), allouts: AO(), pairBond: PB() };
+      }
+    }
     let guardLoop = 0;
-    while (S().ap > 0 && guardLoop++ < 8) {
+    while (!RANDOM && S().ap > 0 && guardLoop++ < 8) {
       const d = deficit();
       if (d.need <= 0 || !d.who) break;
       let best = null, bestV = 0;
@@ -169,7 +198,7 @@ module.exports.BOT = `
     // THEN OFFENSE — value per AP, nudged toward alternating heroes so the
     // Follow-Up discounts, Finale coverage and Bond stitches actually land.
     let atkLoop = 0;
-    while (S().ap > 0 && atkLoop++ < 8) {
+    while (!RANDOM && S().ap > 0 && atkLoop++ < 8) {
       const cur = S();
       const last = cur.turnState.actionsPlayed[cur.turnState.actionsPlayed.length - 1];
       let best = null, bestV = 0.5;
@@ -202,7 +231,7 @@ module.exports.BOT = `
     }
 
     // Free cycle: dump whatever is least useful right now.
-    if (!S().turnState.cycled && S().hand.length > 1) {
+    if (!RANDOM && !S().turnState.cycled && S().hand.length > 1) {
       const h = S().hand;
       let worst = null, wv = 1e9;
       for (const id of h) { const ev = K.evaluateCard(id); if (!ev) continue;
