@@ -32,6 +32,23 @@ const total = (hp) => hp.ash + hp.elin + hp.mira;
   const H = await boot({ query: 'road=1' });
   const { J, page } = H;
   await J(() => { window.__SIM = true; });
+  // SIM_TUNE: a proposed tuning, applied to the live engine before any road is
+  // walked — the same \`K.tune\` door balance.sim uses, so a number can be tried
+  // on the whole road rather than only on one fight with a party nobody brings.
+  if (process.env.SIM_TUNE) {
+    const t = await J((x) => window.K.tune(x), JSON.parse(process.env.SIM_TUNE));
+    console.log('  SIM_TUNE ' + JSON.stringify(t));
+  }
+  // SIM_FOE: a patch to one creature's definition — `{"mourner":{"dmgMul":1.3}}`.
+  // A foe's own multipliers live on its definition rather than in TUNE, and
+  // \`K.FOES\` is the engine's object by reference, so this is the rule the
+  // fight will actually read, not a copy of it.
+  if (process.env.SIM_FOE) {
+    const f = await J((x) => { for (const id of Object.keys(x)) Object.assign(window.K.FOES[id], x[id]);
+      return Object.keys(x).map(id => id + ' ' + JSON.stringify(window.K.FOES[id].dmgMul) + '/' + window.K.FOES[id].hp); },
+      JSON.parse(process.env.SIM_FOE));
+    console.log('  SIM_FOE  ' + JSON.stringify(f));
+  }
   // The mend is the game's number, not the sim's — a simulator carrying its own
   // copy of a tuning constant measures a game nobody is playing.
   const CAMP_FRAC = await J(() => window.R.CAMP_FRAC);
