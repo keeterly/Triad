@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 240;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 241;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -586,7 +586,11 @@ const RESONANCE_PAIR = ['ash', 'elin'];
 //
 // It is global rather than the Regent's alone because the whole road was tuned
 // against the old deck, and the whole road is now fought with the new one.
-const TUNE = { dmgScale: 0.70, dirge: [3, 3], heal: [7, 9], parryKeep: 0.3, bossHp: 168,
+// \`dirge\` is the Regent's own (every other foe carries its own on its def).
+// Phase two sings louder — 3 then 4 — so the fight has a second act that taxes
+// every party, parrying or not, rather than the same toll from first turn to
+// last (Build 241; measured with the dmgMul change on the Regent's def).
+const TUNE = { dmgScale: 0.70, dirge: [3, 4], heal: [7, 9], parryKeep: 0.3, bossHp: 168,
   alloutDmg: 26, alloutBrk: 4, alloutAp: 1 };
 
 const ALLOUT_BASE = { dmg: TUNE.alloutDmg, brk: TUNE.alloutBrk };
@@ -898,8 +902,41 @@ const FOES = {
   revenant: { id: 'revenant', name: 'The Kneeling Revenant', art: 'foe-revenant', tier: 'elite',
               hp: 98, brk: 11, dmgMul: 0.88, dirge: 2, phases: 2, embers: 5,
               intents: ['scythe', 'flurry', 'hymn'] },
+  // ── THE REGENT IS THE CLIMAX, OR SHE IS NOTHING (Build 241) ───────────────
+  //
+  // Measured on the road the player actually walks, she was the LEAST dangerous
+  // fight on it. A half-parry party that reached her won 29 times in 31, and an
+  // excellent one walked away with 85 of its 112 health. The run was decided at
+  // the first elite and the fight after it, and the final boss was a victory lap.
+  //
+  // It went unseen for a long time because the instrument that owns the run's
+  // difficulty, run.sim.cjs, never walked the real road: an event node has no
+  // \`foe\`, \`startCombat\` defaults a missing foe to HER, and so every simulated
+  // crossroads was a fight against the final boss at column 2 or 5 or 8. The
+  // road read as brutal, and she was tuned against a party that never arrives —
+  // balance.sim's fresh starter deck — while the real one turns up built.
+  //
+  // Corrected, the road read 15.0 / 72.5 / 97.5% against designed gates of
+  // 0-6 / 8-45 / 65-100, and pace.sim (which plays the real road, and never had
+  // the bug) agreed once it routed the same way: 60% at clumsy.
+  //
+  // Her BLOWS are the lever, because they are the half of her a player answers.
+  // Swept on the corrected road, n=40 per band, same seeds:
+  //     dmgMul 1.0   no 15.0   half 72.5   excellent 97.5   she kills  2/31 half
+  //     dmgMul 1.8              half 52.5                    she kills 10/31
+  //     dmgMul 1.9 + phase-2 dirge 4:
+  //                  no  0.0   half 47.5   excellent 97.5   she kills 12/31
+  //     dmgMul 2.1 + phase-2 dirge 4:   identical 19/40 at half — the same
+  //                  parties die, and the survivors only lose margin (25 → 16)
+  // 1.9 is therefore the whole of the effect, and anything above it spends the
+  // average winner's last few HP for no change in who wins. She is now where
+  // average runs end, which is what a final boss is for.
+  //
+  // She barely touches an excellent party (85 → 76 left), and that is the
+  // design's own stated thesis rather than a gap: a string read clean TURNS the
+  // blow, so mastery is decisive. See balance.sim.cjs's closing note.
   mourner:  { id: 'mourner', name: 'The Mourning Regent', art: 'foe-mourner', tier: 'boss',
-              hp: null, brk: 12, dmgMul: 1, dirge: null, phases: 2, embers: 8,
+              hp: null, brk: 12, dmgMul: 1.9, dirge: null, phases: 2, embers: 8,
               intents: ['scythe', 'hymn', 'rain', 'dirgesong', 'crescendo'] },
 };
 // `hp: null` and `dirge: null` mean "whatever TUNE says" — the boss stays the
