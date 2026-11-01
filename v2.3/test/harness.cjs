@@ -33,7 +33,15 @@ function ping(url) {
 }
 async function ensureServer(port, root) {
   if (await ping(`http://127.0.0.1:${port}/v2.3/index.html`)) return null;
-  const server = spawn('npx', ['http-server', root, '-p', String(port), '-s'], { stdio: 'ignore', detached: true });
+  // ON WINDOWS \`npx\` IS \`npx.cmd\`, and \`spawn\` without a shell cannot find a
+  // .cmd — every suite would die with ENOENT before it opened a page. A shell
+  // resolves it. Not used elsewhere: on Mac and Linux the direct spawn is right
+  // and \`detached\` lets the server outlive the suite that started it.
+  const win = process.platform === 'win32';
+  // …and only then is the path quoted: through a shell, a space in it would
+  // split the argument; without one, the quotes would be passed literally.
+  const server = spawn('npx', ['http-server', win ? JSON.stringify(root) : root, '-p', String(port), '-s'],
+    win ? { stdio: 'ignore', shell: true, windowsHide: true } : { stdio: 'ignore', detached: true });
   server.unref();
   for (let i = 0; i < 20; i++) {
     if (await ping(`http://127.0.0.1:${port}/v2.3/index.html`)) return server;

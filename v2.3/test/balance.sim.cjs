@@ -14,7 +14,25 @@ const { boot } = require('./harness.cjs');
 // the end of a full run, and docs/RESONANCE-DECK.md.
 const BANDS = [
   { name: 'NO PARRY',      p: 0.00, lo: 5,  hi: 15, glo: 0,  ghi: 15 },
-  { name: '~HALF PARRIES', p: 0.50, lo: 25, hi: 40, glo: 25, ghi: 55 },
+  // ── THIS IS A FRESH PARTY, AND NOBODY MEETS HER FRESH (Build 241) ────────
+  // Every gate here measures the Regent against the STARTER deck at full
+  // health — no kindled nodes, no marks, no bond cards, no vigor, no kizuna
+  // carried in. No player ever brings her that party: the road always
+  // delivers a built one. For as long as this was the only boss gate she was
+  // tuned for a fight nobody plays, and on the real road (run.sim, once it
+  // stopped fighting her at every crossroads) a half-parry party beat her 29
+  // times in 31.
+  //
+  // Build 241 tuned her on the road instead, and a fresh half-parry party now
+  // wins 3.3%. That is the point rather than a failure: an un-built party at
+  // average skill should not beat the final boss, and run.sim.cjs is the gate
+  // for the experience. So this band is now a CEILING on an unprepared party —
+  // she must not be beatable without the road — and the floor is gone.
+  //
+  // The other two bands keep their meaning unchanged: a party that never
+  // parries cannot win, and a fresh party that parries excellently still can,
+  // which is "skill alone can carry" and is why EXCELLENT keeps its floor.
+  { name: '~HALF PARRIES', p: 0.50, lo: 25, hi: 40, glo: 0, ghi: 40 },
   { name: 'EXCELLENT',     p: 0.92, lo: 45, hi: 60, glo: 85, ghi: 100 },
 ];
 const RUNS = Number(process.env.SIM_RUNS || 220);
